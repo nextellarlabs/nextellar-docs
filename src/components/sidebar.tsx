@@ -160,7 +160,7 @@ export function Sidebar({
             fixed top-0 bottom-0 z-50 flex flex-col
             ${side === 'left' ? 'left-0' : 'right-0'}
             ${isOpen ? 'translate-x-0' : side === 'left' ? '-translate-x-full' : 'translate-x-full'}
-            w-[85vw] max-w-[300px] bg-white dark:bg-gray-900 
+            w-[85vw] max-w-[300px] bg-white dark:bg-[#000000] 
             ${side === 'left' ? 'border-r' : 'border-l'} border-border
             transition-transform duration-300 ease-in-out
           `,
@@ -369,10 +369,9 @@ export function SidebarMenuItem({
           href={href}
           className={`
             flex items-center justify-between w-full p-2 rounded-md
-            ${
-              isActive
-                ? 'bg-accent text-accent-foreground'
-                : 'hover:bg-accent text-gray-700 dark:text-gray-300'
+            ${isActive
+              ? 'bg-accent text-accent-foreground'
+              : 'hover:bg-accent text-gray-700 dark:text-gray-300'
             }
             ${!isOpen ? 'justify-center' : ''}
           `}
@@ -384,10 +383,9 @@ export function SidebarMenuItem({
         <button
           className={`
             flex items-center justify-between w-full p-2 rounded-md
-            ${
-              isActive
-                ? 'bg-sidebar text-blue-500'
-                : 'hover:bg-accent text-gray-700 dark:text-gray-300'
+            ${isActive
+              ? 'bg-sidebar text-blue-500'
+              : 'hover:bg-accent text-gray-700 dark:text-gray-300'
             }
             ${!isOpen ? 'justify-center' : ''}
           `}

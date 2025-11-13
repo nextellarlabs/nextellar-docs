@@ -1,127 +1,94 @@
-import { Component, Paintbrush, Rocket, Search, Wrench } from 'lucide-react';
 
-export const sidebarNav = [
+import React from 'react';
+import { Component, Paintbrush, Rocket, Search, Wrench, Database, Zap } from 'lucide-react';
+
+export type SidebarPage = {
+  title: string;
+  href?: string;
+};
+
+export type SidebarSection = {
+  title: string;
+  icon?: React.ReactNode;
+  defaultOpen?: boolean;
+  href?: string;
+  pages?: SidebarPage[];
+};
+
+export const sidebarNav: SidebarSection[] = [
   {
     title: 'Getting Started',
     icon: <Rocket className="h-5 w-5" />,
     defaultOpen: true,
     pages: [
-      {
-        title: 'Introduction',
-        href: '/docs/getting-started/introduction',
-      },
-      {
-        title: 'Installation',
-        href: '/docs/getting-started/installation',
-      },
-      {
-        title: 'Quick Start',
-        href: '/docs/getting-started/quick-start',
-      },
+      { title: 'Introduction', href: '/docs/getting-started/introduction' },
+      { title: 'Installation', href: '/docs/getting-started/installation' },
+      { title: 'Quick Start', href: '/docs/getting-started/quick-start' },
+    ],
+  },
+  {
+    title: 'CLI',
+    icon: <Zap className="h-5 w-5" />,
+    defaultOpen: true,
+    pages: [
+      { title: 'Commands', href: '/docs/cli/commands' },
+      { title: 'Flags & Options', href: '/docs/cli/flags' },
+      { title: 'Scaffolding Templates', href: '/docs/cli/templates' },
+    ],
+  },
+  {
+    title: 'SDK & Reference',
+    icon: <Database className="h-5 w-5" />,
+    defaultOpen: false,
+    pages: [
+      { title: 'Overview', href: '/docs/sdk/overview' },
+      { title: 'Hooks', href: '/docs/hooks' },
+      { title: 'API Reference', href: '/docs/sdk/api-reference' },
+    ],
+  },
+  {
+    title: 'Hooks',
+    icon: <Component className="h-5 w-5" />,
+    defaultOpen: false,
+    pages: [
+      { title: 'useStellarAccount', href: '/docs/hooks/useStellarAccount' },
+      { title: 'useStellarBalances', href: '/docs/hooks/useStellarBalances' },
+      { title: 'useStellarPayment', href: '/docs/hooks/useStellarPayment' },
+      { title: 'useTransactionHistory', href: '/docs/hooks/useTransactionHistory' },
+      { title: 'useTrustlines', href: '/docs/hooks/useTrustlines' },
+      { title: 'useOfferBook', href: '/docs/hooks/useOfferBook' },
+      { title: 'useSorobanContract', href: '/docs/hooks/useSorobanContract' },
+      { title: 'useSorobanEvents', href: '/docs/hooks/useSorobanEvents' },
+    ],
+  },
+  {
+    title: 'Integrations',
+    icon: <Wrench className="h-5 w-5" />,
+    defaultOpen: true,
+    pages: [
+      { title: 'Stellar Horizon', href: '/docs/integrations/horizon' },
+      { title: 'Soroban (Smart Contracts)', href: '/docs/integrations/soroban' },
+      { title: 'Wallets (Freighter, Albedo)', href: '/docs/integrations/wallets' },
+      { title: 'WalletConnect', href: '/docs/integrations/walletconnect' },
+      { title: 'Testing (MSW)', href: '/docs/integrations/testing' },
     ],
   },
   {
     title: 'Components',
-    icon: <Component className="h-5 w-5" />,
+    icon: <Paintbrush className="h-5 w-5" />,
     defaultOpen: false,
     pages: [
-      {
-        title: 'Button',
-        href: '/docs/components/button',
-      },
-      {
-        title: 'Input',
-        href: '/docs/components/input',
-      },
-      {
-        title: 'Label',
-        href: '/docs/components/label',
-      },
-      {
-        title: 'Checkbox',
-        href: '/docs/components/checkbox',
-      },
-      {
-        title: 'Search Button',
-        href: '/docs/components/search-button',
-      },
-      {
-        title: 'Tabs',
-        href: '/docs/components/tabs',
-      },
-      {
-        title: 'Sidebar',
-        href: '/docs/components/sidebar',
-      },
-      {
-        title: 'Steps',
-        href: '/docs/components/steps',
-      },
-      {
-        title: 'Syntax Highlighter',
-        href: '/docs/components/syntax-highlighter',
-      },
-      {
-        title: 'Folder Tree',
-        href: '/docs/components/folder-tree',
-      },
-      {
-        title: 'Note',
-        href: '/docs/components/note',
-      },
-      {
-        title: 'Menu',
-        href: '/docs/components/menu',
-      },
-      {
-        title: 'Popover',
-        href: '/docs/components/popover',
-      },
-      {
-        title: 'Dialog',
-        href: '/docs/components/dialog',
-      },
-      {
-        title: 'Select',
-        href: '/docs/components/select',
-      },
+      { title: 'ConnectWalletButton', href: '/docs/components/connect-wallet-button' },
+      { title: 'BalanceCard', href: '/docs/components/balance-card' },
+      { title: 'TransactionList', href: '/docs/components/transaction-list' },
+      { title: 'PaymentForm', href: '/docs/components/payment-form' },
     ],
   },
   {
-    title: 'Customization',
-    icon: <Wrench className="h-5 w-5" />,
-    defaultOpen: true,
-    pages: [
-      {
-        title: 'Sidebar',
-        href: '/docs/customization/sidebar',
-      },
-      {
-        title: 'Toc',
-        href: '/docs/customization/toc',
-      },
-      {
-        title: 'Font',
-        href: '/docs/customization/font',
-      },
-      {
-        title: 'SEO and Social Sharing',
-        href: '/docs/customization/seo-and-social-sharing',
-      },
-    ],
-  },
-  {
-    title: 'Theme',
-    icon: <Paintbrush className="h-5 w-5" />,
-    defaultOpen: true,
-    href: '/docs/theme',
-    pages: [],
-  },
-  {
-    title: 'Search Bar',
+    title: 'Search',
     icon: <Search className="h-5 w-5" />,
     defaultOpen: true,
-    href: '/docs/search-bar',
+    href: '/docs/search',
     pages: [],
   },
 ];

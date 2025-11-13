@@ -15,11 +15,8 @@ html {
   }
 }
 
-/* You can add plugins here if needed */
-/* @plugin "tailwindcss-animate"; */
-
+/* Theme variable mapping (keeps your original --color-* names) */
 @theme {
-  /* Map HSL variables to semantic color names */
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
 
@@ -77,105 +74,136 @@ html {
   }
 
   :root {
-    /* Base Theme - Light Mode */
-    --background: 0 0% 100%;
-    --foreground: 0 0% 9%;
+    /* -------------------------
+       LIGHT THEME (defaults)
+       - Background: White (#FFFFFF)
+       - Foreground: Black (#000000)
+       ------------------------- */
 
-    /* Borders */
-    --border: 0 0% 85%;
-    --border-header: 0 0% 85%;
+    /* Base colors (H S% L%) — white / black */
+    --background: 0 0% 100%;        /* #FFFFFF */
+    --foreground: 0 0% 0%;          /* #000000 */
 
-    /* UI Colors */
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 215 14% 34%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 215.4 35.87% 87.65%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    /* Borders
+       --border uses black with alpha 0.4 for card-border-like look:
+       #00000066 ≈ alpha 0.4 -> "0 0% 0% / 0.4" */
+    --border: 0 0% 0% / 0.4;        /* #00000066 used for card borders */
+    --border-header: 0 0% 0% / 0.1; /* subtle header border (10% black) */
 
-    /* Component Colors */
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 3.9%;
+    /* UI Colors (kept minimal / neutral) */
+    --primary: 0 0% 0%;             /* primary stays black by default */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 96%;          /* very light grey */
+    --secondary-foreground: 0 0% 0%;
+    --muted: 0 0% 98%;
+    --muted-foreground: 0 0% 30%;
+    --accent: 0 0% 96%;
+    --accent-foreground: 0 0% 0%;
+
+    /* Components */
+    --card: 0 0% 100%;              /* white card background */
+    --card-foreground: 0 0% 0%;
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 9%;
+    --popover-foreground: 0 0% 0%;
 
-    /* Status Colors */
+    /* Status colors (kept neutral — you can change later) */
     --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive-foreground: 0 0% 100%;
     --success: 142 71% 45%;
-    --success-foreground: 210 40% 98%;
+    --success-foreground: 0 0% 100%;
     --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 9%;
+    --warning-foreground: 0 0% 0%;
 
     /* Other UI Elements */
-    --input: 220 13% 91%;
-    --ring: 222.2 47.4% 11.2%;
+    --input: 0 0% 98%;
+    --ring: 0 0% 0%;
+    --sidebar: 0 0% 98%;
+    --sidebar-foreground: 0 0% 0%;
+    --sidebar-active: 0 0% 90%;
+    --sidebar-active-foreground: 0 0% 0%;
+
+    /* Button border: #0000001A ≈ alpha 0.102 */
+    --button: 0 0% 100%;
+    --button-border: 0 0% 0% / 0.102; /* #0000001A */
+    --button-foreground: 0 0% 0%;
+    --button-hover: 0 0% 96%;
+    --button-secondary: 0 0% 98%;
+    --button-secondary-foreground: 0 0% 0%;
 
     /* Border Radius */
     --radius: 0.5rem;
-
-    /* Sidebar Elements (using secondary as base) */
-    --sidebar: 210 40% 96.1%;
-    /* Same as secondary */
-    --sidebar-foreground: 215.4 16.3% 46.9%;
-    /* Same as muted-foreground */
-    --sidebar-active: 215 14% 34%;
-    /* Light gray for active state */
-    --sidebar-active-foreground: 222.2 47.4% 11.2%;
   }
 
   .dark {
-    /* Base Theme - Dark Mode */
-    --background: 0 0% 4%;
-    --foreground: 0 0% 93%;
+    /* -------------------------
+       DARK THEME
+       - Background: Black (#000000)
+       - Foreground: White (#FFFFFF)
+       - Card border: #00000066 (kept consistent)
+       - Button border: #0000001A
+       ------------------------- */
 
-    /* Borders */
-    --border: 240 3.7% 25.9%;
-    --border-header: 240 3.7% 15.9%;
+    --background: 0 0% 0%;          /* #000000 */
+    --foreground: 0 0% 100%;        /* #FFFFFF */
 
-    /* UI Colors */
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 220 13% 31%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 215 23.96% 33.07%;
-    --accent-foreground: 210 40% 98%;
+    /* Borders: keep card border semi-transparent black over dark surfaces */
+    --border: 0 0% 0% / 0.4;        /* #00000066 */
+    --border-header: 0 0% 0% / 0.2; /* slightly stronger header border on dark */
 
-    /* Component Colors */
-    --card: 0 0% 3.9%;
-    --card-foreground: 0 0% 98%;
+    /* UI Colors tuned for dark */
+    --primary: 0 0% 0%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 8%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 0 0% 12%;
+    --muted-foreground: 0 0% 100%;
+    --accent: 0 0% 6%;
+    --accent-foreground: 0 0% 100%;
+
+    /* Components */
+    --card: 0 0% 4%;               /* near-black card */
+    --card-foreground: 0 0% 100%;
     --popover: 0 0% 6%;
-    --popover-foreground: 0 0% 93%;
+    --popover-foreground: 0 0% 100%;
 
-    /* Status Colors */
+    /* Status colors */
     --destructive: 0 62.8% 50.6%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive-foreground: 0 0% 100%;
     --success: 142 69% 40%;
-    --success-foreground: 210 40% 98%;
+    --success-foreground: 0 0% 100%;
     --warning: 38 92% 45%;
-    --warning-foreground: 0 0% 9%;
+    --warning-foreground: 0 0% 0%;
 
     /* Other UI Elements */
-    --input: 240 3.7% 15.9%;
-    --ring: 210 40% 98%;
+    --input: 0 0% 12%;
+    --ring: 0 0% 100%;
+    --sidebar: 0 0% 0%;            /* sidebar as pure black in dark theme */
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-active: 0 0% 10%;
+    --sidebar-active-foreground: 0 0% 100%;
 
-    /* Sidebar Elements (using muted as base) */
-    --sidebar: 217.2 32.6% 17.5%;
-    /* Same as muted/secondary in dark mode */
-    --sidebar-foreground: 215 20.2% 65.1%;
-    /* Same as muted-foreground */
-    --sidebar-active: 220 13% 31%;
-    /* Darker gray for active state */
-    --sidebar-active-foreground: 210 40% 98%;
+    /* Button border (same hex with alpha applied) */
+    --button: 0 0% 4%;
+    --button-border: 0 0% 0% / 0.102; /* #0000001A */
+    --button-foreground: 0 0% 100%;
+    --button-hover: 0 0% 8%;
+    --button-secondary: 0 0% 6%;
+    --button-secondary-foreground: 0 0% 100%;
   }
 
   body {
     @apply bg-background text-foreground;
     font-family: Arial, Helvetica, sans-serif, var(--font-geist-mono);
+  }
+
+  /* Ensure elements that rely on card borders use the semi-transparent black */
+  .card, .panel, .popover {
+    border-color: var(--color-border);
+  }
+
+  /* Buttons using the button-border variable */
+  button, .btn {
+    border-color: var(--color-button-border);
   }
 }
 
@@ -183,5 +211,15 @@ html {
   .border-b-header {
     @apply border-b;
     border-bottom-color: var(--color-border-header);
+  }
+
+  /* utility to force card border color (explicit if needed elsewhere) */
+  .card-border {
+    border: 1px solid var(--color-border);
+  }
+
+  /* utility for button border */
+  .btn-border {
+    border: 1px solid var(--color-button-border);
   }
 }
