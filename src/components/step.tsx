@@ -2,7 +2,9 @@
 
 import React from 'react';
 import clsx from 'clsx';
-import { cn } from '@/lib/utils';
+
+// Utility function (replace with your actual implementation)
+const cn = (...classes: any[]) => clsx(...classes);
 
 export interface StepsProps {
   children: React.ReactNode;
@@ -18,7 +20,7 @@ export function Steps({
     React.isValidElement(child)
   );
   return (
-    <div className={cn('relative', className)} {...props}>
+    <div className={cn('relative space-y-8', className)} {...props}>
       {stepsArray.map((child, index) =>
         React.cloneElement(child as React.ReactElement<any>, {
           stepNumber: index + 1,
@@ -52,7 +54,6 @@ export function Step({
   lineClassName,
   numberClassName,
 }: StepProps) {
-  // Extract Title and Content children
   const childrenArray = React.Children.toArray(
     children
   ) as React.ReactElement[];
@@ -66,35 +67,40 @@ export function Step({
   return (
     <div
       className={clsx(
-        'relative pl-10',
+        'relative pl-12 group',
         className,
-        isHorizontal ? 'flex items-center gap-4' : 'flex flex-col'
+        isHorizontal ? 'flex items-start gap-6' : 'flex flex-col'
       )}
     >
-      {/* Step number circle */}
+      {/* Step number circle - minimalist design */}
       <div
         className={clsx(
-          'absolute left-0 top-0 flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-200 font-medium',
+          'absolute left-0 top-0 flex h-9 w-9 items-center justify-center rounded-full',
+          'bg-black dark:bg-white',
+          'text-white dark:text-black font-medium text-sm',
+          'transition-all duration-200',
           numberClassName
         )}
       >
         {stepNumber}
       </div>
-      {/* Connector line */}
+
+      {/* Connector line - simple and clean */}
       {!isLast && (
         <div
           className={clsx(
-            'absolute left-4 top-8 h-full w-0.5 bg-gray-300 dark:bg-gray-600',
+            'absolute left-[17px] top-9 w-[2px] bg-gray-200 dark:bg-gray-800',
             lineClassName
           )}
+          style={{ height: 'calc(100% + 2rem)' }}
         />
       )}
+
       {isHorizontal ? (
-        // Horizontal layout: Title on the left, content on the right.
         <>
           <div
             className={clsx(
-              'font-medium text-gray-900 dark:text-gray-100',
+              'font-medium text-base text-black dark:text-white',
               titleClassName
             )}
           >
@@ -102,7 +108,7 @@ export function Step({
           </div>
           <div
             className={clsx(
-              'text-gray-600 dark:text-gray-300',
+              'text-gray-600 dark:text-gray-400 text-sm leading-relaxed',
               contentClassName
             )}
           >
@@ -110,11 +116,10 @@ export function Step({
           </div>
         </>
       ) : (
-        // Vertical layout: Title on top, content below.
         <>
           <div
             className={clsx(
-              'font-medium text-gray-900 dark:text-gray-100 mb-2',
+              'font-medium text-base text-black dark:text-white mb-2',
               titleClassName
             )}
           >
@@ -122,7 +127,8 @@ export function Step({
           </div>
           <div
             className={clsx(
-              'text-gray-600 dark:text-gray-300',
+              'text-gray-600 dark:text-gray-400 text-sm leading-relaxed',
+              'pb-8',
               contentClassName
             )}
           >
@@ -134,7 +140,6 @@ export function Step({
   );
 }
 
-// Title component for a Step.
 export function StepTitle({
   className,
   ...props
@@ -142,10 +147,10 @@ export function StepTitle({
   return <div className={cn('', className)} {...props} />;
 }
 
-// Content component for a Step.
 export function StepContent({
   className,
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('', className)} {...props} />;
+  return <div className={cn('prose prose-gray dark:prose-invert max-w-none', className)} {...props} />;
 }
+

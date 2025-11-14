@@ -1,154 +1,137 @@
 ---
 title: Installation
-description: A guide to install Pinexio locally to your system and get it running
+description: A concise guide that shows how to install Nextellar on your system and how to scaffold a new project using the CLI.
 date: 2025-03-12
 ---
 
 # Installation Guide
 
-Welcome to the installation guide for forking the application from GitHub and setting up your development environment!
-
 <Steps>
   <Step>
-    <StepTitle>Step 1: Fork the Repository</StepTitle>
+    <StepTitle>Install globally (recommended for frequent use)</StepTitle>
     <StepContent>
-    <div>
       <div>
-        Visit our GitHub repository and click the "Fork" button to create your own copy.
-      </div>
-        <a
-          href="https://github.com/sanjayc208/pinexio"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Fork the Repository on GitHub
-        </a>
-      </div>
-    </StepContent>
-  </Step>
-  <Step>
-    <StepTitle>Step 2: Clone Your Fork</StepTitle>
-    <StepContent>
-    <div>
-      After forking, clone your repository to your local machine:
-  ```sh
-  git clone https://github.com/sanjayc208/pinexio.git
-  ```
-      </div>
-    </StepContent>
-  </Step>
-  <Step>
-    <StepTitle>Step 3: Install Dependencies</StepTitle>
-    <StepContent>
-    <div>
-      Install the project dependencies using your preferred package manager:
-       <CodeTabs tabs={{
-        'npm':{
-          syntax:'npm i'
-        },
-        'pnpm':{
-          syntax:'pnpm i'
-        },
-        'yarn':{
-          syntax:'yarn i'
-        },
-       }} />
-      </div>
-    </StepContent>
-  </Step>
-  <Step>
-    <StepTitle>Step 4: Run the Development Server</StepTitle>
-    <StepContent>
-    <div>
-      Start your development server with one of the following commands:
-      <CodeTabs tabs={{
-        'npm':{
-          syntax:'npm run dev'
-        },
-        'pnpm':{
-          syntax:'pnpm dev'
-        },
-        'yarn':{
-          syntax:'yarn run dev'
-        },
-       }} />
-      </div>
-    </StepContent>
-  </Step>
-  <Step>
-    <StepTitle>Step 5: Make Changes</StepTitle>
-    <StepContent>
-    <div>
-      <p>If you want to make changes:</p>
+        <p>Install the Nextellar CLI globally so it is available from any terminal session.</p>
+```bash
+# Using npm
+npm install -g nextellar
 
-      1. Edit files in the root directory <code>/</code> for global configurations.
-      2. Update or create MDX files in the <code>docs</code> directory to modify or add documentation.
-      3. Update or create MDX files in the <code>docs</code> directory to modify or add documentation.
+# Using pnpm
+pnpm add -g nextellar
 
-          <FolderTree className="overflow-hidden p-2">
-            <Folder element="docs" defaultOpen={true}>
-              <File>
-                <p>page1.mdx</p>
-              </File>
-              <File>
-                <p>page2.mdx</p>
-              </File>
-            </Folder>
-          </FolderTree>
-      4. Refer to the existing documentation to see how things work.
+# Using yarn
+yarn global add nextellar
+```
+
+        <p>After installing, scaffold a new project with:</p>
+```bash
+nextellar my-app
+```
+
+        <p>Note: we recommend using a Node version manager (nvm, fnm, volta) to avoid permission issues.</p>
       </div>
     </StepContent>
+  </Step>
 
+  <Step>
+    <StepTitle>Use on-demand runner (no global install)</StepTitle>
+    <StepContent>
+      <div>
+        <p>Run the CLI without a global install using one of the following one-off commands:</p>
+
+        <CodeTabs tabs={{
+          "npx": { "syntax": "npx nextellar my-app" },
+          "pnpm": { "syntax": "pnpm dlx nextellar my-app" },
+          "bun": { "syntax": "bunx nextellar my-app" }
+        }} />
+
+        <p>These commands download and run the CLI for a single invocation and are ideal for quick trials.</p>
+      </div>
+    </StepContent>
+  </Step>
+
+  <Step>
+    <StepTitle>Scaffold a new project</StepTitle>
+    <StepContent>
+      <div>
+        <p>Scaffold a Nextellar project (global install or on-demand runner):</p>
+```bash
+npx nextellar my-app
+
+# or, if installed globally
+nextellar my-app
+```
+
+        <p>By default the scaffold includes a Next.js + TypeScript app, Stellar adapters, UI components, and installs dependencies. Use <code>--skip-install</code> to skip automatic dependency installation.</p>
+      </div>
+    </StepContent>
+  </Step>
+
+  <Step>
+    <StepTitle>Change into the project & run</StepTitle>
+    <StepContent>
+      <div>
+        <p>After scaffolding, change into the project directory and start the dev server:</p>
+```bash
+cd my-app
+
+# npm
+npm run dev
+
+# pnpm
+pnpm dev
+
+# yarn
+yarn dev
+```
+
+        <p>Open <code>http://localhost:3000</code> to view the app.</p>
+      </div>
+    </StepContent>
+  </Step>
+
+  <Step>
+    <StepTitle>Verify installation</StepTitle>
+    <StepContent>
+      <div>
+        <p>Confirm the CLI is available and check the version:</p>
+```bash
+nextellar --version
+nextellar --help
+```
+
+        <p>For on-demand runners, prefix with the runner (e.g. <code>npx nextellar --version</code>).</p>
+      </div>
+    </StepContent>
+  </Step>
+
+  <Step>
+    <StepTitle>Common flags</StepTitle>
+    <StepContent>
+      <div>
+        <p>Useful flags when scaffolding:</p>
+```bash
+npx nextellar my-app --skip-install
+npx nextellar my-app --js
+npx nextellar my-app --horizon-url https://horizon.stellar.org
+npx nextellar my-app --soroban-url https://rpc-futurenet.stellar.org
+npx nextellar my-app --wallets freighter,xbull,ledger
+```
+      </div>
+    </StepContent>
+  </Step>
+
+  <Step>
+    <StepTitle>Troubleshooting & tips</StepTitle>
+    <StepContent>
+      <div>
+        <ul>
+          <li><strong>Permissions</strong>: Use a Node version manager to avoid <code>sudo</code> for global installs.</li>
+          <li><strong>Node version</strong>: Ensure Node 18+ is active (<code>node -v</code>).</li>
+          <li><strong>Skip install</strong>: Use <code>--skip-install</code> if you want to manage deps manually.</li>
+          <li><strong>Network</strong>: Clear package manager cache if dependency installs fail.</li>
+        </ul>
+      </div>
+    </StepContent>
   </Step>
 </Steps>
-
-## What is MDX?
-
-MDX is an extension of Markdown that allows you to write JSX (React components) inside your Markdown files. This means you can mix content with interactive components seamlessly.
-
-For example, in a normal Markdown file, you might write:
-
-```md
-# Welcome to My Docs
-
-This is a simple Markdown page.
-```
-
-But in MDX, you can add React components directly:
-
-```ts
-import { Button } from '@/components/ui/button';
-
-# Welcome to My Docs
-
-This is a simple Markdown page with a button:
-
-<Button>Click Me</Button>
-```
-
-## Creating an MDX File
-
-To add a new documentation page, create a new `.mdx` file inside the `docs` directory:
-
-```sh
-echo "# My New Page" > docs/my-new-page.mdx
-```
-
-This file will automatically be picked up by the system and rendered as a new documentation page.
-
-Your folder structure should look like this:
-
-<FolderTree className="overflow-hidden p-2">
-  <Folder element="project-root" defaultOpen={true}>
-    <Folder element="docs" defaultOpen={true}>
-      <File>
-        <p>my-new-page.mdx</p>
-      </File>
-      <File>
-        <p>another-page.mdx</p>
-      </File>
-    </Folder>
-  </Folder>
-</FolderTree>
-
-🎉 That’s it! You now have a functional documentation site up and running with your first MDX page.
