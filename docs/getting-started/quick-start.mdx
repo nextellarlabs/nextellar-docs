@@ -1,62 +1,181 @@
 ---
-title: Quick Start Guide
-description: Learn how to quickly create your own documentation or post.
+title: Quick Start
+description: A concise quick-start guide that shows how to scaffold, run, and explore a Nextellar project using the CLI.
+date: 2025-03-12
 ---
 
-# Quick Start Guide
+# Quick Start
 
-Getting started with your documentation is simple! Just follow this step:
+This quick start walks you through scaffolding a new Nextellar project, running it locally, and inspecting the generated scaffold so you can begin building Stellar-powered features immediately.
 
-## Create Your MDX File and Add Metadata
-
-Inside your project, navigate to the `docs` folder and create a new `.mdx` file:
-
-```sh
-project-root/docs/YOUR-PAGE-NAME.mdx
+<Steps>
+  <Step>
+    <StepTitle>Step 1: Scaffold a new project</StepTitle>
+    <StepContent>
+      <div>
+        <p>Run the following command to scaffold a new Nextellar application. We recommend using the on-demand runner so you don't need a global install:</p>
+```bash
+npx nextellar my-app
 ```
 
-At the top of your MDX file, add the following metadata:
+        <p>The generator creates a Next.js + TypeScript app with Stellar integrations, common UI components, and a set of sensible defaults. Pass <code>--skip-install</code> to generate files without installing dependencies.</p>
+      </div>
+    </StepContent>
+  </Step>
 
-```ts
----
-title: HTTP Server
-description: This section is about HTTP Server.
----
+  <Step>
+    <StepTitle>Step 2: Change into the project</StepTitle>
+    <StepContent>
+      <div>
+        <p>After scaffolding, change into the generated directory:</p>
+```bash
+cd my-app
 ```
 
-<div>
-  - **`title`**: Defines the title displayed on the page.
-  <br />- **`description`**: Helps with SEO and improves discoverability.
-</div>
+        <p>Inspect <code>package.json</code> to confirm which package manager was selected and which scripts are available.</p>
+      </div>
+    </StepContent>
+  </Step>
 
-<Note>
-  Use hyphens (`-`) in file names instead of spaces or special characters. The
-  breadcrumb navigation will automatically format hyphens as spaces.
-</Note>
+  <Step>
+    <StepTitle>Step 3: Install dependencies (if skipped)</StepTitle>
+    <StepContent>
+      <div>
+        <p>If you used <code>--skip-install</code>, install dependencies now with the package manager of your choice:</p>
+```bash
+# npm
+npm install
 
-## Start Writing
+# pnpm
+pnpm install
 
-Below the metadata, start writing your documentation using Markdown and MDX. You can include:
+# yarn
+yarn install
+```
+      </div>
+    </StepContent>
+  </Step>
 
-- Regular Markdown content
-- Code blocks
-- React components (if needed)
+  <Step>
+    <StepTitle>Step 4: Run the development server</StepTitle>
+    <StepContent>
+      <div>
+        <p>Start the dev server using the script in the scaffolded project:</p>
 
-Once your file is created, it will automatically be available in the route and search bar.
+        <CodeTabs tabs={{
+          "npm": { "syntax": "npm run dev" },
+          "pnpm": { "syntax": "pnpm dev" },
+          "yarn": { "syntax": "yarn dev" }
+        }} />
 
-<FolderTree className="overflow-hidden p-2">
-  <Folder element="project-root" defaultOpen={true}>
-    <Folder element="docs" defaultOpen={true}>
-      <File>
-        <p>your-page-name.mdx</p>
-      </File>
-    </Folder>
-  </Folder>
-</FolderTree>
+        <p>By default the site is served at <code>http://localhost:3000</code>. Visit the URL and verify the sample landing page and wallet connect UI render correctly.</p>
+      </div>
+    </StepContent>
+  </Step>
 
-## Optional: Add to Sidebar and Table of Contents
+  <Step>
+    <StepTitle>Step 5: Connect a Stellar wallet</StepTitle>
+    <StepContent>
+      <div>
+        <p>Use the built-in wallet connection UI to connect a supported Stellar wallet (Freighter, XBull, Ledger, etc.).</p>
 
-If you want your new page to appear in the sidebar and TOC:
+        <p>Once connected you should see:</p>
+        <ul>
+          <li>Account address and network</li>
+          <li>Balances and trustlines</li>
+          <li>Recent transactions and statuses</li>
+        </ul>
 
-- Visit **[docs/customization/sidebar](/docs/customization/sidebar)** to customization the sidebar.
-- Visit **[docs/customization/toc](/docs/customization/toc)** to configure the table of contents.
+        <p>The wallet UI and hooks are located under <code>components/</code> and <code>hooks/</code> in the scaffold.</p>
+      </div>
+    </StepContent>
+  </Step>
+
+  <Step>
+    <StepTitle>Step 6: Explore the project structure</StepTitle>
+    <StepContent>
+      <div>
+        <p>The generated scaffold uses a clear, scalable layout. Key folders to inspect:</p>
+
+        <FolderTree className="overflow-hidden p-2">
+          <Folder element="my-app" defaultOpen={true}>
+            <Folder element="app" defaultOpen={true}>
+              <File><p>page.tsx</p></File>
+              <File><p>layout.tsx</p></File>
+            </Folder>
+            <Folder element="components">
+              <File><p>WalletConnect.tsx</p></File>
+              <File><p>AccountBalance.tsx</p></File>
+            </Folder>
+            <Folder element="hooks">
+              <File><p>useStellarAccount.ts</p></File>
+              <File><p>useStellarPayment.ts</p></File>
+            </Folder>
+            <Folder element="lib">
+              <Folder element="stellar">
+                <File><p>client.ts</p></File>
+                <File><p>soroban.ts</p></File>
+              </Folder>
+            </Folder>
+            <File><p>package.json</p></File>
+            <File><p>tailwind.config.js</p></File>
+          </Folder>
+        </FolderTree>
+      </div>
+    </StepContent>
+  </Step>
+
+  <Step>
+    <StepTitle>Step 7: Run tests</StepTitle>
+    <StepContent>
+      <div>
+        <p>Run unit and integration tests provided in the scaffold using the test script:</p>
+```bash
+npm test
+# or
+pnpm test
+# or
+yarn test
+```
+
+        <p>The scaffold includes Jest + React Testing Library configurations.</p>
+      </div>
+    </StepContent>
+  </Step>
+
+  <Step>
+    <StepTitle>Step 8: Build & deploy</StepTitle>
+    <StepContent>
+      <div>
+        <p>Build the production bundle and deploy to your preferred hosting provider:</p>
+```bash
+# build
+npm run build
+
+# start (production)
+npm start
+```
+
+        <p>The scaffold includes example GitHub Actions workflow files you can adapt for automated deployments.</p>
+      </div>
+    </StepContent>
+  </Step>
+
+  <Step>
+    <StepTitle>Step 9: Customize</StepTitle>
+    <StepContent>
+      <div>
+        <p>Customize the scaffold to suit your product:</p>
+        <ul>
+          <li>Replace or style components in <code>components/</code>.</li>
+          <li>Extend hooks in <code>hooks/</code> to add app-specific logic.</li>
+          <li>Integrate additional wallets or services via new adapters.</li>
+        </ul>
+      </div>
+    </StepContent>
+  </Step>
+</Steps>
+
+---
+
+You're ready to build on top of the generated scaffold. For in-depth guides on wallet adapters, Soroban contracts, and advanced configuration, see the corresponding reference pages in this documentation.
