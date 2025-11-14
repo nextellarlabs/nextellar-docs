@@ -1,0 +1,144 @@
+---
+
+title: CLI Flags & Options
+description: Complete reference for all Nextellar CLI flags and configuration options.
+date: 2025-03-12
+---
+
+# Nextellar CLI — Flags & Options
+
+This page documents **all available CLI flags**, grouped into categories for clarity. Use this as a reference when customizing how the Nextellar CLI scaffolds your project.
+
+You can combine multiple flags in a single command:
+
+```bash
+npx nextellar my-app --javascript --wallets freighter,xbull --horizon-url https://horizon-testnet.stellar.org
+```
+
+---
+
+## 1. Language Options
+
+These flags determine whether the generated project uses **TypeScript** or **JavaScript**.
+
+| Flag           | Alias | Description                                         |
+| -------------- | ----- | --------------------------------------------------- |
+| `--typescript` | `-t`  | Generate a TypeScript project (default)             |
+| `--javascript` | `-j`  | Generate a JavaScript project instead of TypeScript |
+
+**Examples:**
+
+```bash
+npx nextellar my-app --typescript
+npx nextellar my-app --javascript
+```
+
+---
+
+## 2. Network Configuration Flags
+
+Configure the Horizon or Soroban RPC endpoints used inside the generated project.
+
+| Flag                  | Description                               |
+| --------------------- | ----------------------------------------- |
+| `--horizon-url <url>` | Override the default Horizon API endpoint |
+| `--soroban-url <url>` | Override the default Soroban RPC endpoint |
+
+**Examples:**
+
+```bash
+npx nextellar my-app --horizon-url https://horizon-testnet.stellar.org
+npx nextellar my-app --soroban-url https://rpc-futurenet.stellar.org
+```
+
+---
+
+## 3. Wallet Configuration Flags
+
+Select which wallet adapters to include in the scaffold.
+
+| Flag               | Alias | Description                                |
+| ------------------ | ----- | ------------------------------------------ |
+| `--wallets <list>` | `-w`  | Comma‑separated list of wallets to include |
+
+**Supported Wallets:**
+
+* `freighter`
+* `xbull`
+* `ledger`
+
+**Example:**
+
+```bash
+npx nextellar my-app --wallets freighter,xbull
+```
+
+---
+
+## 4. Template Flags
+
+Use an example or template instead of the default scaffold.
+
+| Flag               | Alias | Description                                                                |
+| ------------------ | ----- | -------------------------------------------------------------------------- |
+| `--example <name>` | `-e`  | Generates a project using one of the available Nextellar example templates |
+
+**Example:**
+
+```bash
+npx nextellar my-app --example payments-demo
+```
+
+---
+
+## 5. Automation & Defaults
+
+These flags control how interactive or automated the CLI should be.
+
+| Flag             | Alias | Description                                     |
+| ---------------- | ----- | ----------------------------------------------- |
+| `--defaults`     | `-d`  | Use all default settings without prompting      |
+| `--skip-install` | —     | Generate files but skip dependency installation |
+
+**Example:**
+
+```bash
+npx nextellar my-app --defaults --skip-install
+```
+
+---
+
+## 6. Global Flags
+
+These flags do not affect scaffolding but control CLI behavior.
+
+| Flag        | Alias | Description                               |
+| ----------- | ----- | ----------------------------------------- |
+| `--help`    | `-h`  | Show help text                            |
+| `--version` | `-v`  | Print the installed Nextellar CLI version |
+
+**Examples:**
+
+```bash
+nextellar --help
+nextellar --version
+```
+
+---
+
+## 7. Combining Multiple Flags
+
+You can combine any number of flags in a single command.
+
+```bash
+npx nextellar my-app \
+  --javascript \
+  --wallets freighter,ledger \
+  --horizon-url https://horizon-testnet.stellar.org \
+  --soroban-url https://rpc-futurenet.stellar.org \
+  --skip-install
+```
+
+---
+
+This page serves as the complete reference for all current Nextellar CLI flags. New flags will be added as Nextellar introduces more templates, generators, and automation tools.
