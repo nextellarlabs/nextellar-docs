@@ -1,0 +1,98 @@
+---
+
+title: Scaffolding Templates
+description: Reference page for template support in the Nextellar CLI.
+date: 2025-03-12
+---
+
+# Nextellar CLI — Scaffolding Templates
+
+Nextellar’s CLI includes support for selecting templates using the `--example` flag, but **no official templates have been released yet**.
+
+This page serves as a placeholder and future reference for when templates become available.
+
+---
+
+## Current Status
+
+* The `--example` / `-e` flag is implemented in the CLI.
+* **However, no example names are currently shipped**, and attempting to pass a template name will result in an error.
+* The default scaffold is the only available output at this time.
+
+---
+
+## Using the Template Flag (When Templates Become Available)
+
+The syntax for selecting a template will be:
+
+```bash
+npx nextellar my-app --example <template-name>
+```
+
+Example (future):
+
+```bash
+npx nextellar my-app --example payments-demo
+```
+
+Until templates are released, this command will not function.
+
+---
+
+## Planned Template Categories
+
+The following template categories are planned for future releases:
+
+### **1. Payments Demo**
+
+A starter showing:
+
+* Stellar wallet connection
+* Balance viewer
+* Sending payments
+
+### **2. Soroban Contract Demo**
+
+A scaffold for:
+
+* Reading contract data
+* Writing contract data
+* Interacting with Soroban RPC
+
+### **3. Minimal Starter**
+
+A lightweight version of the default scaffold with fewer UI layers.
+
+These are **not yet available**. Documentation will be expanded once templates are officially released.
+
+---
+
+## Template Comparison (Future)
+
+Once templates launch, they will be compared across:
+
+* Wallet support
+* Payment flows
+* Contract interaction
+* UI complexity
+* Recommended use cases
+
+This table will be added once specifications are finalized.
+
+---
+
+## Roadmap: Custom Templates
+
+A future Nextellar release will introduce support for **user-defined custom templates**, enabling teams to build internal presets.
+
+Planned command:
+
+```bash
+nextellar generate template <name>
+```
+
+More details will be provided once the feature is implemented.
+
+---
+
+This page will be updated as soon as official scaffolding templates are released in Nextellar.
