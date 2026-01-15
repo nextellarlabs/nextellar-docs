@@ -1,181 +1,357 @@
 ---
 title: Quick Start
-description: A concise quick-start guide that shows how to scaffold, run, and explore a Nextellar project using the CLI.
-date: 2025-03-12
+description: Build your first Stellar payment app in 10 minutes with Nextellar
 ---
 
 # Quick Start
 
-This quick start walks you through scaffolding a new Nextellar project, running it locally, and inspecting the generated scaffold so you can begin building Stellar-powered features immediately.
+Build a complete Stellar payment application in under 10 minutes. This tutorial will guide you through creating a simple dApp that connects to a wallet and sends XLM payments.
 
-<Steps>
-  <Step>
-    <StepTitle>Step 1: Scaffold a new project</StepTitle>
-    <StepContent>
-      <div>
-        <p>Run the following command to scaffold a new Nextellar application. We recommend using the on-demand runner so you don't need a global install:</p>
+## What We'll Build
+
+A payment app with:
+
+- ✅ Wallet connection (Freighter, Albedo, Lobstr)
+- ✅ Account balance display
+- ✅ Send XLM payments
+- ✅ Transaction history
+- ✅ Error handling
+
+## Step 1: Create Your Project
+
 ```bash
-npx nextellar my-app
+npx nextellar stellar-payment-app
+cd stellar-payment-app
+npm run dev
 ```
 
-        <p>The generator creates a Next.js + TypeScript app with Stellar integrations, common UI components, and a set of sensible defaults. Pass <code>--skip-install</code> to generate files without installing dependencies.</p>
-      </div>
-    </StepContent>
-  </Step>
+Open [http://localhost:3000](http://localhost:3000) - you should see the Nextellar starter page!
 
-  <Step>
-    <StepTitle>Step 2: Change into the project</StepTitle>
-    <StepContent>
-      <div>
-        <p>After scaffolding, change into the generated directory:</p>
-```bash
-cd my-app
+## Step 2: Connect a Wallet
+
+The starter template includes a `WalletConnectButton` component. Let's test it:
+
+1. **Install Freighter Wallet**: [Get Freighter](https://www.freighter.app/)
+2. **Create a testnet account**: Use [Stellar Laboratory](https://laboratory.stellar.org/#account-creator)
+3. **Fund with testnet XLM**: Use the Friendbot
+4. **Click "Connect Wallet"** on your app
+
+You should see your public key and XLM balance!
+
+## Step 3: Build the Payment Form
+
+Replace `src/app/page.tsx` with:
+
+```tsx
+'use client';
+
+import { useState } from 'react';
+import { useStellarWallet } from '@/hooks/useStellarWallet';
+import WalletConnectButton from '@/components/WalletConnectButton';
+
+export default function Home() {
+  const { connected, publicKey, balances, sendPayment } = useStellarWallet();
+  const [recipient, setRecipient] = useState('');
+  const [amount, setAmount] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [txHash, setTxHash] = useState('');
+
+  const handleSend = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!sendPayment) return;
+
+    setLoading(true);
+    setTxHash('');
+
+    try {
+      const result = await sendPayment({
+        to: recipient,
+        amount: amount,
+        asset: 'XLM',
+        memo: 'Payment from Nextellar app',
+      });
+
+      setTxHash(result.hash);
+      setRecipient('');
+      setAmount('');
+      alert('Payment sent successfully!');
+    } catch (error) {
+      console.error('Payment failed:', error);
+      alert('Payment failed: ' + (error as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen p-8 bg-background">
+      <div className="max-w-2xl mx-auto">
+        <h1 className="text-4xl font-bold mb-8">Stellar Payment App</h1>
+
+        {/* Wallet Connection */}
+        <div className="mb-8">
+          <WalletConnectButton />
+        </div>
+
+        {/* Account Info */}
+        {connected && (
+          <div className="bg-card border rounded-lg p-6 mb-8">
+            <h2 className="text-xl font-semibold mb-4">Account Info</h2>
+            <div className="space-y-2">
+              <div>
+                <span className="text-sm text-muted-foreground">
+                  Public Key:
+                </span>
+                <p className="font-mono text-sm break-all">{publicKey}</p>
+              </div>
+              <div>
+                <span className="text-sm text-muted-foreground">Balance:</span>
+                <p className="text-2xl font-bold">
+                  {balances[0]?.balance || '0'} XLM
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Payment Form */}
+        {connected && (
+          <div className="bg-card border rounded-lg p-6">
+            <h2 className="text-xl font-semibold mb-4">Send Payment</h2>
+            <form onSubmit={handleSend} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Recipient Address
+                </label>
+                <input
+                  type="text"
+                  value={recipient}
+                  onChange={(e) => setRecipient(e.target.value)}
+                  placeholder="GDEF456..."
+                  className="w-full px-3 py-2 border rounded-md"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Amount (XLM)
+                </label>
+                <input
+                  type="number"
+                  step="0.0000001"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  placeholder="10.5"
+                  className="w-full px-3 py-2 border rounded-md"
+                  required
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full px-4 py-2 bg-primary text-primary-foreground rounded-md font-medium hover:opacity-90 disabled:opacity-50"
+              >
+                {loading ? 'Sending...' : 'Send Payment'}
+              </button>
+            </form>
+
+            {txHash && (
+              <div className="mt-4 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md">
+                <p className="text-sm font-medium text-green-800 dark:text-green-200 mb-1">
+                  Payment Successful!
+                </p>
+                <a
+                  href={`https://stellar.expert/explorer/testnet/tx/${txHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-green-600 dark:text-green-400 hover:underline break-all"
+                >
+                  View on Stellar Expert →
+                </a>
+              </div>
+            )}
+          </div>
+        )}
+
+        {!connected && (
+          <div className="bg-muted border rounded-lg p-8 text-center">
+            <p className="text-muted-foreground">
+              Connect your wallet to send payments
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 ```
 
-        <p>Inspect <code>package.json</code> to confirm which package manager was selected and which scripts are available.</p>
+## Step 4: Test Your App
+
+1. **Connect your wallet** (if not already connected)
+2. **Enter a recipient address** (you can use your own address for testing)
+3. **Enter an amount** (e.g., `1`)
+4. **Click "Send Payment"**
+5. **Approve the transaction** in your wallet
+
+Success! You've just sent your first Stellar payment with Nextellar! 🎉
+
+## Step 5: Add Transaction History
+
+Let's add a transaction history view. Create `src/components/TransactionHistory.tsx`:
+
+```tsx
+'use client';
+
+import { useTransactionHistory } from '@/hooks/useTransactionHistory';
+import { useStellarWallet } from '@/hooks/useStellarWallet';
+
+export default function TransactionHistory() {
+  const { publicKey } = useStellarWallet();
+  const { transactions, loading, error } = useTransactionHistory(publicKey);
+
+  if (!publicKey) return null;
+  if (loading) return <div>Loading transactions...</div>;
+  if (error) return <div>Error loading transactions</div>;
+
+  return (
+    <div className="bg-card border rounded-lg p-6">
+      <h2 className="text-xl font-semibold mb-4">Recent Transactions</h2>
+      <div className="space-y-3">
+        {transactions.slice(0, 5).map((tx) => (
+          <div
+            key={tx.id}
+            className="flex justify-between items-center p-3 bg-muted rounded-md"
+          >
+            <div>
+              <p className="font-mono text-sm">{tx.id.slice(0, 12)}...</p>
+              <p className="text-xs text-muted-foreground">
+                {new Date(tx.created_at).toLocaleString()}
+              </p>
+            </div>
+            <a
+              href={`https://stellar.expert/explorer/testnet/tx/${tx.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-primary hover:underline"
+            >
+              View →
+            </a>
+          </div>
+        ))}
       </div>
-    </StepContent>
-  </Step>
-
-  <Step>
-    <StepTitle>Step 3: Install dependencies (if skipped)</StepTitle>
-    <StepContent>
-      <div>
-        <p>If you used <code>--skip-install</code>, install dependencies now with the package manager of your choice:</p>
-```bash
-# npm
-npm install
-
-# pnpm
-pnpm install
-
-# yarn
-yarn install
-```
-      </div>
-    </StepContent>
-  </Step>
-
-  <Step>
-    <StepTitle>Step 4: Run the development server</StepTitle>
-    <StepContent>
-      <div>
-        <p>Start the dev server using the script in the scaffolded project:</p>
-
-        <CodeTabs tabs={{
-          "npm": { "syntax": "npm run dev" },
-          "pnpm": { "syntax": "pnpm dev" },
-          "yarn": { "syntax": "yarn dev" }
-        }} />
-
-        <p>By default the site is served at <code>http://localhost:3000</code>. Visit the URL and verify the sample landing page and wallet connect UI render correctly.</p>
-      </div>
-    </StepContent>
-  </Step>
-
-  <Step>
-    <StepTitle>Step 5: Connect a Stellar wallet</StepTitle>
-    <StepContent>
-      <div>
-        <p>Use the built-in wallet connection UI to connect a supported Stellar wallet (Freighter, XBull, Ledger, etc.).</p>
-
-        <p>Once connected you should see:</p>
-        <ul>
-          <li>Account address and network</li>
-          <li>Balances and trustlines</li>
-          <li>Recent transactions and statuses</li>
-        </ul>
-
-        <p>The wallet UI and hooks are located under <code>components/</code> and <code>hooks/</code> in the scaffold.</p>
-      </div>
-    </StepContent>
-  </Step>
-
-  <Step>
-    <StepTitle>Step 6: Explore the project structure</StepTitle>
-    <StepContent>
-      <div>
-        <p>The generated scaffold uses a clear, scalable layout. Key folders to inspect:</p>
-
-        <FolderTree className="overflow-hidden p-2">
-          <Folder element="my-app" defaultOpen={true}>
-            <Folder element="app" defaultOpen={true}>
-              <File><p>page.tsx</p></File>
-              <File><p>layout.tsx</p></File>
-            </Folder>
-            <Folder element="components">
-              <File><p>WalletConnect.tsx</p></File>
-              <File><p>AccountBalance.tsx</p></File>
-            </Folder>
-            <Folder element="hooks">
-              <File><p>useStellarAccount.ts</p></File>
-              <File><p>useStellarPayment.ts</p></File>
-            </Folder>
-            <Folder element="lib">
-              <Folder element="stellar">
-                <File><p>client.ts</p></File>
-                <File><p>soroban.ts</p></File>
-              </Folder>
-            </Folder>
-            <File><p>package.json</p></File>
-            <File><p>tailwind.config.js</p></File>
-          </Folder>
-        </FolderTree>
-      </div>
-    </StepContent>
-  </Step>
-
-  <Step>
-    <StepTitle>Step 7: Run tests</StepTitle>
-    <StepContent>
-      <div>
-        <p>Run unit and integration tests provided in the scaffold using the test script:</p>
-```bash
-npm test
-# or
-pnpm test
-# or
-yarn test
+    </div>
+  );
+}
 ```
 
-        <p>The scaffold includes Jest + React Testing Library configurations.</p>
-      </div>
-    </StepContent>
-  </Step>
+Then add it to your `page.tsx`:
 
-  <Step>
-    <StepTitle>Step 8: Build & deploy</StepTitle>
-    <StepContent>
-      <div>
-        <p>Build the production bundle and deploy to your preferred hosting provider:</p>
-```bash
-# build
-npm run build
+```tsx
+import TransactionHistory from '@/components/TransactionHistory';
 
-# start (production)
-npm start
+// ... in your component JSX, after the payment form:
+{
+  connected && (
+    <div className="mt-8">
+      <TransactionHistory />
+    </div>
+  );
+}
 ```
 
-        <p>The scaffold includes example GitHub Actions workflow files you can adapt for automated deployments.</p>
-      </div>
-    </StepContent>
-  </Step>
+## What You've Learned
 
-  <Step>
-    <StepTitle>Step 9: Customize</StepTitle>
-    <StepContent>
-      <div>
-        <p>Customize the scaffold to suit your product:</p>
-        <ul>
-          <li>Replace or style components in <code>components/</code>.</li>
-          <li>Extend hooks in <code>hooks/</code> to add app-specific logic.</li>
-          <li>Integrate additional wallets or services via new adapters.</li>
-        </ul>
-      </div>
-    </StepContent>
-  </Step>
-</Steps>
+In just 10 minutes, you've built a complete Stellar payment app with:
+
+- ✅ **Wallet Integration**: Multi-wallet support with persistent connection
+- ✅ **Account Management**: Display public key and balance
+- ✅ **Payment Functionality**: Send XLM with memo support
+- ✅ **Transaction History**: View recent transactions
+- ✅ **Error Handling**: Graceful error messages
+- ✅ **Production Ready**: Type-safe, tested, and optimized
+
+## Next Steps
+
+### Enhance Your App
+
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-6">
+  <a
+    href="/guides/wallet-integration"
+    className="block p-4 border rounded-lg hover:border-primary transition-colors"
+  >
+    <h4 className="font-semibold mb-2">🔗 Advanced Wallet Integration</h4>
+    <p className="text-sm text-muted-foreground">
+      Add custom assets and multi-signature support
+    </p>
+  </a>
+
+  <a
+    href="/hooks/use-soroban-contract"
+    className="block p-4 border rounded-lg hover:border-primary transition-colors"
+  >
+    <h4 className="font-semibold mb-2">📜 Smart Contracts</h4>
+    <p className="text-sm text-muted-foreground">
+      Interact with Soroban smart contracts
+    </p>
+  </a>
+
+  <a
+    href="/guides/testing"
+    className="block p-4 border rounded-lg hover:border-primary transition-colors"
+  >
+    <h4 className="font-semibold mb-2">🧪 Testing</h4>
+    <p className="text-sm text-muted-foreground">
+      Write tests for your Stellar dApp
+    </p>
+  </a>
+
+  <a
+    href="/guides/deployment"
+    className="block p-4 border rounded-lg hover:border-primary transition-colors"
+  >
+    <h4 className="font-semibold mb-2">🚀 Deployment</h4>
+    <p className="text-sm text-muted-foreground">
+      Deploy to Vercel or your preferred platform
+    </p>
+  </a>
+</div>
+
+### Explore More Features
+
+- **Custom Assets**: [Learn about trustlines](/hooks/use-trustlines)
+- **DEX Integration**: [Query order books](/hooks/use-offer-book)
+- **Smart Contract Events**: [Listen to contract events](/hooks/use-soroban-events)
+- **Balance Tracking**: [Advanced balance management](/hooks/use-stellar-balances)
+
+## Troubleshooting
+
+### Wallet Connection Fails
+
+- Ensure Freighter wallet is installed and unlocked
+- Check that you're on the correct network (testnet)
+- Try refreshing the page
+
+### Payment Fails
+
+- Verify recipient address is valid (starts with 'G', 56 characters)
+- Ensure you have sufficient XLM balance (minimum 1 XLM reserve)
+- Check that amount is greater than 0
+
+### Transaction Not Appearing
+
+- Wait a few seconds for network confirmation (5-10 seconds typical)
+- Check Stellar Expert for transaction status
+- Verify you're looking at the correct network (testnet vs mainnet)
+
+## Need Help?
+
+- 📖 [Full Hook Documentation](/hooks/use-stellar-wallet)
+- 🐛 [Report Issues](https://github.com/nextellarlabs/nextellar/issues)
+- 💬 [Ask Questions](https://github.com/nextellarlabs/nextellar/discussions)
 
 ---
 
-You're ready to build on top of the generated scaffold. For in-depth guides on wallet adapters, Soroban contracts, and advanced configuration, see the corresponding reference pages in this documentation.
+**Congratulations!** You've built your first Stellar dApp with Nextellar. Keep building! 🚀

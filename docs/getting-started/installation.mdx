@@ -1,137 +1,262 @@
 ---
 title: Installation
-description: A concise guide that shows how to install Nextellar on your system and how to scaffold a new project using the CLI.
-date: 2025-03-12
+description: Install Nextellar and create your first Stellar dApp in under 2 minutes
 ---
 
-# Installation Guide
+# Installation
 
-<Steps>
-  <Step>
-    <StepTitle>Install globally (recommended for frequent use)</StepTitle>
-    <StepContent>
-      <div>
-        <p>Install the Nextellar CLI globally so it is available from any terminal session.</p>
+Get started with Nextellar in under 2 minutes. No global installation required!
+
+## Prerequisites
+
+Before you begin, ensure you have:
+
+- **Node.js** 20.18.0 or later ([Download](https://nodejs.org/))
+- **npm**, **yarn**, or **pnpm** package manager
+- **Git** for version control (optional but recommended)
+
+### Check Your Node Version
+
 ```bash
-# Using npm
+node --version
+# Should output v20.18.0 or higher
+```
+
+## Quick Install
+
+The fastest way to create a Nextellar project is with `npx` (no global installation needed):
+
+```bash
+npx nextellar my-stellar-app
+```
+
+This command will:
+
+1. ✅ Scaffold a complete Next.js 16 application
+2. ✅ Install all dependencies automatically
+3. ✅ Configure Stellar SDK and wallet adapters
+4. ✅ Set up TypeScript and Tailwind CSS
+5. ✅ Create 8 production-ready React hooks
+
+### Alternative: Global Installation
+
+If you plan to create multiple projects, you can install Nextellar globally:
+
+```bash
 npm install -g nextellar
-
-# Using pnpm
-pnpm add -g nextellar
-
-# Using yarn
-yarn global add nextellar
+nextellar my-stellar-app
 ```
 
-        <p>After installing, scaffold a new project with:</p>
+## CLI Options
+
+Customize your project during scaffolding:
+
+### Basic Usage
+
 ```bash
-nextellar my-app
+npx nextellar <project-name> [options]
 ```
 
-        <p>Note: we recommend using a Node version manager (nvm, fnm, volta) to avoid permission issues.</p>
-      </div>
-    </StepContent>
-  </Step>
+### Available Options
 
-  <Step>
-    <StepTitle>Use on-demand runner (no global install)</StepTitle>
-    <StepContent>
-      <div>
-        <p>Run the CLI without a global install using one of the following one-off commands:</p>
+| Option                   | Description                  | Default                 |
+| ------------------------ | ---------------------------- | ----------------------- |
+| `--typescript`           | Generate TypeScript project  | `true`                  |
+| `--skip-install`         | Skip dependency installation | `false`                 |
+| `--package-manager <pm>` | Choose npm, yarn, or pnpm    | Auto-detected           |
+| `--horizon-url <url>`    | Custom Horizon endpoint      | Testnet                 |
+| `--soroban-url <url>`    | Custom Soroban RPC endpoint  | Testnet                 |
+| `--wallets <list>`       | Comma-separated wallet list  | freighter,albedo,lobstr |
+| `--install-timeout <ms>` | Installation timeout         | 1200000 (20 min)        |
 
-        <CodeTabs tabs={{
-          "npx": { "syntax": "npx nextellar my-app" },
-          "pnpm": { "syntax": "pnpm dlx nextellar my-app" },
-          "bun": { "syntax": "bunx nextellar my-app" }
-        }} />
+### Examples
 
-        <p>These commands download and run the CLI for a single invocation and are ideal for quick trials.</p>
-      </div>
-    </StepContent>
-  </Step>
+**Create with custom package manager:**
 
-  <Step>
-    <StepTitle>Scaffold a new project</StepTitle>
-    <StepContent>
-      <div>
-        <p>Scaffold a Nextellar project (global install or on-demand runner):</p>
 ```bash
-npx nextellar my-app
-
-# or, if installed globally
-nextellar my-app
+npx nextellar my-app --package-manager pnpm
 ```
 
-        <p>By default the scaffold includes a Next.js + TypeScript app, Stellar adapters, UI components, and installs dependencies. Use <code>--skip-install</code> to skip automatic dependency installation.</p>
-      </div>
-    </StepContent>
-  </Step>
+**Skip installation (install later):**
 
-  <Step>
-    <StepTitle>Change into the project & run</StepTitle>
-    <StepContent>
-      <div>
-        <p>After scaffolding, change into the project directory and start the dev server:</p>
-```bash
-cd my-app
-
-# npm
-npm run dev
-
-# pnpm
-pnpm dev
-
-# yarn
-yarn dev
-```
-
-        <p>Open <code>http://localhost:3000</code> to view the app.</p>
-      </div>
-    </StepContent>
-  </Step>
-
-  <Step>
-    <StepTitle>Verify installation</StepTitle>
-    <StepContent>
-      <div>
-        <p>Confirm the CLI is available and check the version:</p>
-```bash
-nextellar --version
-nextellar --help
-```
-
-        <p>For on-demand runners, prefix with the runner (e.g. <code>npx nextellar --version</code>).</p>
-      </div>
-    </StepContent>
-  </Step>
-
-  <Step>
-    <StepTitle>Common flags</StepTitle>
-    <StepContent>
-      <div>
-        <p>Useful flags when scaffolding:</p>
 ```bash
 npx nextellar my-app --skip-install
-npx nextellar my-app --js
-npx nextellar my-app --horizon-url https://horizon.stellar.org
-npx nextellar my-app --soroban-url https://rpc-futurenet.stellar.org
-npx nextellar my-app --wallets freighter,xbull,ledger
+cd my-app
+npm install
 ```
-      </div>
-    </StepContent>
-  </Step>
 
-  <Step>
-    <StepTitle>Troubleshooting & tips</StepTitle>
-    <StepContent>
-      <div>
-        <ul>
-          <li><strong>Permissions</strong>: Use a Node version manager to avoid <code>sudo</code> for global installs.</li>
-          <li><strong>Node version</strong>: Ensure Node 18+ is active (<code>node -v</code>).</li>
-          <li><strong>Skip install</strong>: Use <code>--skip-install</code> if you want to manage deps manually.</li>
-          <li><strong>Network</strong>: Clear package manager cache if dependency installs fail.</li>
-        </ul>
-      </div>
-    </StepContent>
-  </Step>
-</Steps>
+**Configure for mainnet:**
+
+```bash
+npx nextellar my-app --horizon-url https://horizon.stellar.org
+```
+
+**Select specific wallets:**
+
+```bash
+npx nextellar my-app --wallets freighter,xbull
+```
+
+## What Gets Installed?
+
+Your new Nextellar project includes:
+
+### Core Dependencies
+
+- **Next.js 16** - React framework with App Router
+- **React 19** - Latest React with concurrent features
+- **TypeScript 5** - Type safety throughout
+- **Tailwind CSS 4** - Utility-first styling
+
+### Stellar Integration
+
+- **@stellar/stellar-sdk** (v14.4.3) - Official Stellar SDK
+- **@creit.tech/stellar-wallets-kit** - Multi-wallet support
+- **Zustand** - Lightweight state management
+
+### UI & Developer Experience
+
+- **Lucide React** - Beautiful icon library
+- **Framer Motion** - Smooth animations
+- **ESLint + Prettier** - Code quality tools
+
+### Project Structure
+
+```
+my-stellar-app/
+├── src/
+│   ├── app/                    # Next.js App Router
+│   │   ├── layout.tsx
+│   │   └── page.tsx
+│   ├── components/             # React components
+│   │   └── WalletConnectButton.tsx
+│   ├── contexts/               # React contexts
+│   │   └── WalletProvider.tsx
+│   ├── hooks/                  # Custom Stellar hooks
+│   │   ├── useStellarWallet.ts
+│   │   ├── useStellarPayment.ts
+│   │   ├── useSorobanContract.ts
+│   │   ├── useStellarBalances.ts
+│   │   ├── useTrustlines.ts
+│   │   ├── useTransactionHistory.ts
+│   │   ├── useSorobanEvents.ts
+│   │   └── useOfferBook.ts
+│   └── lib/                    # Utility functions
+│       └── stellar-wallet-kit.ts
+├── public/                     # Static assets
+├── package.json
+├── tsconfig.json
+├── tailwind.config.ts
+├── next.config.ts
+└── README.md
+```
+
+## Running Your Project
+
+After installation completes:
+
+```bash
+cd my-stellar-app
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) in your browser. You should see the Nextellar starter page with a wallet connect button!
+
+## Verify Installation
+
+Test that everything works:
+
+1. **Development server starts**: `npm run dev` should run without errors
+2. **TypeScript compiles**: No type errors in the console
+3. **Wallet connection works**: Click "Connect Wallet" button
+4. **Hot reload works**: Edit `src/app/page.tsx` and see changes instantly
+
+## Troubleshooting
+
+### Installation Fails
+
+If `npm install` fails during scaffolding:
+
+```bash
+# The CLI will show you the exact command to retry
+cd my-stellar-app
+npm install
+```
+
+**Common causes:**
+
+- Slow network connection (increase timeout: `--install-timeout 3600000`)
+- npm registry issues (try `npm config set registry https://registry.npmjs.org/`)
+- Disk space (ensure you have at least 500MB free)
+
+### Port 3000 Already in Use
+
+```bash
+# Use a different port
+npm run dev -- -p 3001
+```
+
+### TypeScript Errors
+
+```bash
+# Rebuild TypeScript
+npm run build
+```
+
+### Module Not Found
+
+```bash
+# Clear cache and reinstall
+rm -rf node_modules package-lock.json
+npm install
+```
+
+## Next Steps
+
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-6">
+  <a
+    href="/getting-started/quick-start"
+    className="block p-4 border rounded-lg hover:border-primary transition-colors"
+  >
+    <h4 className="font-semibold mb-2">📚 Quick Start Tutorial</h4>
+    <p className="text-sm text-muted-foreground">
+      Build your first payment app in 10 minutes
+    </p>
+  </a>
+
+  <a
+    href="/getting-started/project-structure"
+    className="block p-4 border rounded-lg hover:border-primary transition-colors"
+  >
+    <h4 className="font-semibold mb-2">🗂️ Project Structure</h4>
+    <p className="text-sm text-muted-foreground">
+      Understand the generated project layout
+    </p>
+  </a>
+
+  <a
+    href="/cli/commands"
+    className="block p-4 border rounded-lg hover:border-primary transition-colors"
+  >
+    <h4 className="font-semibold mb-2">⚙️ CLI Reference</h4>
+    <p className="text-sm text-muted-foreground">
+      Complete command-line documentation
+    </p>
+  </a>
+
+  <a
+    href="/hooks/use-stellar-wallet"
+    className="block p-4 border rounded-lg hover:border-primary transition-colors"
+  >
+    <h4 className="font-semibold mb-2">🎣 Explore Hooks</h4>
+    <p className="text-sm text-muted-foreground">
+      Learn about the 8 production-ready hooks
+    </p>
+  </a>
+</div>
+
+## Need Help?
+
+- 📖 [Read the FAQ](/troubleshooting/faq)
+- 🐛 [Report an issue](https://github.com/nextellarlabs/nextellar/issues)
+- 💬 [Join discussions](https://github.com/nextellarlabs/nextellar/discussions)

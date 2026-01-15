@@ -48,7 +48,7 @@ const Toc: React.FC<TocProps> = ({ doc }) => {
                   className={`transition-colors flex items-center ${
                     isActive
                       ? 'text-primary font-bold'
-                      : 'text-gray-700 dark:text-gray-200 font-normal'
+                      : 'text-gray-700 dark:text-white font-normal'
                   }`}
                 >
                   {item.title}

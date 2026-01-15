@@ -1,0 +1,142 @@
+---
+title: useOfferBook
+description: Query Stellar DEX order books and trading pairs
+---
+
+# useOfferBook
+
+The `useOfferBook` hook queries Stellar's decentralized exchange (DEX) order books, enabling trading interfaces and price discovery.
+
+## Features
+
+- 📊 **Order Book Data**: Fetch bids and asks for trading pairs
+- 💱 **Price Discovery**: Get current market prices
+- 📈 **Depth Analysis**: Analyze order book depth
+- 🔄 **Real-Time Updates**: Optional live order book updates
+- 🎯 **Multiple Pairs**: Query multiple trading pairs
+
+## Basic Usage
+
+```tsx
+import { useOfferBook } from '@/hooks/useOfferBook';
+
+export default function OrderBook() {
+  const { bids, asks, loading } = useOfferBook({
+    selling: { code: 'XLM', type: 'native' },
+    buying: { code: 'USDC', issuer: 'GA5Z...' },
+  });
+
+  if (loading) return <div>Loading order book...</div>;
+
+  return (
+    <div>
+      <h3>Bids</h3>
+      {bids.map((bid, i) => (
+        <div key={i}>
+          {bid.price} - {bid.amount}
+        </div>
+      ))}
+
+      <h3>Asks</h3>
+      {asks.map((ask, i) => (
+        <div key={i}>
+          {ask.price} - {ask.amount}
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+## API Reference
+
+### Parameters
+
+```typescript
+useOfferBook(options: {
+  selling: Asset;
+  buying: Asset;
+  limit?: number;
+  horizonUrl?: string;
+}): OfferBookState
+```
+
+| Parameter    | Type     | Default      | Description               |
+| ------------ | -------- | ------------ | ------------------------- |
+| `selling`    | `Asset`  | **Required** | Asset being sold          |
+| `buying`     | `Asset`  | **Required** | Asset being bought        |
+| `limit`      | `number` | `20`         | Number of offers per side |
+| `horizonUrl` | `string` | Testnet      | Horizon URL               |
+
+### Return Value
+
+```typescript
+interface OfferBookState {
+  bids: Offer[];
+  asks: Offer[];
+  spread: number;
+  midPrice: number;
+  loading: boolean;
+  error: Error | null;
+  refresh: () => Promise<void>;
+}
+```
+
+## Examples
+
+### Get Current Price
+
+```tsx
+const { midPrice, spread } = useOfferBook({
+  selling: { code: 'XLM', type: 'native' },
+  buying: { code: 'USDC', issuer: 'GA5Z...' },
+});
+
+return (
+  <div>
+    <p>Price: ${midPrice}</p>
+    <p>Spread: {spread}%</p>
+  </div>
+);
+```
+
+### Calculate Order Book Depth
+
+```tsx
+const { bids, asks } = useOfferBook({ selling, buying });
+
+const totalBidVolume = bids.reduce(
+  (sum, bid) => sum + parseFloat(bid.amount),
+  0
+);
+const totalAskVolume = asks.reduce(
+  (sum, ask) => sum + parseFloat(ask.amount),
+  0
+);
+
+console.log('Buy pressure:', totalBidVolume);
+console.log('Sell pressure:', totalAskVolume);
+```
+
+### Auto-Refresh Order Book
+
+```tsx
+const { refresh } = useOfferBook({ selling, buying });
+
+useEffect(() => {
+  const interval = setInterval(refresh, 5000); // Refresh every 5s
+  return () => clearInterval(interval);
+}, [refresh]);
+```
+
+## Best Practices
+
+1. **Cache Results**: Use SWR or React Query for caching
+2. **Limit Refresh Rate**: Don't refresh too frequently
+3. **Handle Empty Books**: Show message when no offers exist
+4. **Validate Assets**: Ensure asset codes and issuers are correct
+
+## Related Hooks
+
+- [`useStellarPayment`](/hooks/use-stellar-payment) - Execute trades
+- [`useTrustlines`](/hooks/use-trustlines) - Add asset support

@@ -1,0 +1,111 @@
+---
+title: useTrustlines
+description: Manage asset trustlines on Stellar accounts
+---
+
+# useTrustlines
+
+The `useTrustlines` hook manages asset trustlines, allowing accounts to hold custom Stellar assets. It provides methods to add, remove, and query trustlines.
+
+## Features
+
+- ➕ **Add Trustlines**: Enable accounts to hold custom assets
+- ➖ **Remove Trustlines**: Remove unwanted asset support
+- 📋 **Query Trustlines**: List all active trustlines
+- 🔒 **Authorization**: Handle authorized and unauthorized assets
+- ⚖️ **Limits**: Set custom trust limits
+
+## Basic Usage
+
+```tsx
+import { useTrustlines } from '@/hooks/useTrustlines';
+
+export default function TrustlineManager() {
+  const { addTrustline, removeTrustline, trustlines } =
+    useTrustlines(publicKey);
+
+  const handleAddUSDC = async () => {
+    await addTrustline({
+      assetCode: 'USDC',
+      assetIssuer: 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
+    });
+  };
+
+  return (
+    <div>
+      <button onClick={handleAddUSDC}>Add USDC Trustline</button>
+      <h3>Active Trustlines:</h3>
+      {trustlines.map((tl) => (
+        <div key={tl.asset_code}>{tl.asset_code}</div>
+      ))}
+    </div>
+  );
+}
+```
+
+## API Reference
+
+### Parameters
+
+```typescript
+useTrustlines(
+  publicKey: string,
+  options?: {
+    horizonUrl?: string;
+    network?: string;
+  }
+): TrustlinesState
+```
+
+### Return Value
+
+```typescript
+interface TrustlinesState {
+  trustlines: Trustline[];
+  addTrustline: (asset: AssetInfo, limit?: string) => Promise<void>;
+  removeTrustline: (asset: AssetInfo) => Promise<void>;
+  loading: boolean;
+  error: Error | null;
+}
+```
+
+## Examples
+
+### Add Trustline with Limit
+
+```tsx
+await addTrustline(
+  {
+    assetCode: 'USDC',
+    assetIssuer: 'GA5Z...',
+  },
+  '10000' // Maximum 10,000 USDC
+);
+```
+
+### Remove Trustline
+
+```tsx
+await removeTrustline({
+  assetCode: 'USDC',
+  assetIssuer: 'GA5Z...',
+});
+```
+
+### Check if Trustline Exists
+
+```tsx
+const hasTrustline = trustlines.some((tl) => tl.asset_code === 'USDC');
+```
+
+## Best Practices
+
+1. **Verify Issuer**: Always verify asset issuer before adding trustline
+2. **Set Limits**: Use trust limits to cap exposure
+3. **Remove Unused**: Remove trustlines for assets you no longer use
+4. **Check Authorization**: Some assets require issuer authorization
+
+## Related Hooks
+
+- [`useStellarBalances`](/hooks/use-stellar-balances) - View asset balances
+- [`useStellarPayment`](/hooks/use-stellar-payment) - Send custom assets

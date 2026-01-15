@@ -1,0 +1,10 @@
+# Nextellar Documentation - robots.txt
+
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /_next/
+Disallow: /admin/
+
+# Sitemap
+Sitemap: https://docs.nextellar.dev/sitemap.xml

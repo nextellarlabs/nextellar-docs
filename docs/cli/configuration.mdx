@@ -1,0 +1,282 @@
+---
+title: CLI Configuration
+description: Configure and customize your Nextellar projects
+---
+
+# CLI Configuration
+
+Learn how to configure and customize Nextellar projects through CLI options and post-scaffolding modifications.
+
+## Configuration Methods
+
+Nextellar supports configuration in two ways:
+
+1. **CLI Flags** - Set during project creation
+2. **Post-Scaffolding** - Modify generated files after creation
+
+## CLI Flag Configuration
+
+Configure your project during scaffolding:
+
+```bash
+npx nextellar my-app \
+  --horizon-url https://horizon.stellar.org \
+  --soroban-url https://soroban-rpc.stellar.org \
+  --wallets freighter,xbull \
+  --package-manager pnpm
+```
+
+## Template Variables
+
+Nextellar uses template variables that get replaced during scaffolding:
+
+| Variable          | Replaced With        | Example                               |
+| ----------------- | -------------------- | ------------------------------------- |
+| `{{APP_NAME}}`    | Project name         | `my-stellar-app`                      |
+| `{{HORIZON_URL}}` | Horizon endpoint     | `https://horizon-testnet.stellar.org` |
+| `{{SOROBAN_URL}}` | Soroban RPC endpoint | `https://soroban-testnet.stellar.org` |
+| `{{NETWORK}}`     | Network passphrase   | `TESTNET` or `PUBLIC`                 |
+| `{{WALLETS}}`     | Wallet list          | `["freighter","albedo"]`              |
+
+## Post-Scaffolding Configuration
+
+After creating your project, you can modify these files:
+
+### 1. Network Configuration
+
+**File:** `src/lib/stellar-wallet-kit.ts`
+
+```typescript
+// Change network endpoints
+export const HORIZON_URL = 'https://horizon.stellar.org';
+export const SOROBAN_URL = 'https://soroban-rpc.stellar.org';
+export const NETWORK = Networks.PUBLIC;
+```
+
+### 2. Wallet Configuration
+
+**File:** `src/contexts/WalletProvider.tsx`
+
+```typescript
+// Add or remove wallet adapters
+const allowedWallets = [
+  WalletNetwork.FREIGHTER,
+  WalletNetwork.XBULL,
+  WalletNetwork.LEDGER,
+];
+```
+
+### 3. Package Manager
+
+**File:** `package.json`
+
+```json
+{
+  "packageManager": "pnpm@8.0.0"
+}
+```
+
+### 4. TypeScript Configuration
+
+**File:** `tsconfig.json`
+
+```json
+{
+  "compilerOptions": {
+    "strict": true,
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM"]
+  }
+}
+```
+
+### 5. Tailwind Configuration
+
+**File:** `tailwind.config.ts`
+
+```typescript
+export default {
+  theme: {
+    extend: {
+      colors: {
+        primary: '#4c30e2',
+        // Add custom colors
+      },
+    },
+  },
+};
+```
+
+## Environment Variables
+
+Create a `.env.local` file for runtime configuration:
+
+```bash
+# Network Configuration
+NEXT_PUBLIC_HORIZON_URL=https://horizon-testnet.stellar.org
+NEXT_PUBLIC_SOROBAN_URL=https://soroban-testnet.stellar.org
+NEXT_PUBLIC_NETWORK=TESTNET
+
+# Feature Flags
+NEXT_PUBLIC_ENABLE_ANALYTICS=false
+NEXT_PUBLIC_ENABLE_DEBUG=true
+```
+
+**Usage in Code:**
+
+```typescript
+const horizonUrl = process.env.NEXT_PUBLIC_HORIZON_URL;
+```
+
+## Network Switching
+
+### Testnet to Mainnet
+
+1. **Update Horizon URL:**
+
+```typescript
+// src/lib/stellar-wallet-kit.ts
+export const HORIZON_URL = 'https://horizon.stellar.org';
+```
+
+2. **Update Soroban URL:**
+
+```typescript
+export const SOROBAN_URL = 'https://soroban-rpc.stellar.org';
+```
+
+3. **Update Network Passphrase:**
+
+```typescript
+import { Networks } from '@stellar/stellar-sdk';
+export const NETWORK = Networks.PUBLIC;
+```
+
+4. **Update Environment Variables:**
+
+```bash
+NEXT_PUBLIC_NETWORK=PUBLIC
+```
+
+### Runtime Network Switching
+
+Implement dynamic network switching:
+
+```typescript
+// src/hooks/useNetwork.ts
+export function useNetwork() {
+  const [network, setNetwork] = useState<'TESTNET' | 'PUBLIC'>('TESTNET');
+
+  const horizonUrl =
+    network === 'TESTNET'
+      ? 'https://horizon-testnet.stellar.org'
+      : 'https://horizon.stellar.org';
+
+  return { network, setNetwork, horizonUrl };
+}
+```
+
+## Custom Wallet Configuration
+
+### Add New Wallet
+
+1. **Install Wallet Adapter:**
+
+```bash
+npm install @custom/wallet-adapter
+```
+
+2. **Update Wallet Provider:**
+
+```typescript
+// src/contexts/WalletProvider.tsx
+import { CustomWallet } from '@custom/wallet-adapter';
+
+const allowedWallets = [
+  WalletNetwork.FREIGHTER,
+  WalletNetwork.CUSTOM, // Add new wallet
+];
+```
+
+### Remove Wallet
+
+```typescript
+// Remove from allowed wallets list
+const allowedWallets = [
+  WalletNetwork.FREIGHTER,
+  // WalletNetwork.ALBEDO, // Removed
+];
+```
+
+## Advanced Configuration
+
+### Custom Horizon Instance
+
+```typescript
+// src/lib/stellar-wallet-kit.ts
+export const HORIZON_URL = 'https://my-horizon.example.com';
+
+// With authentication
+const server = new Server(HORIZON_URL, {
+  headers: {
+    Authorization: 'Bearer YOUR_TOKEN',
+  },
+});
+```
+
+### Custom Soroban RPC
+
+```typescript
+export const SOROBAN_URL = 'https://my-soroban.example.com';
+```
+
+### Multiple Networks
+
+Support multiple networks simultaneously:
+
+```typescript
+// src/lib/networks.ts
+export const NETWORKS = {
+  testnet: {
+    horizon: 'https://horizon-testnet.stellar.org',
+    soroban: 'https://soroban-testnet.stellar.org',
+    passphrase: Networks.TESTNET,
+  },
+  mainnet: {
+    horizon: 'https://horizon.stellar.org',
+    soroban: 'https://soroban-rpc.stellar.org',
+    passphrase: Networks.PUBLIC,
+  },
+};
+```
+
+## Configuration Best Practices
+
+1. **Use Environment Variables** for sensitive/environment-specific config
+2. **Version Control** `.env.example` but not `.env.local`
+3. **Document Changes** in README.md
+4. **Test Thoroughly** after configuration changes
+5. **Use TypeScript** for type-safe configuration
+
+## Configuration Validation
+
+Validate configuration at runtime:
+
+```typescript
+// src/lib/validateConfig.ts
+export function validateConfig() {
+  if (!process.env.NEXT_PUBLIC_HORIZON_URL) {
+    throw new Error('NEXT_PUBLIC_HORIZON_URL is required');
+  }
+
+  if (!process.env.NEXT_PUBLIC_NETWORK) {
+    throw new Error('NEXT_PUBLIC_NETWORK is required');
+  }
+}
+```
+
+## Related Documentation
+
+- [CLI Commands](/cli/commands) - Command reference
+- [CLI Options](/cli/options) - Option reference
+- [Environment Variables](/guides/deployment#environment-variables) - Deployment config

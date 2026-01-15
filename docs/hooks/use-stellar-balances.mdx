@@ -1,0 +1,127 @@
+---
+title: useStellarBalances
+description: Real-time account balance tracking for XLM and custom assets
+---
+
+# useStellarBalances
+
+The `useStellarBalances` hook provides real-time balance tracking for Stellar accounts, including XLM and all custom assets with automatic refresh capabilities.
+
+## Features
+
+- 💰 **Real-Time Balances**: Automatic balance fetching and updates
+- 🔄 **Auto-Refresh**: Configurable automatic refresh intervals
+- 📊 **All Assets**: XLM and custom asset support
+- ⚡ **Efficient**: Debounced updates to prevent excessive API calls
+- 🎯 **Filtered Views**: Filter by asset type or code
+
+## Basic Usage
+
+```tsx
+import { useStellarBalances } from '@/hooks/useStellarBalances';
+
+export default function BalanceDisplay() {
+  const { balances, loading, refresh } = useStellarBalances('GABC123...');
+
+  if (loading) return <div>Loading balances...</div>;
+
+  return (
+    <div>
+      {balances.map((balance) => (
+        <div key={balance.asset_code || 'XLM'}>
+          {balance.balance} {balance.asset_code || 'XLM'}
+        </div>
+      ))}
+      <button onClick={refresh}>Refresh</button>
+    </div>
+  );
+}
+```
+
+## API Reference
+
+### Parameters
+
+```typescript
+useStellarBalances(
+  publicKey: string,
+  options?: {
+    horizonUrl?: string;
+    autoRefresh?: boolean;
+    refreshInterval?: number;
+  }
+): BalancesState
+```
+
+| Parameter         | Type      | Default      | Description              |
+| ----------------- | --------- | ------------ | ------------------------ |
+| `publicKey`       | `string`  | **Required** | Stellar public key       |
+| `horizonUrl`      | `string`  | Testnet      | Horizon server URL       |
+| `autoRefresh`     | `boolean` | `false`      | Enable automatic refresh |
+| `refreshInterval` | `number`  | `30000`      | Refresh interval (ms)    |
+
+### Return Value
+
+```typescript
+interface BalancesState {
+  balances: Balance[];
+  loading: boolean;
+  error: Error | null;
+  refresh: () => Promise<void>;
+  xlmBalance: string;
+  assetBalances: Balance[];
+}
+```
+
+## Examples
+
+### Auto-Refresh Balances
+
+```tsx
+const { balances } = useStellarBalances(publicKey, {
+  autoRefresh: true,
+  refreshInterval: 10000, // Refresh every 10 seconds
+});
+```
+
+### Filter by Asset Type
+
+```tsx
+const { xlmBalance, assetBalances } = useStellarBalances(publicKey);
+
+return (
+  <div>
+    <p>XLM: {xlmBalance}</p>
+    <h3>Custom Assets:</h3>
+    {assetBalances.map((asset) => (
+      <p key={asset.asset_code}>
+        {asset.balance} {asset.asset_code}
+      </p>
+    ))}
+  </div>
+);
+```
+
+### Manual Refresh After Transaction
+
+```tsx
+const { refresh } = useStellarBalances(publicKey);
+const { sendPayment } = useStellarWallet();
+
+const handleSend = async () => {
+  await sendPayment({ to, amount, asset: 'XLM' });
+  await refresh(); // Update balances
+};
+```
+
+## Best Practices
+
+1. **Use Auto-Refresh Sparingly**: Only enable for critical views
+2. **Debounce Manual Refreshes**: Prevent excessive API calls
+3. **Handle Loading States**: Show skeleton loaders
+4. **Cache Results**: Use React Query or SWR for advanced caching
+
+## Related Hooks
+
+- [`useStellarWallet`](/hooks/use-stellar-wallet) - Wallet connection with balances
+- [`useTrustlines`](/hooks/use-trustlines) - Manage asset trustlines

@@ -1,0 +1,132 @@
+---
+title: useSorobanEvents
+description: Listen to smart contract events on Stellar
+---
+
+# useSorobanEvents
+
+The `useSorobanEvents` hook listens to Soroban smart contract events in real-time, enabling reactive dApp interfaces.
+
+## Features
+
+- 📡 **Real-Time Events**: Listen to contract events as they happen
+- 🔍 **Event Filtering**: Filter by event type or topic
+- 📊 **Event History**: Query past events
+- 🎯 **Typed Events**: Type-safe event handling
+- 🔄 **Auto-Reconnect**: Automatic reconnection on network issues
+
+## Basic Usage
+
+```tsx
+import { useSorobanEvents } from '@/hooks/useSorobanEvents';
+
+export default function EventListener() {
+  const { events, listening } = useSorobanEvents({
+    contractId: 'CDLZFC3...',
+    eventTypes: ['transfer', 'mint'],
+  });
+
+  return (
+    <div>
+      <p>Listening: {listening ? 'Yes' : 'No'}</p>
+      <h3>Recent Events:</h3>
+      {events.map((event, i) => (
+        <div key={i}>
+          <p>Type: {event.type}</p>
+          <p>Data: {JSON.stringify(event.data)}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+## API Reference
+
+### Parameters
+
+```typescript
+useSorobanEvents(options: {
+  contractId: string;
+  eventTypes?: string[];
+  sorobanRpc?: string;
+  network?: 'TESTNET' | 'PUBLIC';
+}): EventsState
+```
+
+| Parameter    | Type                    | Default      | Description               |
+| ------------ | ----------------------- | ------------ | ------------------------- |
+| `contractId` | `string`                | **Required** | Contract address          |
+| `eventTypes` | `string[]`              | All events   | Event types to listen for |
+| `sorobanRpc` | `string`                | Testnet      | Soroban RPC URL           |
+| `network`    | `'TESTNET' \| 'PUBLIC'` | `'TESTNET'`  | Network                   |
+
+### Return Value
+
+```typescript
+interface EventsState {
+  events: ContractEvent[];
+  listening: boolean;
+  error: Error | null;
+  startListening: () => void;
+  stopListening: () => void;
+}
+```
+
+## Examples
+
+### Filter Specific Events
+
+```tsx
+const { events } = useSorobanEvents({
+  contractId,
+  eventTypes: ['transfer'], // Only listen for transfers
+});
+```
+
+### React to Events
+
+```tsx
+function EventReactor() {
+  const { events } = useSorobanEvents({ contractId });
+
+  useEffect(() => {
+    const latestEvent = events[0];
+    if (latestEvent?.type === 'transfer') {
+      console.log('Transfer detected!', latestEvent.data);
+      // Update UI, show notification, etc.
+    }
+  }, [events]);
+
+  return <div>Monitoring contract events...</div>;
+}
+```
+
+### Manual Control
+
+```tsx
+const { listening, startListening, stopListening } = useSorobanEvents({
+  contractId,
+});
+
+return (
+  <div>
+    {listening ? (
+      <button onClick={stopListening}>Stop Listening</button>
+    ) : (
+      <button onClick={startListening}>Start Listening</button>
+    )}
+  </div>
+);
+```
+
+## Best Practices
+
+1. **Filter Events**: Only listen for events you need
+2. **Cleanup**: Stop listening when component unmounts
+3. **Handle Errors**: Implement error boundaries
+4. **Debounce Updates**: Prevent UI thrashing on rapid events
+
+## Related Hooks
+
+- [`useSorobanContract`](/hooks/use-soroban-contract) - Call contract functions

@@ -1,48 +1,94 @@
-<a href="https://pinexio.vercel.app/">
+# Nextellar Documentation
+
 <p align="center">
-  <img src="./public/logos/pinedocs.png"  align="center" alt="fox logo" width="200px">
-  <h1 align="center"> PINEXIO </h1>
+  <img src="./public/logos/nextellar-logo.png" align="center" alt="Nextellar logo" width="200px">
+  <h1 align="center">Nextellar Documentation</h1>
   <p align="center">
-   Pinexio is a modern, customizable documentation template built for Next.js 15, Tailwind CSS 4, and MDX. It makes creating, managing, and presenting your project documentation effortless.
+    The complete guide to building production-ready Stellar dApps with Nextellar CLI
   </p>
 </p>
-</a>
 
-## Why Pinexio?
+## 🚀 About Nextellar
 
-- **Customizable UI** 🌈: Tailor the design to your needs with light/dark themes and minimal UI libraries.
-- **MDX Support** 📚: Write rich, interactive documentation with JSX components.
-- **Automatic Content Indexing** 🔍: Thanks to Contentlayer, MDX pages are automatically indexed and searchable.
-- **Zero Setup Hassle** 🚀: Add an MDX file to `/docs`, and it’s instantly live.
+Nextellar is a one-step CLI toolkit that bootstraps production-ready Next.js + TypeScript applications with built-in Stellar blockchain support. This documentation site provides comprehensive guides, API references, and interactive examples to help you build Stellar dApps faster.
 
-## Key Technologies
+## 📚 What's Inside
 
-- **Next.js 15** for SEO-friendly, performant documentation.
-- **Tailwind CSS 4** for responsive design.
-- **MDX** to blend documentation with React components.
-- **Contentlayer** for seamless content management.
+- **Getting Started** 🎯: Quick installation and first dApp tutorial
+- **CLI Reference** ⚙️: Complete command-line interface documentation
+- **React Hooks** 🎣: 8 production-ready hooks for Stellar integration
+- **Guides** 📖: Step-by-step tutorials for common tasks
+- **Examples** 💡: Real-world dApp implementations
+- **API Reference** 📋: Comprehensive type definitions and parameters
 
-## Get Started
+## ✨ Features
 
-1. Clone the repo.
-2. Add your documentation as MDX files in the `/docs` folder.
-3. Start building!
+- **Interactive Playground** 🎮: Test CLI commands and hooks in your browser
+- **Live Code Examples** 💻: Copy-paste ready code snippets
+- **Dark Mode** 🌙: Beautiful light and dark themes
+- **Fast Search** ⚡: Find what you need instantly
+- **Mobile Responsive** 📱: Perfect on all devices
+- **SEO Optimized** 🔍: Easily discoverable on search engines
 
-## Links
+## 🛠️ Built With
 
-- [View Demo](https://pinexio.vercel.app)
-- [GitHub Repo](https://github.com/sanjayc208/pinexio)
+- **Next.js 15** - React framework for production
+- **Contentlayer** - Type-safe content management
+- **Tailwind CSS 4** - Utility-first styling
+- **MDX** - Markdown with React components
+- **TypeScript** - Type safety throughout
+
+## 🏃 Running Locally
+
+```bash
+# Clone the repository
+git clone https://github.com/nextellarlabs/nextellar-docs.git
+cd nextellar-docs
+
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) to view the documentation.
+
+## 📝 Contributing
+
+We welcome contributions! See our [Contributing Guide](./CONTRIBUTING.md) for details.
+
+### Adding Documentation
+
+1. Create a new `.mdx` file in the `docs/` directory
+2. Add frontmatter with `title` and `description`
+3. Write your content using MDX
+4. The page will automatically appear in navigation
+
+Example:
+
+```mdx
+---
+title: My New Guide
+description: A helpful guide for Nextellar users
+---
+
+# My New Guide
+
+Your content here...
+```
+
+## 🔗 Links
+
+- [Nextellar CLI](https://github.com/nextellarlabs/nextellar)
+- [Live Documentation](https://docs.nextellar.dev)
+- [NPM Package](https://www.npmjs.com/package/nextellar)
+- [Report Issues](https://github.com/nextellarlabs/nextellar/issues)
+
+## 📜 License
+
+MIT © 2025 [Nextellar Labs](https://github.com/nextellarlabs)
 
 ---
 
-## 🚀 Deploy to Vercel in Seconds
-
-Want to get your Next.js app live with zero hassle? Vercel, built by the creators of Next.js, makes deployment a breeze!
-
-Check out the [Next.js deployment guide](https://nextjs.org/docs/deployment) for all the details and tips on how to deploy like a pro.
-
-Ready to go live? Click the button below and deploy your app in just a few clicks! 🔥
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/sanjayc208/pinexio)
-
-_Pinexio is open-source and free to use. Happy documenting!_ 🚀
+**Built with ❤️ for the Stellar developer community**

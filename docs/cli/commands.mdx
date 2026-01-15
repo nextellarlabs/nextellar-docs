@@ -1,68 +1,213 @@
 ---
-
 title: CLI Commands
-description: Reference guide for all Nextellar CLI commands using a structured table format.
-date: 2025-03-12
+description: Complete reference for all Nextellar CLI commands
 ---
 
-# Nextellar CLI — Commands Reference
+# CLI Commands
 
-This page provides a clean, table-based reference for every available Nextellar CLI command. For flags and advanced configuration, see the **Flags & Options** page.
+Complete reference for all Nextellar CLI commands and their usage.
 
----
+## Main Command
 
-## 1. Core Commands
+### nextellar
 
-| Command                             | Description                                                 | Example                     |
-| ----------------------------------- | ----------------------------------------------------------- | --------------------------- |
-| `nextellar <project-name>`          | Creates a new Nextellar project using the default scaffold. | `nextellar my-app`          |
-| `npx nextellar <project-name>`      | Runs the CLI without a global install (recommended).        | `npx nextellar my-app`      |
-| `pnpm dlx nextellar <project-name>` | pnpm on-demand execution.                                   | `pnpm dlx nextellar my-app` |
-| `bunx nextellar <project-name>`     | bun on-demand execution.                                    | `bunx nextellar my-app`     |
-
----
-
-## 2. Informational Commands
-
-| Command               | Description                                 | Example               |
-| --------------------- | ------------------------------------------- | --------------------- |
-| `nextellar --help`    | Shows help text for all commands and flags. | `nextellar --help`    |
-| `nextellar --version` | Prints the installed version of the CLI.    | `nextellar --version` |
-
----
-
-## 3. Upcoming Commands (Planned)
-
-These commands are referenced in the roadmap and will be added to Nextellar in future releases.
-
-| Command                            | Status      | Description                                                                 |
-| ---------------------------------- | ----------- | --------------------------------------------------------------------------- |
-| `nextellar generate <type> <name>` | Coming Soon | Will generate components, hooks, utilities, or Stellar-specific modules.    |
-| `nextellar doctor`                 | Coming Soon | Diagnose system environment, Node version, and Stellar connectivity issues. |
-| `nextellar upgrade`                | Coming Soon | Automatically update scaffold dependencies and recommended configs.         |
-
----
-
-## 4. Usage Examples
-
-### Create a new project
+Create a new Stellar dApp project.
 
 ```bash
-npx nextellar my-app
+nextellar <project-name> [options]
 ```
 
-### Create a JavaScript project (with flag)
+**Arguments:**
+
+| Argument       | Type   | Required | Description                    |
+| -------------- | ------ | -------- | ------------------------------ |
+| `project-name` | string | Yes      | Name of your project directory |
+
+**Examples:**
 
 ```bash
-npx nextellar my-app --javascript
+# Basic usage
+nextellar my-stellar-app
+
+# With custom package manager
+nextellar my-app --package-manager pnpm
+
+# Skip installation
+nextellar my-app --skip-install
+
+# Full customization
+nextellar my-app \
+  --package-manager yarn \
+  --horizon-url https://horizon.stellar.org \
+  --wallets freighter,xbull \
+  --skip-install
 ```
 
-### Use a template (with flag)
+## Help Commands
+
+### --help, -h
+
+Display help information.
 
 ```bash
-npx nextellar my-app --example payments-demo
+nextellar --help
+# or
+nextellar -h
 ```
 
----
+**Output:**
 
-This page lists the full set of available commands. For configuration and customization, continue to the **Flags & Options** and **Scaffolding Templates** pages.
+```
+Usage: nextellar <project-name> [options]
+
+Options:
+  -t, --typescript         Generate a TypeScript project (default)
+  -j, --javascript         Generate a JavaScript project
+  --horizon-url <url>      Override default Horizon endpoint
+  --soroban-url <url>      Override default Soroban RPC endpoint
+  -w, --wallets <list>     Comma-separated list of wallet adapters
+  -d, --defaults           Skip prompts and use defaults
+  --skip-install           Skip dependency installation
+  --package-manager <pm>   Choose package manager (npm, yarn, pnpm)
+  --install-timeout <ms>   Installation timeout in milliseconds
+  -v, --version            Show CLI version
+  -h, --help               Show help text
+```
+
+### --version, -v
+
+Display CLI version.
+
+```bash
+nextellar --version
+# or
+nextellar -v
+```
+
+**Output:**
+
+```
+1.0.4
+```
+
+## Project Creation Workflow
+
+When you run `nextellar my-app`, here's what happens:
+
+### Step 1: Validation
+
+- ✅ Checks if project name is valid
+- ✅ Verifies directory doesn't already exist
+- ✅ Validates CLI options
+
+### Step 2: Scaffolding
+
+- 📁 Creates project directory
+- 📄 Copies template files
+- 🔧 Substitutes configuration variables
+- ⚙️ Generates package.json
+
+### Step 3: Installation
+
+- 📦 Detects package manager (npm/yarn/pnpm)
+- ⬇️ Installs dependencies
+- ✅ Verifies installation success
+
+### Step 4: Success
+
+- 🎉 Displays success message
+- 📋 Shows next steps
+- 🔗 Provides helpful links
+
+## Exit Codes
+
+| Code | Meaning             | Description                       |
+| ---- | ------------------- | --------------------------------- |
+| `0`  | Success             | Project created successfully      |
+| `1`  | Error               | General error (see error message) |
+| `2`  | Invalid Arguments   | Invalid command-line arguments    |
+| `3`  | Directory Exists    | Project directory already exists  |
+| `4`  | Installation Failed | Dependency installation failed    |
+
+## Command Examples
+
+### Basic Project
+
+```bash
+npx nextellar stellar-payment-app
+```
+
+Creates a project with default settings:
+
+- TypeScript enabled
+- Testnet configuration
+- Default wallets (Freighter, Albedo, Lobstr)
+- Automatic dependency installation
+
+### Production Configuration
+
+```bash
+npx nextellar stellar-mainnet-app \
+  --horizon-url https://horizon.stellar.org \
+  --soroban-url https://soroban-rpc.stellar.org \
+  --package-manager pnpm
+```
+
+Creates a mainnet-ready project.
+
+### Development Setup
+
+```bash
+npx nextellar dev-app \
+  --skip-install \
+  --wallets freighter
+```
+
+Creates a project for development:
+
+- Skips installation (install manually later)
+- Only includes Freighter wallet
+
+### Custom Timeout
+
+```bash
+npx nextellar my-app --install-timeout 3600000
+```
+
+Increases installation timeout to 1 hour (useful for slow networks).
+
+## Interactive Mode
+
+Currently, Nextellar runs in non-interactive mode. All configuration is done via CLI flags.
+
+**Future Enhancement:** Interactive prompts for configuration (coming soon).
+
+## Command Aliases
+
+Nextellar doesn't currently support command aliases, but you can create your own:
+
+**Bash/Zsh:**
+
+```bash
+# Add to ~/.bashrc or ~/.zshrc
+alias nxt="npx nextellar"
+
+# Usage
+nxt my-app
+```
+
+**PowerShell:**
+
+```powershell
+# Add to $PROFILE
+function nxt { npx nextellar $args }
+
+# Usage
+nxt my-app
+```
+
+## Related Documentation
+
+- [CLI Options](/cli/options) - Detailed option reference
+- [Configuration](/cli/configuration) - Project configuration
+- [Troubleshooting](/troubleshooting/installation-issues) - Common issues

@@ -1,0 +1,263 @@
+---
+title: CLI Overview
+description: Complete guide to the Nextellar command-line interface
+---
+
+# CLI Overview
+
+The Nextellar CLI is a powerful command-line tool for scaffolding production-ready Stellar dApps. This guide covers all CLI features, commands, and configuration options.
+
+## What is the Nextellar CLI?
+
+Nextellar CLI is a one-command solution that:
+
+- ✅ Scaffolds complete Next.js 16 applications
+- ✅ Configures Stellar SDK and wallet adapters
+- ✅ Installs all dependencies automatically
+- ✅ Sets up TypeScript, Tailwind CSS, and ESLint
+- ✅ Creates 8 production-ready React hooks
+
+## Quick Start
+
+```bash
+npx nextellar my-stellar-app
+```
+
+That's it! Your Stellar dApp is ready in under 2 minutes.
+
+## Installation Methods
+
+### Method 1: npx (Recommended)
+
+No installation required. Run directly:
+
+```bash
+npx nextellar my-app
+```
+
+**Pros:**
+
+- Always uses latest version
+- No global installation needed
+- Works immediately
+
+**Cons:**
+
+- Slightly slower first run (downloads package)
+
+### Method 2: Global Installation
+
+Install once, use everywhere:
+
+```bash
+npm install -g nextellar
+nextellar my-app
+```
+
+**Pros:**
+
+- Faster execution
+- Works offline (after first install)
+- Convenient for multiple projects
+
+**Cons:**
+
+- Requires manual updates (`npm update -g nextellar`)
+- Takes up global npm space
+
+### Method 3: Package Manager Specific
+
+**Yarn:**
+
+```bash
+yarn global add nextellar
+nextellar my-app
+```
+
+**pnpm:**
+
+```bash
+pnpm add -g nextellar
+nextellar my-app
+```
+
+## CLI Architecture
+
+```
+nextellar CLI
+├── Argument Parser (Commander.js)
+├── Scaffolding Engine
+│   ├── Template Copier
+│   ├── Variable Substitution
+│   └── Configuration Generator
+├── Installation Manager
+│   ├── Package Manager Detection
+│   ├── Dependency Installation
+│   └── Error Handling
+└── User Feedback
+    ├── Progress Indicators
+    ├── Success Messages
+    └── Error Reporting
+```
+
+## Command Structure
+
+```bash
+nextellar <project-name> [options]
+```
+
+**Components:**
+
+- `nextellar` - The CLI command
+- `<project-name>` - Your project directory name (required)
+- `[options]` - Optional flags to customize scaffolding
+
+## Common Workflows
+
+### Create and Run
+
+```bash
+npx nextellar my-app
+cd my-app
+npm run dev
+```
+
+### Custom Configuration
+
+```bash
+npx nextellar my-app \
+  --package-manager pnpm \
+  --horizon-url https://horizon.stellar.org \
+  --wallets freighter,xbull
+```
+
+### Skip Installation
+
+```bash
+npx nextellar my-app --skip-install
+cd my-app
+pnpm install  # Install with your preferred package manager
+```
+
+## Environment Variables
+
+Nextellar respects these environment variables:
+
+| Variable                | Description               | Default       |
+| ----------------------- | ------------------------- | ------------- |
+| `npm_config_user_agent` | Package manager detection | Auto-detected |
+| `NODE_ENV`              | Environment mode          | `development` |
+
+## Version Management
+
+### Check Version
+
+```bash
+npx nextellar --version
+# or
+nextellar -v
+```
+
+### Update to Latest
+
+**npx (automatic):**
+
+```bash
+npx nextellar@latest my-app
+```
+
+**Global install:**
+
+```bash
+npm update -g nextellar
+```
+
+## Troubleshooting
+
+### Command Not Found
+
+**Issue:** `nextellar: command not found`
+
+**Solution:**
+
+```bash
+# Use npx instead
+npx nextellar my-app
+
+# Or reinstall globally
+npm install -g nextellar
+```
+
+### Permission Errors
+
+**Issue:** `EACCES: permission denied`
+
+**Solution:**
+
+```bash
+# Use npx (no permissions needed)
+npx nextellar my-app
+
+# Or fix npm permissions
+sudo chown -R $(whoami) ~/.npm
+```
+
+### Slow Installation
+
+**Issue:** Installation takes too long
+
+**Solution:**
+
+```bash
+# Increase timeout
+npx nextellar my-app --install-timeout 3600000
+
+# Or skip and install manually
+npx nextellar my-app --skip-install
+cd my-app
+npm install
+```
+
+## Next Steps
+
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-6">
+  <a
+    href="/cli/commands"
+    className="block p-4 border rounded-lg hover:border-primary transition-colors"
+  >
+    <h4 className="font-semibold mb-2">CLI Commands</h4>
+    <p className="text-sm text-muted-foreground">Detailed command reference</p>
+  </a>
+
+  <a
+    href="/cli/options"
+    className="block p-4 border rounded-lg hover:border-primary transition-colors"
+  >
+    <h4 className="font-semibold mb-2">CLI Options</h4>
+    <p className="text-sm text-muted-foreground">
+      All available flags and parameters
+    </p>
+  </a>
+
+  <a
+    href="/cli/configuration"
+    className="block p-4 border rounded-lg hover:border-primary transition-colors"
+  >
+    <h4 className="font-semibold mb-2">Configuration</h4>
+    <p className="text-sm text-muted-foreground">Customize your setup</p>
+  </a>
+
+  <a
+    href="/troubleshooting/installation-issues"
+    className="block p-4 border rounded-lg hover:border-primary transition-colors"
+  >
+    <h4 className="font-semibold mb-2">Troubleshooting</h4>
+    <p className="text-sm text-muted-foreground">Common issues and solutions</p>
+  </a>
+</div>
+
+## Related Documentation
+
+- [Installation Guide](/getting-started/installation) - Detailed installation instructions
+- [Quick Start](/getting-started/quick-start) - Build your first app
+- [Project Structure](/getting-started/project-structure) - Understand the generated code

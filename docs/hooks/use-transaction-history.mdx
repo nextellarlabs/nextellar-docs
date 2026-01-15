@@ -1,0 +1,134 @@
+---
+title: useTransactionHistory
+description: Fetch and paginate account transaction history on Stellar
+---
+
+# useTransactionHistory
+
+The `useTransactionHistory` hook fetches and paginates transaction history for Stellar accounts with filtering and sorting capabilities.
+
+## Features
+
+- 📜 **Transaction History**: Fetch account transactions
+- 📄 **Pagination**: Load more transactions on demand
+- 🔍 **Filtering**: Filter by type, date, amount
+- 📊 **Sorting**: Sort by date, amount, or type
+- 🔄 **Real-Time**: Optional real-time updates
+
+## Basic Usage
+
+```tsx
+import { useTransactionHistory } from '@/hooks/useTransactionHistory';
+
+export default function TransactionList() {
+  const { transactions, loading, loadMore, hasMore } =
+    useTransactionHistory('GABC123...');
+
+  if (loading) return <div>Loading...</div>;
+
+  return (
+    <div>
+      {transactions.map((tx) => (
+        <div key={tx.id}>
+          <p>{tx.id}</p>
+          <p>{new Date(tx.created_at).toLocaleString()}</p>
+        </div>
+      ))}
+      {hasMore && <button onClick={loadMore}>Load More</button>}
+    </div>
+  );
+}
+```
+
+## API Reference
+
+### Parameters
+
+```typescript
+useTransactionHistory(
+  publicKey: string,
+  options?: {
+    limit?: number;
+    order?: 'asc' | 'desc';
+    horizonUrl?: string;
+  }
+): TransactionHistoryState
+```
+
+| Parameter    | Type              | Default      | Description           |
+| ------------ | ----------------- | ------------ | --------------------- |
+| `publicKey`  | `string`          | **Required** | Account public key    |
+| `limit`      | `number`          | `10`         | Transactions per page |
+| `order`      | `'asc' \| 'desc'` | `'desc'`     | Sort order            |
+| `horizonUrl` | `string`          | Testnet      | Horizon URL           |
+
+### Return Value
+
+```typescript
+interface TransactionHistoryState {
+  transactions: Transaction[];
+  loading: boolean;
+  error: Error | null;
+  loadMore: () => Promise<void>;
+  hasMore: boolean;
+  refresh: () => Promise<void>;
+}
+```
+
+## Examples
+
+### Filter by Date Range
+
+```tsx
+const { transactions } = useTransactionHistory(publicKey);
+
+const recentTxs = transactions.filter((tx) => {
+  const txDate = new Date(tx.created_at);
+  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  return txDate > weekAgo;
+});
+```
+
+### Group by Type
+
+```tsx
+const paymentTxs = transactions.filter((tx) =>
+  tx.operations.some((op) => op.type === 'payment')
+);
+```
+
+### Infinite Scroll
+
+```tsx
+function InfiniteTransactionList() {
+  const { transactions, loadMore, hasMore } = useTransactionHistory(publicKey);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (
+        window.innerHeight + window.scrollY >=
+        document.body.offsetHeight - 500
+      ) {
+        if (hasMore) loadMore();
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [hasMore, loadMore]);
+
+  return <div>{/* render transactions */}</div>;
+}
+```
+
+## Best Practices
+
+1. **Implement Pagination**: Don't load all transactions at once
+2. **Cache Results**: Use React Query for better performance
+3. **Show Loading States**: Provide feedback during loads
+4. **Handle Empty State**: Show message when no transactions
+
+## Related Hooks
+
+- [`useStellarWallet`](/hooks/use-stellar-wallet) - Send transactions
+- [`useStellarPayment`](/hooks/use-stellar-payment) - Build transactions

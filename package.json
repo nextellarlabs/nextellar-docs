@@ -1,18 +1,18 @@
 {
   "name": "nextellar-docs",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Documentation site for Nextellar — a TypeScript-first, modular CLI for bootstrapping Next.js + Stellar dApps (scaffolding, plugins, wallets, payments).",
-  "author": "Nextellar Team <team@nextellar.example>",
+  "description": "Official documentation for Nextellar — a production-ready CLI for scaffolding Next.js + Stellar blockchain dApps with TypeScript, wallet integration, and smart contract support.",
+  "author": "Nextellar Labs <team@nextellar.dev>",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-org/nextellar-docs.git"
+    "url": "https://github.com/nextellarlabs/nextellar-docs.git"
   },
-  "homepage": "https://docs.nextellar.org",
+  "homepage": "https://docs.nextellar.dev",
   "bugs": {
-    "url": "https://github.com/your-org/nextellar-docs/issues"
+    "url": "https://github.com/nextellarlabs/nextellar/issues"
   },
   "engines": {
     "node": ">=18"
@@ -59,6 +59,7 @@
     "lucide-react": "^0.476.0",
     "next": "15.2.4",
     "next-contentlayer2": "0.5.4",
+    "next-sitemap": "^4.2.3",
     "next-themes": "^0.4.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

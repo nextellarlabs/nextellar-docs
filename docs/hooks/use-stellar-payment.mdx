@@ -1,0 +1,355 @@
+---
+title: useStellarPayment
+description: Advanced payment transaction building and submission for Stellar
+---
+
+# useStellarPayment
+
+The `useStellarPayment` hook provides advanced utilities for building, signing, and submitting Stellar payment transactions. It offers more control than `useStellarWallet.sendPayment()` with separate methods for each step of the payment flow.
+
+## Features
+
+- 🔨 **Build Unsigned XDR**: Create transaction XDR for external wallet signing
+- 📤 **Submit Signed Transactions**: Submit pre-signed XDR to the network
+- 🔐 **Dev-Only Signing**: Sign and submit with secret keys (testing only)
+- ✅ **Comprehensive Validation**: Address, amount, and memo validation
+- ⚠️ **Detailed Error Handling**: Horizon error code interpretation
+
+## Basic Usage
+
+```tsx
+import { useStellarPayment } from '@/hooks/useStellarPayment';
+
+export default function PaymentBuilder() {
+  const { buildPaymentXDR, submitSignedXDR } = useStellarPayment();
+
+  const handleBuildAndSign = async () => {
+    // Step 1: Build unsigned transaction
+    const unsignedXDR = await buildPaymentXDR({
+      from: 'GABC123...',
+      to: 'GDEF456...',
+      amount: '10.5',
+      asset: 'XLM',
+      memo: 'Payment for services',
+    });
+
+    // Step 2: Sign with external wallet (e.g., Freighter)
+    const signedXDR = await window.freighter.signTransaction(unsignedXDR);
+
+    // Step 3: Submit to network
+    const result = await submitSignedXDR(signedXDR);
+
+    console.log('Transaction hash:', result.txHash);
+  };
+
+  return <button onClick={handleBuildAndSign}>Send Payment</button>;
+}
+```
+
+## API Reference
+
+### Parameters
+
+```typescript
+useStellarPayment(options?: {
+  horizonUrl?: string;
+  network?: 'TESTNET' | 'PUBLIC';
+}): PaymentHookReturn
+```
+
+| Parameter    | Type                    | Default                                 | Description        |
+| ------------ | ----------------------- | --------------------------------------- | ------------------ |
+| `horizonUrl` | `string`                | `'https://horizon-testnet.stellar.org'` | Horizon server URL |
+| `network`    | `'TESTNET' \| 'PUBLIC'` | `'TESTNET'`                             | Stellar network    |
+
+### Return Value
+
+```typescript
+interface PaymentHookReturn {
+  buildPaymentXDR: (params: PaymentParams) => Promise<string>;
+  submitSignedXDR: (xdr: string) => Promise<PaymentResult>;
+  signAndSubmitWithSecret: (
+    params: PaymentParams & { secret: string }
+  ) => Promise<PaymentResult>;
+}
+```
+
+### Types
+
+```typescript
+interface PaymentParams {
+  from: string;
+  to: string;
+  amount: string;
+  asset?: 'XLM' | { code: string; issuer: string };
+  memo?: string;
+}
+
+interface PaymentResult {
+  success: boolean;
+  txHash?: string;
+  raw?: unknown;
+  error?: string;
+}
+```
+
+## Methods
+
+### buildPaymentXDR()
+
+Build an unsigned payment transaction XDR.
+
+```tsx
+const xdr = await buildPaymentXDR({
+  from: 'GABC123...',
+  to: 'GDEF456...',
+  amount: '10.5',
+  asset: 'XLM',
+  memo: 'Invoice #1234',
+});
+
+// Returns base64-encoded XDR string
+console.log(xdr); // "AAAAAgAAAAC..."
+```
+
+**Validation:**
+
+- Validates sender and recipient addresses (56 chars, starts with 'G')
+- Validates amount (positive, within Stellar limits)
+- Validates memo length (max 28 characters)
+- Checks account exists on network
+
+### submitSignedXDR()
+
+Submit a signed transaction XDR to the network.
+
+```tsx
+const result = await submitSignedXDR(signedXDR);
+
+if (result.success) {
+  console.log('Success!', result.txHash);
+} else {
+  console.error('Failed:', result.error);
+}
+```
+
+**Returns:**
+
+- `success`: boolean indicating if submission succeeded
+- `txHash`: transaction hash if successful
+- `error`: error message if failed
+- `raw`: raw Horizon response
+
+### signAndSubmitWithSecret() ⚠️
+
+**DEV-ONLY**: Sign and submit using a secret key.
+
+```tsx
+const result = await signAndSubmitWithSecret({
+  from: 'GABC123...',
+  to: 'GDEF456...',
+  amount: '10',
+  secret: 'SABC123...', // Never use in production!
+});
+```
+
+> **Warning**: Never use this method in production. Secret keys should never be handled in client-side code. Use external wallet signing instead.
+
+## Advanced Examples
+
+### Custom Asset Payment
+
+```tsx
+const xdr = await buildPaymentXDR({
+  from: myPublicKey,
+  to: recipient,
+  amount: '100',
+  asset: {
+    code: 'USDC',
+    issuer: 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
+  },
+  memo: 'USDC payment',
+});
+```
+
+### Multi-Step Payment Flow
+
+```tsx
+function MultiStepPayment() {
+  const { buildPaymentXDR, submitSignedXDR } = useStellarPayment();
+  const [xdr, setXdr] = useState('');
+  const [step, setStep] = useState(1);
+
+  const handleBuild = async () => {
+    const unsignedXDR = await buildPaymentXDR({
+      from: sender,
+      to: recipient,
+      amount: amount,
+      asset: 'XLM',
+    });
+    setXdr(unsignedXDR);
+    setStep(2);
+  };
+
+  const handleSign = async () => {
+    const signedXDR = await window.freighter.signTransaction(xdr);
+    setXdr(signedXDR);
+    setStep(3);
+  };
+
+  const handleSubmit = async () => {
+    const result = await submitSignedXDR(xdr);
+    if (result.success) {
+      alert('Payment sent!');
+    }
+  };
+
+  return (
+    <div>
+      {step === 1 && <button onClick={handleBuild}>Build Transaction</button>}
+      {step === 2 && <button onClick={handleSign}>Sign with Wallet</button>}
+      {step === 3 && <button onClick={handleSubmit}>Submit to Network</button>}
+    </div>
+  );
+}
+```
+
+### Batch Payments
+
+```tsx
+async function sendBatchPayments(
+  recipients: Array<{ to: string; amount: string }>
+) {
+  const { buildPaymentXDR, submitSignedXDR } = useStellarPayment();
+
+  for (const payment of recipients) {
+    try {
+      const xdr = await buildPaymentXDR({
+        from: myAddress,
+        to: payment.to,
+        amount: payment.amount,
+        asset: 'XLM',
+      });
+
+      const signedXDR = await wallet.signTransaction(xdr);
+      const result = await submitSignedXDR(signedXDR);
+
+      console.log(`Sent ${payment.amount} XLM to ${payment.to}`);
+    } catch (error) {
+      console.error(`Failed to send to ${payment.to}:`, error);
+    }
+  }
+}
+```
+
+## Error Handling
+
+### Common Errors
+
+```tsx
+try {
+  const result = await submitSignedXDR(signedXDR);
+} catch (error) {
+  if (error.message.includes('op_underfunded')) {
+    alert('Insufficient balance');
+  } else if (error.message.includes('tx_bad_seq')) {
+    alert('Transaction sequence error - retry');
+  } else if (error.message.includes('tx_too_late')) {
+    alert('Transaction expired - rebuild');
+  } else {
+    alert('Transaction failed: ' + error.message);
+  }
+}
+```
+
+### Validation Errors
+
+```tsx
+try {
+  await buildPaymentXDR({
+    from: 'INVALID',
+    to: recipient,
+    amount: '10',
+  });
+} catch (error) {
+  // "Invalid sender address format"
+}
+```
+
+## Best Practices
+
+### 1. Always Validate Input
+
+```tsx
+const isValidAddress = (addr: string) =>
+  addr.length === 56 && addr.startsWith('G');
+const isValidAmount = (amt: string) => parseFloat(amt) > 0;
+
+if (!isValidAddress(recipient)) {
+  alert('Invalid recipient address');
+  return;
+}
+```
+
+### 2. Handle Transaction Timeouts
+
+```tsx
+// Transactions expire after 30 seconds
+const xdr = await buildPaymentXDR(params);
+
+// Sign and submit within 30 seconds
+setTimeout(() => {
+  console.warn('Transaction may have expired');
+}, 25000);
+```
+
+### 3. Use Memos for Tracking
+
+```tsx
+await buildPaymentXDR({
+  from: sender,
+  to: recipient,
+  amount: amount,
+  memo: `Order-${orderId}`, // Track payments
+});
+```
+
+### 4. Verify Before Submitting
+
+```tsx
+const xdr = await buildPaymentXDR(params);
+
+// Show confirmation to user
+const confirmed = confirm(`Send ${params.amount} XLM to ${params.to}?`);
+if (!confirmed) return;
+
+// Then sign and submit
+```
+
+## Related Hooks
+
+- [`useStellarWallet`](/hooks/use-stellar-wallet) - Simple wallet connection and payments
+- [`useTransactionHistory`](/hooks/use-transaction-history) - View payment history
+- [`useStellarBalances`](/hooks/use-stellar-balances) - Check balances before sending
+
+## Next Steps
+
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-6">
+  <a
+    href="/hooks/use-stellar-wallet"
+    className="block p-4 border rounded-lg hover:border-primary transition-colors"
+  >
+    <h4 className="font-semibold mb-2">useStellarWallet</h4>
+    <p className="text-sm text-muted-foreground">Simpler wallet integration</p>
+  </a>
+
+  <a
+    href="/guides/payment-flows"
+    className="block p-4 border rounded-lg hover:border-primary transition-colors"
+  >
+    <h4 className="font-semibold mb-2">Payment Flows Guide</h4>
+    <p className="text-sm text-muted-foreground">
+      Complete payment implementation patterns
+    </p>
+  </a>
+</div>

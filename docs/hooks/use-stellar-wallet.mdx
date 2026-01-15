@@ -1,0 +1,556 @@
+---
+title: useStellarWallet
+description: Complete wallet connection and account management for Stellar dApps
+---
+
+# useStellarWallet
+
+The `useStellarWallet` hook provides a complete solution for connecting to Stellar wallets, managing account state, and executing payments. It's the foundation of wallet integration in Nextellar apps.
+
+## Features
+
+- 🔗 **Multi-Wallet Support**: Freighter, Albedo, Lobstr, xBull, Ledger
+- 💾 **Persistent Connection**: Auto-reconnect on page reload via localStorage
+- 💰 **Real-Time Balances**: Automatic balance fetching and updates
+- 📤 **Payment Transactions**: Build, sign, and submit payments
+- ⚠️ **Error Handling**: Graceful handling of unfunded accounts and network errors
+- 🔄 **Auto-Refresh**: Manual and automatic balance refresh capabilities
+
+## Basic Usage
+
+```tsx
+import { useStellarWallet } from '@/hooks/useStellarWallet';
+
+export default function WalletDemo() {
+  const { connected, publicKey, balances, connect, disconnect } =
+    useStellarWallet();
+
+  return (
+    <div>
+      {!connected ? (
+        <button onClick={connect}>Connect Wallet</button>
+      ) : (
+        <div>
+          <p>Connected: {publicKey}</p>
+          <p>Balance: {balances[0]?.balance} XLM</p>
+          <button onClick={disconnect}>Disconnect</button>
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+## API Reference
+
+### Parameters
+
+```typescript
+useStellarWallet(
+  horizonUrl?: string,
+  network?: string
+): StellarWalletState
+```
+
+| Parameter    | Type     | Default                                 | Description                |
+| ------------ | -------- | --------------------------------------- | -------------------------- |
+| `horizonUrl` | `string` | `'https://horizon-testnet.stellar.org'` | Stellar Horizon server URL |
+| `network`    | `string` | `Networks.TESTNET`                      | Stellar network passphrase |
+
+### Return Value
+
+```typescript
+interface StellarWalletState {
+  connected: boolean;
+  publicKey?: string;
+  walletName?: string;
+  balances: Balance[];
+  connect: () => Promise<void>;
+  disconnect: () => void;
+  refreshBalances: () => Promise<void>;
+  sendPayment?: (
+    opts: PaymentOptions
+  ) => Promise<HorizonApi.SubmitTransactionResponse>;
+}
+```
+
+#### Properties
+
+**`connected`** `boolean`
+
+Whether a wallet is currently connected.
+
+```tsx
+{
+  connected && <p>Wallet is connected!</p>;
+}
+```
+
+---
+
+**`publicKey`** `string | undefined`
+
+The connected wallet's Stellar public key (G-address).
+
+```tsx
+<p>Your address: {publicKey}</p>
+```
+
+---
+
+**`walletName`** `string | undefined`
+
+Name of the connected wallet (e.g., "Freighter", "Albedo").
+
+```tsx
+<p>Connected via {walletName}</p>
+```
+
+---
+
+**`balances`** `Balance[]`
+
+Array of account balances including XLM and all assets.
+
+```typescript
+interface Balance {
+  balance: string;
+  asset_type: string;
+  asset_code?: string;
+  asset_issuer?: string;
+}
+```
+
+```tsx
+{
+  balances.map((balance) => (
+    <div key={balance.asset_code || 'XLM'}>
+      {balance.balance} {balance.asset_code || 'XLM'}
+    </div>
+  ));
+}
+```
+
+#### Methods
+
+**`connect()`** `() => Promise<void>`
+
+Opens the wallet selection modal and connects to the chosen wallet.
+
+```tsx
+const handleConnect = async () => {
+  try {
+    await connect();
+    console.log('Wallet connected!');
+  } catch (error) {
+    if (error.message.includes('User rejected')) {
+      console.log('User cancelled connection');
+    }
+  }
+};
+```
+
+---
+
+**`disconnect()`** `() => void`
+
+Disconnects the current wallet and clears all state.
+
+```tsx
+<button onClick={disconnect}>Disconnect</button>
+```
+
+---
+
+**`refreshBalances()`** `() => Promise<void>`
+
+Manually refresh account balances from Horizon.
+
+```tsx
+const handleRefresh = async () => {
+  await refreshBalances();
+  console.log('Balances updated!');
+};
+```
+
+---
+
+**`sendPayment()`** `(opts: PaymentOptions) => Promise<TransactionResponse>`
+
+Send a payment transaction. Only available when wallet is connected.
+
+```typescript
+interface PaymentOptions {
+  to: string;
+  amount: string;
+  asset?: 'XLM' | { code: string; issuer: string };
+  memo?: string;
+}
+```
+
+```tsx
+const result = await sendPayment({
+  to: 'GDEF456...',
+  amount: '10.5',
+  asset: 'XLM',
+  memo: 'Payment for services',
+});
+
+console.log('Transaction hash:', result.hash);
+```
+
+## Advanced Examples
+
+### Custom Network Configuration
+
+Connect to Stellar mainnet instead of testnet:
+
+```tsx
+const wallet = useStellarWallet(
+  'https://horizon.stellar.org', // Mainnet Horizon
+  Networks.PUBLIC // Mainnet passphrase
+);
+```
+
+### Sending Custom Assets
+
+Send a custom asset instead of XLM:
+
+```tsx
+const { sendPayment } = useStellarWallet();
+
+await sendPayment({
+  to: 'GDEF456...',
+  amount: '100',
+  asset: {
+    code: 'USDC',
+    issuer: 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
+  },
+  memo: 'USDC payment',
+});
+```
+
+### Displaying All Balances
+
+Show all assets the account holds:
+
+```tsx
+function BalanceList() {
+  const { balances, connected } = useStellarWallet();
+
+  if (!connected) return <p>Connect wallet to view balances</p>;
+
+  return (
+    <div>
+      <h3>Your Balances</h3>
+      {balances.length === 0 ? (
+        <p>No balances found. Fund your account to get started.</p>
+      ) : (
+        <ul>
+          {balances.map((balance, index) => (
+            <li key={index}>
+              {balance.balance} {balance.asset_code || 'XLM'}
+              {balance.asset_issuer && (
+                <span className="text-xs text-muted-foreground">
+                  {' '}
+                  (Issuer: {balance.asset_issuer.slice(0, 8)}...)
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+```
+
+### Auto-Refresh Balances After Payment
+
+```tsx
+function SendPaymentWithRefresh() {
+  const { sendPayment, refreshBalances } = useStellarWallet();
+
+  const handleSend = async () => {
+    try {
+      await sendPayment({
+        to: 'GDEF456...',
+        amount: '10',
+        asset: 'XLM',
+      });
+
+      // Balances are automatically refreshed after successful payment
+      // But you can also manually refresh if needed
+      await refreshBalances();
+    } catch (error) {
+      console.error('Payment failed:', error);
+    }
+  };
+
+  return <button onClick={handleSend}>Send 10 XLM</button>;
+}
+```
+
+### Handling Unfunded Accounts
+
+```tsx
+function AccountStatus() {
+  const { connected, publicKey, balances } = useStellarWallet();
+
+  if (!connected) return null;
+
+  if (balances.length === 0) {
+    return (
+      <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-md">
+        <h4 className="font-semibold text-yellow-800">Account Not Funded</h4>
+        <p className="text-sm text-yellow-700 mt-1">
+          This account doesn't exist on the Stellar network yet. Send at least 1
+          XLM to activate it.
+        </p>
+        <a
+          href={`https://laboratory.stellar.org/#account-creator?network=test`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-sm text-yellow-600 hover:underline mt-2 inline-block"
+        >
+          Fund with Friendbot (Testnet) →
+        </a>
+      </div>
+    );
+  }
+
+  return <p>Account is active with {balances[0].balance} XLM</p>;
+}
+```
+
+## Error Handling
+
+### Connection Errors
+
+```tsx
+const handleConnect = async () => {
+  try {
+    await connect();
+  } catch (error) {
+    if (error.message.includes('User rejected')) {
+      // User cancelled the connection
+      console.log('Connection cancelled by user');
+    } else if (error.message.includes('not installed')) {
+      // Wallet extension not found
+      alert('Please install a Stellar wallet extension');
+    } else {
+      // Other errors
+      console.error('Connection failed:', error);
+    }
+  }
+};
+```
+
+### Payment Errors
+
+```tsx
+const handlePayment = async () => {
+  if (!sendPayment) {
+    alert('Please connect your wallet first');
+    return;
+  }
+
+  try {
+    const result = await sendPayment({
+      to: recipient,
+      amount: amount,
+      asset: 'XLM',
+    });
+
+    console.log('Success!', result.hash);
+  } catch (error) {
+    if (error.message.includes('insufficient balance')) {
+      alert('Insufficient XLM balance');
+    } else if (error.message.includes('User rejected')) {
+      alert('Transaction cancelled');
+    } else if (error.message.includes('op_underfunded')) {
+      alert('Account needs more XLM (minimum reserve)');
+    } else {
+      alert('Payment failed: ' + error.message);
+    }
+  }
+};
+```
+
+## TypeScript Types
+
+```typescript
+import { Horizon } from '@stellar/stellar-sdk';
+
+interface Balance {
+  balance: string;
+  asset_type: string;
+  asset_code?: string;
+  asset_issuer?: string;
+}
+
+interface PaymentOptions {
+  to: string;
+  amount: string;
+  asset?: 'XLM' | { code: string; issuer: string };
+  memo?: string;
+}
+
+interface StellarWalletState {
+  connected: boolean;
+  publicKey?: string;
+  walletName?: string;
+  balances: Balance[];
+  connect: () => Promise<void>;
+  disconnect: () => void;
+  refreshBalances: () => Promise<void>;
+  sendPayment?: (
+    opts: PaymentOptions
+  ) => Promise<Horizon.HorizonApi.SubmitTransactionResponse>;
+}
+```
+
+## Best Practices
+
+### 1. Always Check Connection State
+
+```tsx
+// ✅ Good
+{
+  connected && sendPayment && (
+    <button onClick={handleSend}>Send Payment</button>
+  );
+}
+
+// ❌ Bad
+<button onClick={handleSend}>Send Payment</button>;
+```
+
+### 2. Handle Loading States
+
+```tsx
+const [loading, setLoading] = useState(false);
+
+const handleConnect = async () => {
+  setLoading(true);
+  try {
+    await connect();
+  } finally {
+    setLoading(false);
+  }
+};
+```
+
+### 3. Validate Addresses
+
+```tsx
+const isValidStellarAddress = (address: string) => {
+  return address.length === 56 && address.startsWith('G');
+};
+
+const handleSend = async () => {
+  if (!isValidStellarAddress(recipient)) {
+    alert('Invalid Stellar address');
+    return;
+  }
+  // ... proceed with payment
+};
+```
+
+### 4. Use Memos for Tracking
+
+```tsx
+await sendPayment({
+  to: recipient,
+  amount: amount,
+  asset: 'XLM',
+  memo: `Order #${orderId}`, // Track payments
+});
+```
+
+## Related Hooks
+
+- [`useStellarPayment`](/hooks/use-stellar-payment) - Advanced payment building and submission
+- [`useStellarBalances`](/hooks/use-stellar-balances) - Detailed balance tracking with real-time updates
+- [`useTransactionHistory`](/hooks/use-transaction-history) - View account transaction history
+
+## Common Issues
+
+### Wallet Modal Doesn't Appear
+
+**Cause**: Popup blocker or wallet extension not installed
+
+**Solution**:
+
+```tsx
+const handleConnect = async () => {
+  try {
+    await connect();
+  } catch (error) {
+    if (error.message.includes('popup')) {
+      alert('Please allow popups for this site');
+    }
+  }
+};
+```
+
+### Balance Shows 0 After Funding
+
+**Cause**: Balance not refreshed
+
+**Solution**:
+
+```tsx
+// Manually refresh after funding
+await refreshBalances();
+```
+
+### Payment Fails with "op_underfunded"
+
+**Cause**: Account doesn't have enough XLM for minimum reserve
+
+**Solution**: Stellar accounts must maintain a minimum balance (1 XLM base + 0.5 XLM per trustline/offer). Ensure you leave at least 2 XLM in the account.
+
+## Next Steps
+
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-6">
+  <a
+    href="/hooks/use-stellar-payment"
+    className="block p-4 border rounded-lg hover:border-primary transition-colors"
+  >
+    <h4 className="font-semibold mb-2">useStellarPayment</h4>
+    <p className="text-sm text-muted-foreground">
+      Advanced payment transaction building
+    </p>
+  </a>
+
+  <a
+    href="/hooks/use-soroban-contract"
+    className="block p-4 border rounded-lg hover:border-primary transition-colors"
+  >
+    <h4 className="font-semibold mb-2">useSorobanContract</h4>
+    <p className="text-sm text-muted-foreground">
+      Interact with smart contracts
+    </p>
+  </a>
+
+  <a
+    href="/guides/wallet-integration"
+    className="block p-4 border rounded-lg hover:border-primary transition-colors"
+  >
+    <h4 className="font-semibold mb-2">Wallet Integration Guide</h4>
+    <p className="text-sm text-muted-foreground">
+      Deep dive into wallet integration patterns
+    </p>
+  </a>
+
+  <a
+    href="/examples/payment-app"
+    className="block p-4 border rounded-lg hover:border-primary transition-colors"
+  >
+    <h4 className="font-semibold mb-2">Payment App Example</h4>
+    <p className="text-sm text-muted-foreground">
+      Complete payment application code
+    </p>
+  </a>
+</div>
