@@ -1,12 +1,7 @@
 # Nextellar Documentation
 
-<p align="center">
-  <img src="./public/logos/nextellar-logo.png" align="center" alt="Nextellar logo" width="200px">
-  <h1 align="center">Nextellar Documentation</h1>
-  <p align="center">
-    The complete guide to building production-ready Stellar dApps with Nextellar CLI
-  </p>
-</p>
+<img width="186" height="58" alt="logo-with-text-light" src="https://github.com/user-attachments/assets/e9d24765-e679-4ed6-b0ce-816da2f59947" />
+
 
 ## 🚀 About Nextellar
 
