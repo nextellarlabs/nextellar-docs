@@ -1,36 +1,36 @@
 # Nextellar Documentation
 
 <p align="center">
-  <img src="./public/logos/nextellar-logo.png" align="center" alt="Nextellar logo" width="200px">
+  <img src="./public/logos/logo-with-text-light.png" align="center" alt="Nextellar logo" width="200px">
   <h1 align="center">Nextellar Documentation</h1>
   <p align="center">
     The complete guide to building production-ready Stellar dApps with Nextellar CLI
   </p>
 </p>
 
-## 🚀 About Nextellar
+## About Nextellar
 
 Nextellar is a one-step CLI toolkit that bootstraps production-ready Next.js + TypeScript applications with built-in Stellar blockchain support. This documentation site provides comprehensive guides, API references, and interactive examples to help you build Stellar dApps faster.
 
-## 📚 What's Inside
+## What's Inside
 
-- **Getting Started** 🎯: Quick installation and first dApp tutorial
-- **CLI Reference** ⚙️: Complete command-line interface documentation
-- **React Hooks** 🎣: 8 production-ready hooks for Stellar integration
-- **Guides** 📖: Step-by-step tutorials for common tasks
-- **Examples** 💡: Real-world dApp implementations
-- **API Reference** 📋: Comprehensive type definitions and parameters
+- **Getting Started**: Quick installation and first dApp tutorial
+- **CLI Reference**: Complete command-line interface documentation
+- **React Hooks**: 8 production-ready hooks for Stellar integration
+- **Guides**: Step-by-step tutorials for common tasks
+- **Examples**: Real-world dApp implementations
+- **API Reference**: Comprehensive type definitions and parameters
 
-## ✨ Features
+## Features
 
-- **Interactive Playground** 🎮: Test CLI commands and hooks in your browser
-- **Live Code Examples** 💻: Copy-paste ready code snippets
-- **Dark Mode** 🌙: Beautiful light and dark themes
-- **Fast Search** ⚡: Find what you need instantly
-- **Mobile Responsive** 📱: Perfect on all devices
-- **SEO Optimized** 🔍: Easily discoverable on search engines
+- **Interactive Playground**: Test CLI commands and hooks in your browser
+- **Live Code Examples**: Copy-paste ready code snippets
+- **Dark Mode**: Beautiful light and dark themes
+- **Fast Search**: Find what you need instantly
+- **Mobile Responsive**: Perfect on all devices
+- **SEO Optimized**: Easily discoverable on search engines
 
-## 🛠️ Built With
+## Built With
 
 - **Next.js 15** - React framework for production
 - **Contentlayer** - Type-safe content management
@@ -38,7 +38,7 @@ Nextellar is a one-step CLI toolkit that bootstraps production-ready Next.js + T
 - **MDX** - Markdown with React components
 - **TypeScript** - Type safety throughout
 
-## 🏃 Running Locally
+## Running Locally
 
 ```bash
 # Clone the repository
@@ -54,7 +54,7 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) to view the documentation.
 
-## 📝 Contributing
+## Contributing
 
 We welcome contributions! See our [Contributing Guide](./CONTRIBUTING.md) for details.
 
@@ -78,10 +78,10 @@ description: A helpful guide for Nextellar users
 Your content here...
 ```
 
-## 🔗 Links
+## Links
 
 - [Nextellar CLI](https://github.com/nextellarlabs/nextellar)
-- [Live Documentation](https://docs.nextellar.dev)
+- [Live Documentation](https://nextellar.dev)
 - [NPM Package](https://www.npmjs.com/package/nextellar)
 - [Report Issues](https://github.com/nextellarlabs/nextellar/issues)
 
