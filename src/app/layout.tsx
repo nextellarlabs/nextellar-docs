@@ -1,44 +1,13 @@
-import { Geist, Inter } from 'next/font/google';
+import { Inter } from 'next/font/google';
 import './globals.css';
 import { ThemeProvider } from '@/components/theme-provider';
 import { Metadata } from 'next';
 import { meta } from '../../config/meta';
-import localFont from 'next/font/local'
-const geistSans = Geist({
-  variable: '--font-geist-sans',
-  subsets: ['latin'],
-});
-
 
 const interSans = Inter({
   variable: '--font-inter-sans',
-  subsets: ['latin']
-})
-
-const orbitron = localFont({
-  src: [
-    {
-      path: '../../public/fonts/Orbitron Light.ttf',
-      weight: '300',
-      style: 'normal',
-    },
-    {
-      path: '../../public/fonts/Orbitron Black.ttf',
-      weight: '400',
-      style: 'normal',
-    },
-    {
-      path: '../../public/fonts/Orbitron Medium.ttf',
-      weight: '500',
-      style: 'normal',
-    },
-    {
-      path: '../../public/fonts/Orbitron Bold.ttf',
-      weight: '700',
-      style: 'normal',
-    },
-  ],
-})
+  subsets: ['latin'],
+});
 
 export const metadata: Metadata = meta;
 

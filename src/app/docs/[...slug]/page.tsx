@@ -7,12 +7,19 @@ import AutoToc from '@/components/auto-toc';
 type tParams = Promise<{ slug: string[] }>;
 
 export const generateStaticParams = async () => {
-  return allDocs.map((doc) => {
-    // For a path like "getting-started/introduction",
-    // this creates { slug: ['getting-started', 'introduction'] }
-    const slugArray = doc._raw.flattenedPath.split('/');
-    return { slug: slugArray };
-  });
+  return allDocs
+    .filter((doc) => {
+      const path = doc._raw.flattenedPath;
+      // Exclude root index.mdx (handled by /docs/page.tsx)
+      // The root index has an empty flattenedPath
+      return path !== '' && path !== 'index' && path.length > 0;
+    })
+    .map((doc) => {
+      // For paths like "search-bar" create { slug: ['search-bar'] }
+      // For paths like "getting-started/introduction" create { slug: ['getting-started', 'introduction'] }
+      const slugArray = doc._raw.flattenedPath.split('/');
+      return { slug: slugArray };
+    });
 };
 
 export const generateMetadata = async ({ params }: { params: tParams }) => {
