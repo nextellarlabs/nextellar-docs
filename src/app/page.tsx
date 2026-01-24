@@ -1,5 +1,9 @@
-import { redirect } from 'next/navigation';
+import { WhyDevelopersSection } from '@/components/landing/why-developers-section';
 
 export default function Home() {
-  redirect('/docs');
+  return (
+    <main className="min-h-screen bg-white dark:bg-black">
+      <WhyDevelopersSection />
+    </main>
+  );
 }
