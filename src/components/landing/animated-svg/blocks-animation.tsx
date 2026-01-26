@@ -1,79 +1,85 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import Image from 'next/image';
+import type p5 from 'p5';
+import { useP5Canvas } from '@/hooks/use-p5-canvas';
 
 export function BlocksAnimation() {
-  const containerRef = useRef<HTMLDivElement>(null);
   const [transform, setTransform] = useState({ y: 0, rotate: 0, scale: 1 });
   const [isHovered, setIsHovered] = useState(false);
 
-  useEffect(() => {
-    let animationId: number;
-    let time = 0;
+  const sketch = useCallback((p: p5) => {
+    const width = 202;
+    const height = 220;
+    let hovered = false;
 
-    const animate = () => {
-      time += 0.016;
+    p.setup = () => {
+      p.createCanvas(width, height);
+      p.noStroke();
+    };
+
+    p.draw = () => {
+      p.clear();
 
       // Gentle floating motion
-      const floatY = Math.sin(time * 1.2) * 6;
+      const floatY = p.sin(p.frameCount * 0.02) * 6;
 
       // Subtle breathing scale
-      const breatheScale = 1 + Math.sin(time * 1.8) * 0.02;
+      const breatheScale = 1 + p.sin(p.frameCount * 0.03) * 0.02;
 
       // Rotation on hover
-      const targetRotate = isHovered ? 5 : 0;
+      const targetRotate = hovered ? 5 : 0;
 
-      setTransform((prev) => ({
+      setTransform(prev => ({
         y: floatY,
-        rotate: prev.rotate + (targetRotate - prev.rotate) * 0.08,
+        rotate: p.lerp(prev.rotate, targetRotate, 0.08),
         scale: breatheScale,
       }));
 
-      animationId = requestAnimationFrame(animate);
+      const shadowAlpha = p.map(floatY, -6, 6, 40, 20);
+      const shadowScale = p.map(floatY, -6, 6, 0.9, 0.7);
+
+      p.push();
+      p.translate(width / 2, height - 10);
+      p.scale(shadowScale, 0.3);
+      p.fill(0, 0, 0, shadowAlpha);
+      p.ellipse(0, 0, 120, 40);
+      p.pop();
     };
 
-    // Intersection observer
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting) {
-          animate();
-        } else {
-          cancelAnimationFrame(animationId);
-        }
-      },
-      { threshold: 0.1 }
-    );
+    (p as any).setHovered = (h: boolean) => {
+      hovered = h;
+    };
+  }, []);
 
-    if (containerRef.current) {
-      observer.observe(containerRef.current);
+  const { containerRef, p5Instance } = useP5Canvas(sketch);
+
+  const handleMouseEnter = () => {
+    setIsHovered(true);
+    if (p5Instance.current) {
+      (p5Instance.current as any).setHovered?.(true);
     }
+  };
 
-    return () => {
-      observer.disconnect();
-      cancelAnimationFrame(animationId);
-    };
-  }, [isHovered]);
+  const handleMouseLeave = () => {
+    setIsHovered(false);
+    if (p5Instance.current) {
+      (p5Instance.current as any).setHovered?.(false);
+    }
+  };
 
   return (
     <div
-      ref={containerRef}
-      className="relative w-[202px] h-[220px] cursor-pointer"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      className="relative w-50.5 h-55 cursor-pointer"
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
     >
-      {/* Shadow that moves with float */}
-      <div
-        className="absolute bottom-0 left-1/2 w-[120px] h-[20px] bg-black/10 dark:bg-white/10 rounded-full blur-md transition-all duration-300"
-        style={{
-          transform: `translateX(-50%) scaleX(${0.8 + transform.y * 0.01})`,
-          opacity: 0.3 - transform.y * 0.01,
-        }}
-      />
+      <div ref={containerRef} className="absolute inset-0 z-0 pointer-events-none" />
 
       {/* Animated SVG */}
       <div
-        className="transition-shadow duration-300"
+        className="absolute inset-0 flex items-center justify-center transition-shadow duration-300"
         style={{
           transform: `translateY(${transform.y}px) rotate(${transform.rotate}deg) scale(${transform.scale})`,
           filter: isHovered ? 'drop-shadow(0 8px 16px rgba(0,0,0,0.15))' : 'none',

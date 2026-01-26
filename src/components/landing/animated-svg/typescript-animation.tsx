@@ -1,81 +1,64 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import Image from 'next/image';
+import type p5 from 'p5';
+import { useP5Canvas } from '@/hooks/use-p5-canvas';
 
 export function TypeScriptAnimation() {
-  const containerRef = useRef<HTMLDivElement>(null);
   const [transform, setTransform] = useState({ rotateY: 0, rotateX: 0, scale: 1 });
   const [shinePosition, setShinePosition] = useState(-100);
 
-  useEffect(() => {
-    let animationId: number;
-    let time = 0;
+  const sketch = useCallback((p: p5) => {
+    const width = 173;
+    const height = 230;
 
-    const animate = () => {
-      time += 0.016;
+    p.setup = () => {
+      p.createCanvas(width, height);
+      p.noStroke();
+    };
 
-      // More noticeable 3D rotation
-      const rotateY = Math.sin(time * 0.6) * 12;
-      const rotateX = Math.sin(time * 0.4) * 5;
-      const scale = 1 + Math.sin(time * 0.8) * 0.02;
+    p.draw = () => {
+      p.clear();
+
+      const rotateY = p.sin(p.frameCount * 0.01) * 12;
+      const rotateX = p.sin(p.frameCount * 0.008) * 5;
+      const scale = 1 + p.sin(p.frameCount * 0.013) * 0.02;
 
       setTransform({ rotateY, rotateX, scale });
 
-      // Shine sweep (loops every 3 seconds)
-      const shineTime = (time % 3) / 3;
-      const shine = shineTime * 400 - 100;
+      // Shine sweep (loops every ~180 frames / 3 seconds)
+      const shineProgress = (p.frameCount % 180) / 180;
+      const shine = shineProgress * 400 - 100;
       setShinePosition(shine);
 
-      animationId = requestAnimationFrame(animate);
-    };
+      const shadowOffset = rotateY * 0.4;
+      p.push();
+      p.translate(width / 2 + shadowOffset, height / 2 + 4);
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting) {
-          animate();
-        } else {
-          cancelAnimationFrame(animationId);
-        }
-      },
-      { threshold: 0.1 }
-    );
-
-    if (containerRef.current) {
-      observer.observe(containerRef.current);
-    }
-
-    return () => {
-      observer.disconnect();
-      cancelAnimationFrame(animationId);
+      // Shadow gradient effect
+      for (let i = 3; i >= 0; i--) {
+        const alpha = p.map(i, 0, 3, 30, 5);
+        const size = p.map(i, 0, 3, 1, 1.1);
+        p.fill(0, 0, 0, alpha);
+        p.ellipse(0, 0, 140 * size, 180 * size);
+      }
+      p.pop();
     };
   }, []);
 
+  const { containerRef } = useP5Canvas(sketch);
+
   return (
     <div
-      ref={containerRef}
-      className="relative w-[173px] h-[230px]"
+      className="relative w-43.25 h-57.5"
       style={{ perspective: '500px' }}
     >
-      {/* Shadow layer */}
-      <div
-        className="absolute inset-0 opacity-30 blur-sm"
-        style={{
-          transform: `translateX(${transform.rotateY * 0.4}px) translateY(4px)`,
-        }}
-      >
-        <Image
-          src="/image/Group 21.svg"
-          alt=""
-          width={173}
-          height={230}
-          aria-hidden="true"
-        />
-      </div>
+      <div ref={containerRef} className="absolute inset-0 z-0 pointer-events-none opacity-30 blur-sm" />
 
       {/* Main SVG with 3D rotation */}
       <div
-        className="relative overflow-hidden"
+        className="absolute inset-0 flex items-center justify-center overflow-hidden"
         style={{
           transform: `rotateY(${transform.rotateY}deg) rotateX(${transform.rotateX}deg) scale(${transform.scale})`,
           transformStyle: 'preserve-3d',
