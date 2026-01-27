@@ -15,7 +15,7 @@ import { Github } from 'lucide-react';
 
 export default function CTASection() {
   return (
-    <div className="relative w-full min-h-screen overflow-hidden bg-white dark:bg-black">
+    <div className="relative w-full min-h-screen overflow-hidden bg-white dark:bg-black flex items-center justify-center">
       {/* Figma Exported Background with Geometric L-shapes */}
       <motion.div
         initial={{ opacity: 0, scale: 1.05 }}
@@ -24,18 +24,20 @@ export default function CTASection() {
         className="absolute inset-0"
       >
         <Image
-          className="w-full h-full object-cover"
+          className="w-full h-full object-cover dark:opacity-20 dark:invert"
           alt="Geometric background with L-shapes"
           src="/figmaAssets/group-1.png"
           fill
           priority
         />
+        {/* Dark mode overlay for better contrast */}
+        <div className="absolute inset-0 bg-gradient-to-br from-black/5 via-transparent to-black/5 dark:from-white/5 dark:via-transparent dark:to-white/5" />
       </motion.div>
       
       {/* Main Content - Centered Overlay with Animations */}
-      <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-4">
+      <div className="relative z-10 flex flex-col items-center justify-center text-center px-6 sm:px-8 max-w-3xl mx-auto">
         <motion.h1 
-          className="text-4xl md:text-5xl lg:text-6xl font-bold text-black dark:text-white mb-4 leading-tight"
+          className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-black dark:text-white mb-6 leading-tight tracking-tight"
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.3, ease: "easeOut" }}
@@ -44,7 +46,7 @@ export default function CTASection() {
         </motion.h1>
         
         <motion.p 
-          className="text-gray-600 dark:text-gray-400 max-w-md mb-8 leading-relaxed"
+          className="text-base sm:text-lg text-gray-600 dark:text-gray-300 max-w-xl mx-auto mb-10 leading-relaxed"
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.5, ease: "easeOut" }}
@@ -53,14 +55,14 @@ export default function CTASection() {
         </motion.p>
         
         <motion.div 
-          className="flex flex-col sm:flex-row gap-4"
+          className="flex flex-col sm:flex-row gap-4 items-center justify-center w-full sm:w-auto"
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.7, ease: "easeOut" }}
         >
-          <Link href="/docs/getting-started">
+          <Link href="/docs/getting-started" className="w-full sm:w-auto">
             <motion.button
-              className="bg-black dark:bg-white text-white dark:text-black px-6 py-3 rounded-md font-medium hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors w-full sm:w-auto"
+              className="bg-black dark:bg-white text-white dark:text-black px-8 py-3.5 rounded-lg font-medium hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors w-full shadow-lg dark:shadow-white/10"
               whileHover={{ scale: 1.05, y: -2 }}
               whileTap={{ scale: 0.95 }}
               transition={{ type: "spring", stiffness: 400, damping: 17 }}
@@ -73,9 +75,10 @@ export default function CTASection() {
             href="https://github.com/nextellarlabs/nextellar" 
             target="_blank" 
             rel="noopener noreferrer"
+            className="w-full sm:w-auto"
           >
             <motion.button
-              className="bg-white dark:bg-black text-black dark:text-white px-6 py-3 rounded-md font-medium border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors flex items-center gap-2 w-full sm:w-auto"
+              className="bg-white dark:bg-gray-900 text-black dark:text-white px-8 py-3.5 rounded-lg font-medium border-2 border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors flex items-center justify-center gap-2 w-full shadow-lg dark:shadow-white/5"
               whileHover={{ scale: 1.05, y: -2 }}
               whileTap={{ scale: 0.95 }}
               transition={{ type: "spring", stiffness: 400, damping: 17 }}
