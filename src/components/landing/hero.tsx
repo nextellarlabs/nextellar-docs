@@ -66,12 +66,12 @@ export default function HeroSection() {
                 <div className="w-[221.14px] h-[215.29px] border border-black/60 dark:border-white/20 bg-[repeating-linear-gradient(135deg,transparent,transparent_13px,currentColor_13px,currentColor_14px)] text-black/20 dark:text-white/20" />
               </ScatteredBlock>
               <ScatteredBlock delay={0.6}>
-                <div className="w-[250.14px] h-[215.29px] border-r-0 border border-black/60 dark:border-white/20 " />
+                <div className="w-[255px] h-[215.29px] border-r-0 border border-black/60 dark:border-white/20  " />
               </ScatteredBlock>
             </div>
-            <div className='flex flex-col '>
+            <div className='flex flex-col  '>
               <ScatteredBlock delay={0.6}>
-                <div className="w-[221.14px] flex-1 border-b-0   h-[230.29px]  border border-black/60 dark:border-white/20  " />
+                <div className="w-[221.14px] flex-1 border-b-0   h-[245.30px]  border border-black/60 dark:border-white/20  " />
               </ScatteredBlock>
               <ScatteredBlock delay={0.6}>
                 <div className="w-[221.14px] h-[215.29px] border-t-0 border-l-0 border border-black/60 dark:border-white/20 " />
@@ -90,7 +90,7 @@ export default function HeroSection() {
           <div className="grid grid-cols-2 gap-[30px]">
             <div className='flex flex-col'>
               <ScatteredBlock delay={0.6}>
-                <div className="w-[221.14px] flex-1 border-b-0  h-[215.29px] border border-black/60 dark:border-white/20" />
+                <div className="w-[221.14px] flex-1 border-b-0  h-[245.30px]  border border-black/60 dark:border-white/20" />
               </ScatteredBlock>
               <ScatteredBlock delay={0.6}>
                 <div className="w-[221.14px] h-[215.29px] border border-t-0  border-r-0 border-black/60 dark:border-white/20  text-black/20 dark:text-white/20" />
@@ -172,14 +172,23 @@ export default function HeroSection() {
       </motion.div>
 
       <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
-        <div className="w-[760px] h-[490px] mt-8 flex flex-col items-center justify-center text-center bg-white dark:bg-black space-y-12 px-6 pointer-events-auto">
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ 
+            duration: 0.3, 
+            delay: 1.8, 
+            ease: [0.16, 1, 0.3, 1] 
+          }}
+          className="w-[760px] h-[490px] -mt-8 flex flex-col items-center justify-center text-center bg-white dark:bg-black space-y-12 px-6 pointer-events-auto"
+        >
           <div className="space-y-6">
             <motion.h1 
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ 
                 duration: 0.8, 
-                delay: 1.4, 
+                delay: 2.0, 
                 ease: [0.16, 1, 0.3, 1] 
               }}
               className="font-medium text-4xl md:text-5xl lg:text-7xl text-black dark:text-white leading-tight tracking-tight"
@@ -191,7 +200,7 @@ export default function HeroSection() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ 
                 duration: 0.8, 
-                delay: 1.6, 
+                delay: 2.3, 
                 ease: [0.16, 1, 0.3, 1] 
               }}
               className="font-normal text-base md:text-lg text-black/80 dark:text-white/80 max-w-2xl mx-auto"
@@ -207,7 +216,7 @@ export default function HeroSection() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ 
               duration: 0.8, 
-              delay: 1.8, 
+              delay: 2.6, 
               ease: [0.16, 1, 0.3, 1] 
             }}
             className="flex flex-col sm:flex-row items-center justify-center gap-6 sm:gap-10"
@@ -226,7 +235,7 @@ export default function HeroSection() {
               </Button>
             </Link>
           </motion.div>
-        </div>
+        </motion.div>
       </div>
     </section>
   );
