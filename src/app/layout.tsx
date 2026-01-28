@@ -7,6 +7,7 @@ import { meta } from '../../config/meta';
 const interSans = Inter({
   variable: '--font-inter-sans',
   subsets: ['latin'],
+  weight: ['400', '500', '600'],
 });
 
 export const metadata: Metadata = meta;
