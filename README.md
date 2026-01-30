@@ -39,14 +39,19 @@ Nextellar is a one-step CLI toolkit that bootstraps production-ready Next.js + T
 git clone https://github.com/nextellarlabs/nextellar-docs.git
 cd nextellar-docs
 
-# Install dependencies
-npm install
+# Install dependencies (this project uses pnpm)
+pnpm install
+
+# Generate contentlayer files (required before first run)
+pnpm build:content
 
 # Start development server
-npm run dev
+pnpm dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) to view the documentation.
+
+**Note**: This project uses `pnpm` as the package manager. If you don't have it installed, run `npm install -g pnpm` first.
 
 ## Contributing
 
