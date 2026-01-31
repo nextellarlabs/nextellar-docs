@@ -17,62 +17,62 @@ const NavigationBar = () => {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-white dark:bg-black border-b border-black/10 dark:border-white/10">
-      <nav className="w-full max-w-380 mx-auto px-4 md:px-6 lg:px-8 xl:px-26">
-        <div className="h-16 md:h-18 lg:h-20 flex items-center justify-between">
-          {/* Logo */}
-          <Link href="/" className="shrink-0">
-            <motion.div
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              transition={{ duration: 0.2 }}
-            >
-              <Image
-                src="/logos/logo-with-text-light.png"
-                width={150}
-                height={40}
-                alt="Nextellar"
-                className="w-32 md:w-36 lg:w-40 dark:hidden"
-                priority
-              />
-              <Image
-                src="/logos/logo-with-text-dark.png"
-                width={150}
-                height={40}
-                alt="Nextellar"
-                className="w-32 md:w-36 lg:w-40 hidden dark:block"
-                priority
-              />
-            </motion.div>
-          </Link>
+    <header className="fixed top-0 left-0 right-0 z-50 bg-white dark:bg-black">
+      {/* Desktop Navigation with side boxes */}
+      <div className="hidden md:grid md:grid-cols-[100px_1fr_100px] lg:grid-cols-[120px_1fr_120px] xl:grid-cols-[150px_1fr_150px] gap-4 lg:gap-6 p-4 lg:p-6">
+        {/* Left side box */}
+        <div className="border border-black/10 dark:border-white/10 bg-white dark:bg-black" />
 
-          {/* Desktop Navigation Links */}
-          <ul className="hidden md:flex items-center gap-6 lg:gap-10">
-            {routes.map(({ name, path }) => (
-              <li key={name}>
-                <Link href={path}>
-                  <motion.span
-                    className="relative text-sm lg:text-base font-medium text-black/70 dark:text-white/70 hover:text-black dark:hover:text-white transition-colors cursor-pointer"
-                    whileHover={{ y: -1 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    {name}
+        {/* Main navigation */}
+        <nav className="border border-black/10 dark:border-white/10 bg-white dark:bg-black">
+          <div className="h-16 lg:h-20 flex items-center justify-between px-6 lg:px-10">
+            {/* Logo */}
+            <Link href="/" className="shrink-0">
+              <motion.div
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                transition={{ duration: 0.2 }}
+              >
+                <Image
+                  src="/logos/logo-with-text-light.png"
+                  width={150}
+                  height={40}
+                  alt="Nextellar"
+                  className="w-32 lg:w-40 dark:hidden"
+                  priority
+                />
+                <Image
+                  src="/logos/logo-with-text-dark.png"
+                  width={150}
+                  height={40}
+                  alt="Nextellar"
+                  className="w-32 lg:w-40 hidden dark:block"
+                  priority
+                />
+              </motion.div>
+            </Link>
+
+            {/* Navigation Links */}
+            <ul className="flex items-center gap-6 lg:gap-10">
+              {routes.map(({ name, path }) => (
+                <li key={name}>
+                  <Link href={path}>
                     <motion.span
-                      className="absolute -bottom-1 left-0 w-0 h-0.5 bg-[#4F46E5] dark:bg-[#818CF8]"
-                      whileHover={{ width: '100%' }}
+                      className="relative text-sm lg:text-base font-medium text-black/70 dark:text-white/70 hover:text-black dark:hover:text-white transition-colors cursor-pointer"
+                      whileHover={{ y: -1 }}
                       transition={{ duration: 0.2 }}
-                    />
-                  </motion.span>
-                </Link>
-              </li>
-            ))}
-          </ul>
+                    >
+                      {name}
+                    </motion.span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
 
-          {/* Get Started Button & Mobile Menu Toggle */}
-          <div className="flex items-center gap-4">
-            <Link href="/docs/getting-started/introduction" className="hidden md:block">
+            {/* Get Started Button */}
+            <Link href="/docs/getting-started/introduction">
               <motion.button
-                className="text-white text-sm lg:text-base font-medium px-5 lg:px-6 py-2.5 lg:py-3 transition-colors bg-black dark:bg-white dark:text-black"
+                className="text-white text-sm lg:text-base font-medium px-5 lg:px-6 py-2.5 lg:py-3 bg-black dark:bg-white dark:text-black"
                 whileHover={{ scale: 1.02, opacity: 0.9 }}
                 whileTap={{ scale: 0.98 }}
                 transition={{ duration: 0.2 }}
@@ -80,42 +80,70 @@ const NavigationBar = () => {
                 Get Started
               </motion.button>
             </Link>
-
-            {/* Mobile Menu Button */}
-            <motion.button
-              className="md:hidden p-2 text-black dark:text-white"
-              onClick={() => setIsOpen(!isOpen)}
-              whileTap={{ scale: 0.95 }}
-              aria-label={isOpen ? 'Close menu' : 'Open menu'}
-            >
-              <AnimatePresence mode="wait">
-                {isOpen ? (
-                  <motion.div
-                    key="close"
-                    initial={{ rotate: -90, opacity: 0 }}
-                    animate={{ rotate: 0, opacity: 1 }}
-                    exit={{ rotate: 90, opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    <X className="w-6 h-6" />
-                  </motion.div>
-                ) : (
-                  <motion.div
-                    key="menu"
-                    initial={{ rotate: 90, opacity: 0 }}
-                    animate={{ rotate: 0, opacity: 1 }}
-                    exit={{ rotate: -90, opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    <Menu className="w-6 h-6" />
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </motion.button>
           </div>
+        </nav>
+
+        {/* Right side box */}
+        <div className="border border-black/10 dark:border-white/10 bg-white dark:bg-black" />
+      </div>
+
+      {/* Mobile Navigation */}
+      <div className="md:hidden border border-black/10 dark:border-white/10 bg-white dark:bg-black">
+        <div className="h-16 flex items-center justify-between px-4">
+          {/* Logo */}
+          <Link href="/" className="shrink-0">
+            <Image
+              src="/logos/logo-with-text-light.png"
+              width={120}
+              height={32}
+              alt="Nextellar"
+              className="w-28 dark:hidden"
+              priority
+            />
+            <Image
+              src="/logos/logo-with-text-dark.png"
+              width={120}
+              height={32}
+              alt="Nextellar"
+              className="w-28 hidden dark:block"
+              priority
+            />
+          </Link>
+
+          {/* Mobile Menu Button */}
+          <motion.button
+            className="p-2 text-black dark:text-white"
+            onClick={() => setIsOpen(!isOpen)}
+            whileTap={{ scale: 0.95 }}
+            aria-label={isOpen ? 'Close menu' : 'Open menu'}
+          >
+            <AnimatePresence mode="wait">
+              {isOpen ? (
+                <motion.div
+                  key="close"
+                  initial={{ rotate: -90, opacity: 0 }}
+                  animate={{ rotate: 0, opacity: 1 }}
+                  exit={{ rotate: 90, opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <X className="w-6 h-6" />
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="menu"
+                  initial={{ rotate: 90, opacity: 0 }}
+                  animate={{ rotate: 0, opacity: 1 }}
+                  exit={{ rotate: -90, opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <Menu className="w-6 h-6" />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.button>
         </div>
 
-        {/* Mobile Navigation Menu */}
+        {/* Mobile Menu Dropdown */}
         <AnimatePresence>
           {isOpen && (
             <motion.div
@@ -123,9 +151,9 @@ const NavigationBar = () => {
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
               transition={{ duration: 0.3, ease: 'easeInOut' }}
-              className="md:hidden overflow-hidden border-t border-black/10 dark:border-white/10"
+              className="overflow-hidden border-t border-black/10 dark:border-white/10"
             >
-              <ul className="flex flex-col py-4 gap-1">
+              <ul className="flex flex-col py-4 gap-1 px-4">
                 {routes.map(({ name, path }, index) => (
                   <motion.li
                     key={name}
@@ -148,12 +176,12 @@ const NavigationBar = () => {
                   animate={{ x: 0, opacity: 1 }}
                   exit={{ x: -20, opacity: 0 }}
                   transition={{ duration: 0.2, delay: routes.length * 0.05 }}
-                  className="px-4 pt-3"
+                  className="pt-3"
                 >
                   <Link
                     href="/docs/getting-started/introduction"
                     onClick={() => setIsOpen(false)}
-                    className="block w-full text-white text-center font-medium px-5 py-3 transition-colors hover:opacity-90 bg-black dark:bg-white dark:text-black"
+                    className="block w-full text-white text-center font-medium px-5 py-3 bg-black dark:bg-white dark:text-black"
                   >
                     Get Started
                   </Link>
@@ -162,7 +190,7 @@ const NavigationBar = () => {
             </motion.div>
           )}
         </AnimatePresence>
-      </nav>
+      </div>
     </header>
   );
 };
