@@ -1,0 +1,13 @@
+<svg width="260" height="200" viewBox="0 0 260 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <g transform="translate(80, 40)">
+    <polygon points="50,0 100,25 100,75 50,100 0,75 0,25" stroke="#000" stroke-width="1.5" fill="none" opacity="0.3"/>
+    <ellipse cx="50" cy="50" rx="40" ry="15" stroke="#000" stroke-width="1.5" fill="none" transform="rotate(0,50,50)"/>
+    <ellipse cx="50" cy="50" rx="40" ry="15" stroke="#000" stroke-width="1.5" fill="none" transform="rotate(60,50,50)"/>
+    <ellipse cx="50" cy="50" rx="40" ry="15" stroke="#000" stroke-width="1.5" fill="none" transform="rotate(-60,50,50)"/>
+    <circle cx="50" cy="50" r="5" fill="#000"/>
+  </g>
+  <circle cx="55" cy="55" r="3" fill="#000" opacity="0.4"/>
+  <circle cx="205" cy="55" r="3" fill="#000" opacity="0.4"/>
+  <circle cx="55" cy="155" r="3" fill="#000" opacity="0.4"/>
+  <circle cx="205" cy="155" r="3" fill="#000" opacity="0.4"/>
+</svg>
