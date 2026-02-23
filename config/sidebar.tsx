@@ -6,6 +6,7 @@ import {
   Wrench,
   Database,
   Zap,
+  Route,
 } from 'lucide-react';
 
 export type SidebarPage = {
@@ -86,6 +87,17 @@ export const sidebarNav: SidebarSection[] = [
       },
       { title: 'WalletConnect', href: '/docs/integrations/walletconnect' },
       { title: 'Testing (MSW)', href: '/docs/integrations/testing' },
+    ],
+  },
+  {
+    title: 'API Routes',
+    icon: <Route className="h-5 w-5" />,
+    defaultOpen: true,
+    pages: [
+      {
+        title: 'POST /api/wallet/connect',
+        href: '/docs/routes-d/wallet-connect',
+      },
     ],
   },
   {
