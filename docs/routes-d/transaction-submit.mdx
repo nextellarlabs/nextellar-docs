@@ -1,0 +1,236 @@
+---
+title: POST /api/transactions/submit
+description: Broadcast a signed Stellar transaction to the network
+---
+
+# POST /api/transactions/submit
+
+Documentation for the **`/api/transactions/submit`** route that broadcasts signed Stellar transactions to the Stellar network.
+
+## Overview
+
+This endpoint accepts a signed transaction envelope (XDR) and submits it to the Stellar network via Horizon. It returns the transaction hash, ledger, and fee charged on success, or a structured error with subcode details on failure.
+
+> **Warning:** Transactions submitted to mainnet are irreversible. Always test on testnet before broadcasting to `public`.
+
+---
+
+## Request / Response Schema
+
+### Request
+
+| Method | Content-Type       | Body |
+|--------|--------------------|------|
+| `POST` | `application/json` | JSON (see below) |
+
+**Request body (JSON):**
+
+```json
+{
+  "xdr": "AAAAAgAAAAA...",
+  "networkPassphrase": "Test SDF Network ; September 2015",
+  "memo": "Payment for order #1042"
+}
+```
+
+| Field               | Type   | Required | Description |
+|---------------------|--------|----------|-------------|
+| `xdr`               | string | Yes      | Base64-encoded signed transaction envelope (XDR) |
+| `networkPassphrase` | string | No       | Network passphrase. Defaults to testnet passphrase if omitted |
+| `memo`              | string | No       | Optional human-readable memo attached to the transaction |
+
+### Response (success)
+
+**Status:** `200 OK`
+
+```json
+{
+  "ok": true,
+  "hash": "3389e9f0f1a65f19935ef8d3e56f3b3b4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c",
+  "ledger": 48723901,
+  "feeCharged": "100"
+}
+```
+
+| Field        | Type    | Description |
+|--------------|---------|-------------|
+| `ok`         | boolean | Always `true` on success |
+| `hash`       | string  | Transaction hash (hex) |
+| `ledger`     | number  | Ledger sequence number in which the transaction was included |
+| `feeCharged` | string  | Actual fee charged in stroops |
+
+### Response (error)
+
+**Status:** `4xx` or `5xx`
+
+```json
+{
+  "ok": false,
+  "error": {
+    "code": "TX_FAILED",
+    "message": "Transaction failed with result codes.",
+    "extras": {
+      "result_codes": {
+        "transaction": "tx_failed",
+        "operations": ["op_underfunded"]
+      }
+    }
+  }
+}
+```
+
+---
+
+## Testnet vs. Mainnet behavior
+
+| Behavior                | Testnet                                   | Mainnet (`public`)                         |
+|-------------------------|-------------------------------------------|--------------------------------------------|
+| Network passphrase      | `Test SDF Network ; September 2015`       | `Public Global Stellar Network ; September 2015` |
+| Friendbot funding       | Available via `friendbot.stellar.org`     | Not available                              |
+| Transaction finality    | ~5 seconds                                | ~5 seconds                                 |
+| Fee market              | Generally low congestion                  | May require higher base fees during spikes |
+| Reversibility           | Irreversible (but no real funds at risk)  | Irreversible — use with caution            |
+
+To target mainnet, pass the mainnet passphrase explicitly:
+
+```json
+{
+  "xdr": "AAAAAgAAAAA...",
+  "networkPassphrase": "Public Global Stellar Network ; September 2015"
+}
+```
+
+---
+
+## Code examples
+
+<Tabs items={['cURL', 'fetch', 'Nextellar SDK']}>
+  <Tab value="cURL">
+    ```bash
+    curl -X POST https://your-app.com/api/transactions/submit \
+      -H "Content-Type: application/json" \
+      -d '{
+        "xdr": "AAAAAgAAAAA...",
+        "networkPassphrase": "Test SDF Network ; September 2015",
+        "memo": "Payment for order #1042"
+      }'
+    ```
+  </Tab>
+  <Tab value="fetch">
+    ```typescript
+    const response = await fetch('/api/transactions/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        xdr: signedXdr,
+        networkPassphrase: 'Test SDF Network ; September 2015',
+        memo: 'Payment for order #1042',
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!data.ok) {
+      const { code, message, extras } = data.error;
+      console.error(`Submit failed [${code}]:`, message, extras);
+      throw new Error(message);
+    }
+
+    console.log('Transaction hash:', data.hash);
+    console.log('Ledger:', data.ledger);
+    console.log('Fee charged:', data.feeCharged, 'stroops');
+    ```
+  </Tab>
+  <Tab value="Nextellar SDK">
+    ```typescript
+    import { nextellar } from '@nextellar/sdk';
+
+    const result = await nextellar.transactions.submit({
+      xdr: signedXdr,
+      network: 'testnet',
+      memo: 'Payment for order #1042',
+    });
+
+    if (!result.ok) {
+      throw new Error(result.error.message);
+    }
+
+    console.log('Hash:', result.hash);
+    console.log('Ledger:', result.ledger);
+    console.log('Fee charged:', result.feeCharged);
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Error code reference
+
+| Code                    | HTTP Status | Description |
+|-------------------------|-------------|-------------|
+| `INVALID_XDR`           | `400`       | The `xdr` field is missing, not valid base64, or not a valid transaction envelope |
+| `INVALID_NETWORK`       | `400`       | The `networkPassphrase` does not match `testnet` or `public` |
+| `INSUFFICIENT_BALANCE`  | `400`       | Source account does not have sufficient XLM to cover the operation and fees (`op_underfunded`) |
+| `BAD_SEQUENCE`          | `400`       | Transaction sequence number does not match the current account sequence (`tx_bad_seq`) |
+| `TX_FAILED`             | `400`       | Transaction was rejected by the network; check `extras.result_codes` for per-operation subcodes |
+| `TX_TOO_LATE`           | `400`       | Transaction's `timeBounds.maxTime` has passed; see [Retry strategy](#retry-strategy-for-tx_too_late) |
+| `RATE_LIMITED`          | `429`       | Too many submission requests; back off and retry |
+| `INTERNAL_ERROR`        | `500`       | Unexpected server error; retry or report |
+
+### Common `tx_failed` subcodes
+
+| Operation subcode       | Meaning |
+|-------------------------|---------|
+| `op_underfunded`        | Source or destination account has insufficient balance |
+| `op_no_destination`     | Destination account does not exist on the network |
+| `op_no_trust`           | Destination account has no trustline for the asset |
+| `op_line_full`          | Destination trustline is at capacity |
+| `op_bad_auth`           | Insufficient or invalid signatures |
+| `op_not_authorized`     | Asset issuer has not authorized the destination account |
+
+---
+
+## Retry strategy for `tx_too_late`
+
+`TX_TOO_LATE` occurs when the transaction's `timeBounds.maxTime` has already passed by the time the network processes it. This can happen under network congestion or clock skew.
+
+**Recommended retry approach:**
+
+1. Rebuild the transaction with an updated `timeBounds` (extend `maxTime` by 30–60 seconds).
+2. Re-sign the transaction with the same source keypair.
+3. Resubmit via `/api/transactions/submit`.
+4. Apply exponential backoff if the error persists (e.g. 1s → 2s → 4s, up to 3 attempts).
+
+```typescript
+async function submitWithRetry(buildTx: () => Promise<string>, maxAttempts = 3) {
+  let delay = 1000;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const xdr = await buildTx(); // rebuilds and re-signs each time
+    const res = await fetch('/api/transactions/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ xdr, networkPassphrase: 'Test SDF Network ; September 2015' }),
+    });
+
+    const data = await res.json();
+
+    if (data.ok) return data;
+
+    if (data.error?.code !== 'TX_TOO_LATE' || attempt === maxAttempts) {
+      throw new Error(data.error?.message ?? 'Submission failed');
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, delay));
+    delay *= 2;
+  }
+}
+```
+
+---
+
+## See also
+
+- [Stellar Transactions](/docs/guides/transactions) – Building and signing transactions
+- [POST /api/soroban/invoke](/docs/routes-d/soroban-invoke) – Submit Soroban smart contract invocations
+- [API Reference](/docs/sdk/api-reference) – Full SDK and API overview
