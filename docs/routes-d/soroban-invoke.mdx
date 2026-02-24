@@ -1,0 +1,109 @@
+---
+title: POST /api/soroban/invoke
+description: Invoke Soroban smart contracts via API.
+---
+
+# POST /api/soroban/invoke
+
+Documentation for the **`/api/soroban/invoke`** route that invokes Soroban smart contracts.
+
+## Overview
+
+This endpoint builds and submits a Soroban invocation transaction. It can optionally simulate and return results without submitting.
+
+---
+
+## Request
+
+| Method | Content-Type | Body |
+|--------|--------------|------|
+| `POST` | `application/json` | JSON (see below) |
+
+**Request body (JSON):**
+
+```json
+{
+  "contractId": "CBXK...CONTRACT",
+  "method": "transfer",
+  "args": ["GDEST...", "100"],
+  "source": "GSOURCE...",
+  "network": "testnet",
+  "simulateOnly": false
+}
+```
+
+| Field          | Type    | Required | Description |
+|----------------|---------|----------|-------------|
+| `contractId`   | string  | Yes      | Soroban contract ID |
+| `method`       | string  | Yes      | Contract function to invoke |
+| `args`         | array   | No       | Function arguments (JSON-serializable) |
+| `source`       | string  | Yes      | Source account public key |
+| `network`      | string  | No       | `testnet` or `public` (default: `testnet`) |
+| `simulateOnly` | boolean | No       | If `true`, only simulates and returns results |
+
+---
+
+## Response (success)
+
+**Status:** `200 OK`
+
+```json
+{
+  "ok": true,
+  "result": {
+    "status": "SUCCESS",
+    "returnValue": "AQ=="
+  },
+  "hash": "7a2e...",
+  "ledger": 5723491
+}
+```
+
+| Field    | Type   | Description |
+|----------|--------|-------------|
+| `ok`     | boolean | Always `true` on success |
+| `result` | object | Simulation or invocation result |
+| `hash`   | string | Transaction hash (if submitted) |
+| `ledger` | number | Ledger sequence (if submitted) |
+
+---
+
+## Example
+
+```typescript
+const res = await fetch('/api/soroban/invoke', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    contractId: 'CBXK...CONTRACT',
+    method: 'balance',
+    args: ['GDEST...'],
+    source: 'GSOURCE...',
+    network: 'testnet',
+    simulateOnly: true,
+  }),
+});
+
+const data = await res.json();
+if (!data.ok) throw new Error(data.error?.message || 'Invoke failed');
+console.log('Result:', data.result);
+```
+
+---
+
+## Error codes
+
+| Code                | HTTP Status | Description |
+|---------------------|-------------|-------------|
+| `INVALID_CONTRACT`  | `400`       | Contract ID missing or invalid |
+| `INVALID_METHOD`    | `400`       | Method name missing or invalid |
+| `SIMULATION_FAILED` | `400`       | Simulation failed with error details |
+| `RATE_LIMITED`      | `429`       | Too many requests |
+| `INTERNAL_ERROR`    | `500`       | Server error |
+
+---
+
+## See also
+
+- [Soroban](/docs/integrations/soroban) - Soroban overview
+- [useSorobanContract](/docs/hooks/use-soroban-contract) - Client hook

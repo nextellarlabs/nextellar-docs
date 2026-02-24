@@ -98,6 +98,34 @@ export const sidebarNav: SidebarSection[] = [
         title: 'POST /api/wallet/connect',
         href: '/docs/routes-d/wallet-connect',
       },
+      {
+        title: 'GET /api/assets/search',
+        href: '/docs/routes-d/assets-search',
+      },
+      {
+        title: 'GET /api/federation/resolve',
+        href: '/docs/routes-d/federation-resolve',
+      },
+      {
+        title: 'POST /api/offers/create',
+        href: '/docs/routes-d/offers-create',
+      },
+      {
+        title: 'POST /api/path-payment/find',
+        href: '/docs/routes-d/path-payment-find',
+      },
+      {
+        title: 'GET /api/claimable-balances',
+        href: '/docs/routes-d/claimable-balances',
+      },
+      {
+        title: 'GET /api/stream/payments',
+        href: '/docs/routes-d/stream-payments',
+      },
+      {
+        title: 'POST /api/soroban/invoke',
+        href: '/docs/routes-d/soroban-invoke',
+      },
     ],
   },
   {
