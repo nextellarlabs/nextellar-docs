@@ -1,0 +1,100 @@
+---
+title: GET /api/claimable-balances
+description: List claimable balances for pending payments.
+---
+
+# GET /api/claimable-balances
+
+Documentation for the **`/api/claimable-balances`** route that lists claimable balances for an account.
+
+## Overview
+
+Claimable balances are pending payments that require the claimant to claim them. Use this endpoint to fetch claimable balances with filtering and pagination.
+
+---
+
+## Request
+
+| Method | Content-Type | Query | Body |
+|--------|--------------|-------|------|
+| `GET`  | `application/json` | Query params (see below) | None |
+
+### Query parameters
+
+| Param      | Type   | Required | Description |
+|------------|--------|----------|-------------|
+| `claimant` | string | Yes      | Stellar account ID (G...) to list claimable balances for |
+| `asset`    | string | No       | Asset filter (`XLM` or `CODE:ISSUER`) |
+| `limit`    | number | No       | Max results (default: `20`, max: `100`) |
+| `cursor`   | string | No       | Pagination cursor |
+| `order`    | string | No       | `asc` or `desc` (default: `desc`) |
+| `network`  | string | No       | `testnet` or `public` (default: `testnet`) |
+
+---
+
+## Response (success)
+
+**Status:** `200 OK`
+
+```json
+{
+  "ok": true,
+  "data": [
+    {
+      "id": "00000000",
+      "asset": "USDC:GA5ZSE...ISSUER",
+      "amount": "25.0000000",
+      "sponsor": "GSPONSOR...",
+      "claimants": [
+        {
+          "destination": "GCLAIMANT...",
+          "predicate": "unconditional"
+        }
+      ]
+    }
+  ],
+  "nextCursor": "129398123"
+}
+```
+
+| Field        | Type   | Description |
+|--------------|--------|-------------|
+| `ok`         | boolean | Always `true` on success |
+| `data`       | array  | Claimable balance records |
+| `nextCursor` | string | Cursor for pagination |
+
+---
+
+## Example
+
+```typescript
+const params = new URLSearchParams({
+  claimant: 'GCLAIMANT...ACCOUNT',
+  network: 'public',
+  limit: '10',
+});
+
+const res = await fetch(`/api/claimable-balances?${params.toString()}`);
+const data = await res.json();
+
+if (!data.ok) throw new Error(data.error?.message || 'Fetch failed');
+console.log('Claimable balances:', data.data);
+```
+
+---
+
+## Error codes
+
+| Code               | HTTP Status | Description |
+|--------------------|-------------|-------------|
+| `INVALID_CLAIMANT` | `400`       | Claimant is missing or invalid |
+| `INVALID_ASSET`    | `400`       | Invalid asset filter format |
+| `RATE_LIMITED`     | `429`       | Too many requests |
+| `INTERNAL_ERROR`   | `500`       | Server error |
+
+---
+
+## See also
+
+- [Horizon](/docs/integrations/horizon) - Claimable balances endpoint
+- [Transaction utilities](/docs/sdk/api-reference) - SDK helpers

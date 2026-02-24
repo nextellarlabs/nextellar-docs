@@ -1,0 +1,86 @@
+---
+title: GET /api/federation/resolve
+description: Resolve a Stellar address into an account ID and optional memo.
+---
+
+# GET /api/federation/resolve
+
+Documentation for the **`/api/federation/resolve`** route that resolves a Stellar address (federation) into an account ID.
+
+## Overview
+
+This endpoint wraps standard Stellar federation lookup. Provide a `q` value and a `type` to resolve a Stellar address into its account ID and optional memo.
+
+---
+
+## Request
+
+| Method | Content-Type | Query | Body |
+|--------|--------------|-------|------|
+| `GET`  | `application/json` | Query params (see below) | None |
+
+### Query parameters
+
+| Param   | Type   | Required | Description |
+|---------|--------|----------|-------------|
+| `q`     | string | Yes      | Query value. Example: `user*domain.com` for `type=name` |
+| `type`  | string | Yes      | `name`, `id`, or `forward` |
+| `network` | string | No     | `testnet` or `public` (default: `testnet`) |
+
+---
+
+## Response (success)
+
+**Status:** `200 OK`
+
+```json
+{
+  "ok": true,
+  "account_id": "GCO3Z...ACCOUNT",
+  "memo_type": "id",
+  "memo": "123456"
+}
+```
+
+| Field       | Type   | Description |
+|-------------|--------|-------------|
+| `ok`        | boolean | Always `true` on success |
+| `account_id`| string | Resolved Stellar account ID |
+| `memo_type` | string | Optional memo type (`id`, `text`, `hash`) |
+| `memo`      | string | Optional memo value |
+
+---
+
+## Example
+
+```typescript
+const params = new URLSearchParams({
+  q: 'bob*stellar.example',
+  type: 'name',
+  network: 'public',
+});
+
+const res = await fetch(`/api/federation/resolve?${params.toString()}`);
+const data = await res.json();
+
+if (!data.ok) throw new Error(data.error?.message || 'Federation lookup failed');
+console.log('Account:', data.account_id);
+```
+
+---
+
+## Error codes
+
+| Code                | HTTP Status | Description |
+|---------------------|-------------|-------------|
+| `INVALID_QUERY`     | `400`       | Missing or invalid `q` or `type` |
+| `NOT_FOUND`         | `404`       | Federation record not found |
+| `RATE_LIMITED`      | `429`       | Too many requests |
+| `INTERNAL_ERROR`    | `500`       | Server error |
+
+---
+
+## See also
+
+- [Stellar Horizon](/docs/integrations/horizon) - Horizon API integration
+- [Wallets](/docs/integrations/wallets) - Wallet configuration
