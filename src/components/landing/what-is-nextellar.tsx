@@ -8,24 +8,28 @@ const cards = [
     title: 'One Command Setup',
     description:
       'Scaffold a Stellar Next.js app instantly with \n npx nextellar my-app',
-    image: '/images/what-is-nextellar/whatisnextelar1.png',
+    image: '/images/what-is-nextellar/dark1.png',
+    darkImage: '/images/what-is-nextellar/whatisnextelar1.png',
   },
   {
     title: 'Built-in Stellar SDK Integration',
     description: 'Preconfigured Stellar SDK for easy blockchain connectivity',
-    image: '/images/what-is-nextellar/whatisnextelar2.png',
+    image: '/images/what-is-nextellar/dark2.png',
+    darkImage: '/images/what-is-nextellar/whatisnextelar2.png',
   },
   {
     title: 'React Hooks for Web3',
     description:
       'Simplified access to Stellar data through hooks like \n useStellarAccount(), useStellarPayment(), and useTransactionHistory()',
-    image: '/images/what-is-nextellar/whatisnextelar3.png',
+    image: '/images/what-is-nextellar/dark3.png',
+    darkImage: '/images/what-is-nextellar/whatisnextelar3.png',
   },
   {
     title: 'UI Components',
     description:
       'Drop-in React components for connecting and managing Stellar wallets',
     image: '/images/what-is-nextellar/ui-components.svg',
+    darkImage: '/images/what-is-nextellar/ui-components.svg',
   },
 ];
 
@@ -73,7 +77,13 @@ export function WhatIsNextellar() {
                   src={cards[0].image}
                   alt={cards[0].title}
                   fill
-                  className="object-contain"
+                  className="object-contain dark:hidden"
+                />
+                <Image
+                  src={cards[0].darkImage}
+                  alt={cards[0].title}
+                  fill
+                  className="object-contain hidden dark:block"
                 />
               </div>
             </div>
@@ -101,7 +111,13 @@ export function WhatIsNextellar() {
                     src={card.image}
                     alt={card.title}
                     fill
-                    className="object-contain"
+                    className="object-contain dark:hidden"
+                  />
+                  <Image
+                    src={card.darkImage}
+                    alt={card.title}
+                    fill
+                    className="object-contain hidden dark:block"
                   />
                 </div>
               </div>
@@ -114,11 +130,18 @@ export function WhatIsNextellar() {
           {/* UI Components card */}
           <div className="border border-black/20 dark:border-white/20 min-h-[300px] md:min-h-[380px] overflow-hidden relative">
             <Image
+              src="/images/what-is-nextellar/dark4.png"
+              alt="Nextellar UI Components"
+              width={800}
+              height={800}
+              className="object-cover w-full h-full dark:hidden"
+            />
+            <Image
               src="/images/what-is-nextellar/whatisnextelar4.png"
               alt="Nextellar UI Components"
-              width={800} 
+              width={800}
               height={800}
-              className="object-cover w-full h-full"
+              className="object-cover w-full h-full hidden dark:block"
             />
           </div>
 
@@ -128,7 +151,13 @@ export function WhatIsNextellar() {
               src="/images/what-is-nextellar/whatisnextelar5.png"
               alt="Nextellar showcase"
               fill
-              className="object-contain object-bottom object-right"
+              className="object-contain object-bottom object-right hidden dark:block"
+            />
+            <Image
+              src="/images/what-is-nextellar/dark5l.png"
+              alt="Nextellar showcase"
+              fill
+              className="object-contain object-bottom object-right dark:hidden "
             />
           </div>
         </div>
