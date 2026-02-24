@@ -1,0 +1,108 @@
+---
+title: POST /api/offers/create
+description: Create a Stellar DEX offer (order) to buy or sell assets.
+---
+
+# POST /api/offers/create
+
+Documentation for the **`/api/offers/create`** route that creates DEX offers (buy/sell orders) on Stellar.
+
+## Overview
+
+Use this endpoint to place a new offer on the Stellar DEX. The API builds and submits an offer transaction on behalf of the provided source account.
+
+---
+
+## Request
+
+| Method | Content-Type | Body |
+|--------|--------------|------|
+| `POST` | `application/json` | JSON (see below) |
+
+**Request body (JSON):**
+
+```json
+{
+  "source": "GABC...SOURCE",
+  "selling": { "code": "XLM" },
+  "buying": { "code": "USDC", "issuer": "GA5ZSE...ISSUER" },
+  "amount": "100.0",
+  "price": "0.1225",
+  "network": "public"
+}
+```
+
+| Field     | Type   | Required | Description |
+|-----------|--------|----------|-------------|
+| `source`  | string | Yes      | Source account placing the offer |
+| `selling` | object | Yes      | Asset being sold (code + issuer, or `XLM`) |
+| `buying`  | object | Yes      | Asset being bought (code + issuer, or `XLM`) |
+| `amount`  | string | Yes      | Amount of `selling` to offer |
+| `price`   | string | Yes      | Price as `buying/selling` ratio |
+| `network` | string | No       | `testnet` or `public` (default: `testnet`) |
+| `memo`    | string | No       | Optional memo for the transaction |
+
+---
+
+## Response (success)
+
+**Status:** `200 OK`
+
+```json
+{
+  "ok": true,
+  "offerId": "129384",
+  "hash": "d4d9f...",
+  "ledger": 52345678
+}
+```
+
+| Field    | Type   | Description |
+|----------|--------|-------------|
+| `ok`     | boolean | Always `true` on success |
+| `offerId`| string | Offer ID created on the DEX |
+| `hash`   | string | Transaction hash |
+| `ledger` | number | Ledger sequence containing the offer |
+
+---
+
+## Example
+
+```typescript
+const res = await fetch('/api/offers/create', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    source: 'GABC...SOURCE',
+    selling: { code: 'XLM' },
+    buying: { code: 'USDC', issuer: 'GA5ZSE...ISSUER' },
+    amount: '100',
+    price: '0.1225',
+    network: 'public',
+  }),
+});
+
+const data = await res.json();
+if (!data.ok) throw new Error(data.error?.message || 'Offer failed');
+console.log('Offer ID:', data.offerId);
+```
+
+---
+
+## Error codes
+
+| Code               | HTTP Status | Description |
+|--------------------|-------------|-------------|
+| `INVALID_ASSET`    | `400`       | Invalid buying or selling asset |
+| `INVALID_AMOUNT`   | `400`       | Amount is missing or invalid |
+| `INVALID_PRICE`    | `400`       | Price is missing or invalid |
+| `INSUFFICIENT_FUNDS` | `400`     | Source account has insufficient balance |
+| `RATE_LIMITED`     | `429`       | Too many requests |
+| `INTERNAL_ERROR`   | `500`       | Server error |
+
+---
+
+## See also
+
+- [Stellar DEX](/docs/integrations/horizon) - Offers and orderbook data
+- [useOfferBook](/docs/hooks/use-offer-book) - Client-side orderbook hook

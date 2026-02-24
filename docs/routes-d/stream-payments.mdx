@@ -1,0 +1,85 @@
+---
+title: GET /api/stream/payments
+description: Stream payment events over Server-Sent Events (SSE).
+---
+
+# GET /api/stream/payments
+
+Documentation for the **`/api/stream/payments`** route that streams payment events via SSE.
+
+## Overview
+
+Use this endpoint to receive live payment events without polling. Clients keep an open connection and receive events as they occur.
+
+---
+
+## Request
+
+| Method | Content-Type | Query | Body |
+|--------|--------------|-------|------|
+| `GET`  | `text/event-stream` | Query params (see below) | None |
+
+### Query parameters
+
+| Param     | Type   | Required | Description |
+|-----------|--------|----------|-------------|
+| `account` | string | Yes      | Account ID (G...) to stream payments for |
+| `cursor`  | string | No       | Cursor to start from (`now` or a paging token) |
+| `network` | string | No       | `testnet` or `public` (default: `testnet`) |
+
+---
+
+## Response (success)
+
+**Status:** `200 OK`
+
+The response is an SSE stream. Each event has `event: payment` and a JSON payload in `data:`.
+
+Example event:
+
+```
+event: payment
+data: {"id":"987654","type":"payment","from":"G...","to":"G...","asset":"XLM","amount":"1.5"}
+
+```
+
+---
+
+## Example
+
+```typescript
+const params = new URLSearchParams({
+  account: 'GACCOUNT...ID',
+  cursor: 'now',
+  network: 'public',
+});
+
+const evtSource = new EventSource(`/api/stream/payments?${params.toString()}`);
+
+evtSource.addEventListener('payment', (event) => {
+  const data = JSON.parse((event as MessageEvent).data);
+  console.log('Payment event:', data);
+});
+
+evtSource.onerror = () => {
+  console.error('Stream disconnected. Reconnecting...');
+  evtSource.close();
+};
+```
+
+---
+
+## Error codes
+
+| Code               | HTTP Status | Description |
+|--------------------|-------------|-------------|
+| `INVALID_ACCOUNT`  | `400`       | Account is missing or invalid |
+| `RATE_LIMITED`     | `429`       | Too many connections |
+| `INTERNAL_ERROR`   | `500`       | Server error |
+
+---
+
+## See also
+
+- [Transaction hooks](/docs/hooks/use-transaction-history) - Client-side history
+- [Horizon](/docs/integrations/horizon) - Payment streams
