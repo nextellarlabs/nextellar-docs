@@ -8,6 +8,7 @@ import React, {
   useEffect,
 } from 'react';
 import { useDebounce } from '@/hooks-d/use-debounce';
+import { useKeyboardShortcut } from '@/hooks-d/use-keyboard-shortcut';
 import { Dialog, DialogTrigger, DialogContent } from '@/components/dialog';
 import { Input } from '@/components/input';
 import SearchButton from '@/components/search-button';
@@ -109,16 +110,8 @@ const SearchDialog = forwardRef<SearchDialogHandle, SearchDialogProps>(
       open: () => setOpen(true),
     }));
 
-    useEffect(() => {
-      const handleKeyDown = (e: KeyboardEvent) => {
-        if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-          e.preventDefault();
-          setOpen(true);
-        }
-      };
-      document.addEventListener('keydown', handleKeyDown);
-      return () => document.removeEventListener('keydown', handleKeyDown);
-    }, []);
+    useKeyboardShortcut('mod+k', () => setOpen(true));
+
 
     const filteredDocs = useMemo(() => {
       if (!debouncedQuery) return [];
