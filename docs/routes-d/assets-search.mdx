@@ -1,0 +1,95 @@
+---
+title: GET /api/assets/search
+description: Search Stellar assets by code, issuer, or keyword.
+---
+
+# GET /api/assets/search
+
+Documentation for the **`/api/assets/search`** route that finds Stellar assets by code, issuer, or keyword.
+
+## Overview
+
+Use this endpoint to discover assets available on the Stellar network. It supports free-text search and optional filters for asset code and issuer.
+
+---
+
+## Request
+
+| Method | Content-Type | Query | Body |
+|--------|--------------|-------|------|
+| `GET`  | `application/json` | Query params (see below) | None |
+
+### Query parameters
+
+| Param     | Type   | Required | Description |
+|-----------|--------|----------|-------------|
+| `q`       | string | No       | Free-text search across code and issuer (e.g. `USDC`, `anchor`) |
+| `code`    | string | No       | Exact asset code filter (e.g. `USDC`) |
+| `issuer`  | string | No       | Stellar issuer public key (G...) |
+| `limit`   | number | No       | Max results to return (default: `20`, max: `100`) |
+| `cursor`  | string | No       | Pagination cursor from a previous response |
+| `network` | string | No       | `testnet` or `public` (default: `testnet`) |
+
+---
+
+## Response (success)
+
+**Status:** `200 OK`
+
+```json
+{
+  "ok": true,
+  "data": [
+    {
+      "asset_code": "USDC",
+      "asset_issuer": "GA5ZSE...ISSUER",
+      "type": "credit_alphanum4",
+      "num_accounts": 128734,
+      "num_claimable_balances": 42
+    }
+  ],
+  "nextCursor": "134938502123"
+}
+```
+
+| Field        | Type    | Description |
+|--------------|---------|-------------|
+| `ok`         | boolean | Always `true` on success |
+| `data`       | array   | Matching assets |
+| `nextCursor` | string  | Cursor for pagination (if available) |
+
+---
+
+## Example
+
+```typescript
+const params = new URLSearchParams({
+  q: 'USDC',
+  network: 'public',
+  limit: '10',
+});
+
+const res = await fetch(`/api/assets/search?${params.toString()}`);
+const data = await res.json();
+
+if (!data.ok) throw new Error(data.error?.message || 'Search failed');
+console.log('Assets:', data.data);
+```
+
+---
+
+## Error codes
+
+| Code               | HTTP Status | Description |
+|--------------------|-------------|-------------|
+| `INVALID_QUERY`    | `400`       | Invalid combination of filters or malformed query |
+| `INVALID_ISSUER`   | `400`       | Issuer is not a valid Stellar public key |
+| `RATE_LIMITED`     | `429`       | Too many requests |
+| `INTERNAL_ERROR`   | `500`       | Server error |
+
+---
+
+## See also
+
+- [Stellar Horizon](/docs/integrations/horizon) - Horizon API integration
+- [API Reference](/docs/sdk/api-reference) - SDK reference
