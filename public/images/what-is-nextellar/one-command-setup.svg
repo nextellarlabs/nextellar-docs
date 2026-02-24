@@ -1,0 +1,11 @@
+<svg width="260" height="200" viewBox="0 0 260 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect x="60" y="20" width="160" height="120" rx="4" stroke="#000" stroke-width="1.5" fill="none"/>
+  <path d="M60 40 L220 40" stroke="#000" stroke-width="1"/>
+  <rect x="70" y="28" width="6" height="6" rx="1" fill="#000" opacity="0.3"/>
+  <rect x="80" y="28" width="6" height="6" rx="1" fill="#000" opacity="0.3"/>
+  <rect x="90" y="28" width="6" height="6" rx="1" fill="#000" opacity="0.3"/>
+  <text x="80" y="75" font-family="monospace" font-size="11" fill="#000" opacity="0.6">$ npx nextellar</text>
+  <text x="80" y="95" font-family="monospace" font-size="11" fill="#000" opacity="0.4">Creating app...</text>
+  <rect x="80" y="105" width="100" height="8" rx="2" fill="#000" opacity="0.15"/>
+  <rect x="80" y="105" width="65" height="8" rx="2" fill="#000" opacity="0.4"/>
+</svg>
