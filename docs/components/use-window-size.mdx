@@ -1,0 +1,80 @@
+---
+title: useWindowSize
+description: 'Track window dimensions and breakpoint helpers for responsive logic that can''t be handled with CSS alone.'
+date: 2025-02-25
+---
+
+# useWindowSize
+
+The `useWindowSize` hook tracks window dimensions and exposes `width`, `height`, and Tailwind-aligned breakpoint helpers (`isMobile`, `isTablet`, `isDesktop`) for responsive logic that can't be handled with CSS alone.
+
+## Features
+
+- **SSR-safe:** Returns `undefined` for dimensions and breakpoints during server render to avoid Next.js hydration mismatch.
+- **Throttled resize** (default 100ms) to avoid excessive updates.
+- **Optional debounce** for expensive recalculations.
+- **Breakpoints** match Tailwind: `sm` 640px, `md` 768px, `lg` 1024px.
+
+## API
+
+```ts
+const { width, height, isMobile, isTablet, isDesktop } = useWindowSize({ throttle: 100 });
+```
+
+| Return      | Type              | Description                                      |
+| ----------- | ----------------- | ------------------------------------------------ |
+| `width`     | `number \| undefined` | Window inner width; `undefined` during SSR. |
+| `height`    | `number \| undefined` | Window inner height; `undefined` during SSR. |
+| `isMobile`  | `boolean \| undefined` | `true` when width &lt; 640px (below `sm`).   |
+| `isTablet`  | `boolean \| undefined` | `true` when 640px ≤ width &lt; 1024px (`sm` to `lg`). |
+| `isDesktop` | `boolean \| undefined` | `true` when width ≥ 1024px (`lg` and up).   |
+
+Options:
+
+- `throttle` (default `100`): Throttle interval for resize events in ms.
+- `debounce`: If set, use debounce instead of throttle for resize updates.
+
+## Example: Conditional mobile vs desktop navigation
+
+Use the breakpoint helpers to render different navigation UIs for mobile and desktop without relying only on CSS:
+
+```tsx
+'use client';
+
+import { useWindowSize } from '@/hooks-d/use-window-size';
+
+function MobileNav() {
+  return (
+    <nav className="flex md:hidden">
+      <button aria-label="Menu">☰</button>
+      {/* Mobile menu content */}
+    </nav>
+  );
+}
+
+function DesktopNav() {
+  return (
+    <nav className="hidden md:flex gap-6">
+      <a href="/docs">Docs</a>
+      <a href="/api">API</a>
+    </nav>
+  );
+}
+
+export function AppNav() {
+  const { isMobile, isDesktop } = useWindowSize({ throttle: 100 });
+
+  // SSR: isMobile/isDesktop are undefined → render a single default or placeholder
+  if (isMobile === undefined && isDesktop === undefined) {
+    return <nav className="h-10" aria-hidden />; // placeholder to avoid layout shift
+  }
+
+  if (isMobile) return <MobileNav />;
+  if (isDesktop) return <DesktopNav />;
+
+  // Tablet: could render either or a dedicated layout
+  return <DesktopNav />;
+}
+```
+
+This pattern avoids hydration mismatch because the hook returns `undefined` on the server and on the first client paint until the effect runs; you can render a neutral placeholder until dimensions are known, then switch to mobile or desktop nav.
