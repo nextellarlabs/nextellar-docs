@@ -149,7 +149,7 @@ const SearchDialog = forwardRef<SearchDialogHandle, SearchDialogProps>(
     }, [debouncedQuery, performSearch]);
 
     return (
-      <Dialog open={open} setOpen={setOpen as any}>
+      <Dialog open={open} setOpen={setOpen as React.Dispatch<React.SetStateAction<boolean>>}>
         <DialogTrigger className="hidden sm:block">
           <SearchButton size="sm" placeholder="Search documentation.." />
         </DialogTrigger>
