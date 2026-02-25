@@ -28,7 +28,7 @@ export const generateMetadata = async ({ params }: { params: tParams }) => {
   const path = awaitedParams.slug.join('/');
   const doc = allDocs.find((doc) => doc._raw.flattenedPath === path);
 
-  if (!doc) throw new Error(`Doc not found for slug: ${path}`);
+  if (!doc) notFound();
   return {
     title: doc.title,
     description: doc.description || 'A detailed guide to the topic.',

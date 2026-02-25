@@ -1,0 +1,20 @@
+﻿
+[1m[46m RUN [49m[22m [36mv4.0.18 [39m[90mC:/Users/owner/Projects/nextellar-docs[39m
+
+ [32mΓ£ô[39m src/hooks-d/use-event-listener.test.ts[2m > [22museEventListener[2m > [22mAttaches listener to window on mount[32m 28[2mms[22m[39m
+ [32mΓ£ô[39m src/hooks-d/use-event-listener.test.ts[2m > [22museEventListener[2m > [22mRemoves listener from window on unmount[32m 3[2mms[22m[39m
+ [32mΓ£ô[39m src/hooks-d/use-event-listener.test.ts[2m > [22museEventListener[2m > [22mAttaches listener to document[32m 3[2mms[22m[39m
+ [32mΓ£ô[39m src/hooks-d/use-event-listener.test.ts[2m > [22museEventListener[2m > [22mAttaches listener to an element ref[32m 3[2mms[22m[39m
+ [32mΓ£ô[39m src/hooks-d/use-event-listener.test.ts[2m > [22museEventListener[2m > [22mDoes NOT attach when ref.current is null[32m 3[2mms[22m[39m
+ [31m├ù[39m src/hooks-d/use-event-listener.test.ts[2m > [22museEventListener[2m > [22mDoes NOT throw or access window in SSR environment[32m 9[2mms[22m[39m
+[31m   ΓåÆ expected [Function] to not throw an error but 'Error: Invalid hook call. Hooks can oΓÇª' was thrown[39m
+ [32mΓ£ô[39m src/hooks-d/use-event-listener.test.ts[2m > [22museEventListener[2m > [22mRe-attaches when event name changes[32m 4[2mms[22m[39m
+ [32mΓ£ô[39m src/hooks-d/use-event-listener.test.ts[2m > [22museEventListener[2m > [22mRe-attaches when target changes[32m 3[2mms[22m[39m
+ [32mΓ£ô[39m src/hooks-d/use-event-listener.test.ts[2m > [22museEventListener[2m > [22mPasses passive: true correctly to addEventListener[32m 3[2mms[22m[39m
+ [32mΓ£ô[39m src/hooks-d/use-event-listener.test.ts[2m > [22museEventListener[2m > [22mAlways calls the latest handler even without re-registering[32m 3[2mms[22m[39m
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m9 passed[39m[22m[90m (10)[39m
+[2m   Start at [22m 00:15:52
+[2m   Duration [22m 2.54s[2m (transform 75ms, setup 0ms, import 407ms, tests 66ms, environment 1.64s)[22m
+

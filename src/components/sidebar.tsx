@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { ChevronLeft, ChevronRight, Menu } from 'lucide-react';
 import clsx from 'clsx';
 import { cn } from '@/lib/utils';
+import { useEventListener } from '../hooks-d/use-event-listener';
 
 type SidebarContextType = {
   isOpen: boolean;
@@ -32,18 +33,15 @@ function useSidebar() {
 function useIsMobile() {
   const [isMobile, setIsMobile] = React.useState(false);
 
-  React.useEffect(() => {
-    const checkIsMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-
-    checkIsMobile();
-    window.addEventListener('resize', checkIsMobile);
-
-    return () => {
-      window.removeEventListener('resize', checkIsMobile);
-    };
+  const checkIsMobile = React.useCallback(() => {
+    setIsMobile(window.innerWidth < 768);
   }, []);
+
+  React.useEffect(() => {
+    checkIsMobile();
+  }, [checkIsMobile]);
+
+  useEventListener('resize', checkIsMobile, window);
 
   return isMobile;
 }
@@ -77,17 +75,12 @@ export function SidebarProvider({
   }, []);
 
   // Add keyboard shortcut (Ctrl+B) to toggle sidebar
-  React.useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
-        e.preventDefault();
-        toggleSidebar();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [toggleSidebar]);
+  useEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
+      e.preventDefault();
+      toggleSidebar();
+    }
+  }, window);
 
   const contextValue = React.useMemo(
     () => ({
@@ -371,10 +364,9 @@ export function SidebarMenuItem({
           href={href}
           className={`
             flex items-center justify-between w-full p-2 rounded-md
-            ${
-              isActive
-                ? 'bg-accent text-accent-foreground'
-                : 'hover:bg-accent text-gray-700 dark:text-gray-300'
+            ${isActive
+              ? 'bg-accent text-accent-foreground'
+              : 'hover:bg-accent text-gray-700 dark:text-gray-300'
             }
             ${!isOpen ? 'justify-center' : ''}
           `}
@@ -386,10 +378,9 @@ export function SidebarMenuItem({
         <button
           className={`
             flex items-center justify-between w-full p-2 rounded-md
-            ${
-              isActive
-                ? 'bg-sidebar text-blue-500'
-                : 'hover:bg-accent text-gray-700 dark:text-gray-300'
+            ${isActive
+              ? 'bg-sidebar text-blue-500'
+              : 'hover:bg-accent text-gray-700 dark:text-gray-300'
             }
             ${!isOpen ? 'justify-center' : ''}
           `}
@@ -436,10 +427,9 @@ export function NestedLink({
       href={href}
       className={`
         block py-1.5 px-2 rounded-md text-sm transition-all
-        ${
-          isActive
-            ? 'bg-black/10 dark:bg-white/10 text-black dark:text-white font-medium border-l-2 border-black dark:border-white -ml-[2px]'
-            : 'hover:bg-accent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+        ${isActive
+          ? 'bg-black/10 dark:bg-white/10 text-black dark:text-white font-medium border-l-2 border-black dark:border-white -ml-[2px]'
+          : 'hover:bg-accent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
         }
       `}
       onClick={handleClick}

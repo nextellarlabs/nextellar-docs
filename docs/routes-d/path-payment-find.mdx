@@ -1,0 +1,113 @@
+---
+title: POST /api/path-payment/find
+description: Find path payments for cross-asset transfers.
+---
+
+# POST /api/path-payment/find
+
+Documentation for the **`/api/path-payment/find`** route that returns payment paths for cross-asset transfers.
+
+## Overview
+
+Use this endpoint to discover feasible paths between a source asset and destination asset. It supports strict-send and strict-receive modes and returns paths ordered by efficiency.
+
+---
+
+## Request
+
+| Method | Content-Type | Body |
+|--------|--------------|------|
+| `POST` | `application/json` | JSON (see below) |
+
+**Request body (JSON):**
+
+```json
+{
+  "sourceAsset": {
+    "code": "USDC",
+    "issuer": "GA5ZSE...ISSUER"
+  },
+  "destinationAsset": {
+    "code": "XLM"
+  },
+  "amount": "50.0",
+  "mode": "strictSend",
+  "network": "public"
+}
+```
+
+| Field              | Type    | Required | Description |
+|-------------------|---------|----------|-------------|
+| `sourceAsset`     | object  | Yes      | Asset being sent (code + issuer, or `XLM`) |
+| `destinationAsset`| object  | Yes      | Asset to receive (code + issuer, or `XLM`) |
+| `amount`          | string  | Yes      | Amount to send or receive based on mode |
+| `mode`            | string  | No       | `strictSend` or `strictReceive` (default: `strictSend`) |
+| `network`         | string  | No       | `testnet` or `public` (default: `testnet`) |
+| `limit`           | number  | No       | Max number of paths (default: `10`) |
+
+---
+
+## Response (success)
+
+**Status:** `200 OK`
+
+```json
+{
+  "ok": true,
+  "paths": [
+    {
+      "source_amount": "50.0000000",
+      "destination_amount": "49.8321000",
+      "path": [
+        { "code": "EURC", "issuer": "G..." }
+      ]
+    }
+  ]
+}
+```
+
+| Field  | Type   | Description |
+|--------|--------|-------------|
+| `ok`   | boolean | Always `true` on success |
+| `paths`| array  | List of path payment options |
+
+---
+
+## Example
+
+```typescript
+const res = await fetch('/api/path-payment/find', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    sourceAsset: { code: 'USDC', issuer: 'GA5ZSE...ISSUER' },
+    destinationAsset: { code: 'XLM' },
+    amount: '50',
+    mode: 'strictSend',
+    network: 'public',
+  }),
+});
+
+const data = await res.json();
+if (!data.ok) throw new Error(data.error?.message || 'No paths found');
+console.log('Paths:', data.paths);
+```
+
+---
+
+## Error codes
+
+| Code                 | HTTP Status | Description |
+|----------------------|-------------|-------------|
+| `INVALID_ASSET`      | `400`       | Source or destination asset invalid |
+| `INVALID_AMOUNT`     | `400`       | Amount is missing or invalid |
+| `NO_PATHS`           | `404`       | No paths were found |
+| `RATE_LIMITED`       | `429`       | Too many requests |
+| `INTERNAL_ERROR`     | `500`       | Server error |
+
+---
+
+## See also
+
+- [SDK Overview](/docs/sdk/overview) - Paths and asset utilities
+- [Horizon](/docs/integrations/horizon) - Horizon path endpoints

@@ -1,0 +1,249 @@
+---
+title: GET /api/account/[address]
+description: Look up a Stellar account by address with Nextellar-enriched metadata.
+---
+
+# GET /api/account/[address]
+
+Documentation for the **`/api/account/[address]`** dynamic route that proxies Stellar Horizon account lookups and enriches them with Nextellar-specific metadata.
+
+## Overview
+
+This endpoint resolves a Stellar account by its ED25519 public key, forwards the request to Horizon's `/accounts/{id}` endpoint, and returns the response enriched with additional Nextellar metadata such as known-account labels and asset logos. Results are cached using a stale-while-revalidate strategy to reduce Horizon round-trips.
+
+> **Note:** The `[address]` segment must be a valid ED25519 public key (56 characters starting with `G`). Requests with malformed addresses are rejected with a `400` before reaching Horizon.
+
+---
+
+## Request
+
+| Method | Content-Type       | Response |
+|--------|--------------------|----------|
+| `GET`  | `application/json` | JSON     |
+
+**URL pattern:**
+
+```
+GET /api/account/GABC...XYZ
+GET /api/account/GABC...XYZ?include=offers,data,trustlines
+```
+
+**Path parameter:**
+
+| Parameter | Type   | Required | Description |
+|-----------|--------|----------|-------------|
+| `address` | string | Yes      | ED25519 public key (`G...`, 56 characters) |
+
+**Query parameters:**
+
+| Parameter | Type   | Required | Description |
+|-----------|--------|----------|-------------|
+| `include` | string | No       | Comma-separated list of extra relations to embed: `offers`, `data`, `trustlines` |
+
+---
+
+## Response (success)
+
+**Status:** `200 OK`
+
+```json
+{
+  "ok": true,
+  "account": {
+    "id": "GABC...XYZ",
+    "sequence": "1234567890",
+    "subentry_count": 5,
+    "balances": [
+      {
+        "asset_type": "credit_alphanum4",
+        "asset_code": "USDC",
+        "asset_issuer": "GA5Z...ISSUER",
+        "balance": "150.0000000",
+        "logo": "https://assets.nextellar.dev/icons/usdc.png"
+      },
+      {
+        "asset_type": "native",
+        "balance": "499.9999700",
+        "logo": null
+      }
+    ],
+    "thresholds": {
+      "low_threshold": 0,
+      "med_threshold": 0,
+      "high_threshold": 0
+    },
+    "signers": [
+      {
+        "key": "GABC...XYZ",
+        "weight": 1,
+        "type": "ed25519_public_key"
+      }
+    ],
+    "flags": {
+      "auth_required": false,
+      "auth_revocable": false,
+      "auth_immutable": false,
+      "auth_clawback_enabled": false
+    },
+    "nextellar": {
+      "label": "Acme Corp Treasury",
+      "tags": ["known", "exchange"],
+      "last_seen": "2026-02-24T18:30:00Z"
+    }
+  }
+}
+```
+
+| Field                    | Type    | Description |
+|--------------------------|---------|-------------|
+| `ok`                     | boolean | Always `true` on success |
+| `account.id`             | string  | Stellar public key |
+| `account.sequence`       | string  | Current sequence number |
+| `account.subentry_count` | number  | Number of sub-entries (trustlines, offers, signers, data) |
+| `account.balances`       | array   | Asset balances including native XLM |
+| `account.thresholds`     | object  | Low, medium, and high operation thresholds |
+| `account.signers`        | array   | Account signers with weights |
+| `account.flags`          | object  | Issuer authorization flags |
+| `account.nextellar`      | object  | Nextellar-enriched metadata (labels, tags). `null` for unknown accounts |
+
+### Optional `include` fields
+
+When `?include=offers` is provided, the response adds:
+
+| Field             | Type  | Description |
+|-------------------|-------|-------------|
+| `account.offers`  | array | Open DEX offers for this account |
+
+When `?include=data` is provided:
+
+| Field           | Type   | Description |
+|-----------------|--------|-------------|
+| `account.data`  | object | Key-value data entries attached to the account |
+
+When `?include=trustlines` is provided:
+
+| Field                | Type  | Description |
+|----------------------|-------|-------------|
+| `account.trustlines` | array | Detailed trustline objects with limits and authorization status |
+
+---
+
+## Raw Horizon vs. Nextellar enriched response
+
+This endpoint proxies Horizon's `/accounts/{id}` but adds enrichments on top. Here is a side-by-side comparison of key differences:
+
+| Aspect | Raw Horizon `/accounts/{id}` | Nextellar `/api/account/[address]` |
+|--------|------------------------------|------------------------------------|
+| **Response wrapper** | Flat account object | Wrapped in `{ ok, account }` |
+| **Asset logos** | Not included | `logo` URL added to each balance entry |
+| **Account labels** | Not available | `nextellar.label` and `nextellar.tags` for known accounts |
+| **Caching** | No caching (direct Horizon call) | Stale-while-revalidate with 30 s TTL |
+| **Related data** | Separate `_links` follow-up requests | Single request with `?include=offers,data,trustlines` |
+| **Error format** | Horizon `extras` / `detail` format | Normalized `{ ok: false, error: { code, message } }` |
+| **XLM formatting** | Raw stroops in some fields | Human-readable decimal balances throughout |
+
+---
+
+## Caching behavior
+
+> **Tip:** Account data is cached using a **stale-while-revalidate** strategy with a **30-second TTL**. After the TTL expires the next request immediately returns the stale data while a background revalidation fetches fresh data from Horizon. This means most requests resolve in under 50 ms.
+
+| Scenario | Behavior |
+|----------|----------|
+| First request for an address | Fetches from Horizon, caches result, returns fresh data |
+| Subsequent request within 30 s | Returns cached data instantly |
+| Request after 30 s TTL | Returns stale cache immediately, revalidates in background |
+| Account not found on Horizon | `404` is **not** cached — next request retries Horizon |
+
+To force a fresh lookup (bypass cache), pass the `Cache-Control` header:
+
+```
+GET /api/account/GABC...XYZ
+Cache-Control: no-cache
+```
+
+---
+
+## Code examples
+
+<Tabs items={['cURL', 'fetch', 'useStellarBalances hook']}>
+  <Tab value="cURL">
+    ```bash
+    # Basic account lookup
+    curl https://your-app.com/api/account/GABC...XYZ
+
+    # With optional includes
+    curl "https://your-app.com/api/account/GABC...XYZ?include=offers,data,trustlines"
+
+    # Force fresh lookup (bypass cache)
+    curl -H "Cache-Control: no-cache" \
+      https://your-app.com/api/account/GABC...XYZ
+    ```
+  </Tab>
+  <Tab value="fetch">
+    ```typescript
+    const address = 'GABC...XYZ';
+
+    const res = await fetch(
+      `/api/account/${address}?include=offers,trustlines`
+    );
+    const data = await res.json();
+
+    if (!data.ok) {
+      console.error(`Lookup failed [${data.error.code}]:`, data.error.message);
+      throw new Error(data.error.message);
+    }
+
+    console.log('Balances:', data.account.balances);
+    console.log('Sequence:', data.account.sequence);
+    console.log('Label:', data.account.nextellar?.label ?? 'Unknown');
+    ```
+  </Tab>
+  <Tab value="useStellarBalances hook">
+    ```typescript
+    import { useStellarBalances } from '@nextellar/hooks';
+
+    function AccountOverview({ address }: { address: string }) {
+      const { balances, isLoading, error } = useStellarBalances(address);
+
+      if (isLoading) return <p>Loading balances…</p>;
+      if (error) return <p>Error: {error.message}</p>;
+
+      return (
+        <ul>
+          {balances.map((b) => (
+            <li key={b.asset_code ?? 'XLM'}>
+              {b.logo && <img src={b.logo} alt={b.asset_code} width={16} />}
+              {b.asset_code ?? 'XLM'}: {b.balance}
+            </li>
+          ))}
+        </ul>
+      );
+    }
+    ```
+
+    The `useStellarBalances` hook calls `/api/account/[address]` internally, handles caching, and returns reactive balance data. It automatically re-fetches when the address changes.
+  </Tab>
+</Tabs>
+
+---
+
+## Error code reference
+
+| Code                | HTTP Status | Description |
+|---------------------|-------------|-------------|
+| `INVALID_ADDRESS`   | `400`       | The `address` path segment is not a valid ED25519 public key |
+| `ACCOUNT_NOT_FOUND` | `404`       | No account exists on the Stellar network for the given address |
+| `INVALID_INCLUDE`   | `400`       | The `include` query parameter contains an unsupported relation |
+| `RATE_LIMITED`      | `429`       | Too many requests — back off and retry |
+| `HORIZON_TIMEOUT`   | `504`       | Upstream Horizon request timed out |
+| `INTERNAL_ERROR`    | `500`       | Unexpected server error |
+
+---
+
+## See also
+
+- [useStellarBalances](/docs/hooks/use-stellar-balances) – React hook for account balances
+- [Stellar Horizon](/docs/integrations/horizon) – Horizon integration overview
+- [GET /api/assets/search](/docs/routes-d/assets-search) – Search for Stellar assets
+- [POST /api/wallet/connect](/docs/routes-d/wallet-connect) – Connect a Stellar wallet

@@ -7,6 +7,8 @@ import React, {
   useImperativeHandle,
   useEffect,
 } from 'react';
+import { useDebounce } from '@/hooks-d/use-debounce';
+import { useKeyboardShortcut } from '@/hooks-d/use-keyboard-shortcut';
 import { Dialog, DialogTrigger, DialogContent } from '@/components/dialog';
 import { Input } from '@/components/input';
 import SearchButton from '@/components/search-button';
@@ -101,32 +103,25 @@ const SearchDialog = forwardRef<SearchDialogHandle, SearchDialogProps>(
   ({ searchData }, ref) => {
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState('');
+    const debouncedQuery = useDebounce(query, 300, true);
 
     useImperativeHandle(ref, () => ({
       close: () => setOpen(false),
       open: () => setOpen(true),
     }));
 
-    useEffect(() => {
-      const handleKeyDown = (e: KeyboardEvent) => {
-        if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-          e.preventDefault();
-          setOpen(true);
-        }
-      };
-      document.addEventListener('keydown', handleKeyDown);
-      return () => document.removeEventListener('keydown', handleKeyDown);
-    }, []);
+    useKeyboardShortcut('mod+k', () => setOpen(true));
+
 
     const filteredDocs = useMemo(() => {
-      if (!query) return [];
-      const q = query.toLowerCase();
+      if (!debouncedQuery) return [];
+      const q = debouncedQuery.toLowerCase();
       return searchData.filter((doc) => {
         const title = doc.title.toLowerCase();
         const description = stripMarkdown(doc.body.raw || '').toLowerCase();
         return title.includes(q) || description.includes(q);
       });
-    }, [query, searchData]);
+    }, [debouncedQuery, searchData]);
 
     return (
       <Dialog open={open} setOpen={setOpen}>
@@ -173,12 +168,12 @@ const SearchDialog = forwardRef<SearchDialogHandle, SearchDialogProps>(
                     >
                       <div className="flex flex-col gap-3">
                         <div className="flex gap-2 font-bold">
-                          <Text /> <div>{highlightText(doc.title, query)}</div>
+                          <Text /> <div>{highlightText(doc.title, debouncedQuery)}</div>
                         </div>
                         <div className="text-sm">
                           {getSnippet(
                             stripMarkdown(doc.body.raw || ''),
-                            query
+                            debouncedQuery
                           ) || 'No description'}
                         </div>
                       </div>
