@@ -9,6 +9,7 @@ import React, {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
+import { useFocusTrap } from '@/hooks-d/use-focus-trap';
 
 type DialogContextType = {
   open: boolean;
@@ -75,6 +76,10 @@ export function DialogContent({
   if (!ctx) throw new Error('DialogContent must be inside Dialog');
 
   const { open, setOpen } = ctx;
+  const focusTrapRef = useFocusTrap<HTMLDivElement>({
+    active: open,
+    returnFocusOnDeactivate: true,
+  });
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -114,8 +119,9 @@ export function DialogContent({
       }}
     >
       <div
+        ref={focusTrapRef}
         className={cn(
-          `relatives bg-background text-foreground border border-border rounded-xl shadow-lg w-full max-w-[90vw] p-6 max-h-[90vh] transition-all duration-300 transform`,
+          `relative bg-background text-foreground border border-border rounded-xl shadow-lg w-full max-w-[90vw] p-6 max-h-[90vh] transition-all duration-300 transform`,
           open ? 'scale-100 opacity-100' : 'scale-95 opacity-0',
           className
         )}

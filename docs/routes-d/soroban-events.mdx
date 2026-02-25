@@ -1,0 +1,208 @@
+---
+title: GET /api/soroban/events
+description: Query and stream Soroban smart contract events with flexible filtering.
+---
+
+# GET /api/soroban/events
+
+Documentation for the **`/api/soroban/events`** route that queries Soroban smart contract events with flexible filtering by contract ID, topics, and event type.
+
+## Overview
+
+This endpoint retrieves events emitted by Soroban smart contracts. It supports filtering by contract ID, topic patterns (including wildcards), event type, and ledger range. A Server-Sent Events (SSE) variant is available for real-time streaming.
+
+---
+
+## Request
+
+| Method | Content-Type       | Response            |
+|--------|--------------------|---------------------|
+| `GET`  | `application/json` | JSON array of events |
+
+**Query parameters:**
+
+```
+GET /api/soroban/events?contract_id=CBXK...CONTRACT&topics=transfer,mint&start_ledger=1000&limit=50
+```
+
+| Parameter      | Type   | Required | Description                                                     |
+|----------------|--------|----------|-----------------------------------------------------------------|
+| `contract_id`  | string | Yes      | Soroban contract ID to filter events for                        |
+| `topics`       | string | No       | Comma-separated topic filters (see [Topic Filtering](#topic-filtering)) |
+| `event_type`   | string | No       | `contract`, `system`, or `diagnostic` (default: `contract`)     |
+| `start_ledger` | number | No       | Start from this ledger sequence (inclusive)                     |
+| `end_ledger`   | number | No       | End at this ledger sequence (inclusive)                         |
+| `limit`        | number | No       | Max events to return (default: `100`, max: `1000`)              |
+| `cursor`       | string | No       | Pagination cursor from a previous response                     |
+
+---
+
+## Response (success)
+
+**Status:** `200 OK`
+
+```json
+{
+  "ok": true,
+  "events": [
+    {
+      "id": "0005723491-0000000001",
+      "type": "contract",
+      "ledger": 5723491,
+      "contract_id": "CBXK...CONTRACT",
+      "topics": ["transfer", "GDEST..."],
+      "data": {
+        "from": "GSOURCE...",
+        "to": "GDEST...",
+        "amount": "1000000000"
+      },
+      "ledger_close_time": "2025-12-01T12:34:56Z"
+    }
+  ],
+  "cursor": "5723491-1",
+  "has_more": true
+}
+```
+
+| Field    | Type    | Description                                          |
+|----------|---------|------------------------------------------------------|
+| `ok`     | boolean | Always `true` on success                             |
+| `events` | array   | Array of event objects                                |
+| `cursor` | string  | Cursor for fetching the next page                     |
+| `has_more` | boolean | Whether more events exist beyond this page          |
+
+**Event object fields:**
+
+| Field              | Type   | Description                                      |
+|--------------------|--------|--------------------------------------------------|
+| `id`               | string | Unique event identifier (`ledger-index`)         |
+| `type`             | string | Event type: `contract`, `system`, or `diagnostic`|
+| `ledger`           | number | Ledger sequence the event was emitted in         |
+| `contract_id`      | string | Contract that emitted the event                  |
+| `topics`           | array  | Topic values (XDR decoded to readable strings)   |
+| `data`             | object | Event data (XDR decoded to JSON)                 |
+| `ledger_close_time`| string | ISO 8601 timestamp of the ledger close           |
+
+---
+
+## Topic Filtering
+
+Topics use a segment-based filter syntax. Each segment matches a position in the event's topic array.
+
+| Pattern          | Description                                        |
+|------------------|----------------------------------------------------|
+| `transfer`       | Exact match on topic value                         |
+| `transfer,mint`  | Match events with topic `transfer` OR `mint`       |
+| `transfer/*`     | Match `transfer` in first position, any second     |
+| `*/GDEST...`     | Any first topic, exact match on second             |
+| `*`              | Wildcard — matches any single topic value          |
+
+**Examples:**
+
+```
+# All transfer events for a contract
+?contract_id=CBXK...&topics=transfer
+
+# Transfer events to a specific address
+?contract_id=CBXK...&topics=transfer/GDEST...
+
+# Any event type with a specific recipient
+?contract_id=CBXK...&topics=*/GDEST...
+
+# Transfer or mint events
+?contract_id=CBXK...&topics=transfer,mint
+```
+
+---
+
+## XDR Decoding
+
+Event data from Soroban is encoded in XDR (External Data Representation). This endpoint automatically decodes XDR values into JSON-friendly formats:
+
+| XDR Type         | JSON Representation                    |
+|------------------|----------------------------------------|
+| `ScvI128`        | String (to preserve precision)         |
+| `ScvAddress`     | Stellar address string (`G...`/`C...`) |
+| `ScvSymbol`      | Plain string                           |
+| `ScvBytes`       | Base64-encoded string                  |
+| `ScvMap`         | JSON object                            |
+
+---
+
+## Example
+
+```typescript
+// Fetch recent transfer events for a token contract
+const res = await fetch(
+  '/api/soroban/events?' +
+    new URLSearchParams({
+      contract_id: 'CBXK...TOKEN_CONTRACT',
+      topics: 'transfer',
+      start_ledger: '5700000',
+      limit: '20',
+    })
+);
+
+const data = await res.json();
+if (!data.ok) throw new Error(data.error?.message || 'Failed to fetch events');
+
+for (const event of data.events) {
+  console.log(
+    `Transfer: ${event.data.from} → ${event.data.to}, amount: ${event.data.amount}`
+  );
+}
+```
+
+---
+
+## Real-Time Streaming (SSE)
+
+For live event streaming, use the SSE variant by adding `Accept: text/event-stream` or the `stream=true` query parameter:
+
+```
+GET /api/soroban/events?contract_id=CBXK...&topics=transfer&stream=true
+```
+
+```typescript
+// Listen to live transfer events via SSE
+const eventSource = new EventSource(
+  '/api/soroban/events?' +
+    new URLSearchParams({
+      contract_id: 'CBXK...TOKEN_CONTRACT',
+      topics: 'transfer',
+      stream: 'true',
+    })
+);
+
+eventSource.onmessage = (msg) => {
+  const event = JSON.parse(msg.data);
+  console.log('New transfer:', event.data);
+};
+
+eventSource.onerror = () => {
+  console.error('SSE connection lost, reconnecting...');
+};
+```
+
+Each SSE message is a JSON-encoded event object with the same shape as the `events` array items in the REST response.
+
+---
+
+## Error codes
+
+| Code                 | HTTP Status | Description                                |
+|----------------------|-------------|--------------------------------------------|
+| `INVALID_CONTRACT`   | `400`       | Contract ID missing or malformed           |
+| `INVALID_TOPIC`      | `400`       | Topic filter syntax is invalid             |
+| `INVALID_LEDGER`     | `400`       | Ledger range parameters are invalid        |
+| `NOT_FOUND`          | `404`       | No events match the given filters          |
+| `RATE_LIMITED`       | `429`       | Too many requests                          |
+| `INTERNAL_ERROR`     | `500`       | Server error                               |
+
+---
+
+## See also
+
+- [Soroban](/docs/integrations/soroban) - Soroban overview
+- [POST /api/soroban/invoke](/docs/routes-d/soroban-invoke) - Invoke smart contracts
+- [useSorobanEvents](/docs/hooks/use-soroban-events) - Client hook for event subscriptions
