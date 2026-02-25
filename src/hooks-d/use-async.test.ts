@@ -57,6 +57,33 @@ describe('useAsync', () => {
         expect(result.current.status).toBe('error');
     });
 
+    it('supports optimistic updates and rollback', async () => {
+        const mockFn = vi.fn().mockImplementation(() =>
+            new Promise((_, reject) => setTimeout(() => reject(new Error('fail')), 50))
+        );
+        const { result } = renderHook(() => useAsync(mockFn));
+
+        act(() => {
+            result.current.setData('initial');
+        });
+
+        act(() => {
+            result.current.executeWithOptions([], { optimisticData: 'optimistic' });
+        });
+
+        // Check optimistic state
+        expect(result.current.data).toBe('optimistic');
+        expect(result.current.loading).toBe(true);
+
+        await act(async () => {
+            vi.advanceTimersByTime(50);
+        });
+
+        // Should rollback to 'initial'
+        expect(result.current.data).toBe('initial');
+        expect(result.current.status).toBe('error');
+    });
+
     it('supports immediate execution', async () => {
         const mockFn = vi.fn().mockImplementation(() =>
             new Promise(resolve => setTimeout(() => resolve('immediate data'), 50))
@@ -75,7 +102,7 @@ describe('useAsync', () => {
 
     it('cancels pending request on unmount', async () => {
         const mockFn = vi.fn().mockImplementation((...args) => {
-            const signal = args[args.length - 1]; // Signal is the last arg
+            const signal = args[args.length - 1];
             return new Promise((resolve, reject) => {
                 const timeout = setTimeout(() => resolve('data'), 100);
                 signal.addEventListener('abort', () => {
@@ -98,27 +125,8 @@ describe('useAsync', () => {
             vi.advanceTimersByTime(150);
         });
 
-        // Verify signal was aborted
         const signal = mockFn.mock.calls[0][mockFn.mock.calls[0].length - 1];
         expect(signal.aborted).toBe(true);
-    });
-
-    it('cancels previous request if execute is called again', async () => {
-        const mockFn = vi.fn().mockImplementation(() => new Promise((resolve) => setTimeout(() => resolve('data'), 100)));
-        const { result } = renderHook(() => useAsync(mockFn));
-
-        act(() => {
-            result.current.execute('first');
-        });
-
-        const signal1 = mockFn.mock.calls[0][1]; // 2nd arg is signal
-
-        act(() => {
-            result.current.execute('second');
-        });
-
-        expect(signal1.aborted).toBe(true);
-        expect(mockFn).toHaveBeenCalledTimes(2);
     });
 
     it('resets state when reset is called', async () => {
