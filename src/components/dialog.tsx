@@ -10,6 +10,7 @@ import React, {
 import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
 import { useFocusTrap } from '@/hooks-d/use-focus-trap';
+import { useScrollLockAuto } from '@/hooks-d/use-scroll-lock';
 
 type DialogContextType = {
   open: boolean;
@@ -88,17 +89,12 @@ export function DialogContent({
     [setOpen]
   );
 
+  useScrollLockAuto(open);
+
   useEffect(() => {
-    if (open) {
-      document.addEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = 'hidden'; // prevent background scroll
-    } else {
-      document.body.style.overflow = '';
-    }
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = '';
-    };
+    if (!open) return;
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
   }, [open, handleKeyDown]);
 
   if (typeof window === 'undefined') return null;
