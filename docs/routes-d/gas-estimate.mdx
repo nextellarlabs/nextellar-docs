@@ -1,0 +1,152 @@
+---
+title: POST /api/gas/estimate
+description: Estimate transaction fees for Stellar operations based on real-time network conditions.
+---
+
+# POST /api/gas/estimate
+
+The **`/api/gas/estimate`** route provides data-driven transaction fee estimations by analyzing current network congestion and the resource requirements of your specific operations.
+
+## Overview
+
+Stellar uses a surge pricing model. When the network is busy, fees rise to ensure transaction prioritization. Nextellar's estimation engine analyzes the last 100 ledgers to provide three levels of fee recommendations: `min`, `recommended`, and `max`.
+
+---
+
+## Request
+
+| Method | Content-Type       | Response |
+|--------|--------------------|----------|
+| `POST` | `application/json` | JSON     |
+
+**Request Body:**
+
+```json
+{
+  "operations": [
+    { "type": "payment", "amount": "100.00", "asset": "XLM" },
+    { "type": "manage_buy_offer", "pair": "USDC/XLM" }
+  ],
+  "source_account": "GABC...XYZ"
+}
+```
+
+| Field            | Type   | Required | Description |
+|------------------|--------|----------|-------------|
+| `operations`     | array  | **Yes**  | List of operation templates to estimate. |
+| `source_account` | string | No       | Public key used to check for Soroban resource offsets (optional). |
+
+---
+
+## Response
+
+### Fee Estimation Schema
+
+```typescript
+interface GasEstimateResponse {
+  ok: boolean;
+  estimates: {
+    min: string;         // 100 stroops/op (Minimum valid fee)
+    recommended: string; // Median + 20% (Safe for 95% of ledgers)
+    max: string;         // 99th percentile (Guaranteed inclusion)
+  };
+  details: {
+    base_fee: number;    // Current network base fee in stroops
+    congestion: number;  // Multiplier (1.0 = Idle, 2.5+ = Congested)
+    soroban_resource_fee: string; // Estimated contract fee (if applicable)
+  };
+}
+```
+
+---
+
+## Fee Calculation Formula
+
+Nextellar calculates the final fee using the following logic:
+
+$$TotalFee = (BaseFee \times OpCount \times Multiplier) + SorobanResourceFee$$
+
+- **Base Fee**: Minimum network fee (usually 100 stroops).
+- **Multiplier**: Dynamic value based on pending transaction volume.
+- **Soroban Fee**: Additional fee for ledger reads/writes and CPU time in smart contracts.
+
+---
+
+## Operation Base Costs
+
+Different operations have different baseline complexities that impact the multiplier:
+
+| Operation Type | Base Weight | Complexity |
+|----------------|-------------|------------|
+| `payment` | 1.0 | Low |
+| `create_account` | 2.5 | Medium |
+| `manage_offer` | 1.5 | Low |
+| `invoke_host_function`| 5.0+ | High (Contract logic dependent) |
+
+---
+
+## Code Example: Pre-submission Estimation
+
+Estimating fees before building and signing a transaction with the Stellar SDK.
+
+```typescript
+async function prepareTransaction(ops: any[]) {
+  // 1. Get estimates
+  const res = await fetch('/api/gas/estimate', {
+    method: 'POST',
+    body: JSON.stringify({ operations: ops })
+  });
+  const { estimates } = await res.json();
+
+  // 2. Build tx with recommended fee
+  const tx = new TransactionBuilder(account, {
+    fee: estimates.recommended, // use string value in stroops
+    networkPassphrase: Networks.PUBLIC
+  })
+  .addOperation(...)
+  .build();
+
+  return tx;
+}
+```
+
+---
+
+## Strategy Selection Guide
+
+| Level | When to use |
+|-------|-------------|
+| **Min** | Non-critical operations where delay is acceptable (e.g., wallet cleanup). |
+| **Recommended** | Standard user transactions. Balance between cost and speed. |
+| **Max** | Time-sensitive trades (arbitrage), liquidations, or highly contested Soroban calls. |
+
+---
+
+## Network Fee Trend (Last 100 Ledgers)
+
+You can visualize current network volatility using our historical fee data.
+
+```javascript
+// Example Chart.js config for fee volatility
+new Chart(ctx, {
+  type: 'line',
+  data: {
+    labels: [...ledgerIntervals],
+    datasets: [{
+      label: 'Recommended Fee (Stroops)',
+      data: [...feeSamples],
+      borderColor: '#ff9800',
+      fill: true,
+      backgroundColor: 'rgba(255, 152, 0, 0.1)'
+    }]
+  }
+});
+```
+
+---
+
+## See also
+
+- [POST /api/soroban/invoke](/docs/routes-d/soroban-invoke) – Includes resource fee details
+- [GET /api/stream/ledgers](/docs/routes-d/stream-ledgers) – View real-time base fee changes
+- [Stellar Fees Guide](https://developers.stellar.org/docs/glossary/fees) – Protocol level fee documentation
