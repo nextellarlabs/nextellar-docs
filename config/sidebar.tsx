@@ -111,6 +111,10 @@ export const sidebarNav: SidebarSection[] = [
         href: '/docs/routes-d/offers-create',
       },
       {
+        title: '/api/liquidity-pools',
+        href: '/docs/routes-d/liquidity-pools',
+      },
+      {
         title: 'POST /api/path-payment/find',
         href: '/docs/routes-d/path-payment-find',
       },
