@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { AlignLeft } from 'lucide-react';
+import { useThrottle } from '@/hooks-d/use-throttle';
 
 interface Heading {
   id: string;
@@ -13,35 +14,28 @@ interface Heading {
 const AutoToc: React.FC = () => {
   const pathname = usePathname();
   const [headings, setHeadings] = useState<Heading[]>([]);
-  const [activeId, setActiveId] = useState<string>('');
+  const [rawActiveId, setRawActiveId] = useState<string>('');
+  const activeId = useThrottle(rawActiveId, 100, { leading: true, trailing: true });
 
   // Extract headings from the page content
   useEffect(() => {
     const extractHeadings = () => {
-      // Find all h2 and h3 headings in the main content area
       const mainContent = document.querySelector('main');
-      console.log('AutoToc: mainContent found?', !!mainContent);
       if (!mainContent) return;
 
       const headingElements = mainContent.querySelectorAll('h2, h3');
-      console.log('AutoToc: Found headings:', headingElements.length);
       const extractedHeadings: Heading[] = [];
 
       headingElements.forEach((heading) => {
         const id = heading.id;
         const text = heading.textContent?.replace('#', '').trim() || '';
         const level = parseInt(heading.tagName[1]);
-        console.log('AutoToc: Heading -', { id, text, level });
 
         if (id && text) {
           extractedHeadings.push({ id, text, level });
         }
       });
 
-      console.log(
-        'AutoToc: Extracted headings with IDs:',
-        extractedHeadings.length
-      );
       setHeadings(extractedHeadings);
     };
 
@@ -56,7 +50,7 @@ const AutoToc: React.FC = () => {
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
-            setActiveId(entry.target.id);
+            setRawActiveId(entry.target.id);
           }
         });
       },
@@ -73,10 +67,9 @@ const AutoToc: React.FC = () => {
 
   const scrollToHeading = (id: string) => {
     const element = document.getElementById(id);
-    console.log('AutoToc: Scrolling to', id, 'element found?', !!element);
     if (element) {
       element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      setActiveId(id);
+      setRawActiveId(id);
       // Update URL hash without scrolling
       window.history.pushState(null, '', `#${id}`);
     }

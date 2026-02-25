@@ -127,6 +127,10 @@ export const sidebarNav: SidebarSection[] = [
         href: '/docs/routes-d/soroban-invoke',
       },
       {
+        title: 'GET /api/soroban/events',
+        href: '/docs/routes-d/soroban-events',
+      },
+      {
         title: 'POST /api/transactions/submit',
         href: '/docs/routes-d/transaction-submit',
       },
