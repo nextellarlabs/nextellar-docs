@@ -1,0 +1,154 @@
+---
+title: GET /api/analytics/account
+description: Aggregated portfolio analytics for Stellar accounts — total value, asset allocation, and historical performance.
+---
+
+# GET /api/analytics/account
+
+The **`/api/analytics/account`** route provides deep insights into a Stellar account's portfolio performance, including real-time fiat valuations, asset distribution, and historical balance snapshots.
+
+## Overview
+
+This endpoint aggregates data from several sources:
+- **Horizon**: Current balances and trustlines.
+- **CoinGecko/CoinMarketCap**: Real-time price data for major assets (USDC, BTC, ETH, etc.).
+- **SDEX Liquidity Pools**: Pricing fallback for custom or low-liquidity assets via on-chain oracle logic.
+- **Nextellar Indexer**: Historical snapshots for time-series visualization.
+
+---
+
+## Request
+
+| Method | Content-Type       | Response |
+|--------|--------------------|----------|
+| `GET`  | `application/json` | JSON     |
+
+**URL pattern:**
+
+```
+GET /api/analytics/account?account=GABC...XYZ&currency=USD&period=30d
+```
+
+**Query parameters:**
+
+| Parameter  | Type   | Required | Default | Description |
+|------------|--------|----------|---------|-------------|
+| `account`  | string | **Yes**  | -       | The Stellar public key (`G...`) to analyze. |
+| `currency` | string | No       | `USD`   | Fiat currency for valuation (`USD`, `EUR`, `GBP`, `JPY`). |
+| `period`   | string | No       | `30d`   | Historical data window: `24h`, `7d`, `30d`, `90d`, `1y`. |
+
+---
+
+## Response
+
+### Response Schema
+
+```typescript
+interface AnalyticsResponse {
+  ok: boolean;
+  data: {
+    summary: {
+      total_fiat_value: number;
+      currency: string;
+      change_24h: number; // percentage
+      change_7d: number;
+      change_30d: number;
+    };
+    allocation: Array<{
+      asset_code: string;
+      asset_issuer?: string;
+      percentage: number;
+      fiat_value: number;
+    }>;
+    history: Array<{
+      timestamp: string; // ISO 8601
+      value: number;
+    }>;
+  };
+}
+```
+
+### JSON Example
+
+```json
+{
+  "ok": true,
+  "data": {
+    "summary": {
+      "total_fiat_value": 12450.75,
+      "currency": "USD",
+      "change_24h": 2.5,
+      "change_7d": -1.2,
+      "change_30d": 15.8
+    },
+    "allocation": [
+      { "asset_code": "XLM", "percentage": 45.0, "fiat_value": 5602.83 },
+      { "asset_code": "USDC", "asset_issuer": "GA5Z...", "percentage": 40.0, "fiat_value": 4980.30 },
+      { "asset_code": "yXLM", "asset_issuer": "GDRH...", "percentage": 15.0, "fiat_value": 1867.62 }
+    ],
+    "history": [
+      { "timestamp": "2026-02-20T00:00:00Z", "value": 10200.50 },
+      { "timestamp": "2026-02-21T00:00:00Z", "value": 10500.00 }
+    ]
+  }
+}
+```
+
+---
+
+## Data Sourcing & Accuracy
+
+### Price Oracles
+1. **Tier 1 (External APIs)**: Major assets with high liquidity are priced via CoinGecko or CoinMarketCap.
+2. **Tier 2 (SDEX Oracle)**: Assets not listed on external aggregators use the **Stellar Decentralized Exchange (SDEX)** as an oracle. The system lookups the highest-liquidity XLM or USDC pool to derive a fair market price.
+
+> [!WARNING]
+> **Liquidity Warning:** For extremely low-liquidity assets, the SDEX oracle may reflect high slippage or "dust" prices. These are flagged in the UI but included in the total valuation calculations.
+
+---
+
+## Visualizations
+
+You can use libraries like **Chart.js** to render this data directly.
+
+### Portfolio Value Over Time (History)
+
+```javascript
+// Using chart.js
+const ctx = document.getElementById('portfolioChart');
+new Chart(ctx, {
+  type: 'line',
+  data: {
+    labels: data.history.map(h => new Date(h.timestamp).toLocaleDateString()),
+    datasets: [{
+      label: 'Portfolio Value (USD)',
+      data: data.history.map(h => h.value),
+      borderColor: '#00e676',
+      tension: 0.4
+    }]
+  }
+});
+```
+
+### Asset Allocation (Pie Chart)
+
+```javascript
+new Chart(ctx, {
+  type: 'doughnut',
+  data: {
+    labels: data.allocation.map(a => a.asset_code),
+    datasets: [{
+      data: data.allocation.map(a => a.percentage),
+      backgroundColor: ['#2196f3', '#f44336', '#ffeb3b']
+    }]
+  }
+});
+```
+
+---
+
+## See also
+
+- [GET /api/account/[address]](/docs/routes-d/account-lookup) – Basic account details
+- [GET /api/assets/search](/docs/routes-d/assets-search) – Global asset directory
+- [Liquidity Pools Guide](/docs/routes-d/liquidity-pools) – How SDEX pricing works
