@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { background: #f0f0f0; margin: 0; padding: 0; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
+    #container { position: relative; width: 1000px; height: 800px; background: white; border: 1px solid #ccc; }
+    .piece { position: absolute; cursor: move; border: 1px solid transparent; }
+    .piece:hover { border: 1px dashed red; z-index: 100 !important; }
+    /* Approximate sizes based on max-w-[500px] context from React, but let's use actual pixels for simplicity */
+    #center { width: 300px; z-index: 10; left: 350px; top: 250px; }
+    #top { width: 438px; z-index: 5; left: 50px; top: 50px; }
+    #right { width: 376px; z-index: 5; left: 600px; top: 50px; }
+    #bottom { width: 418px; z-index: 15; left: 600px; top: 400px; }
+    #left { width: 406px; z-index: 15; left: 50px; top: 400px; }
+    .piece img { width: 100%; height: auto; pointer-events: none; }
+  </style>
+</head>
+<body>
+  <div id="container">
+    <div id="center" class="piece"><img src="/image/Nextellar.svg" /></div>
+    <div id="top" class="piece"><img src="/image/Stellar.svg" /></div>
+    <div id="right" class="piece"><img src="/image/Next.js.svg" /></div>
+    <div id="bottom" class="piece"><img src="/image/TS.svg" /></div>
+    <div id="left" class="piece"><img src="/image/Tailwind.svg" /></div>
+  </div>
+  <script>
+    let dragged = null;
+    let offset = { x: 0, y: 0 };
+    document.querySelectorAll('.piece').forEach(p => {
+      p.addEventListener('mousedown', e => {
+        dragged = p;
+        offset.x = e.clientX - p.getBoundingClientRect().left;
+        offset.y = e.clientY - p.getBoundingClientRect().top;
+      });
+    });
+    document.addEventListener('mousemove', e => {
+      if (!dragged) return;
+      const rect = document.getElementById('container').getBoundingClientRect();
+      const x = e.clientX - rect.left - offset.x;
+      const y = e.clientY - rect.top - offset.y;
+      dragged.style.left = x + 'px';
+      dragged.style.top = y + 'px';
+    });
+    document.addEventListener('mouseup', () => dragged = null);
+
+    window.dumpPositions = () => {
+      const base = document.getElementById('center').getBoundingClientRect();
+      const res = {};
+      document.querySelectorAll('.piece').forEach(p => {
+        const r = p.getBoundingClientRect();
+        res[p.id] = {
+          left: r.left - base.left,
+          top: r.top - base.top,
+          width: r.width
+        };
+      });
+      return JSON.stringify(res, null, 2);
+    };
+  </script>
+</body>
+</html>

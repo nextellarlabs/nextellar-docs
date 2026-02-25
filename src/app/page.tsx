@@ -1,6 +1,7 @@
 import { WhyDevelopersSection } from '@/components/landing/why-developers-section';
 import HeroSection from '@/components/landing/hero';
 import NavigationBar from '@/components/navigation';
+import { StackSection } from '@/components/StackSection';
 
 export default function Home() {
   return (
@@ -8,6 +9,7 @@ export default function Home() {
       <NavigationBar />
       <HeroSection />
       <WhyDevelopersSection />
+      <StackSection />
     </main>
   );
 }
