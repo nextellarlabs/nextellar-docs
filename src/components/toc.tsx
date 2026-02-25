@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { useEventListener } from '../hooks-d/use-event-listener';
 import { TocData } from 'config/toc';
 import { AlignLeft } from 'lucide-react';
 
@@ -18,18 +19,15 @@ const Toc: React.FC<TocProps> = ({ doc }) => {
   const searchParams = useSearchParams();
   const [currentPath, setCurrentPath] = useState('');
 
+  const updatePath = React.useCallback(() => {
+    setCurrentPath(`${pathname}${window.location.hash}`);
+  }, [pathname]);
+
   useEffect(() => {
-    const updatePath = () => {
-      setCurrentPath(`${pathname}${window.location.hash}`);
-    };
+    updatePath();
+  }, [updatePath, searchParams]);
 
-    updatePath(); // Set initial value
-    window.addEventListener('hashchange', updatePath);
-
-    return () => {
-      window.removeEventListener('hashchange', updatePath);
-    };
-  }, [pathname, searchParams]); // Reacts to URL changes
+  useEventListener('hashchange', updatePath, window);
 
   return (
     <aside className="fixed right-0 hidden xl:block w-64 p-6 top-16 border-l border-[var(--color-border)] h-[calc(100vh-4rem)] overflow-y-auto">
@@ -45,11 +43,10 @@ const Toc: React.FC<TocProps> = ({ doc }) => {
               <li key={index} className="group">
                 <Link
                   href={item.href}
-                  className={`transition-colors flex items-center ${
-                    isActive
-                      ? 'text-primary font-bold'
-                      : 'text-gray-700 dark:text-white font-normal'
-                  }`}
+                  className={`transition-colors flex items-center ${isActive
+                    ? 'text-primary font-bold'
+                    : 'text-gray-700 dark:text-white font-normal'
+                    }`}
                 >
                   {item.title}
                 </Link>
@@ -63,11 +60,10 @@ const Toc: React.FC<TocProps> = ({ doc }) => {
                         <li key={subIndex} className="text-sm">
                           <Link
                             href={subItem.href}
-                            className={`transition-colors block py-1 ${
-                              isSubActive
-                                ? 'text-primary font-bold'
-                                : 'text-gray-600 dark:text-gray-200 font-regular'
-                            }`}
+                            className={`transition-colors block py-1 ${isSubActive
+                              ? 'text-primary font-bold'
+                              : 'text-gray-600 dark:text-gray-200 font-regular'
+                              }`}
                           >
                             {subItem.title}
                           </Link>
