@@ -9,6 +9,7 @@ import React, {
 } from 'react';
 import { useDebounce } from '@/hooks-d/use-debounce';
 import { useKeyboardShortcut } from '@/hooks-d/use-keyboard-shortcut';
+import { useToggle } from '@/hooks-d/use-toggle';
 import { Dialog, DialogTrigger, DialogContent } from '@/components/dialog';
 import { Input } from '@/components/input';
 import SearchButton from '@/components/search-button';
@@ -101,16 +102,17 @@ function getSnippet(
 
 const SearchDialog = forwardRef<SearchDialogHandle, SearchDialogProps>(
   ({ searchData }, ref) => {
-    const [open, setOpen] = useState(false);
+    const [open, { on: openDialog, off: closeDialog, set: setOpen }] =
+      useToggle(false);
     const [query, setQuery] = useState('');
     const debouncedQuery = useDebounce(query, 300, true);
 
     useImperativeHandle(ref, () => ({
-      close: () => setOpen(false),
-      open: () => setOpen(true),
+      close: closeDialog,
+      open: openDialog,
     }));
 
-    useKeyboardShortcut('mod+k', () => setOpen(true));
+    useKeyboardShortcut('mod+k', openDialog);
 
 
     const filteredDocs = useMemo(() => {
@@ -124,7 +126,7 @@ const SearchDialog = forwardRef<SearchDialogHandle, SearchDialogProps>(
     }, [debouncedQuery, searchData]);
 
     return (
-      <Dialog open={open} setOpen={setOpen}>
+      <Dialog open={open} setOpen={setOpen as React.Dispatch<React.SetStateAction<boolean>>}>
         <DialogTrigger className="hidden sm:block">
           <SearchButton size="sm" placeholder="Search documentation.." />
         </DialogTrigger>
@@ -164,7 +166,7 @@ const SearchDialog = forwardRef<SearchDialogHandle, SearchDialogProps>(
                   >
                     <Link
                       href={`/docs/${doc._raw.flattenedPath}`}
-                      onClick={() => setOpen(false)}
+                      onClick={closeDialog}
                     >
                       <div className="flex flex-col gap-3">
                         <div className="flex gap-2 font-bold">

@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useState } from 'react';
+import { useToggle } from '@/hooks-d/use-toggle';
 import { Menu, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ModeToggle } from '@/components/mode-toggle';
@@ -15,7 +16,7 @@ const routes = [
 ];
 
 const NavigationBar = () => {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, { toggle, off: closeMenu }] = useToggle(false);
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-white dark:bg-black">
@@ -119,7 +120,7 @@ const NavigationBar = () => {
             <ModeToggle />
             <motion.button
               className="p-2 text-black dark:text-white"
-              onClick={() => setIsOpen(!isOpen)}
+              onClick={toggle}
               whileTap={{ scale: 0.95 }}
               aria-label={isOpen ? 'Close menu' : 'Open menu'}
             >
@@ -171,7 +172,7 @@ const NavigationBar = () => {
                   >
                     <Link
                       href={path}
-                      onClick={() => setIsOpen(false)}
+                      onClick={closeMenu}
                       className="block px-4 py-3 text-base font-medium text-black/70 dark:text-white/70 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
                     >
                       {name}
@@ -187,7 +188,7 @@ const NavigationBar = () => {
                 >
                   <Link
                     href="/docs/getting-started/introduction"
-                    onClick={() => setIsOpen(false)}
+                    onClick={closeMenu}
                     className="block w-full text-white text-center font-medium px-5 py-3 bg-black dark:bg-white dark:text-black"
                   >
                     Get Started

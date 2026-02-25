@@ -7,6 +7,7 @@ import { ChevronLeft, ChevronRight, Menu } from 'lucide-react';
 import clsx from 'clsx';
 import { cn } from '@/lib/utils';
 import { useEventListener } from '../hooks-d/use-event-listener';
+import { useToggle } from '../hooks-d/use-toggle';
 
 type SidebarContextType = {
   isOpen: boolean;
@@ -66,13 +67,9 @@ export function SidebarProvider({
 
   const isMobile = mobileView ? useMobile : false;
 
-  const [isOpen, setIsOpen] = React.useState(defaultOpen);
+  const [isOpen, { toggle: toggleSidebar, set: setIsOpen }] = useToggle(defaultOpen);
   const [side] = React.useState<'left' | 'right'>(defaultSide);
   const [maxWidth] = React.useState(defaultMaxWidth);
-
-  const toggleSidebar = React.useCallback(() => {
-    setIsOpen((prev) => !prev);
-  }, []);
 
   // Add keyboard shortcut (Ctrl+B) to toggle sidebar
   useEventListener('keydown', (e) => {
