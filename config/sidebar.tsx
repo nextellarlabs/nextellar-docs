@@ -156,6 +156,7 @@ export const sidebarNav: SidebarSection[] = [
       { title: 'BalanceCard', href: '/docs/components/balance-card' },
       { title: 'TransactionList', href: '/docs/components/transaction-list' },
       { title: 'PaymentForm', href: '/docs/components/payment-form' },
+      { title: 'useWindowSize', href: '/docs/components/use-window-size' },
     ],
   },
 ];
