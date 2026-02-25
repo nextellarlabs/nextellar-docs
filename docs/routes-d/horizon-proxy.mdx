@@ -1,0 +1,113 @@
+---
+title: GET/POST /api/horizon/proxy
+description: Forward arbitrary Horizon API requests through Nextellar's infrastructure with caching and rate limiting.
+---
+
+# /api/horizon/proxy
+
+The **`/api/horizon/proxy`** route acts as a high-performance gateway to the Stellar Horizon API. It proxies requests while adding advanced features like global caching, shared rate limiting, and automatic retry logic.
+
+## Overview
+
+While developers can call Horizon directly, using the Nextellar proxy provides several production-grade benefits:
+- **Shared Rate Limits**: Your application benefits from Nextellar's high-tier Horizon access, reducing 429 errors.
+- **Global Caching**: Frequently accessed data (like asset definitions or old ledgers) is served from our edge cache.
+- **Automatic Retries**: We automatically retry failed upstream requests before returning an error to your client.
+- **Normalized Errors**: Maps cryptic Horizon errors into standard Nextellar JSON error formats.
+
+---
+
+## Connection Specification
+
+| Method | Content-Type | Usage |
+|--------|--------------|-------|
+| `GET`  | `application/json` | Proxying GET endpoints (most common) |
+| `POST` | `application/x-www-form-urlencoded` | Proxying POST endpoints (like transaction submission) |
+
+**URL Pattern:**
+
+Append the Horizon path after the proxy prefix. All query parameters are passed through transparently.
+
+```
+/api/horizon/proxy/{horizon_path}
+```
+
+---
+
+## Endpoint Support
+
+| Horizon Module | Support Status | Recommendation |
+|----------------|----------------|----------------|
+| **Accounts** | ✅ Fully Supported | Use for non-enriched lookups. |
+| **Ledgers** | ✅ Fully Supported | Use for historical data. |
+| **Transactions** | ✅ Fully Supported | Preferred for standard submissions. |
+| **Assets** | ✅ Fully Supported | Excellent for cached searches. |
+| **Streaming** | ❌ Not Supported | Use specific SSE routes (e.g., `/api/stream/ledgers`). |
+| **Contract Info** | ✅ Fully Supported | Useful for retrieving contract Wasm metadata. |
+
+---
+
+## Caching Behavior
+
+Nextellar inspects the Horizon path to determine caching strategy. Responses include a custom header:
+
+`x-nextellar-cache: {STATUS}`
+
+| Status | Description |
+|--------|-------------|
+| **HIT** | Data served directly from Nextellar edge cache. Zero latency from Horizon. |
+| **MISS** | Data fetched fresh from Horizon and added to cache. |
+| **STALE** | Cached data served while background revalidation occurs (Stale-While-Revalidate). |
+| **BYPASS** | Request explicitly bypassed the cache (e.g., via `Cache-Control` header). |
+
+---
+
+## Code Example: Ledger History
+
+Fetching details for a range of ledgers through the proxy.
+
+```typescript
+async function getLedgerHistory(startSeq: number) {
+  const proxyUrl = `/api/horizon/proxy/ledgers?cursor=${startSeq}&order=desc&limit=10`;
+  
+  const res = await fetch(proxyUrl);
+  const data = await res.json();
+  
+  const cacheStatus = res.headers.get('x-nextellar-cache');
+  console.log(`Cache Status: ${cacheStatus}`);
+
+  if (data._embedded) {
+    return data._embedded.records;
+  }
+  return [];
+}
+```
+
+---
+
+## When to Use Proxy vs. Direct
+
+| Scenario | Recommended Approach | Reason |
+|----------|----------------------|--------|
+| **General App Data** | **Proxy** | Faster (cache) and safer (rate limits). |
+| **Real-time Monitoring** | **Direct SSE** | Proxy does not support long-lived stream connections. |
+| **Local Development** | **Direct** | Familiarity and direct control over network environment. |
+| **High Frequency Polling** | **Proxy** | Prevents IP-based rate limiting on your own infrastructure. |
+
+---
+
+## Performance Comparison
+
+| Metric | Direct Horizon | Nextellar Proxy (Cache HIT) |
+|--------|----------------|-----------------------------|
+| **Avg Latency** | 200ms - 800ms | 10ms - 50ms |
+| **Rate Limit** | IP-Based (Strict) | Account-Based (Flexible) |
+| **Reliability** | Upstream Dependent | Buffered/Retry Protected |
+
+---
+
+## See also
+
+- [Real-time Ledgers](/docs/routes-d/stream-ledgers) - Better for live updates than polling the proxy
+- [Transaction Submission](/docs/routes-d/transaction-submit) - High-level submission API
+- [Stellar Horizon API Reference](https://developers.stellar.org/api/resources/) - Official documentation for paths
