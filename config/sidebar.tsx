@@ -134,6 +134,10 @@ export const sidebarNav: SidebarSection[] = [
         title: 'POST /api/transactions/submit',
         href: '/docs/routes-d/transaction-submit',
       },
+      {
+        title: 'GET /api/account/[address]',
+        href: '/docs/routes-d/account-lookup',
+      },
     ],
   },
   {
