@@ -6,9 +6,12 @@ import React, {
   forwardRef,
   useImperativeHandle,
   useEffect,
+  useCallback,
 } from 'react';
 import { useDebounce } from '@/hooks-d/use-debounce';
 import { useKeyboardShortcut } from '@/hooks-d/use-keyboard-shortcut';
+import { useToggle } from '@/hooks-d/use-toggle';
+import { useAsync } from '@/hooks-d/use-async';
 import { Dialog, DialogTrigger, DialogContent } from '@/components/dialog';
 import { Input } from '@/components/input';
 import SearchButton from '@/components/search-button';
@@ -101,47 +104,56 @@ function getSnippet(
 
 const SearchDialog = forwardRef<SearchDialogHandle, SearchDialogProps>(
   ({ searchData }, ref) => {
-    const [open, setOpen] = useState(false);
+    const [open, { on: openDialog, off: closeDialog, set: setOpen }] =
+      useToggle(false);
     const [query, setQuery] = useState('');
     const debouncedQuery = useDebounce(query, 300, true);
 
     useImperativeHandle(ref, () => ({
-      close: () => setOpen(false),
-      open: () => setOpen(true),
+      close: closeDialog,
+      open: openDialog,
     }));
 
-    useKeyboardShortcut('mod+k', () => setOpen(true));
+    useKeyboardShortcut('mod+k', openDialog);
 
+    const searchDocs = useCallback(
+      async (query: string, signal: AbortSignal) => {
+        if (!query) return [];
+        // Simulate API delay
+        await new Promise((resolve, reject) => {
+          const timeout = setTimeout(resolve, 300);
+          signal.addEventListener('abort', () => {
+            clearTimeout(timeout);
+            reject(new Error('Aborted'));
+          });
+        });
 
-    const filteredDocs = useMemo(() => {
-      if (!debouncedQuery) return [];
-      const q = debouncedQuery.toLowerCase();
-      return searchData.filter((doc) => {
-        const title = doc.title.toLowerCase();
-        const description = stripMarkdown(doc.body.raw || '').toLowerCase();
-        return title.includes(q) || description.includes(q);
-      });
-    }, [debouncedQuery, searchData]);
+        const q = query.toLowerCase();
+        return searchData.filter((doc) => {
+          const title = doc.title.toLowerCase();
+          const description = stripMarkdown(doc.body.raw || '').toLowerCase();
+          return title.includes(q) || description.includes(q);
+        });
+      },
+      [searchData]
+    );
+
+    const {
+      data: filteredDocs = [],
+      loading,
+      execute: performSearch,
+    } = useAsync(searchDocs);
+
+    useEffect(() => {
+      performSearch(debouncedQuery);
+    }, [debouncedQuery, performSearch]);
 
     return (
-      <Dialog open={open} setOpen={setOpen}>
+      <Dialog open={open} setOpen={setOpen as React.Dispatch<React.SetStateAction<boolean>>}>
         <DialogTrigger className="hidden sm:block">
           <SearchButton size="sm" placeholder="Search documentation.." />
         </DialogTrigger>
         <DialogContent className="fixed h-auto sm:max-w-xl bg-muted p-2 top-40">
-          {/* Close Button */}
-          {/* <DialogCloseTrigger asChild>
-          <button
-            className="cursor-pointer border border-border text-lg absolute -top-2 -right-2 bg-muted text-black dark:text-white rounded-full w-5 h-5 flex items-center justify-center shadow"
-            aria-label="Close"
-          >
-            &times;
-          </button>
-        </DialogCloseTrigger> */}
-          {/* <DialogHeader>
-            <DialogTitle>Search Documentation</DialogTitle>
-            <DialogDescription>Type below to search your docs.</DialogDescription>
-          </DialogHeader> */}
           <div className="relative">
             <Input
               type="text"
@@ -155,7 +167,12 @@ const SearchDialog = forwardRef<SearchDialogHandle, SearchDialogProps>(
             </div>
           </div>
           <div className="mt-2 max-h-[300px] overflow-y-auto">
-            {filteredDocs.length > 0 ? (
+            {loading ? (
+              <div className="p-4 text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                <p className="mt-2 text-sm text-muted-foreground">Searching...</p>
+              </div>
+            ) : filteredDocs && filteredDocs.length > 0 ? (
               <ul className="list-none p-0">
                 {filteredDocs.map((doc) => (
                   <li
@@ -164,7 +181,7 @@ const SearchDialog = forwardRef<SearchDialogHandle, SearchDialogProps>(
                   >
                     <Link
                       href={`/docs/${doc._raw.flattenedPath}`}
-                      onClick={() => setOpen(false)}
+                      onClick={closeDialog}
                     >
                       <div className="flex flex-col gap-3">
                         <div className="flex gap-2 font-bold">
