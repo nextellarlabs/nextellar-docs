@@ -1,0 +1,188 @@
+---
+title: GET /api/rate-limit
+description: Check your current API quota, remaining requests, and rate-limit tier for the authenticated user or API key.
+---
+
+# GET /api/rate-limit
+
+The **`/api/rate-limit`** endpoint returns the current rate-limit status and quota information for the authenticated user or API key. Use it to build proactive quota management into your integration.
+
+## Overview
+
+Every Nextellar API request counts against a per-tier quota. By querying this endpoint before issuing batch or high-frequency requests, you can avoid unexpected `429` errors and implement graceful backoff strategies.
+
+---
+
+## Request
+
+| Method | Authentication |
+|--------|---------------|
+| `GET`  | `Bearer <API_KEY>` required |
+
+No request body or query parameters are needed. Authentication is provided via the `Authorization` header.
+
+```http
+GET /api/rate-limit
+Authorization: Bearer YOUR_API_KEY
+```
+
+---
+
+## Response
+
+**Status:** `200 OK`
+
+```json
+{
+  "ok": true,
+  "tier": "pro",
+  "limit": 1000,
+  "remaining": 847,
+  "reset": 1740614400,
+  "reset_iso": "2026-02-27T08:00:00Z",
+  "window": "1m"
+}
+```
+
+| Field        | Type    | Description |
+|--------------|---------|-------------|
+| `ok`         | boolean | Always `true` on success |
+| `tier`       | string  | Your current plan tier (`free`, `pro`, `enterprise`) |
+| `limit`      | number  | Maximum requests allowed per window |
+| `remaining`  | number  | Requests remaining in the current window |
+| `reset`      | number  | Unix timestamp when the window resets |
+| `reset_iso`  | string  | ISO 8601 date of when the window resets |
+| `window`     | string  | Window duration (always `1m`) |
+
+### Response Headers
+
+Every response — including this one — includes standard rate-limit headers:
+
+| Header                  | Description |
+|-------------------------|-------------|
+| `X-RateLimit-Limit`     | Maximum number of requests per window |
+| `X-RateLimit-Remaining` | Requests remaining in the current window |
+| `X-RateLimit-Reset`     | Unix timestamp of the next window reset |
+
+---
+
+## Rate Limit Tiers
+
+| Tier         | Requests / min | Notes |
+|--------------|---------------|-------|
+| **Free**     | 100           | Default for all new API keys |
+| **Pro**      | 1,000         | Requires an active Pro subscription |
+| **Enterprise** | Custom      | Negotiated limits — contact sales |
+
+To upgrade your tier, visit the [Nextellar Dashboard](https://nextellar.dev/dashboard) or [contact the team](mailto:team@nextellar.dev) for enterprise pricing.
+
+---
+
+## 429 — Rate Limit Exceeded
+
+When you exceed your quota, the API responds with status `429 Too Many Requests`:
+
+```json
+{
+  "ok": false,
+  "error": {
+    "code": "RATE_LIMITED",
+    "message": "You have exceeded your request quota. Retry after 38 seconds.",
+    "retry_after": 38
+  }
+}
+```
+
+The `Retry-After` response header (in seconds) is also set to the same value.
+
+---
+
+## Code Example: Check Quota Before a Batch Request
+
+Use this pattern to inspect your remaining quota and skip the batch if you are running low:
+
+```typescript
+const API_KEY = process.env.NEXTELLAR_API_KEY!;
+
+async function getRateLimit() {
+  const res = await fetch('https://api.nextellar.dev/api/rate-limit', {
+    headers: { Authorization: `Bearer ${API_KEY}` },
+  });
+  return res.json();
+}
+
+async function runBatch(items: string[]) {
+  const quota = await getRateLimit();
+
+  if (!quota.ok) throw new Error('Failed to fetch rate limit info');
+
+  // Guard: require at least as many remaining requests as batch items
+  if (quota.remaining < items.length) {
+    const waitMs = (quota.reset - Math.floor(Date.now() / 1000)) * 1000;
+    console.warn(`Quota low (${quota.remaining} left). Waiting ${waitMs}ms for reset.`);
+    await new Promise((resolve) => setTimeout(resolve, waitMs));
+  }
+
+  // Proceed with batch
+  for (const item of items) {
+    await fetch(`https://api.nextellar.dev/api/some-endpoint?id=${item}`, {
+      headers: { Authorization: `Bearer ${API_KEY}` },
+    });
+  }
+}
+```
+
+---
+
+## Exponential Backoff — Retry Logic Example
+
+When you receive a `429`, implement exponential backoff to avoid hammering the API:
+
+```typescript
+async function fetchWithBackoff(
+  url: string,
+  headers: Record<string, string>,
+  maxRetries = 5
+): Promise<Response> {
+  let attempt = 0;
+
+  while (attempt < maxRetries) {
+    const res = await fetch(url, { headers });
+
+    if (res.status !== 429) return res;
+
+    const retryAfter = parseInt(res.headers.get('Retry-After') ?? '1', 10);
+    // Exponential backoff: base delay doubles each attempt, capped at retryAfter
+    const backoff = Math.min(retryAfter * 1000, 2 ** attempt * 500);
+
+    console.warn(`Rate limited. Retrying in ${backoff}ms (attempt ${attempt + 1}/${maxRetries})`);
+    await new Promise((resolve) => setTimeout(resolve, backoff));
+    attempt++;
+  }
+
+  throw new Error('Max retries reached — request failed.');
+}
+```
+
+**Best practices:**
+- **Cache the rate-limit response** for the duration of the window; do not poll this endpoint on every request.
+- Use `reset` / `X-RateLimit-Reset` to know the precise time when the quota refills.
+- Add **jitter** to your backoff delays when running concurrent workers to avoid a thundering-herd effect.
+
+---
+
+## Error Codes
+
+| Code            | HTTP Status | Description |
+|-----------------|-------------|-------------|
+| `UNAUTHORIZED`  | `401`       | Missing or invalid API key |
+| `RATE_LIMITED`  | `429`       | Request quota exceeded |
+| `INTERNAL_ERROR`| `500`       | Server error |
+
+---
+
+## See Also
+
+- [Authentication](/docs/getting-started/authentication) — How to generate and manage API keys
+- [GET /api/network-status](/docs/routes-d/network-status) — Check network health alongside quota
+- [Stellar Wave Program](https://www.drips.network/wave/stellar) — Earn rewards for contributions

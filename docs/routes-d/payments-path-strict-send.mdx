@@ -1,0 +1,237 @@
+---
+title: POST /api/payments/path-strict-send
+description: Execute a cross-asset path payment where the send amount is fixed and the recipient receives a variable minimum amount.
+---
+
+# POST /api/payments/path-strict-send
+
+The **`/api/payments/path-strict-send`** endpoint executes a path payment on the Stellar network where the **send amount is exactly fixed** and the recipient receives whatever the path yields — protected by a minimum (`dest_min`) slippage guard.
+
+> **When to use:** "I want to send exactly 100 XLM and have the recipient receive as much USDC as possible, but at least 40 USDC."
+
+---
+
+## Overview
+
+### Strict Send vs. Strict Receive
+
+| Mode             | Fixed Side | Variable Side | Use Case |
+|------------------|-----------|---------------|---------|
+| **Strict Send**  | Source amount | Destination amount | "I will spend exactly X — recipient gets best rate" |
+| **Strict Receive** | Destination amount | Source amount | "Recipient needs exactly Y — I pay what it costs" |
+
+For **strict receive**, use [`POST /api/path-payment/find`](/docs/routes-d/path-payment-find) with `mode: strictReceive`.
+
+### Payment Flow
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                                                                  │
+│  1. Find a path                                                  │
+│     GET /api/path-payment/find?mode=strictSend&amount=100&...   │
+│     → Returns available paths ordered by destination amount      │
+│                                                                  │
+│  2. User reviews path and confirms destination_min               │
+│     → UI shows "You send 100 XLM, recipient gets ≥ 40 USDC"    │
+│                                                                  │
+│  3. Execute payment                                              │
+│     POST /api/payments/path-strict-send                          │
+│     → Signs, submits, returns transaction hash                   │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Request
+
+| Method | Content-Type       | Authentication |
+|--------|--------------------|---------------|
+| `POST` | `application/json` | `Bearer <API_KEY>` |
+
+**Request body:**
+
+```json
+{
+  "sourceAccount": "GABC...SENDER",
+  "destinationAccount": "GDEST...RECEIVER",
+  "sendAsset": "native",
+  "sendAmount": "100",
+  "destAsset": {
+    "code": "USDC",
+    "issuer": "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN"
+  },
+  "destMin": "40",
+  "path": [
+    { "code": "EURT", "issuer": "GAP5LETJZWYSBKD5HVRGAAWHKGE7WVKB4JE5QE4K" }
+  ],
+  "network": "public",
+  "memo": "Cross-asset send Q1"
+}
+```
+
+| Field                | Type          | Required | Description |
+|----------------------|---------------|----------|-------------|
+| `sourceAccount`      | string        | Yes      | G-address of the account sending funds |
+| `destinationAccount` | string        | Yes      | G-address of the recipient |
+| `sendAsset`          | string/object | Yes      | Asset to send: `"native"` for XLM or `{ code, issuer }` |
+| `sendAmount`         | string        | Yes      | Exact amount to send (fixed in strict-send mode) |
+| `destAsset`          | string/object | Yes      | Asset the recipient will receive |
+| `destMin`            | string        | Yes      | Minimum destination amount — payment fails if path yields less |
+| `path`               | object[]      | No       | Intermediate assets for the path (from `/api/path-payment/find`) |
+| `network`            | string        | No       | `testnet` or `public` (default: `testnet`) |
+| `memo`               | string        | No       | Optional text memo |
+
+---
+
+## Response
+
+**Status:** `200 OK`
+
+```json
+{
+  "ok": true,
+  "transactionHash": "a1b2c3d4e5f6...",
+  "ledger": 52100430,
+  "sourceAccount": "GABC...SENDER",
+  "destinationAccount": "GDEST...RECEIVER",
+  "sendAmount": "100.0000000",
+  "sendAsset": "native",
+  "destAmount": "42.3859120",
+  "destAsset": {
+    "code": "USDC",
+    "issuer": "GA5ZSE...ISSUER"
+  },
+  "pathTaken": [
+    { "code": "EURT", "issuer": "GAP5LE...ISSUER" }
+  ],
+  "fee": "100"
+}
+```
+
+| Field               | Type     | Description |
+|---------------------|----------|-------------|
+| `ok`                | boolean  | `true` on success |
+| `transactionHash`   | string   | Stellar transaction hash |
+| `ledger`            | number   | Ledger number in which the transaction was included |
+| `sendAmount`        | string   | Confirmed amount sent (always equals request `sendAmount`) |
+| `destAmount`        | string   | Actual amount received by destination |
+| `pathTaken`         | object[] | Intermediate assets used in the payment path |
+| `fee`               | string   | Transaction fee paid in stroops |
+
+---
+
+## Code Example: Send 100 XLM, Recipient Gets ≥ 40 USDC
+
+```typescript
+const NEXTELLAR_API = 'https://api.nextellar.dev';
+
+// Step 1: Find the best path
+async function findBestPath() {
+  const res = await fetch(`${NEXTELLAR_API}/api/path-payment/find`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      sourceAsset: 'native',
+      destinationAsset: { code: 'USDC', issuer: 'GA5ZSE...ISSUER' },
+      amount: '100',
+      mode: 'strictSend',
+      network: 'public',
+    }),
+  });
+  const data = await res.json();
+  if (!data.ok || data.paths.length === 0) throw new Error('No path found');
+  return data.paths[0]; // Best path (highest destination amount)
+}
+
+// Step 2: Execute the payment
+async function executePathPayment() {
+  const bestPath = await findBestPath();
+
+  // Apply 1% slippage tolerance
+  const destMin = (parseFloat(bestPath.destination_amount) * 0.99).toFixed(7);
+
+  const res = await fetch(`${NEXTELLAR_API}/api/payments/path-strict-send`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${process.env.NEXTELLAR_API_KEY}`,
+    },
+    body: JSON.stringify({
+      sourceAccount: 'GABC...SENDER',
+      destinationAccount: 'GDEST...RECEIVER',
+      sendAsset: 'native',
+      sendAmount: '100',
+      destAsset: { code: 'USDC', issuer: 'GA5ZSE...ISSUER' },
+      destMin,
+      path: bestPath.path,
+      network: 'public',
+      memo: 'Strict-send 100 XLM → USDC',
+    }),
+  });
+
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error?.message);
+
+  console.log(`✅ Sent 100 XLM → ${data.destAmount} USDC`);
+  console.log('Transaction:', `https://stellar.expert/explorer/public/tx/${data.transactionHash}`);
+}
+```
+
+---
+
+## Slippage Protection
+
+The `destMin` parameter acts as a slippage guard. The payment **fails with a `PATH_DRY_UP` error** (no XDR is submitted) if the path cannot deliver at least `destMin` of the destination asset at execution time.
+
+**Recommended slippage tolerances by use case:**
+
+| Scenario | Slippage Tolerance |
+|----------|--------------------|
+| High-liquidity pairs (XLM/USDC) | 0.5% |
+| Medium-liquidity pairs | 1–2% |
+| Low-liquidity / exotic pairs | 3–5% |
+| Automated / non-interactive payments | 0.1–0.3% |
+
+---
+
+## Error Handling
+
+| Code                  | HTTP Status | Description |
+|-----------------------|-------------|-------------|
+| `PATH_DRY_UP`         | `400`       | No path found at execution time (path dried up between find and execute) |
+| `EXCESSIVE_SLIPPAGE`  | `400`       | Path yield was below `destMin` |
+| `INVALID_SOURCE`      | `400`       | Source account not found or insufficient balance |
+| `INVALID_DESTINATION` | `400`       | Destination account not found or no trustline for `destAsset` |
+| `INVALID_ASSET`       | `400`       | Asset definition is malformed or unrecognised |
+| `UNAUTHORIZED`        | `401`       | Missing or invalid API key |
+| `RATE_LIMITED`        | `429`       | Too many requests |
+| `INTERNAL_ERROR`      | `500`       | Server error |
+
+### Handling PATH_DRY_UP Gracefully
+
+```typescript
+async function safePayment(retries = 3): Promise<void> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      await executePathPayment();
+      return;
+    } catch (err: any) {
+      if (err.message?.includes('PATH_DRY_UP') && i < retries - 1) {
+        console.warn('Path dried up — refinding and retrying...');
+        await new Promise((r) => setTimeout(r, 1500)); // brief pause
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+```
+
+---
+
+## See Also
+
+- [POST /api/path-payment/find](/docs/routes-d/path-payment-find) — Discover available paths before executing
+- [GET /api/trade-aggregations/[pair]](/docs/routes-d/trade-aggregations-pair) — Analyse price history for slippage estimation
+- [Stellar Path Payments](https://developers.stellar.org/docs/encyclopedia/path-payments) — Deep dive into Stellar path payment mechanics

@@ -1,0 +1,192 @@
+---
+title: POST /api/multisig/build
+description: Construct multi-signature Stellar transactions with proper threshold and weight calculations.
+---
+
+# POST /api/multisig/build
+
+The **`/api/multisig/build`** endpoint constructs a multi-signature (multisig) Stellar transaction envelope that requires M-of-N approvals before it can be submitted to the network. It handles threshold calculations, signer weight validation, and returns a ready-to-sign XDR payload along with a signature collection URL.
+
+## Overview
+
+Multi-signature accounts on Stellar require multiple private keys to authorise a transaction. This endpoint abstracts the low-level XDR construction so you can focus on the business logic — simply provide your signers, weights, and threshold, and receive a transaction ready for the collection workflow.
+
+### Signature Workflow
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                                                         │
+│   1. POST /api/multisig/build                           │
+│      → Returns unsigned transaction XDR + collect URL  │
+│                                                         │
+│   2. Share collect URL with required signers            │
+│      → Each signer signs at POST /api/multisig/sign     │
+│                                                         │
+│   3. Signatures are aggregated automatically            │
+│      → Poll GET /api/multisig/status/{id}               │
+│                                                         │
+│   4. POST /api/transactions/submit                      │
+│      → Submit fully-signed XDR to Stellar network       │
+│                                                         │
+└─────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Request
+
+| Method | Content-Type       |
+|--------|--------------------|
+| `POST` | `application/json` |
+
+**Request body:**
+
+```json
+{
+  "sourceAccount": "GABC...XYZ",
+  "network": "public",
+  "threshold": "medium",
+  "signers": [
+    { "publicKey": "GABC...S1", "weight": 1 },
+    { "publicKey": "GABC...S2", "weight": 1 },
+    { "publicKey": "GABC...S3", "weight": 1 }
+  ],
+  "operations": [
+    {
+      "type": "payment",
+      "destination": "GDEST...XYZ",
+      "asset": "native",
+      "amount": "100"
+    }
+  ],
+  "memo": "Treasury disbursement Q1"
+}
+```
+
+| Field           | Type     | Required | Description |
+|-----------------|----------|----------|-------------|
+| `sourceAccount` | string   | Yes      | Stellar G-address of the multisig account |
+| `network`       | string   | No       | `testnet` or `public` (default: `testnet`) |
+| `threshold`     | string   | Yes      | Threshold level: `low`, `medium`, or `high` |
+| `signers`       | object[] | Yes      | Array of signer objects (publicKey + weight) |
+| `operations`    | object[] | Yes      | Array of Stellar operations to include |
+| `memo`          | string   | No       | Optional text memo (max 28 bytes) |
+| `timebounds`    | object   | No       | `{ minTime, maxTime }` Unix timestamps |
+
+---
+
+## Weight vs. Threshold Explained
+
+Stellar multisig works on a **cumulative-weight** model. Each signer has a weight (0–255), and a transaction is valid when the sum of signing weights meets or exceeds the required threshold.
+
+| Threshold Level | Default Required Weight | Typical Use |
+|-----------------|------------------------|-------------|
+| `low`           | 1                      | Non-critical operations (set data, bump sequence) |
+| `medium`        | 2                      | Standard payments and offers |
+| `high`          | 3                      | Sensitive operations (change signers, merge account) |
+
+> **Example:** A 3-signer account where each signer has weight `1` and threshold `medium` (= 2) means any 2 of the 3 signers can authorise a standard payment.
+
+---
+
+## Response
+
+**Status:** `201 Created`
+
+```json
+{
+  "ok": true,
+  "transactionId": "mst_7f3a1b9c4e2d",
+  "xdr": "AAAAAgAAAABhbc...AAAAAAA==",
+  "requiredSignatures": [
+    "GABC...S1",
+    "GABC...S2"
+  ],
+  "thresholdRequired": 2,
+  "collectionUrl": "https://sign.nextellar.dev/collect/mst_7f3a1b9c4e2d",
+  "expiresAt": "2026-02-27T10:00:00Z"
+}
+```
+
+| Field                | Type     | Description |
+|----------------------|----------|-------------|
+| `ok`                 | boolean  | `true` on success |
+| `transactionId`      | string   | Unique ID for this multisig session |
+| `xdr`                | string   | Base64-encoded unsigned transaction XDR |
+| `requiredSignatures` | string[] | Public keys that must sign to meet threshold |
+| `thresholdRequired`  | number   | Numeric weight required to authorise |
+| `collectionUrl`      | string   | URL for signers to add their signatures |
+| `expiresAt`          | string   | ISO 8601 expiry (default: 24 hours) |
+
+---
+
+## Code Example: 2-of-3 Multisig Payment
+
+```typescript
+const res = await fetch('https://api.nextellar.dev/api/multisig/build', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${process.env.NEXTELLAR_API_KEY}`,
+  },
+  body: JSON.stringify({
+    sourceAccount: 'GABC...MULTISIG',
+    network: 'public',
+    threshold: 'medium',      // requires weight >= 2
+    signers: [
+      { publicKey: 'GABC...S1', weight: 1 },
+      { publicKey: 'GABC...S2', weight: 1 },
+      { publicKey: 'GABC...S3', weight: 1 },
+    ],
+    operations: [
+      {
+        type: 'payment',
+        destination: 'GDEST...RECIPIENT',
+        asset: 'native',
+        amount: '500',
+      },
+    ],
+    memo: '2-of-3 payment approval',
+  }),
+});
+
+const data = await res.json();
+if (!data.ok) throw new Error(data.error?.message);
+
+console.log('Transaction XDR:', data.xdr);
+console.log('Share this link with signers:', data.collectionUrl);
+// → Signers visit collectionUrl and sign with their wallets
+```
+
+---
+
+## Common Multisig Configurations
+
+| Pattern              | Signers | Weight Each | Threshold | Description |
+|----------------------|---------|-------------|-----------|-------------|
+| **2-of-3**           | 3       | 1           | medium (2) | Most common — any 2 of 3 approve |
+| **3-of-5**           | 5       | 1           | 3          | Corporate treasury — majority required |
+| **Weighted board**   | 3       | 3, 2, 1     | high (3)   | CEO veto power (weight 3 alone is enough) |
+| **Unanimous 3-of-3** | 3       | 1           | 3          | All signers must agree |
+| **1-of-N recovery**  | 5       | 1           | low (1)    | Any one key can perform low-risk ops |
+
+---
+
+## Error Codes
+
+| Code                    | HTTP Status | Description |
+|-------------------------|-------------|-------------|
+| `INVALID_SOURCE_ACCOUNT`| `400`       | Source account not found or invalid |
+| `THRESHOLD_NOT_MET`     | `400`       | Signer weights cannot meet the specified threshold |
+| `INVALID_OPERATION`     | `400`       | One or more operations are malformed |
+| `SIGNER_LIMIT_EXCEEDED` | `400`       | Stellar accounts support a maximum of 20 signers |
+| `UNAUTHORIZED`          | `401`       | Missing or invalid API key |
+| `INTERNAL_ERROR`        | `500`       | Server error |
+
+---
+
+## See Also
+
+- [POST /api/multisig/sign](/docs/routes-d/multisig-sign) — Collect signatures for a built transaction
+- [POST /api/transactions/submit](/docs/routes-d/transaction-submit) — Submit a fully-signed XDR
+- [Stellar Multisig Reference](https://developers.stellar.org/docs/encyclopedia/signatures-multisig) — Stellar developer documentation

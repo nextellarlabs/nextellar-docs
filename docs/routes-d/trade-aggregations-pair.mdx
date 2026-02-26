@@ -1,0 +1,214 @@
+---
+title: GET /api/trade-aggregations/[pair]
+description: Retrieve OHLCV candlestick data for a trading pair for use in chart visualizations.
+---
+
+# GET /api/trade-aggregations/[pair]
+
+The **`/api/trade-aggregations/[pair]`** endpoint returns OHLCV (Open, High, Low, Close, Volume) candlestick data aggregated across both the Stellar Decentralised Exchange (SDEX) and Nextellar liquidity pools. Use it to power trading chart visualisations with libraries like Recharts or TradingView.
+
+## Overview
+
+Trade aggregations group all trades for an asset pair within a given time resolution into a single candle. This gives you efficient access to historical price data without processing individual trades.
+
+---
+
+## Request
+
+| Method | Authentication |
+|--------|---------------|
+| `GET`  | Optional (higher rate limit when authenticated) |
+
+### URL Structure
+
+```
+GET /api/trade-aggregations/{base_asset}-{counter_asset}
+```
+
+Where `{base_asset}` and `{counter_asset}` are in the format `CODE:ISSUER` (or just `XLM` for the native asset):
+
+```
+GET /api/trade-aggregations/XLM-USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN
+```
+
+### Query Parameters
+
+| Parameter    | Type   | Required | Description |
+|--------------|--------|----------|-------------|
+| `resolution` | string | Yes      | Candle duration (see table below) |
+| `start_time` | number | No       | Unix timestamp — start of the range (default: 24h ago) |
+| `end_time`   | number | No       | Unix timestamp — end of the range (default: now) |
+| `limit`      | number | No       | Max candles to return (default: 100, max: 200) |
+| `order`      | string | No       | `asc` or `desc` (default: `asc`) |
+
+**Example request with all parameters:**
+
+```
+GET /api/trade-aggregations/XLM-USDC:GA5ZSE...ISSUER?resolution=1h&start_time=1740528000&end_time=1740614400&limit=200&order=asc
+```
+
+---
+
+## Available Time Resolutions
+
+| Resolution | Duration | Best for |
+|------------|----------|----------|
+| `1m`       | 1 minute  | High-frequency intraday scalping |
+| `5m`       | 5 minutes | Short-term intraday analysis |
+| `15m`      | 15 minutes| Intraday swing trading |
+| `1h`       | 1 hour    | Daily trend analysis |
+| `4h`       | 4 hours   | Multi-day swing analysis |
+| `1d`       | 1 day     | Weekly/monthly trend views |
+| `1w`       | 1 week    | Long-term macro analysis |
+
+> **Note:** Finer resolutions (`1m`, `5m`) are only available for the last 30 days. Coarser resolutions (`1d`, `1w`) support up to 2 years of history.
+
+---
+
+## Response
+
+**Status:** `200 OK`
+
+```json
+{
+  "ok": true,
+  "pair": "XLM-USDC:GA5ZSE...ISSUER",
+  "resolution": "1h",
+  "base_asset": { "code": "XLM", "type": "native" },
+  "counter_asset": { "code": "USDC", "issuer": "GA5ZSE...ISSUER" },
+  "candles": [
+    {
+      "timestamp": 1740528000,
+      "open": "0.0942000",
+      "high": "0.0961000",
+      "low": "0.0930000",
+      "close": "0.0955000",
+      "base_volume": "128450.0000000",
+      "counter_volume": "12154.3750000",
+      "trade_count": 47,
+      "avg": "0.0946247"
+    }
+  ],
+  "count": 1
+}
+```
+
+### Candle Object Schema
+
+| Field            | Type   | Description |
+|------------------|--------|-------------|
+| `timestamp`      | number | Unix timestamp — start of the candle window |
+| `open`           | string | Price at window open (counter asset per base asset) |
+| `high`           | string | Highest price during the window |
+| `low`            | string | Lowest price during the window |
+| `close`          | string | Price at window close |
+| `base_volume`    | string | Total base asset (e.g., XLM) traded |
+| `counter_volume` | string | Total counter asset (e.g., USDC) traded |
+| `trade_count`    | number | Number of individual trades in this candle |
+| `avg`            | string | Volume-weighted average price (VWAP) |
+
+---
+
+## Volume Calculation
+
+- **`base_volume`** — the total amount of the **base asset** (left side of the pair, e.g., XLM) traded during the candle window.
+- **`counter_volume`** — the total amount of the **counter asset** (right side of the pair, e.g., USDC) that changed hands.
+- The implied price is `counter_volume / base_volume` which equals `avg` (VWAP).
+
+---
+
+## Candlestick Chart Example Using Recharts
+
+```tsx
+import { ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+
+interface Candle {
+  timestamp: number;
+  open: string;
+  high: string;
+  low: string;
+  close: string;
+  base_volume: string;
+}
+
+async function fetchCandles(pair: string, resolution: string): Promise<Candle[]> {
+  const end = Math.floor(Date.now() / 1000);
+  const start = end - 24 * 60 * 60; // last 24 hours
+
+  const res = await fetch(
+    `/api/trade-aggregations/${pair}?resolution=${resolution}&start_time=${start}&end_time=${end}&limit=200`
+  );
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error?.message);
+  return data.candles;
+}
+
+export function CandlestickChart({ pair }: { pair: string }) {
+  const [candles, setCandles] = React.useState<Candle[]>([]);
+
+  React.useEffect(() => {
+    fetchCandles(pair, '1h').then(setCandles);
+  }, [pair]);
+
+  const chartData = candles.map((c) => ({
+    time: new Date(c.timestamp * 1000).toLocaleTimeString(),
+    open: parseFloat(c.open),
+    close: parseFloat(c.close),
+    high: parseFloat(c.high),
+    low: parseFloat(c.low),
+    volume: parseFloat(c.base_volume),
+  }));
+
+  return (
+    <ResponsiveContainer width="100%" height={400}>
+      <ComposedChart data={chartData}>
+        <XAxis dataKey="time" />
+        <YAxis yAxisId="price" domain={['auto', 'auto']} />
+        <YAxis yAxisId="volume" orientation="right" />
+        <Tooltip />
+        {/* Candlestick body represented as a Line for simplicity */}
+        <Line yAxisId="price" type="monotone" dataKey="close" stroke="#8884d8" dot={false} />
+        <Line yAxisId="price" type="monotone" dataKey="high" stroke="#82ca9d" dot={false} />
+        <Line yAxisId="price" type="monotone" dataKey="low" stroke="#ff7300" dot={false} />
+        <Bar yAxisId="volume" dataKey="volume" fill="#38bdf8" opacity={0.4} />
+      </ComposedChart>
+    </ResponsiveContainer>
+  );
+}
+```
+
+> **TradingView Integration:** For production-grade charts, map the candle data to the [TradingView Lightweight Charts](https://tradingview.github.io/lightweight-charts/) `CandlestickData` format by renaming fields: `time → time`, `open → open`, etc. The data structure is fully compatible.
+
+---
+
+## Data Sources
+
+Aggregations are computed from **two sources** merged in real time:
+
+| Source | Description |
+|--------|-------------|
+| **SDEX** | Stellar Decentralised Exchange — direct peer-to-peer orderbook trades |
+| **Liquidity Pools** | Automated Market Maker (AMM) pools — constant-product swaps |
+
+Both are included in the same candle. If you need to distinguish them, use the raw `/api/trades` endpoint with a `type` filter.
+
+---
+
+## Error Codes
+
+| Code                  | HTTP Status | Description |
+|-----------------------|-------------|-------------|
+| `INVALID_PAIR`        | `400`       | Asset pair is malformed or unrecognised |
+| `INVALID_RESOLUTION`  | `400`       | Resolution value is not supported |
+| `INVALID_TIME_RANGE`  | `400`       | `start_time` is after `end_time` |
+| `RANGE_TOO_LARGE`     | `400`       | Time range exceeds the maximum for this resolution |
+| `RATE_LIMITED`        | `429`       | Too many requests |
+| `INTERNAL_ERROR`      | `500`       | Server error |
+
+---
+
+## See Also
+
+- [GET /api/orderbook/[pair]](/docs/routes-d/orderbook-pair) — Current orderbook depth for a pair
+- [GET /api/rate-limit](/docs/routes-d/rate-limit) — Check your quota before bulk candle fetches
+- [Stellar Horizon Trade Aggregations](https://developers.stellar.org/docs/horizon/api-reference/aggregations/trade-aggregations) — Underlying Horizon endpoint reference
