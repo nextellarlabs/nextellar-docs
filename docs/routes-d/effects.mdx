@@ -1,0 +1,114 @@
+---
+title: GET /api/effects
+description: Retrieve detailed state changes (effects) for Stellar accounts and operations
+---
+
+# GET /api/effects
+
+The **`/api/effects`** route provides access to the granular state changes that occur on the Stellar network. While an operation describes a high-level action (e.g., "Payment"), effects describe every side effect of that action (e.g., "Account Credited" and "Account Debited").
+
+## Overview
+
+Effects are the smallest data primitive on Stellar for tracking state. They are essential for building activity feeds, audit logs, and transaction histories that accurately reflect changes to account balances, trustlines, and permissions.
+
+### Operations vs. Effects
+
+A single operation can result in multiple effects. For example, a `Payment` operation usually produces:
+1.  **account_debited**: For the sender.
+2.  **account_credited**: For the receiver.
+
+> **Relationship Diagram:**
+> `Transaction` → `Operation` → `[Effect 1, Effect 2, ...]`
+
+---
+
+## Request Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `account` | string | No | Filter by a specific Stellar G-address |
+| `operation`| string | No | Filter by a specific operation ID |
+| `type`    | string | No | Filter by effect type (comma-separated list for multiples) |
+| `order`   | string | No | `asc` or `desc` (default: `desc`) |
+| `limit`   | number | No | Number of effects to return (max 200, default 100) |
+| `cursor`  | string | No | Pagination cursor |
+
+---
+
+## Effect Types Reference
+
+Stellar Horizon supports 34 distinct effect types. Below are the most common ones used in app development:
+
+| Type ID | Effect Name | Description |
+|---------|-------------|-------------|
+| 0 | `account_created` | A new account was funded and created |
+| 1 | `account_removed` | An account was merged and deleted |
+| 2 | `account_thresholds_updated` | Multisig thresholds were modified |
+| 3 | `account_home_domain_updated` | Home domain (for SEP-1/10) was updated |
+| 4 | `account_flags_updated` | Account flags (e.g., auth_required) were changed |
+| 5 | `account_inflation_destination_updated` | Inflation destination changed (deprecated) |
+| 10 | `signer_created` | A new signer was added to the account |
+| 11 | `signer_removed` | A signer was removed |
+| 12 | `signer_updated` | Signer weight was modified |
+| 20 | `trustline_created` | A trustline for an asset was established |
+| 21 | `trustline_removed` | A trustline was deleted |
+| 22 | `trustline_updated` | Trustline limit was modified |
+| 23 | `trustline_authorized` | Issuer authorized an account (for clawback/auth) |
+| 24 | `trustline_unauthorized` | Issuer revoked authorization |
+| 25 | `trustline_authorized_to_maintain_liabilities` | Limited authorization granted |
+| 26 | `trustline_flags_updated` | Trustline flags were updated |
+| 30 | `offer_created` | An order was placed on the DEX |
+| 31 | `offer_removed` | An order was canceled or fully filled |
+| 32 | `offer_updated` | An existing order was modified |
+| 33 | `trade` | A trade was executed on the DEX |
+| 40 | `data_created` | Custom data was added to an account |
+| 41 | `data_removed` | Custom data was deleted |
+| 42 | `data_updated` | Existing custom data was changed |
+| 50 | `sequence_bumped` | Account sequence number was advanced |
+| 60 | `claimable_balance_created` | A claimable balance was initialized |
+| 61 | `claimable_balance_claimant_created` | A specific claimant was added |
+| 62 | `claimable_balance_claimed` | A balance was successfully claimed |
+| 70 | `account_credited` | Funds were added to an account (Payment/Path Payment) |
+| 71 | `account_debited` | Funds were removed from an account |
+| 80 | `liquidity_pool_deposited` | Funds added to a liquidity pool |
+| 81 | `liquidity_pool_withdrawn` | Funds removed from a liquidity pool |
+| 82 | `liquidity_pool_trade` | Trade executed against a liquidity pool |
+| 83 | `liquidity_pool_created` | A new pool was initialized |
+| 84 | `liquidity_pool_removed` | A pool was deleted |
+
+---
+
+## Code Example: Activity Timeline
+
+This example demonstrates how to fetch effects and format them into a human-readable activity feed.
+
+```typescript
+const fetchActivity = async (publicKey: string) => {
+  const url = `/api/effects?account=${publicKey}&limit=20&order=desc`;
+  const response = await fetch(url);
+  const data = await response.json();
+
+  return data.map((effect: any) => {
+    switch (effect.type_i) {
+      case 70: // account_credited
+        return `Received ${effect.amount} ${effect.asset_code || 'XLM'}`;
+      case 71: // account_debited
+        return `Sent ${effect.amount} ${effect.asset_code || 'XLM'}`;
+      case 20: // trustline_created
+        return `Opened trustline for ${effect.asset_code}`;
+      case 33: // trade
+        return `Traded ${effect.sold_amount} ${effect.sold_asset_code} for ${effect.bought_amount} ${effect.bought_asset_code}`;
+      default:
+        return `Network Event: ${effect.type.replace('_', ' ')}`;
+    }
+  });
+};
+```
+
+---
+
+## See Also
+
+- [GET /api/accounts/:id](/docs/routes-d/account-lookup)
+- [GET /api/transactions/submit](/docs/routes-d/transaction-submit)
+- [Stellar Horizon Effects List](https://developers.stellar.org/docs/horizon/reference/endpoints/effects-all)
