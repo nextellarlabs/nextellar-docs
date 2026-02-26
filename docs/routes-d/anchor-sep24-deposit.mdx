@@ -1,0 +1,163 @@
+---
+title: POST /api/anchor/sep24/deposit
+description: Initiate a fiat-to-crypto on-ramp deposit flow via SEP-24
+---
+
+# POST /api/anchor/sep24/deposit
+
+Documentation for the **`/api/anchor/sep24/deposit`** route which implements the [SEP-24 (Hosted Deposit and Withdrawal)](https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0024.md) protocol for fiat-to-crypto on-ramps.
+
+## Overview
+
+This endpoint initiates a deposit flow with a Stellar anchor partner. It returns an interactive URL where the user can complete KYC requirements and provide payment details (e.g., bank transfer, card payment). Once the anchor receives the fiat funds, they will deposit the corresponding crypto assets into the user's Stellar account.
+
+### Deposit Flow Lifecycle
+
+1.  **Initiate**: Client calls this endpoint with the desired asset and user account.
+2.  **Interactive Flow**: Client opens the returned URL in a popup or webview for KYC/Payment.
+3.  **Lifecycle States**:
+    *   `incomplete`: Interactive flow not yet finished by user.
+    *   `pending_user_transfer_start`: User needs to initiate fiat transfer to anchor.
+    *   `pending_anchor`: Anchor is processing the payment.
+    *   `completed`: Funds have been deposited to user's Stellar account.
+
+---
+
+## Request / Response Schema
+
+### Request
+
+| Method | Content-Type       | Body |
+|--------|--------------------|------|
+| `POST` | `application/json` | JSON |
+
+**Request body (JSON):**
+
+```json
+{
+  "asset_code": "USDC",
+  "account": "GABC...123",
+  "lang": "en",
+  "claimable_balance_supported": true
+}
+```
+
+| Field                       | Type    | Required | Description |
+|-----------------------------|---------|----------|-------------|
+| `asset_code`                | string  | Yes      | The code of the asset the user wants to deposit (e.g., `USDC`, `EUR`) |
+| `account`                   | string  | Yes      | The Stellar G-address that will receive the deposit |
+| `lang`                      | string  | No       | Language preference for the interactive flow (e.g., `en`, `es`) |
+| `claimable_balance_supported`| boolean | No       | If `true`, the anchor may use claimable balances if the user lacks a trustline |
+
+### Response (success)
+
+**Status:** `200 OK`
+
+```json
+{
+  "url": "https://anchor.com/sep24/interactive?token=...",
+  "id": "transaction-id-123"
+}
+```
+
+---
+
+## Supported Anchor Partners
+
+| Anchor | Region | Assets Supported | KYC Level |
+|--------|--------|------------------|-----------|
+| **MoneyGram** | Global | USDC | Low (Retail Cash) |
+| **Circle** | Global | USDC | High (Institutional) |
+| **Linker** | EUR / LatAm | EURC, USDC | Medium |
+| **Anclap** | Argentina | ARST | Medium |
+
+---
+
+## Code Examples
+
+<Tabs items={['JavaScript', 'React (Popup)']}>
+  <Tab value="JavaScript">
+    ```typescript
+    // 1. Initiate the deposit
+    const response = await fetch('/api/anchor/sep24/deposit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        asset_code: 'USDC',
+        account: userPublicKey,
+      }),
+    });
+
+    const { url, id } = await response.json();
+
+    // 2. Open interactive URL
+    window.open(url, 'AnchorDeposit', 'width=500,height=700');
+
+    // 3. Poll for status
+    const pollStatus = setInterval(async () => {
+      const res = await fetch(`/api/anchor/sep24/transaction?id=${id}`);
+      const tx = await res.json();
+      
+      if (tx.status === 'completed') {
+        console.log('Deposit successful!');
+        clearInterval(pollStatus);
+      }
+    }, 5000);
+    ```
+  </Tab>
+  <Tab value="React (Popup)">
+    ```tsx
+    import { useState } from 'react';
+
+    export function DepositButton() {
+      const [loading, setLoading] = useState(false);
+
+      const handleDeposit = async () => {
+        setLoading(true);
+        try {
+          const res = await fetch('/api/anchor/sep24/deposit', {
+            method: 'POST',
+            body: JSON.stringify({ asset_code: 'USDC', account: 'G...' })
+          });
+          const { url } = await res.json();
+          
+          // Open popup
+          const popup = window.open(url, '_blank', 'width=500,height=800');
+          
+          // Monitor popup closure
+          const timer = setInterval(() => {
+            if (popup?.closed) {
+              clearInterval(timer);
+              alert('Deposit flow closed. Checking final status...');
+            }
+          }, 1000);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      return (
+        <button onClick={handleDeposit} disabled={loading}>
+          {loading ? 'Opening...' : 'Deposit USDC'}
+        </button>
+      );
+    }
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Compliance & Restrictions
+
+*   **KYC**: Most anchors require identity verification through the interactive flow before issuing a deposit address or processing payment.
+*   **Geographic Restrictions**: Support varies by anchor. For example, MoneyGram supports cash-to-USDC in 175+ countries, while EURC anchors may focus strictly on the SEPA zone.
+*   **Trustlines**: The receiving account MUST have a trustline for the `asset_code` unless `claimable_balance_supported` is set to `true`.
+
+---
+
+## See Also
+
+*   [SEP-24 Specification](https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0024.md)
+*   [GET /api/anchor/sep24/transaction](/docs/routes-d/anchor-sep24-transaction)
+*   [Anchor Integration Guide](/docs/guides/anchors)
