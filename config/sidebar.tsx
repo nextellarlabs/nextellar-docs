@@ -99,6 +99,10 @@ export const sidebarNav: SidebarSection[] = [
         href: '/docs/routes-d/wallet-connect',
       },
       {
+        title: 'POST /api/batch',
+        href: '/docs/routes-d/batch',
+      },
+      {
         title: 'GET /api/assets/search',
         href: '/docs/routes-d/assets-search',
       },
