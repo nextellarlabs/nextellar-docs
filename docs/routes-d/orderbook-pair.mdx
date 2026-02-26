@@ -1,0 +1,137 @@
+---
+title: GET /api/orderbook/[pair]
+description: Retrieve aggregated order book data for DEX depth chart visualization
+---
+
+# GET /api/orderbook/[pair]
+
+Documentation for the **`/api/orderbook/[pair]`** route which provides aggregated bid and ask data from the Stellar Decentralized Exchange (DEX). This route is optimized for rendering depth charts and order book tables.
+
+## Dynamic Route Definition
+
+The pair is defined by combining the base and counter assets using a hyphen.
+
+**Format**: `[BASE]-[COUNTER]`
+- Native XLM: `XLM`
+- Other assets: `CODE:ISSUER`
+
+**Example**: `/api/orderbook/XLM-USDC:GABC...123`
+
+---
+
+## Request Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `pair` | string | Yes | The trading pair (e.g., `XLM-USDC:G...`) |
+| `limit` | number | No | Number of orders to return per side (default: 20, max: 200) |
+| `step` | string | No | Aggregation level: `0.01`, `0.1`, `1.0` (default: `0.01`) |
+
+---
+
+## Response Schema
+
+### Success Response (`200 OK`)
+
+```json
+{
+  "pair": "XLM-USDC:G...",
+  "base": "XLM",
+  "counter": "USDC:G...",
+  "mid_price": "0.1254",
+  "spread": "0.0002",
+  "bids": [
+    { "price": "0.1253", "amount": "1500.00", "total": "187.95" },
+    { "price": "0.1251", "amount": "2000.00", "total": "438.15" }
+  ],
+  "asks": [
+    { "price": "0.1255", "amount": "800.00", "total": "100.40" },
+    { "price": "0.1257", "amount": "1200.00", "total": "251.24" }
+  ],
+  "metrics": {
+    "bid_volume": "45000.00",
+    "ask_volume": "38200.00",
+    "order_count": 142
+  }
+}
+```
+
+### Response Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `mid_price` | string | Average of the highest bid and lowest ask |
+| `spread` | string | Difference between the lowest ask and highest bid |
+| `bids` / `asks` | array | List of aggregated orders |
+| `total` | string | Cumulative volume at that price point (useful for depth charts) |
+
+---
+
+## Aggregation Levels
+
+Use the `step` query parameter to aggregate orders for a cleaner depth chart visualization.
+
+| Step | Description | Use Case |
+|------|-------------|----------|
+| `0.01` | High precision | Standard order book viewing |
+| `0.1` | Medium precision | Default depth chart view |
+| `1.0` | Low precision | Broad market liquidity analysis |
+
+---
+
+## Depth Chart Visualization (Chart.js)
+
+To render a depth chart, use the cumulative `total` fields from the response.
+
+```javascript
+import { Chart } from 'chart.js/auto';
+
+const ctx = document.getElementById('depthChart');
+const data = await fetch('/api/orderbook/XLM-USDC?...').then(r => r.json());
+
+new Chart(ctx, {
+  type: 'line',
+  data: {
+    datasets: [
+      {
+        label: 'Bids',
+        data: data.bids.map(b => ({ x: b.price, y: b.total })),
+        fill: true,
+        backgroundColor: 'rgba(0, 255, 0, 0.1)',
+        borderColor: 'green',
+        stepped: 'after'
+      },
+      {
+        label: 'Asks',
+        data: data.asks.map(a => ({ x: a.price, y: a.total })),
+        fill: true,
+        backgroundColor: 'rgba(255, 0, 0, 0.1)',
+        borderColor: 'red',
+        stepped: 'before'
+      }
+    ]
+  },
+  options: {
+    scales: {
+      x: { title: { display: true, text: 'Price' } },
+      y: { title: { display: true, text: 'Cumulative Volume' } }
+    }
+  }
+});
+```
+
+---
+
+## Real-time Updates
+
+For high-frequency trading interfaces, we recommend upgrading to a WebSocket connection to receive live delta updates instead of polling.
+
+See the [WebSocket Upgrade Documentation](/docs/sdk/websocket-streams) for details on subscribing to `orderbook` events.
+
+---
+
+## See Also
+
+- [POST /api/offers/create](/docs/routes-d/offers-create)
+- [GET /api/swap/quote](/docs/routes-d/swap-quote)
+- [Stellar DEX Concepts](/docs/guides/dex-trading)
