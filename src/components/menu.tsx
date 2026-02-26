@@ -1,5 +1,6 @@
 import { cn } from '@/lib/utils';
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useClickOutside } from '@/hooks-d/use-click-outside';
 
 // Type definitions
 interface MenuProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -179,22 +180,7 @@ export const Menu: React.FC<MenuProps> = ({
   }, [isOpen, position, isPositioning]);
 
   // Close menu when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        menuRef.current &&
-        !menuRef.current.contains(event.target as Node) &&
-        isOpen
-      ) {
-        setIsOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [isOpen, setIsOpen]);
+  useClickOutside(menuRef, () => setIsOpen(false), { enabled: isOpen });
 
   return (
     <div
@@ -212,11 +198,11 @@ export const Menu: React.FC<MenuProps> = ({
           if (child.type === PopMenu) {
             return isOpen
               ? React.cloneElement(child as React.ReactElement<any>, {
-                  onClose: () => setIsOpen(false),
-                  position: position,
-                  isPositioning: isPositioning,
-                  ref: popupRef,
-                })
+                onClose: () => setIsOpen(false),
+                position: position,
+                isPositioning: isPositioning,
+                ref: popupRef,
+              })
               : null;
           }
           return child;
