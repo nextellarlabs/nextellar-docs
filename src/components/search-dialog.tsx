@@ -12,6 +12,7 @@ import { useDebounce } from '@/hooks-d/use-debounce';
 import { useKeyboardShortcut } from '@/hooks-d/use-keyboard-shortcut';
 import { useToggle } from '@/hooks-d/use-toggle';
 import { useAsync } from '@/hooks-d/use-async';
+import { useForm } from '@/hooks-d/use-form';
 import { Dialog, DialogTrigger, DialogContent } from '@/components/dialog';
 import { Input } from '@/components/input';
 import SearchButton from '@/components/search-button';
@@ -106,8 +107,10 @@ const SearchDialog = forwardRef<SearchDialogHandle, SearchDialogProps>(
   ({ searchData }, ref) => {
     const [open, { on: openDialog, off: closeDialog, set: setOpen }] =
       useToggle(false);
-    const [query, setQuery] = useState('');
-    const debouncedQuery = useDebounce(query, 300, true);
+    const { values, register } = useForm({
+      initialValues: { query: '' },
+    });
+    const debouncedQuery = useDebounce(values.query, 300, true);
 
     useImperativeHandle(ref, () => ({
       close: closeDialog,
@@ -159,8 +162,7 @@ const SearchDialog = forwardRef<SearchDialogHandle, SearchDialogProps>(
               type="text"
               className="w-full bg-transparent focus:outline-none rounded-none border-t-0 border-x-0 border-border pl-10 pr-4 py-2"
               placeholder="Search the docs..."
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              {...(register('query') as any)}
             />
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <Search />
@@ -200,7 +202,7 @@ const SearchDialog = forwardRef<SearchDialogHandle, SearchDialogProps>(
               </ul>
             ) : (
               <p className="text-sm text-center">
-                {query.length > 0 ? 'No results found.' : 'Type to search'}
+                {values.query.length > 0 ? 'No results found.' : 'Type to search'}
               </p>
             )}
           </div>

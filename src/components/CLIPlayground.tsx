@@ -2,22 +2,22 @@
 
 import { useState } from 'react';
 import { Copy, Check } from 'lucide-react';
+import { useForm } from '@/hooks-d/use-form';
 
 export function CLIPlayground() {
-  const [projectName, setProjectName] = useState('my-stellar-app');
-  const [packageManager, setPackageManager] = useState<'npm' | 'yarn' | 'pnpm'>(
-    'npm'
-  );
-  const [skipInstall, setSkipInstall] = useState(false);
-  const [horizonUrl, setHorizonUrl] = useState('');
-  const [sorobanUrl, setSorobanUrl] = useState('');
-  const [wallets, setWallets] = useState<string[]>([
-    'freighter',
-    'albedo',
-    'lobstr',
-  ]);
-  const [customTimeout, setCustomTimeout] = useState(false);
-  const [timeout, setTimeoutValue] = useState('1200000');
+  const { values, register, setFieldValue } = useForm({
+    initialValues: {
+      projectName: 'my-stellar-app',
+      packageManager: 'npm' as 'npm' | 'yarn' | 'pnpm',
+      skipInstall: false,
+      horizonUrl: '',
+      sorobanUrl: '',
+      wallets: ['freighter', 'albedo', 'lobstr'],
+      customTimeout: false,
+      timeout: '1200000',
+    }
+  });
+
   const [copied, setCopied] = useState(false);
 
   const availableWallets = [
@@ -29,34 +29,34 @@ export function CLIPlayground() {
   ];
 
   const generateCommand = () => {
-    let cmd = `npx nextellar ${projectName}`;
+    let cmd = `npx nextellar ${values.projectName}`;
 
-    if (packageManager !== 'npm') {
-      cmd += ` --package-manager ${packageManager}`;
+    if (values.packageManager !== 'npm') {
+      cmd += ` --package-manager ${values.packageManager}`;
     }
 
-    if (skipInstall) {
+    if (values.skipInstall) {
       cmd += ' --skip-install';
     }
 
-    if (horizonUrl) {
-      cmd += ` --horizon-url ${horizonUrl}`;
+    if (values.horizonUrl) {
+      cmd += ` --horizon-url ${values.horizonUrl}`;
     }
 
-    if (sorobanUrl) {
-      cmd += ` --soroban-url ${sorobanUrl}`;
+    if (values.sorobanUrl) {
+      cmd += ` --soroban-url ${values.sorobanUrl}`;
     }
 
     const defaultWallets = ['freighter', 'albedo', 'lobstr'];
     const walletsChanged =
-      JSON.stringify(wallets.sort()) !== JSON.stringify(defaultWallets.sort());
+      JSON.stringify([...values.wallets].sort()) !== JSON.stringify(defaultWallets.sort());
 
-    if (walletsChanged && wallets.length > 0) {
-      cmd += ` --wallets ${wallets.join(',')}`;
+    if (walletsChanged && values.wallets.length > 0) {
+      cmd += ` --wallets ${values.wallets.join(',')}`;
     }
 
-    if (customTimeout) {
-      cmd += ` --install-timeout ${timeout}`;
+    if (values.customTimeout) {
+      cmd += ` --install-timeout ${values.timeout}`;
     }
 
     return cmd;
@@ -69,11 +69,10 @@ export function CLIPlayground() {
   };
 
   const toggleWallet = (walletId: string) => {
-    setWallets((prev) =>
-      prev.includes(walletId)
-        ? prev.filter((w) => w !== walletId)
-        : [...prev, walletId]
-    );
+    const newWallets = values.wallets.includes(walletId)
+      ? values.wallets.filter((w) => w !== walletId)
+      : [...values.wallets, walletId];
+    setFieldValue('wallets', newWallets);
   };
 
   return (
@@ -93,8 +92,7 @@ export function CLIPlayground() {
           </label>
           <input
             type="text"
-            value={projectName}
-            onChange={(e) => setProjectName(e.target.value)}
+            {...(register('projectName') as any)}
             placeholder="my-stellar-app"
             className="w-full px-3 py-2 border rounded-md bg-background"
           />
@@ -112,12 +110,11 @@ export function CLIPlayground() {
             {(['npm', 'yarn', 'pnpm'] as const).map((pm) => (
               <button
                 key={pm}
-                onClick={() => setPackageManager(pm)}
-                className={`px-4 py-2 border rounded-md text-sm font-medium transition-colors ${
-                  packageManager === pm
-                    ? 'bg-primary text-primary-foreground border-primary'
-                    : 'hover:bg-muted'
-                }`}
+                onClick={() => setFieldValue('packageManager', pm)}
+                className={`px-4 py-2 border rounded-md text-sm font-medium transition-colors ${values.packageManager === pm
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'hover:bg-muted'
+                  }`}
               >
                 {pm}
               </button>
@@ -135,8 +132,7 @@ export function CLIPlayground() {
             </label>
             <input
               type="text"
-              value={horizonUrl}
-              onChange={(e) => setHorizonUrl(e.target.value)}
+              {...(register('horizonUrl') as any)}
               placeholder="https://horizon-testnet.stellar.org"
               className="w-full px-3 py-2 border rounded-md bg-background text-sm"
             />
@@ -151,8 +147,7 @@ export function CLIPlayground() {
             </label>
             <input
               type="text"
-              value={sorobanUrl}
-              onChange={(e) => setSorobanUrl(e.target.value)}
+              {...(register('sorobanUrl') as any)}
               placeholder="https://soroban-testnet.stellar.org"
               className="w-full px-3 py-2 border rounded-md bg-background text-sm"
             />
@@ -172,11 +167,10 @@ export function CLIPlayground() {
               <button
                 key={wallet.id}
                 onClick={() => toggleWallet(wallet.id)}
-                className={`px-3 py-2 border rounded-md text-sm transition-colors ${
-                  wallets.includes(wallet.id)
-                    ? 'bg-primary text-primary-foreground border-primary'
-                    : 'hover:bg-muted'
-                }`}
+                className={`px-3 py-2 border rounded-md text-sm transition-colors ${values.wallets.includes(wallet.id)
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'hover:bg-muted'
+                  }`}
               >
                 {wallet.name}
               </button>
@@ -195,8 +189,8 @@ export function CLIPlayground() {
             <input
               type="checkbox"
               id="skip-install"
-              checked={skipInstall}
-              onChange={(e) => setSkipInstall(e.target.checked)}
+              checked={values.skipInstall}
+              onChange={(e) => setFieldValue('skipInstall', e.target.checked)}
               className="w-4 h-4"
             />
             <label htmlFor="skip-install" className="text-sm">
@@ -208,8 +202,8 @@ export function CLIPlayground() {
             <input
               type="checkbox"
               id="custom-timeout"
-              checked={customTimeout}
-              onChange={(e) => setCustomTimeout(e.target.checked)}
+              checked={values.customTimeout}
+              onChange={(e) => setFieldValue('customTimeout', e.target.checked)}
               className="w-4 h-4"
             />
             <label htmlFor="custom-timeout" className="text-sm">
@@ -217,12 +211,11 @@ export function CLIPlayground() {
             </label>
           </div>
 
-          {customTimeout && (
+          {values.customTimeout && (
             <div className="ml-7">
               <input
                 type="number"
-                value={timeout}
-                onChange={(e) => setTimeoutValue(e.target.value)}
+                {...(register('timeout') as any)}
                 placeholder="1200000"
                 className="w-full px-3 py-2 border rounded-md bg-background text-sm"
               />
