@@ -9,6 +9,7 @@ import {
   ReactNode,
 } from 'react';
 import { useFocusTrap } from '@/hooks-d/use-focus-trap';
+import { useClickOutside } from '@/hooks-d/use-click-outside';
 
 export type Position = {
   xAlign: 'left' | 'center' | 'right';
@@ -73,23 +74,7 @@ export const Popover = ({
   };
 
   // Handle outside clicks
-  useEffect(() => {
-    if (!closeOnOutsideClick) return;
-
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        popoverRef.current &&
-        !popoverRef.current.contains(event?.target as Node)
-      ) {
-        close();
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [isOpen, closeOnOutsideClick, onClose]);
+  useClickOutside(popoverRef, close, { enabled: isOpen && closeOnOutsideClick });
 
   // Handle ESC key
   useEffect(() => {
