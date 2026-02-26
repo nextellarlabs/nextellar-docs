@@ -1,0 +1,132 @@
+---
+title: POST /api/batch
+description: Bundle multiple API requests into a single round trip.
+---
+
+# POST /api/batch
+
+Documentation for the **`/api/batch`** route that bundles multiple API calls into a single HTTP request.
+
+## Overview
+
+This endpoint accepts a list of API calls and returns a list of results in the same order. It is useful for reducing client/network overhead when you need multiple related reads or writes at once.
+
+---
+
+## Request / Response Schema
+
+### Request
+
+| Method | Content-Type | Body |
+|--------|--------------|------|
+| `POST` | `application/json` | JSON (see below) |
+
+**Request body (JSON):**
+
+```json
+{
+  "requests": [
+    { "method": "GET", "path": "/api/account/GABC...XYZ" },
+    {
+      "method": "POST",
+      "path": "/api/transactions/submit",
+      "body": { "xdr": "AAAA..." }
+    }
+  ]
+}
+```
+
+| Field | Type | Required | Description |
+|------|------|----------|-------------|
+| `requests` | array | Yes | Array of batched requests (max size is implementation-dependent). |
+| `requests[].method` | string | Yes | HTTP method: `GET`, `POST`, `PUT`, `PATCH`, `DELETE`. |
+| `requests[].path` | string | Yes | API path beginning with `/api/`. |
+| `requests[].body` | object | No | Optional JSON body for non-GET requests. |
+| `requests[].headers` | object | No | Optional request headers for the sub-request. |
+
+### Response (success)
+
+**Status:** `200 OK`
+
+```json
+{
+  "ok": true,
+  "results": [
+    { "ok": true, "status": 200, "data": { "accountId": "GABC...XYZ" } },
+    { "ok": false, "status": 400, "error": { "code": "BAD_XDR", "message": "Invalid XDR" } }
+  ]
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `ok` | boolean | Always `true` on a successful batch response. |
+| `results` | array | Results mapped 1:1 with `requests` by index. |
+| `results[].ok` | boolean | Whether the sub-request succeeded. |
+| `results[].status` | number | HTTP status code for the sub-request. |
+| `results[].data` | object | Parsed response body for success. |
+| `results[].error` | object | Error payload for failures. |
+
+### Response (error)
+
+**Status:** `4xx` or `5xx`
+
+```json
+{
+  "ok": false,
+  "error": {
+    "code": "INVALID_BATCH",
+    "message": "Request body must include a non-empty requests array."
+  }
+}
+```
+
+---
+
+## Example: client usage
+
+```typescript
+const res = await fetch('/api/batch', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    requests: [
+      { method: 'GET', path: '/api/account/GABC...XYZ' },
+      { method: 'GET', path: '/api/assets/search?code=USDC' },
+    ],
+  }),
+});
+
+const data = await res.json();
+if (!data.ok) throw new Error(data.error?.message ?? 'Batch failed');
+
+data.results.forEach((result, index) => {
+  if (!result.ok) {
+    console.error('Sub-request failed', index, result.error);
+  }
+});
+```
+
+---
+
+## Error codes and edge cases
+
+| Code | HTTP Status | Description |
+|------|-------------|-------------|
+| `INVALID_BATCH` | `400` | Missing or invalid `requests` array. |
+| `UNSUPPORTED_PATH` | `400` | `path` is not an allowed `/api/*` endpoint. |
+| `BATCH_TOO_LARGE` | `413` | Batch exceeds server limits. |
+| `INTERNAL_ERROR` | `500` | Server error while processing batch. |
+
+### Notes
+
+- **Ordering:** Results are returned in the same order as the incoming requests array.
+- **Isolation:** Each sub-request is processed independently; one failure does not stop the rest.
+- **Authorization:** Auth headers can be provided per request via `requests[].headers`.
+
+---
+
+## See also
+
+- [POST /api/transactions/submit](/docs/routes-d/transaction-submit)
+- [GET /api/account/[address]](/docs/routes-d/account-lookup)
