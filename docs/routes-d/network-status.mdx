@@ -1,0 +1,153 @@
+---
+title: GET /api/validators/network-status
+description: Monitor real-time Stellar network health, consensus metrics, and performance
+---
+
+# GET /api/validators/network-status
+
+The **`/api/validators/network-status`** route provides a comprehensive overview of the Stellar network's current state. It aggregates data from multiple validators to report on consensus health, ledger performance, and protocol status.
+
+## Overview
+
+This endpoint is designed for status pages, monitoring dashboards, and wallet applications that need to inform users about network congestion or protocol upgrades.
+
+### Core Metrics
+
+- **Quorum Health**: Percentage of top-tier validators in agreement.
+- **Ledger Close Time**: Time taken for the network to reach consensus on the latest ledger (target: ~5s).
+- **Throughput**: Transactions per second (TPS) current vs. historical average.
+- **Protocol Version**: Current network protocol version and detected upgrade votes.
+
+---
+
+## Request Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `historical` | boolean | No | Set to `true` to include time-series data (default: `false`) |
+| `since`    | string | No | ISO-8601 timestamp for historical data (e.g., `2024-01-01T00:00:00Z`) |
+
+---
+
+## Response Schema
+
+### Success Response (`200 OK`)
+
+```json
+{
+  "status": "healthy",
+  "protocol_version": 21,
+  "ledger_version": 48923012,
+  "latest_ledger_close": "2024-03-24T12:00:05Z",
+  "metrics": {
+    "avg_close_time_ms": 5020,
+    "tps": 12.5,
+    "quorum_agreement": 1.0,
+    "base_fee": "100"
+  },
+  "upgrade_status": {
+    "voting_version": 22,
+    "upgrade_time": "2024-04-10T15:00:00Z"
+  }
+}
+```
+
+---
+
+## Performance Thresholds
+
+Use these thresholds to trigger alerts or update UI status indicators:
+
+| Metric | Healthy | Degraded | Critical |
+|--------|---------|----------|----------|
+| **Ledger Close** | < 6s | 6s - 10s | > 10s (or stalled) |
+| **Quorum** | > 95% | 80% - 95% | < 80% |
+| **TPS** | < 200 | 200 - 500 | > 500 (Congested) |
+
+---
+
+## Code Examples
+
+### Real-time Status Badge (React)
+
+```tsx
+import { useState, useEffect } from 'react';
+
+export function NetworkStatusBadge() {
+  const [data, setData] = useState(null);
+
+  useEffect(() => {
+    const checkStatus = () => 
+      fetch('/api/validators/network-status')
+        .then(res => res.json())
+        .then(setData);
+    
+    checkStatus();
+    const timer = setInterval(checkStatus, 30000);
+    return () => clearInterval(timer);
+  }, []);
+
+  if (!data) return <span>Checking...</span>;
+
+  const colors = {
+    healthy: 'bg-green-500',
+    degraded: 'bg-yellow-500',
+    critical: 'bg-red-500'
+  };
+
+  return (
+    <div className="flex items-center gap-2">
+      <div className={`h-3 w-3 rounded-full ${colors[data.status]}`} />
+      <span>Network {data.status}</span>
+    </div>
+  );
+}
+```
+
+### Congestion Alert Logic
+
+```javascript
+const response = await fetch('/api/validators/network-status');
+const { metrics } = await response.json();
+
+if (metrics.avg_close_time_ms > 7000 || metrics.tps > 200) {
+  console.warn("High network load detected. Transactions may require higher base fees.");
+  displayToast("Stellar is processing high volume. Scaling up fee recommendations.");
+}
+```
+
+---
+
+## Visualization
+
+### Plotting Ledger Close Times (Chart.js)
+
+To plot performance over the last 24 hours, fetch historical data and map the `avg_close_time_ms`.
+
+```javascript
+new Chart(ctx, {
+  type: 'line',
+  data: {
+    labels: historyData.timestamps,
+    datasets: [{
+      label: 'Ledger Close Time (ms)',
+      data: historyData.values,
+      borderColor: '#3b82f6',
+      tension: 0.1
+    }]
+  },
+  options: {
+    scales: {
+      y: { min: 2000, max: 10000 }
+    }
+  }
+});
+```
+
+---
+
+## See Also
+
+- [SLA Monitoring Dashboard](https://status.stellar.org)
+- [Protocol Upgrade Guide](/docs/guides/upgrades)
+- [API Reference](/docs/sdk/api-reference)
