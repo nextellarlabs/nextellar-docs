@@ -1,0 +1,260 @@
+---
+title: POST /api/webhooks/register
+description: Register a webhook endpoint to receive real-time Stellar event notifications such as payments, trustline changes, and offer activity.
+---
+
+# POST /api/webhooks/register
+
+The **`/api/webhooks/register`** endpoint allows you to subscribe to Stellar network events and receive real-time HTTP push notifications to a URL you control. When an event occurs (e.g., a payment is received), Nextellar sends an HMAC-SHA256-signed POST request to your endpoint.
+
+## Overview
+
+Webhooks replace the need to continuously poll Stellar Horizon for account changes. Once registered, your endpoint receives events within seconds of them being confirmed on the network.
+
+---
+
+## Request
+
+| Method | Content-Type       | Authentication |
+|--------|--------------------|---------------|
+| `POST` | `application/json` | `Bearer <API_KEY>` |
+
+**Request body:**
+
+```json
+{
+  "url": "https://yourapp.com/webhooks/stellar",
+  "events": ["payment", "trustline_created", "offer_created"],
+  "secret": "your-hmac-secret-min-32-chars",
+  "description": "Main app payment listener",
+  "filters": {
+    "account": "GABC...XYZ"
+  },
+  "network": "public"
+}
+```
+
+| Field         | Type     | Required | Description |
+|---------------|----------|----------|-------------|
+| `url`         | string   | Yes      | HTTPS endpoint to receive events (HTTP rejected) |
+| `events`      | string[] | Yes      | List of event types to subscribe to (see table below) |
+| `secret`      | string   | Yes      | Shared HMAC-SHA256 secret (min 32 characters) |
+| `description` | string   | No       | Human-readable name for this webhook |
+| `filters`     | object   | No       | Optional filters (e.g., `{ "account": "G..." }`) |
+| `network`     | string   | No       | `testnet` or `public` (default: `testnet`) |
+
+---
+
+## Supported Event Types
+
+| Event Type              | Description |
+|-------------------------|-------------|
+| `payment`               | A payment was sent or received |
+| `trustline_created`     | A new trustline was established |
+| `trustline_removed`     | A trustline was deleted |
+| `trustline_updated`     | A trustline limit was modified |
+| `offer_created`         | A new DEX offer was placed |
+| `offer_removed`         | An offer was cancelled or fully filled |
+| `offer_updated`         | An existing offer was modified |
+| `account_merge`         | An account was merged into another |
+| `account_created`       | A new account was funded |
+| `signer_created`        | A new signer was added to an account |
+| `signer_removed`        | A signer was removed |
+| `data_created`          | Custom account data entry was added |
+| `data_updated`          | Custom account data was updated |
+| `claimable_balance_created` | A claimable balance was set up |
+| `claimable_balance_claimed` | A claimable balance was claimed |
+| `liquidity_pool_deposited`  | Liquidity was added to a pool |
+| `liquidity_pool_withdrawn`  | Liquidity was removed from a pool |
+
+---
+
+## Response
+
+**Status:** `201 Created`
+
+```json
+{
+  "ok": true,
+  "webhookId": "wh_a3b1c9d2e4f5",
+  "url": "https://yourapp.com/webhooks/stellar",
+  "events": ["payment", "trustline_created", "offer_created"],
+  "status": "active",
+  "createdAt": "2026-02-26T10:00:00Z",
+  "testUrl": "https://api.nextellar.dev/api/webhooks/wh_a3b1c9d2e4f5/test"
+}
+```
+
+| Field       | Type     | Description |
+|-------------|----------|-------------|
+| `ok`        | boolean  | `true` on success |
+| `webhookId` | string   | Unique ID for this webhook registration |
+| `status`    | string   | `active`, `paused`, or `failed` |
+| `testUrl`   | string   | POST to this URL to trigger a test event |
+
+---
+
+## Webhook Payload Format
+
+When an event fires, Nextellar sends a `POST` request to your `url` with this body:
+
+```json
+{
+  "id": "evt_9f3b2c1a4d5e",
+  "type": "payment",
+  "network": "public",
+  "timestamp": "2026-02-26T11:30:00Z",
+  "data": {
+    "transactionHash": "abc123def456...",
+    "sourceAccount": "GABC...SENDER",
+    "destinationAccount": "GDEST...RECEIVER",
+    "asset": "XLM",
+    "amount": "250.0000000"
+  }
+}
+```
+
+---
+
+## Signature Verification
+
+Every webhook request includes an `X-Nextellar-Signature` header containing an HMAC-SHA256 hexdigest of the raw request body, signed with your `secret`. **Always verify this signature before processing.**
+
+### Node.js (TypeScript)
+
+```typescript
+import crypto from 'crypto';
+import { IncomingMessage, ServerResponse } from 'http';
+
+export function verifyWebhookSignature(
+  rawBody: string,
+  signature: string,
+  secret: string
+): boolean {
+  const expected = crypto
+    .createHmac('sha256', secret)
+    .update(rawBody, 'utf8')
+    .digest('hex');
+
+  // Constant-time comparison to prevent timing attacks
+  return crypto.timingSafeEqual(
+    Buffer.from(`sha256=${expected}`),
+    Buffer.from(signature)
+  );
+}
+
+// Express middleware example
+export async function webhookHandler(req: IncomingMessage, res: ServerResponse) {
+  const signature = req.headers['x-nextellar-signature'] as string;
+  const rawBody = await getRawBody(req); // your body-reading utility
+
+  if (!verifyWebhookSignature(rawBody, signature, process.env.WEBHOOK_SECRET!)) {
+    res.statusCode = 401;
+    res.end(JSON.stringify({ error: 'Invalid signature' }));
+    return;
+  }
+
+  const event = JSON.parse(rawBody);
+  console.log('Verified event:', event.type, event.data);
+  res.statusCode = 200;
+  res.end('OK');
+}
+```
+
+### Python
+
+```python
+import hmac
+import hashlib
+
+def verify_webhook_signature(raw_body: bytes, signature: str, secret: str) -> bool:
+    expected = hmac.new(
+        secret.encode('utf-8'),
+        raw_body,
+        hashlib.sha256
+    ).hexdigest()
+    expected_header = f"sha256={expected}"
+    return hmac.compare_digest(expected_header, signature)
+
+# Flask example
+from flask import Flask, request, abort
+
+app = Flask(__name__)
+WEBHOOK_SECRET = "your-hmac-secret-min-32-chars"
+
+@app.route('/webhooks/stellar', methods=['POST'])
+def stellar_webhook():
+    signature = request.headers.get('X-Nextellar-Signature', '')
+    if not verify_webhook_signature(request.data, signature, WEBHOOK_SECRET):
+        abort(401)
+
+    event = request.get_json()
+    print(f"Received event: {event['type']}")
+    return 'OK', 200
+```
+
+---
+
+## Retry Policy
+
+If your endpoint does not respond with a `2xx` status within 10 seconds, Nextellar retries the delivery with exponential backoff:
+
+```
+Attempt 1: Immediate
+Attempt 2: +30 seconds
+Attempt 3: +2 minutes
+─────────────────────
+Total window: ~2 min 30 sec
+After 3 failures: event marked as "failed", no further retries
+```
+
+| Attempt | Delay      |
+|---------|-----------|
+| 1       | Immediate |
+| 2       | 30 s      |
+| 3       | 2 min     |
+
+Failed events are visible in the Nextellar Dashboard under **Webhooks → Failed Deliveries** and can be manually replayed.
+
+---
+
+## Webhook Management
+
+| Action | Method | Endpoint |
+|--------|--------|----------|
+| List webhooks   | `GET`    | `/api/webhooks` |
+| Get webhook     | `GET`    | `/api/webhooks/{webhookId}` |
+| Update webhook  | `PATCH`  | `/api/webhooks/{webhookId}` |
+| Delete webhook  | `DELETE` | `/api/webhooks/{webhookId}` |
+| Trigger test    | `POST`   | `/api/webhooks/{webhookId}/test` |
+
+---
+
+## Security Best Practices
+
+- **Always verify the HMAC-SHA256 signature** before trusting any webhook payload.
+- **Use HTTPS only.** The API rejects any `url` that does not start with `https://`.
+- **Store your secret securely** using environment variables or a secrets manager — never hard-code it.
+- **Return `200 OK` quickly.** Offload processing to a background job to avoid timeouts and unnecessary retries.
+- **Implement idempotency.** The same event `id` may be delivered more than once due to retries; deduplicate by `id`.
+
+---
+
+## Error Codes
+
+| Code                  | HTTP Status | Description |
+|-----------------------|-------------|-------------|
+| `INVALID_URL`         | `400`       | URL is missing, invalid, or not HTTPS |
+| `INVALID_EVENTS`      | `400`       | One or more event types are unrecognised |
+| `SECRET_TOO_SHORT`    | `400`       | Secret must be at least 32 characters |
+| `WEBHOOK_LIMIT`       | `400`       | Maximum of 25 webhooks per account |
+| `UNAUTHORIZED`        | `401`       | Missing or invalid API key |
+| `INTERNAL_ERROR`      | `500`       | Server error |
+
+---
+
+## See Also
+
+- [Authentication](/docs/getting-started/authentication) — API key setup
+- [GET /api/effects](/docs/routes-d/effects) — Fetch effects for an account without webhooks
+- [Stellar Horizon Streaming](https://developers.stellar.org/docs/horizon/api-reference/streaming) — Server-sent event alternative
