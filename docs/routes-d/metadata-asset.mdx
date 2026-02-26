@@ -1,0 +1,357 @@
+---
+title: GET /api/metadata/asset
+description: Enrich Stellar asset data with trusted metadata from stellar.toml, issuer verification, logos, and community signals.
+---
+
+# GET /api/metadata/asset
+
+Documentation for the **`/api/metadata/asset`** route that enriches a Stellar asset with metadata used by search and selection UIs.
+
+## Overview
+
+This endpoint resolves metadata for a given Stellar asset (`code` + `issuer`) by combining:
+
+- Canonical network identifiers (`asset_code`, `asset_issuer`)
+- `stellar.toml` details from the issuer home domain
+- Brand assets such as token logos
+- Verification and trust indicators (domain-verified and community-verified)
+- Asset classification (stablecoin, tokenized stock, NFT, and other categories)
+
+Use this route when you need asset details that are richer than raw Horizon records.
+
+---
+
+## Request
+
+| Method | Content-Type       | Query params | Body |
+|--------|--------------------|--------------|------|
+| `GET`  | `application/json` | Yes          | None |
+
+### Query parameters
+
+| Param    | Type   | Required | Description |
+|----------|--------|----------|-------------|
+| `code`   | string | Yes      | Asset code (for example `USDC`) |
+| `issuer` | string | Yes      | Stellar issuer public key (`G...`) |
+| `network`| string | No       | Network pass-through: `public` or `testnet` (default: `public`) |
+
+### Example request
+
+```http
+GET /api/metadata/asset?code=USDC&issuer=GDUKMGUGDZQK6YHOS...&network=public
+```
+
+---
+
+## Response (success)
+
+**Status:** `200 OK`
+
+```json
+{
+  "ok": true,
+  "asset": {
+    "code": "USDC",
+    "issuer": "GDUKMGUGDZQK6YHOS...",
+    "name": "USD Coin",
+    "description": "Regulated USD-backed stablecoin on Stellar",
+    "home_domain": "circle.com",
+    "logo_url": "https://assets.nextellar.dev/logos/usdc.svg",
+    "category": "stablecoin",
+    "verification": {
+      "domain_verified": true,
+      "community_verified": true,
+      "badges": ["domain-verified", "community-verified"]
+    },
+    "trust": {
+      "issuer_reputation_score": 93,
+      "risk_level": "low",
+      "community_rating": 4.7,
+      "rating_count": 2841
+    },
+    "stellar_toml": {
+      "url": "https://circle.com/.well-known/stellar.toml",
+      "fetched_at": "2026-02-26T10:23:11Z",
+      "is_valid": true,
+      "network_passphrase": "Public Global Stellar Network ; October 2015"
+    }
+  }
+}
+```
+
+### Field reference
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `ok` | boolean | Always `true` on success |
+| `asset.code` | string | Asset code from request |
+| `asset.issuer` | string | Issuer account (`G...`) |
+| `asset.name` | string | Human-readable name from trusted metadata |
+| `asset.description` | string | Short asset description |
+| `asset.logo_url` | string \| null | Token logo URL |
+| `asset.home_domain` | string \| null | Issuer home domain |
+| `asset.category` | string | Classified asset category |
+| `asset.verification` | object | Verification badges and boolean flags |
+| `asset.trust` | object | Reputation and community quality indicators |
+| `asset.stellar_toml` | object | `stellar.toml` fetch and validation metadata |
+
+---
+
+## JSON schema
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nextellar.dev/schemas/metadata-asset-response.schema.json",
+  "title": "MetadataAssetResponse",
+  "type": "object",
+  "required": ["ok", "asset"],
+  "properties": {
+    "ok": { "type": "boolean", "const": true },
+    "asset": {
+      "type": "object",
+      "required": [
+        "code",
+        "issuer",
+        "name",
+        "description",
+        "logo_url",
+        "home_domain",
+        "category",
+        "verification",
+        "trust",
+        "stellar_toml"
+      ],
+      "properties": {
+        "code": { "type": "string", "minLength": 1 },
+        "issuer": {
+          "type": "string",
+          "pattern": "^G[A-Z2-7]{55}$"
+        },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "logo_url": {
+          "type": ["string", "null"],
+          "format": "uri"
+        },
+        "home_domain": {
+          "type": ["string", "null"]
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "stablecoin",
+            "tokenized-stock",
+            "nft",
+            "defi",
+            "utility-token",
+            "other"
+          ]
+        },
+        "verification": {
+          "type": "object",
+          "required": ["domain_verified", "community_verified", "badges"],
+          "properties": {
+            "domain_verified": { "type": "boolean" },
+            "community_verified": { "type": "boolean" },
+            "badges": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["domain-verified", "community-verified"]
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "trust": {
+          "type": "object",
+          "required": ["issuer_reputation_score", "risk_level", "community_rating", "rating_count"],
+          "properties": {
+            "issuer_reputation_score": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "risk_level": {
+              "type": "string",
+              "enum": ["low", "medium", "high"]
+            },
+            "community_rating": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 5
+            },
+            "rating_count": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false
+        },
+        "stellar_toml": {
+          "type": "object",
+          "required": ["url", "fetched_at", "is_valid", "network_passphrase"],
+          "properties": {
+            "url": {
+              "type": "string",
+              "format": "uri"
+            },
+            "fetched_at": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "is_valid": {
+              "type": "boolean"
+            },
+            "network_passphrase": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
+```
+
+---
+
+## `stellar.toml` parsing and validation
+
+The route fetches issuer metadata from:
+
+```text
+https://<home_domain>/.well-known/stellar.toml
+```
+
+Validation includes:
+
+- `home_domain` ownership and HTTPS reachability
+- TOML syntax validity
+- Presence of matching `CURRENCIES` entry for `code` and `issuer`
+- Optional logo, name, description, and anchor metadata extraction
+- Cross-checks against known issuer allowlists or deny lists
+
+If TOML validation fails, the endpoint still returns fallback metadata with reduced trust signals and no domain-verified badge.
+
+---
+
+## Verification badges
+
+| Badge | Meaning | Typical UI treatment |
+|-------|---------|----------------------|
+| `domain-verified` | Issuer controls the declared domain and publishes matching asset entry in `stellar.toml` | Green shield badge |
+| `community-verified` | Asset passes community vetting thresholds (rating quality + abuse checks) | Blue check badge |
+
+---
+
+## Asset categories
+
+Category labeling helps wallets and explorers filter asset lists:
+
+| Category | Description |
+|----------|-------------|
+| `stablecoin` | Fiat-pegged assets (USD, EUR, etc.) |
+| `tokenized-stock` | Equity-like representations |
+| `nft` | Non-fungible or unique collection assets |
+| `defi` | DeFi protocol governance or utility assets |
+| `utility-token` | App ecosystem utility assets |
+| `other` | Uncategorized or unknown class |
+
+---
+
+## Code example: Asset info card with logo and badges
+
+```tsx
+type MetadataAssetResponse = {
+  ok: true;
+  asset: {
+    code: string;
+    issuer: string;
+    name: string;
+    description: string;
+    logo_url: string | null;
+    category: string;
+    verification: {
+      badges: Array<"domain-verified" | "community-verified">;
+    };
+    trust: {
+      issuer_reputation_score: number;
+      community_rating: number;
+    };
+  };
+};
+
+export async function AssetInfoCard({ code, issuer }: { code: string; issuer: string }) {
+  const params = new URLSearchParams({ code, issuer });
+  const res = await fetch(`/api/metadata/asset?${params.toString()}`);
+  const data = (await res.json()) as MetadataAssetResponse;
+
+  const { asset } = data;
+
+  return (
+    <article className="rounded-xl border p-4 shadow-sm">
+      <header className="flex items-center gap-3">
+        {asset.logo_url ? (
+          <img src={asset.logo_url} alt={`${asset.code} logo`} width={40} height={40} />
+        ) : (
+          <div aria-hidden className="h-10 w-10 rounded-full bg-gray-200" />
+        )}
+        <div>
+          <h3 className="font-semibold">{asset.name} ({asset.code})</h3>
+          <p className="text-sm text-gray-600">{asset.description}</p>
+        </div>
+      </header>
+
+      <div className="mt-3 flex flex-wrap gap-2 text-xs">
+        {asset.verification.badges.includes("domain-verified") && (
+          <span className="rounded-full bg-green-100 px-2 py-1 text-green-800">Domain verified</span>
+        )}
+        {asset.verification.badges.includes("community-verified") && (
+          <span className="rounded-full bg-blue-100 px-2 py-1 text-blue-800">Community verified</span>
+        )}
+      </div>
+
+      <footer className="mt-3 text-xs text-gray-500">
+        Reputation: {asset.trust.issuer_reputation_score}/100 | Community: {asset.trust.community_rating}/5
+      </footer>
+    </article>
+  );
+}
+```
+
+---
+
+## How this powers asset search and selection UIs
+
+This metadata endpoint supports key UX decisions in wallets, exchanges, and send flows:
+
+- Prioritizes trusted assets in search ranking using verification badges and reputation score
+- Reduces scam risk by surfacing domain proof and community trust signals in pickers
+- Improves scan speed with logos and clean descriptions in dense asset lists
+- Enables category filters (for example, only show stablecoins)
+- Provides consistent metadata for both quick search results and detailed asset cards
+
+---
+
+## Error codes
+
+| Code | HTTP Status | Description |
+|------|-------------|-------------|
+| `INVALID_CODE` | `400` | Missing or invalid `code` query parameter |
+| `INVALID_ISSUER` | `400` | Missing or invalid issuer public key |
+| `TOML_FETCH_FAILED` | `502` | Unable to fetch issuer `stellar.toml` |
+| `TOML_INVALID` | `422` | TOML found but failed schema or asset matching checks |
+| `ASSET_NOT_FOUND` | `404` | Asset metadata not found for `code` + `issuer` |
+| `INTERNAL_ERROR` | `500` | Unexpected server-side error |
+
+---
+
+## Specification links
+
+- [Stellar ecosystem proposal: `stellar.toml` format](https://developers.stellar.org/docs/learn/encyclopedia/stellar-data-structures/stellar-toml)
+- [Stellar TOML examples and anchor fields](https://developers.stellar.org/docs/learn/anchor-platform/stellar-toml)
