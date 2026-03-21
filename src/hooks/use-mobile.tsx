@@ -1,10 +1,14 @@
-import { useMediaQuery } from '@/hooks-d/use-media-query';
+import { useState, useEffect } from 'react';
 
-/**
- * Returns whether the viewport is at mobile width (< 768px).
- * Uses `useMediaQuery` internally for efficient, SSR-safe media query listening.
- */
 export function useIsMobile(): boolean {
-  const matches = useMediaQuery('(max-width: 767.98px)');
-  return matches ?? false;
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
+
+  return isMobile;
 }
