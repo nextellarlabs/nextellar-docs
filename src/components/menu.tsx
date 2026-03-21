@@ -1,7 +1,5 @@
 import { cn } from '@/lib/utils';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { useClickOutside } from '@/hooks-d/use-click-outside';
-
 // Type definitions
 interface MenuProps extends React.HTMLAttributes<HTMLDivElement> {
   open?: boolean;
@@ -180,7 +178,16 @@ export const Menu: React.FC<MenuProps> = ({
   }, [isOpen, position, isPositioning]);
 
   // Close menu when clicking outside
-  useClickOutside(menuRef, () => setIsOpen(false), { enabled: isOpen });
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [isOpen]);
 
   return (
     <div

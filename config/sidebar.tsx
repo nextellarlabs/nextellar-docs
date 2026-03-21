@@ -6,7 +6,6 @@ import {
   Wrench,
   Database,
   Zap,
-  Route,
 } from 'lucide-react';
 
 export type SidebarPage = {
@@ -87,65 +86,6 @@ export const sidebarNav: SidebarSection[] = [
       },
       { title: 'WalletConnect', href: '/docs/integrations/walletconnect' },
       { title: 'Testing (MSW)', href: '/docs/integrations/testing' },
-    ],
-  },
-  {
-    title: 'API Routes',
-    icon: <Route className="h-5 w-5" />,
-    defaultOpen: true,
-    pages: [
-      {
-        title: 'POST /api/wallet/connect',
-        href: '/docs/routes-d/wallet-connect',
-      },
-      {
-        title: 'POST /api/batch',
-        href: '/docs/routes-d/batch',
-      },
-      {
-        title: 'GET /api/assets/search',
-        href: '/docs/routes-d/assets-search',
-      },
-      {
-        title: 'GET /api/federation/resolve',
-        href: '/docs/routes-d/federation-resolve',
-      },
-      {
-        title: 'POST /api/offers/create',
-        href: '/docs/routes-d/offers-create',
-      },
-      {
-        title: '/api/liquidity-pools',
-        href: '/docs/routes-d/liquidity-pools',
-      },
-      {
-        title: 'POST /api/path-payment/find',
-        href: '/docs/routes-d/path-payment-find',
-      },
-      {
-        title: 'GET /api/claimable-balances',
-        href: '/docs/routes-d/claimable-balances',
-      },
-      {
-        title: 'GET /api/stream/payments',
-        href: '/docs/routes-d/stream-payments',
-      },
-      {
-        title: 'POST /api/soroban/invoke',
-        href: '/docs/routes-d/soroban-invoke',
-      },
-      {
-        title: 'GET /api/soroban/events',
-        href: '/docs/routes-d/soroban-events',
-      },
-      {
-        title: 'POST /api/transactions/submit',
-        href: '/docs/routes-d/transaction-submit',
-      },
-      {
-        title: 'GET /api/account/[address]',
-        href: '/docs/routes-d/account-lookup',
-      },
     ],
   },
   {

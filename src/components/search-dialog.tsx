@@ -2,17 +2,12 @@
 
 import React, {
   useState,
-  useMemo,
+  useRef,
   forwardRef,
   useImperativeHandle,
   useEffect,
   useCallback,
 } from 'react';
-import { useDebounce } from '@/hooks-d/use-debounce';
-import { useKeyboardShortcut } from '@/hooks-d/use-keyboard-shortcut';
-import { useToggle } from '@/hooks-d/use-toggle';
-import { useAsync } from '@/hooks-d/use-async';
-import { useForm } from '@/hooks-d/use-form';
 import { Dialog, DialogTrigger, DialogContent } from '@/components/dialog';
 import { Input } from '@/components/input';
 import SearchButton from '@/components/search-button';
@@ -105,24 +100,42 @@ function getSnippet(
 
 const SearchDialog = forwardRef<SearchDialogHandle, SearchDialogProps>(
   ({ searchData }, ref) => {
-    const [open, { on: openDialog, off: closeDialog, set: setOpen }] =
-      useToggle(false);
-    const { values, register } = useForm({
-      initialValues: { query: '' },
-    });
-    const debouncedQuery = useDebounce(values.query, 300, true);
+    const [open, setOpen] = useState(false);
+    const openDialog = () => setOpen(true);
+    const closeDialog = () => setOpen(false);
+
+    const [query, setQuery] = useState('');
+    const [debouncedQuery, setDebouncedQuery] = useState('');
+    const [filteredDocs, setFilteredDocs] = useState<DocType[]>([]);
+    const [loading, setLoading] = useState(false);
+    const abortRef = useRef<AbortController | null>(null);
 
     useImperativeHandle(ref, () => ({
       close: closeDialog,
       open: openDialog,
     }));
 
-    useKeyboardShortcut('mod+k', openDialog);
+    // Cmd/Ctrl+K to open search
+    useEffect(() => {
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+          e.preventDefault();
+          openDialog();
+        }
+      };
+      document.addEventListener('keydown', handleKeyDown);
+      return () => document.removeEventListener('keydown', handleKeyDown);
+    }, []);
+
+    // Debounce query
+    useEffect(() => {
+      const timer = setTimeout(() => setDebouncedQuery(query), 300);
+      return () => clearTimeout(timer);
+    }, [query]);
 
     const searchDocs = useCallback(
-      async (query: string, signal: AbortSignal) => {
-        if (!query) return [];
-        // Simulate API delay
+      async (q: string, signal: AbortSignal) => {
+        if (!q) return [];
         await new Promise((resolve, reject) => {
           const timeout = setTimeout(resolve, 300);
           signal.addEventListener('abort', () => {
@@ -130,22 +143,33 @@ const SearchDialog = forwardRef<SearchDialogHandle, SearchDialogProps>(
             reject(new Error('Aborted'));
           });
         });
-
-        const q = query.toLowerCase();
+        const lower = q.toLowerCase();
         return searchData.filter((doc) => {
           const title = doc.title.toLowerCase();
           const description = stripMarkdown(doc.body.raw || '').toLowerCase();
-          return title.includes(q) || description.includes(q);
+          return title.includes(lower) || description.includes(lower);
         });
       },
       [searchData]
     );
 
-    const {
-      data: filteredDocs = [],
-      loading,
-      execute: performSearch,
-    } = useAsync(searchDocs);
+    const performSearch = useCallback(
+      async (q: string) => {
+        if (abortRef.current) abortRef.current.abort();
+        abortRef.current = new AbortController();
+        const signal = abortRef.current.signal;
+        setLoading(true);
+        try {
+          const results = await searchDocs(q, signal);
+          setFilteredDocs(results);
+        } catch {
+          // aborted — ignore
+        } finally {
+          setLoading(false);
+        }
+      },
+      [searchDocs]
+    );
 
     useEffect(() => {
       performSearch(debouncedQuery);
@@ -162,7 +186,8 @@ const SearchDialog = forwardRef<SearchDialogHandle, SearchDialogProps>(
               type="text"
               className="w-full bg-transparent focus:outline-none rounded-none border-t-0 border-x-0 border-border pl-10 pr-4 py-2"
               placeholder="Search the docs..."
-              {...(register('query') as any)}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
             />
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <Search />
@@ -202,7 +227,7 @@ const SearchDialog = forwardRef<SearchDialogHandle, SearchDialogProps>(
               </ul>
             ) : (
               <p className="text-sm text-center">
-                {values.query.length > 0 ? 'No results found.' : 'Type to search'}
+                {query.length > 0 ? 'No results found.' : 'Type to search'}
               </p>
             )}
           </div>

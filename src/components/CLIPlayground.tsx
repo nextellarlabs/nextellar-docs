@@ -1,21 +1,28 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Copy, Check } from 'lucide-react';
-import { useForm } from '@/hooks-d/use-form';
 
 export function CLIPlayground() {
-  const { values, register, setFieldValue } = useForm({
-    initialValues: {
-      projectName: 'my-stellar-app',
-      packageManager: 'npm' as 'npm' | 'yarn' | 'pnpm',
-      skipInstall: false,
-      horizonUrl: '',
-      sorobanUrl: '',
-      wallets: ['freighter', 'albedo', 'lobstr'],
-      customTimeout: false,
-      timeout: '1200000',
-    }
+  const [values, setValues] = useState({
+    projectName: 'my-stellar-app',
+    packageManager: 'npm' as 'npm' | 'yarn' | 'pnpm',
+    skipInstall: false,
+    horizonUrl: '',
+    sorobanUrl: '',
+    wallets: ['freighter', 'albedo', 'lobstr'],
+    customTimeout: false,
+    timeout: '1200000',
+  });
+
+  const setFieldValue = (field: string, value: unknown) =>
+    setValues((prev) => ({ ...prev, [field]: value }));
+
+  const register = (field: keyof typeof values) => ({
+    name: field,
+    value: values[field] as string,
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
+      setFieldValue(field, e.target.value),
   });
 
   const [copied, setCopied] = useState(false);

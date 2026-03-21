@@ -6,8 +6,6 @@ import { usePathname } from 'next/navigation';
 import { ChevronLeft, ChevronRight, Menu } from 'lucide-react';
 import clsx from 'clsx';
 import { cn } from '@/lib/utils';
-import { useEventListener } from '../hooks-d/use-event-listener';
-import { useToggle } from '../hooks-d/use-toggle';
 
 type SidebarContextType = {
   isOpen: boolean;
@@ -42,7 +40,10 @@ function useIsMobile() {
     checkIsMobile();
   }, [checkIsMobile]);
 
-  useEventListener('resize', checkIsMobile, window);
+  React.useEffect(() => {
+    window.addEventListener('resize', checkIsMobile);
+    return () => window.removeEventListener('resize', checkIsMobile);
+  }, [checkIsMobile]);
 
   return isMobile;
 }
@@ -67,17 +68,22 @@ export function SidebarProvider({
 
   const isMobile = mobileView ? useMobile : false;
 
-  const [isOpen, { toggle: toggleSidebar, set: setIsOpen }] = useToggle(defaultOpen);
+  const [isOpen, setIsOpen] = React.useState(defaultOpen);
+  const toggleSidebar = React.useCallback(() => setIsOpen((prev) => !prev), []);
   const [side] = React.useState<'left' | 'right'>(defaultSide);
   const [maxWidth] = React.useState(defaultMaxWidth);
 
   // Add keyboard shortcut (Ctrl+B) to toggle sidebar
-  useEventListener('keydown', (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
-      e.preventDefault();
-      toggleSidebar();
-    }
-  }, window);
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
+        e.preventDefault();
+        toggleSidebar();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [toggleSidebar]);
 
   const contextValue = React.useMemo(
     () => ({

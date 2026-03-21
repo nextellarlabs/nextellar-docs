@@ -3,8 +3,6 @@
 import React, { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { AlignLeft } from 'lucide-react';
-import { useThrottle } from '@/hooks-d/use-throttle';
-
 interface Heading {
   id: string;
   text: string;
@@ -14,8 +12,7 @@ interface Heading {
 const AutoToc: React.FC = () => {
   const pathname = usePathname();
   const [headings, setHeadings] = useState<Heading[]>([]);
-  const [rawActiveId, setRawActiveId] = useState<string>('');
-  const activeId = useThrottle(rawActiveId, 100, { leading: true, trailing: true });
+  const [activeId, setRawActiveId] = useState<string>('');
 
   // Extract headings from the page content
   useEffect(() => {

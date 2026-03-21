@@ -3,7 +3,6 @@
 import React, { useEffect, useState } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { useEventListener } from '../hooks-d/use-event-listener';
 import { TocData } from 'config/toc';
 import { AlignLeft } from 'lucide-react';
 
@@ -27,7 +26,10 @@ const Toc: React.FC<TocProps> = ({ doc }) => {
     updatePath();
   }, [updatePath, searchParams]);
 
-  useEventListener('hashchange', updatePath, window);
+  useEffect(() => {
+    window.addEventListener('hashchange', updatePath);
+    return () => window.removeEventListener('hashchange', updatePath);
+  }, [updatePath]);
 
   return (
     <aside className="fixed right-0 hidden xl:block w-64 p-6 top-16 border-l border-[var(--color-border)] h-[calc(100vh-4rem)] overflow-y-auto">

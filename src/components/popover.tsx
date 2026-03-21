@@ -8,8 +8,6 @@ import {
   useEffect,
   ReactNode,
 } from 'react';
-import { useFocusTrap } from '@/hooks-d/use-focus-trap';
-import { useClickOutside } from '@/hooks-d/use-click-outside';
 
 export type Position = {
   xAlign: 'left' | 'center' | 'right';
@@ -74,7 +72,16 @@ export const Popover = ({
   };
 
   // Handle outside clicks
-  useClickOutside(popoverRef, close, { enabled: isOpen && closeOnOutsideClick });
+  useEffect(() => {
+    if (!isOpen || !closeOnOutsideClick) return;
+    const handleClick = (e: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        close();
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [isOpen, closeOnOutsideClick]);
 
   // Handle ESC key
   useEffect(() => {
@@ -182,10 +189,6 @@ export const PopoverContent = ({
   }
 
   const { isOpen, triggerRef, isPositioned, setIsPositioned } = context;
-  const focusTrapRef = useFocusTrap<HTMLDivElement>({
-    active: isOpen && isPositioned,
-    returnFocusOnDeactivate: true,
-  });
   const [arrowDefaultClassName, setArrowDefaultClassName] =
     useState<string>('');
   const contentRef = useRef<HTMLDivElement>(null);
@@ -437,10 +440,7 @@ export const PopoverContent = ({
 
   return (
     <div
-      ref={(node) => {
-        (contentRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
-        focusTrapRef(node);
-      }}
+      ref={contentRef}
       className={`absolute z-50 border rounded-lg shadow-sm bg-background border-border max-w-[calc(100vw-16px)] max-h-[calc(100vh-16px)] transition-opacity duration-200 ${isPositioned ? 'opacity-100' : 'opacity-0'} ${className}`}
       style={{
         top: 0,

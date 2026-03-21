@@ -3,7 +3,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useState } from 'react';
-import { useToggle } from '@/hooks-d/use-toggle';
 import { Menu, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ModeToggle } from '@/components/mode-toggle';
@@ -16,7 +15,9 @@ const routes = [
 ];
 
 const NavigationBar = () => {
-  const [isOpen, { toggle, off: closeMenu }] = useToggle(false);
+  const [isOpen, setIsOpen] = useState(false);
+  const toggle = () => setIsOpen((prev) => !prev);
+  const closeMenu = () => setIsOpen(false);
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-white dark:bg-black">
