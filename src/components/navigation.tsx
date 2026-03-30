@@ -41,7 +41,7 @@ const NavigationBar = () => {
                   width={150}
                   height={40}
                   alt="Nextellar"
-                  className="w-32 lg:w-40 dark:hidden"
+                  className="w-32 lg:w-40 hidden dark:block"
                   priority
                 />
                 <Image
@@ -49,7 +49,7 @@ const NavigationBar = () => {
                   width={150}
                   height={40}
                   alt="Nextellar"
-                  className="w-32 lg:w-40 hidden dark:block"
+                  className="w-32 lg:w-40 block dark:hidden"
                   priority
                 />
               </motion.div>
@@ -103,7 +103,7 @@ const NavigationBar = () => {
               width={120}
               height={32}
               alt="Nextellar"
-              className="w-28 dark:hidden"
+              className="w-36 block dark:hidden"
               priority
             />
             <Image
@@ -111,7 +111,7 @@ const NavigationBar = () => {
               width={120}
               height={32}
               alt="Nextellar"
-              className="w-28 hidden dark:block"
+              className="w-36 hidden dark:block"
               priority
             />
           </Link>
