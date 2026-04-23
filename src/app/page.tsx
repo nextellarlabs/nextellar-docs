@@ -3,6 +3,8 @@ import { WhatIsNextellar } from '@/components/landing/what-is-nextellar';
 import HeroSection from '@/components/landing/hero';
 import NavigationBar from '@/components/navigation';
 import { StackSection } from '@/components/StackSection';
+import Footer from '@/components/Footer';
+import CTASection from '@/components/cta-section';
 
 export default function Home() {
   return (
@@ -12,6 +14,8 @@ export default function Home() {
       <WhatIsNextellar />
       <WhyDevelopersSection />
       <StackSection />
+      <CTASection />
+      <Footer />
     </main>
   );
 }

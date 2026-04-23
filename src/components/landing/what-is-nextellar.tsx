@@ -2,6 +2,14 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
+import UIComponent1Image from "public/image/ui-component-1.svg";
+import UIComponent2Image from "public/image/ui-component-2.svg";
+import UIComponent3Image from "public/image/ui-component-3.svg";
+import UIComponentBox from "public/image/ui-box.svg"
+import UIComponent1ImageDark from "public/image/ui-component-1-dark.svg";
+import UIComponent2ImageDark from "public/image/ui-component-2-dark.svg";
+import UIComponent3ImageDark from "public/image/ui-component-3-dark.svg";
+import UIComponentBoxDark from "public/image/ui-box-dark.svg"
 
 const cards = [
   {
@@ -77,13 +85,13 @@ export function WhatIsNextellar() {
                   src={cards[0].image}
                   alt={cards[0].title}
                   fill
-                  className="object-contain dark:hidden"
+                  className="object-contain hidden dark:block"
                 />
                 <Image
                   src={cards[0].darkImage}
                   alt={cards[0].title}
                   fill
-                  className="object-contain hidden dark:block"
+                  className="object-contain block dark:hidden"
                 />
               </div>
             </div>
@@ -111,13 +119,13 @@ export function WhatIsNextellar() {
                     src={card.image}
                     alt={card.title}
                     fill
-                    className="object-contain dark:hidden"
+                    className="object-contain hidden dark:block"
                   />
                   <Image
                     src={card.darkImage}
                     alt={card.title}
                     fill
-                    className="object-contain hidden dark:block"
+                    className="object-contain block dark:hidden"
                   />
                 </div>
               </div>
@@ -128,22 +136,61 @@ export function WhatIsNextellar() {
         {/* Bottom row: UI Components card + large image */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
           {/* UI Components card */}
-          <div className="border border-black/20 dark:border-white/20 min-h-[300px] md:min-h-[380px] overflow-hidden relative">
+          {/* <div className="border border-black/20 dark:border-white/20 min-h-[300px] md:min-h-[380px] overflow-hidden relative">
             <Image
               src="/images/what-is-nextellar/dark4.png"
               alt="Nextellar UI Components"
               width={800}
               height={800}
-              className="object-cover w-full h-full dark:hidden"
+              className="object-cover w-full h-full dark:block"
             />
             <Image
               src="/images/what-is-nextellar/whatisnextelar4.png"
               alt="Nextellar UI Components"
               width={800}
               height={800}
-              className="object-cover w-full h-full hidden dark:block"
+              className="object-cover w-full h-full block dark:hiddne"
             />
-          </div>
+          </div> */}
+
+          {[cards[3]].map((card) => (
+            <div
+              key={card.title}
+              className="border border-black/20 dark:border-white/20 p-6 flex flex-col justify-between min-h-[300px] md:min-h-[360px] overflow-hidden"
+            >
+              <div className="relative z-10 w-full flex items-center justify-between flex-col lg:flex-row gap-6">
+                <div className='w-full lg:w-2/3 pr-5' >
+                  <h3 className="font-semibold text-xl md:text-2xl text-black dark:text-white mb-2 z-10">
+                    {card.title}
+                  </h3>
+                  <p className="text-sm md:text-base text-black/80 dark:text-white/80 whitespace-pre-line">
+                    {card.description}
+                  </p>
+                </div>
+                <div className='w-full lg:w-2/5 flex items-start justify-end' >
+                  <Image width={246} height={69.44} alt='ui-component-3' className=' block dark:hidden w-40 md:w-[246px] ' src={UIComponent3Image} />
+                  <Image width={246} height={69.44} alt='ui-component-3' className=' hidden dark:block   w-40 md:w-[246px] ' src={UIComponent3ImageDark} />
+                </div>
+              </div>
+
+
+              <div className="flex justify-end mt-6 p-0">
+                <div className="relative  h-[160px] w-full md:h-[280px] transform translate-y-12 p-0">
+
+                  <Image width={250} height={69.44} alt='ui-component-1' className='-left-10 lg:-left-2 bottom-20 absolute block dark:hidden w-40 lg:w-[250px]' src={UIComponent1Image} />
+                  <Image width={250} height={69.44} alt='ui-component-1-dark' className=' -left-10 lg:-left-2 bottom-20 absolute hidden dark:block w-40 lg:w-[250px]' src={UIComponent1ImageDark} />
+
+                  <Image width={190} height={130} alt='ui-component-2' className='absolute z-10 left-26 lg:left-38 -top-5 block w-35 lg:w-48 dark:hidden' src={UIComponent2Image} />
+                  <Image width={190} height={130} alt='ui-component-2' className='absolute z-10 left-23 lg:left-38 -top-15  lg:-top-5 hidden dark:block w-36 lg:w-48' src={UIComponent2ImageDark} />
+
+
+
+                  <Image width={400} height={172} alt='ui-component-box' src={UIComponentBox} className=' -bottom-13 lg:-bottom-20 absolute -right-20 block dark:hidden w-70 lg:w-[400px] ' />
+                  <Image width={400} height={172} alt='ui-component-box' src={UIComponentBoxDark} className='bottom-5 absolute -right-20 hidden dark:block w-70 lg:w-[400px] ' />
+                </div>
+              </div>
+            </div>
+          ))}
 
           {/* Large decorative image placeholder */}
           <div className="border border-black/20 dark:border-white/20 overflow-hidden bg-[repeating-linear-gradient(135deg,transparent,transparent_13px,currentColor_13px,currentColor_14px)] text-black/10 dark:text-white/10 relative ">
@@ -151,13 +198,13 @@ export function WhatIsNextellar() {
               src="/images/what-is-nextellar/whatisnextelar5.png"
               alt="Nextellar showcase"
               fill
-              className="object-contain object-bottom object-right hidden dark:block"
+              className="object-contain object-bottom object-right block dark:hidden"
             />
             <Image
               src="/images/what-is-nextellar/dark5l.png"
               alt="Nextellar showcase"
               fill
-              className="object-contain object-bottom object-right dark:hidden "
+              className="object-contain object-bottom object-right hidden dark:block "
             />
           </div>
         </div>

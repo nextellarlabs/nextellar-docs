@@ -10,14 +10,14 @@ export function WhyDevelopersSection() {
     <section className="w-full min-h-screen bg-white dark:bg-black flex items-start justify-center pt-20">
       {/* Main Frame - width: 1520px, height: 799px, gap: 64px */}
       <div className="w-full max-w-380 mx-auto px-4 md:px-6 lg:px-8 xl:px-26 flex flex-col items-center gap-8 md:gap-10 lg:gap-12 xl:gap-16">
-
         {/* Header - Frame 2095586715: height 126px, gap 24px */}
         <div className="flex flex-col items-center gap-6">
           <h2 className="font-medium text-3xl md:text-4xl lg:text-5xl tracking-[-0.03em] text-black dark:text-white text-center">
             Why Developers Choose Nextellar
           </h2>
           <p className="text-sm md:text-base leading-relaxed text-[rgba(0,0,0,0.8)] dark:text-[rgba(255,255,255,0.8)] text-center max-w-110">
-            Nextellar offers speed, scalability, and simplicity. It handles setup, letting you focus on building.
+            Nextellar offers speed, scalability, and simplicity. It handles
+            setup, letting you focus on building.
           </p>
         </div>
 
@@ -47,7 +47,9 @@ export function WhyDevelopersSection() {
 
         {/* CTA Button - Frame 62561: height 45px */}
         <a
-          href="/docs"
+          href={'https://www.npmjs.com/package/nextellar'}
+          target="_blank"
+          rel="noopener noreferrer"
           className="bg-black dark:bg-white text-white dark:text-black font-medium text-base py-3.25 px-7.5 hover:opacity-90 transition-opacity inline-block"
         >
           Try It Out

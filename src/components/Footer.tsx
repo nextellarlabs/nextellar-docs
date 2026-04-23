@@ -12,7 +12,7 @@ const Footer = () => {
   return (
     <footer
       className="w-full flex items-center justify-between
-      text-black border-black dark:text-white dark:border-white"
+      text-black border-black dark:text-white dark:border-white  my-9"
     >
       <div className="hidden md:block md:w-2/12 border-t border-b border-r py-4 md:h-[105.83px]" />
 
