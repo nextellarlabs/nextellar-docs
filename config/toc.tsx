@@ -24,8 +24,14 @@ export const TocData: TocData = {
       title: 'Overview',
       href: '/docs/getting-started/introduction#overview',
       pages: [
-        { title: 'What is Nextellar', href: '/docs/getting-started/introduction#what-is-nextellar' },
-        { title: 'Why Nextellar', href: '/docs/getting-started/introduction#why-nextellar' },
+        {
+          title: 'What is Nextellar',
+          href: '/docs/getting-started/introduction#what-is-nextellar',
+        },
+        {
+          title: 'Why Nextellar',
+          href: '/docs/getting-started/introduction#why-nextellar',
+        },
       ],
     },
   ],
@@ -34,9 +40,18 @@ export const TocData: TocData = {
       title: 'Installation',
       href: '/docs/getting-started/installation#installation',
       pages: [
-        { title: 'Prerequisites', href: '/docs/getting-started/installation#prerequisites' },
-        { title: 'Scaffold Command', href: '/docs/getting-started/installation#scaffold-command' },
-        { title: 'Post-install', href: '/docs/getting-started/installation#post-install' },
+        {
+          title: 'Prerequisites',
+          href: '/docs/getting-started/installation#prerequisites',
+        },
+        {
+          title: 'Scaffold Command',
+          href: '/docs/getting-started/installation#scaffold-command',
+        },
+        {
+          title: 'Post-install',
+          href: '/docs/getting-started/installation#post-install',
+        },
       ],
     },
   ],
@@ -45,7 +60,10 @@ export const TocData: TocData = {
       title: 'Quick Start',
       href: '/docs/getting-started/quick-start#quick-start',
       pages: [
-        { title: 'Create App', href: '/docs/getting-started/quick-start#create-app' },
+        {
+          title: 'Create App',
+          href: '/docs/getting-started/quick-start#create-app',
+        },
         { title: 'Run Dev', href: '/docs/getting-started/quick-start#run-dev' },
       ],
     },
@@ -58,8 +76,14 @@ export const TocData: TocData = {
       href: '/docs/cli/commands#commands',
       pages: [
         { title: 'Core Commands', href: '/docs/cli/commands#core-commands' },
-        { title: 'Informational Commands', href: '/docs/cli/commands#informational-commands' },
-        { title: 'Planned Commands', href: '/docs/cli/commands#upcoming-commands' },
+        {
+          title: 'Informational Commands',
+          href: '/docs/cli/commands#informational-commands',
+        },
+        {
+          title: 'Planned Commands',
+          href: '/docs/cli/commands#upcoming-commands',
+        },
       ],
     },
   ],
@@ -69,9 +93,18 @@ export const TocData: TocData = {
       href: '/docs/cli/flags#flags-and-options',
       pages: [
         { title: 'Language Options', href: '/docs/cli/flags#language-options' },
-        { title: 'Network Configuration', href: '/docs/cli/flags#network-configuration-flags' },
-        { title: 'Wallet Configuration', href: '/docs/cli/flags#wallet-configuration-flags' },
-        { title: 'Automation & Defaults', href: '/docs/cli/flags#automation--defaults' },
+        {
+          title: 'Network Configuration',
+          href: '/docs/cli/flags#network-configuration-flags',
+        },
+        {
+          title: 'Wallet Configuration',
+          href: '/docs/cli/flags#wallet-configuration-flags',
+        },
+        {
+          title: 'Automation & Defaults',
+          href: '/docs/cli/flags#automation--defaults',
+        },
         { title: 'Global Flags', href: '/docs/cli/flags#global-flags' },
       ],
     },
@@ -82,7 +115,10 @@ export const TocData: TocData = {
       href: '/docs/cli/templates#scaffolding-templates',
       pages: [
         { title: 'Current Status', href: '/docs/cli/templates#current-status' },
-        { title: 'Planned Templates', href: '/docs/cli/templates#planned-templates' },
+        {
+          title: 'Planned Templates',
+          href: '/docs/cli/templates#planned-templates',
+        },
       ],
     },
   ],
@@ -95,7 +131,10 @@ export const TocData: TocData = {
       pages: [
         { title: 'Goals', href: '/docs/sdk/overview#goals' },
         { title: 'What’s included', href: '/docs/sdk/overview#whats-included' },
-        { title: 'Stability & Security', href: '/docs/sdk/overview#stability--security' },
+        {
+          title: 'Stability & Security',
+          href: '/docs/sdk/overview#stability--security',
+        },
       ],
     },
   ],
@@ -106,14 +145,32 @@ export const TocData: TocData = {
       title: 'API Reference',
       href: '/docs/sdk/api-reference#api-reference',
       pages: [
-        { title: 'Stellar Clients', href: '/docs/sdk/api-reference#stellar-clients' },
+        {
+          title: 'Stellar Clients',
+          href: '/docs/sdk/api-reference#stellar-clients',
+        },
         { title: 'Wallet API', href: '/docs/sdk/api-reference#wallet-api' },
-        { title: 'Transaction Utilities', href: '/docs/sdk/api-reference#transaction-utilities' },
-        { title: 'Network Configuration', href: '/docs/sdk/api-reference#network-configuration' },
-        { title: 'Asset Utilities', href: '/docs/sdk/api-reference#asset-utilities' },
-        { title: 'Key & Account Utilities', href: '/docs/sdk/api-reference#key--account-utilities' },
+        {
+          title: 'Transaction Utilities',
+          href: '/docs/sdk/api-reference#transaction-utilities',
+        },
+        {
+          title: 'Network Configuration',
+          href: '/docs/sdk/api-reference#network-configuration',
+        },
+        {
+          title: 'Asset Utilities',
+          href: '/docs/sdk/api-reference#asset-utilities',
+        },
+        {
+          title: 'Key & Account Utilities',
+          href: '/docs/sdk/api-reference#key--account-utilities',
+        },
         { title: 'Error Types', href: '/docs/sdk/api-reference#error-types' },
-        { title: 'Types & Interfaces', href: '/docs/sdk/api-reference#types--interfaces' },
+        {
+          title: 'Types & Interfaces',
+          href: '/docs/sdk/api-reference#types--interfaces',
+        },
       ],
     },
   ],
@@ -127,7 +184,10 @@ export const TocData: TocData = {
         { title: 'Account Hooks', href: '/docs/hooks#account-hooks' },
         { title: 'Transaction Hooks', href: '/docs/hooks#transaction-hooks' },
         { title: 'Wallet Hooks', href: '/docs/hooks#wallet-hooks' },
-        { title: 'Soroban Hooks', href: '/docs/hooks#soroban--smart-contract-hooks' },
+        {
+          title: 'Soroban Hooks',
+          href: '/docs/hooks#soroban--smart-contract-hooks',
+        },
         { title: 'Network Hooks', href: '/docs/hooks#network-hooks' },
       ],
     },
@@ -140,7 +200,10 @@ export const TocData: TocData = {
       href: '/docs/hooks/use-stellar-account#overview',
       pages: [
         { title: 'Usage', href: '/docs/hooks/use-stellar-account#usage' },
-        { title: 'Return Value', href: '/docs/hooks/use-stellar-account#return-value' },
+        {
+          title: 'Return Value',
+          href: '/docs/hooks/use-stellar-account#return-value',
+        },
       ],
     },
   ],
@@ -150,7 +213,10 @@ export const TocData: TocData = {
       href: '/docs/hooks/use-stellar-balances#overview',
       pages: [
         { title: 'Usage', href: '/docs/hooks/use-stellar-balances#usage' },
-        { title: 'Examples', href: '/docs/hooks/use-stellar-balances#examples' },
+        {
+          title: 'Examples',
+          href: '/docs/hooks/use-stellar-balances#examples',
+        },
       ],
     },
   ],
@@ -160,7 +226,10 @@ export const TocData: TocData = {
       href: '/docs/hooks/use-stellar-payment#send-payment',
       pages: [
         { title: 'Usage', href: '/docs/hooks/use-stellar-payment#usage' },
-        { title: 'Error Handling', href: '/docs/hooks/use-stellar-payment#error-handling' },
+        {
+          title: 'Error Handling',
+          href: '/docs/hooks/use-stellar-payment#error-handling',
+        },
       ],
     },
   ],
@@ -169,8 +238,14 @@ export const TocData: TocData = {
       title: 'Transaction History',
       href: '/docs/hooks/use-transaction-history#transaction-history',
       pages: [
-        { title: 'Pagination', href: '/docs/hooks/use-transaction-history#pagination' },
-        { title: 'Filtering', href: '/docs/hooks/use-transaction-history#filtering' },
+        {
+          title: 'Pagination',
+          href: '/docs/hooks/use-transaction-history#pagination',
+        },
+        {
+          title: 'Filtering',
+          href: '/docs/hooks/use-transaction-history#filtering',
+        },
       ],
     },
   ],
@@ -200,7 +275,10 @@ export const TocData: TocData = {
       href: '/docs/hooks/use-soroban-contract#soroban-contract',
       pages: [
         { title: 'Usage', href: '/docs/hooks/use-soroban-contract#usage' },
-        { title: 'Invoke & Read', href: '/docs/hooks/use-soroban-contract#invoke--read' },
+        {
+          title: 'Invoke & Read',
+          href: '/docs/hooks/use-soroban-contract#invoke--read',
+        },
       ],
     },
   ],
@@ -209,8 +287,14 @@ export const TocData: TocData = {
       title: 'Soroban Events',
       href: '/docs/hooks/use-soroban-events#soroban-events',
       pages: [
-        { title: 'Subscription', href: '/docs/hooks/use-soroban-events#subscription' },
-        { title: 'Filtering', href: '/docs/hooks/use-soroban-events#filtering' },
+        {
+          title: 'Subscription',
+          href: '/docs/hooks/use-soroban-events#subscription',
+        },
+        {
+          title: 'Filtering',
+          href: '/docs/hooks/use-soroban-events#filtering',
+        },
       ],
     },
   ],
@@ -238,9 +322,7 @@ export const TocData: TocData = {
     {
       title: 'Connect Wallet',
       href: '/docs/hooks/use-connect-wallet#connect-wallet',
-      pages: [
-        { title: 'Usage', href: '/docs/hooks/use-connect-wallet#usage' },
-      ],
+      pages: [{ title: 'Usage', href: '/docs/hooks/use-connect-wallet#usage' }],
     },
   ],
   'hooks/use-disconnect-wallet': [
@@ -260,7 +342,10 @@ export const TocData: TocData = {
       href: '/docs/integrations/horizon#horizon-api',
       pages: [
         { title: 'Endpoints', href: '/docs/integrations/horizon#endpoints' },
-        { title: 'Rate Limits', href: '/docs/integrations/horizon#rate-limits' },
+        {
+          title: 'Rate Limits',
+          href: '/docs/integrations/horizon#rate-limits',
+        },
       ],
     },
   ],
@@ -286,16 +371,6 @@ export const TocData: TocData = {
       href: '/docs/components/connect-wallet-button#props',
     },
   ],
-  'components/balance-card': [
-    {
-      title: 'Preview & Usage',
-      href: '/docs/components/balance-card#preview-and-usage',
-    },
-    {
-      title: 'Props',
-      href: '/docs/components/balance-card#props',
-    },
-  ],
 
   // Theme & Search
   theme: [
@@ -303,7 +378,5 @@ export const TocData: TocData = {
     { title: 'Colors', href: '/docs/theme#colors' },
     { title: 'Typography', href: '/docs/theme#typography' },
   ],
-  search: [
-    { title: 'Search', href: '/docs/search#overview' },
-  ],
+  search: [{ title: 'Search', href: '/docs/search#overview' }],
 };
