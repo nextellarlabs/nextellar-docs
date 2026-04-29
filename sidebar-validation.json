@@ -1,0 +1,28 @@
+{
+  "valid": [
+    "button",
+    "checkbox",
+    "connect-wallet-button",
+    "dialog",
+    "folder-tree",
+    "input",
+    "label",
+    "menu",
+    "nav-menu",
+    "note",
+    "popover",
+    "search-button",
+    "select",
+    "sidebar",
+    "steps",
+    "syntax-highlighter",
+    "tabs",
+    "use-window-size"
+  ],
+  "broken": [],
+  "claimed": [
+    "connect-wallet-button",
+    "use-window-size"
+  ],
+  "total": 2
+}

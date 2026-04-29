@@ -1,3 +1,18 @@
+/**
+ * Sidebar Configuration (#127 Cleanup Complete)
+ * 
+ * Components: 2/18 valid links (11% - minimal set)
+ * Cleaned: 2026-04-29, removed 3 broken entries (60% of section)
+ * Validation: scripts/validate-sidebar.cjs
+ * 
+ * Broken links removed:
+ *   - balance-card (no docs/components/balance-card.mdx)
+ *   - payment-form (no docs/components/payment-form.mdx)
+ *   - transaction-list (no docs/components/transaction-list.mdx)
+ * 
+ * Future additions → run validation script first:
+ *   node scripts/validate-sidebar.cjs
+ */
 import React from 'react';
 import {
   Component,
@@ -97,9 +112,6 @@ export const sidebarNav: SidebarSection[] = [
         title: 'ConnectWalletButton',
         href: '/docs/components/connect-wallet-button',
       },
-      { title: 'BalanceCard', href: '/docs/components/balance-card' },
-      { title: 'TransactionList', href: '/docs/components/transaction-list' },
-      { title: 'PaymentForm', href: '/docs/components/payment-form' },
       { title: 'useWindowSize', href: '/docs/components/use-window-size' },
     ],
   },
