@@ -286,16 +286,6 @@ export const TocData: TocData = {
       href: '/docs/components/connect-wallet-button#props',
     },
   ],
-  'components/balance-card': [
-    {
-      title: 'Preview & Usage',
-      href: '/docs/components/balance-card#preview-and-usage',
-    },
-    {
-      title: 'Props',
-      href: '/docs/components/balance-card#props',
-    },
-  ],
 
   // Theme & Search
   theme: [
