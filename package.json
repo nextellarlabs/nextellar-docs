@@ -27,7 +27,9 @@
     "format:check": "prettier --check .",
     "prepare": "husky",
     "test": "echo \"No tests configured\" && exit 0",
-    "test:unit": "vitest run"
+    "test:unit": "vitest run",
+    "validate:sidebar": "node scripts/validate-sidebar.cjs",
+    "check:links": "node scripts/check-links.cjs"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx,json,css,md,mdx}": [

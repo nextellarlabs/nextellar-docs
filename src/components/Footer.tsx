@@ -12,12 +12,14 @@ const Footer = () => {
   return (
     <footer
       className="w-full flex items-center justify-between
-      text-black border-black dark:text-white dark:border-white  my-9"
+      my-12
+      lg:my-16
+      text-black border-black dark:text-white dark:border-white gap-7"
     >
-      <div className="hidden md:block md:w-2/12 border-t border-b border-r py-4 md:h-[105.83px]" />
+      <div className="hidden   md:block md:w-2/12 border-t border-b border-r  py-4 md:h-[105.83px]" />
 
-      <div className="flex items-center justify-center border-t border-b md:border md:w-8/12 h-[105.83px] py-4">
-        <div className="flex justify-around w-full md:w-auto md:gap-[120px]">
+      <div className="flex items-center justify-center border-t border-b  w-full md:border md:w-8/12 h-[105.83px] py-4">
+        <div className="flex justify-around w-full  md:gap-30">
           {footerValues.map((item, index) => (
             <a
               key={index}

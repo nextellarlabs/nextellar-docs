@@ -2,14 +2,14 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import UIComponent1Image from "public/image/ui-component-1.svg";
-import UIComponent2Image from "public/image/ui-component-2.svg";
-import UIComponent3Image from "public/image/ui-component-3.svg";
-import UIComponentBox from "public/image/ui-box.svg"
-import UIComponent1ImageDark from "public/image/ui-component-1-dark.svg";
-import UIComponent2ImageDark from "public/image/ui-component-2-dark.svg";
-import UIComponent3ImageDark from "public/image/ui-component-3-dark.svg";
-import UIComponentBoxDark from "public/image/ui-box-dark.svg"
+import UIComponent1Image from 'public/image/ui-component-1.svg';
+import UIComponent2Image from 'public/image/ui-component-2.svg';
+import UIComponent3Image from 'public/image/ui-component-3.svg';
+import UIComponentBox from 'public/image/ui-box.svg';
+import UIComponent1ImageDark from 'public/image/ui-component-1-dark.svg';
+import UIComponent2ImageDark from 'public/image/ui-component-2-dark.svg';
+import UIComponent3ImageDark from 'public/image/ui-component-3-dark.svg';
+import UIComponentBoxDark from 'public/image/ui-box-dark.svg';
 
 const cards = [
   {
@@ -159,7 +159,7 @@ export function WhatIsNextellar() {
               className="border border-black/20 dark:border-white/20 p-6 flex flex-col justify-between min-h-[300px] md:min-h-[360px] overflow-hidden"
             >
               <div className="relative z-10 w-full flex items-center justify-between flex-col lg:flex-row gap-6">
-                <div className='w-full lg:w-2/3 pr-5' >
+                <div className="w-full lg:w-2/3 pr-5">
                   <h3 className="font-semibold text-xl md:text-2xl text-black dark:text-white mb-2 z-10">
                     {card.title}
                   </h3>
@@ -167,26 +167,70 @@ export function WhatIsNextellar() {
                     {card.description}
                   </p>
                 </div>
-                <div className='w-full lg:w-2/5 flex items-start justify-end' >
-                  <Image width={246} height={69.44} alt='ui-component-3' className=' block dark:hidden w-40 md:w-[246px] ' src={UIComponent3Image} />
-                  <Image width={246} height={69.44} alt='ui-component-3' className=' hidden dark:block   w-40 md:w-[246px] ' src={UIComponent3ImageDark} />
+                <div className="w-full lg:w-2/5 flex items-start justify-end">
+                  <Image
+                    width={246}
+                    height={69.44}
+                    alt="ui-component-3"
+                    className=" block dark:hidden w-40 md:w-[246px] "
+                    src={UIComponent3Image}
+                  />
+                  <Image
+                    width={246}
+                    height={69.44}
+                    alt="ui-component-3"
+                    className=" hidden dark:block   w-40 md:w-[246px] "
+                    src={UIComponent3ImageDark}
+                  />
                 </div>
               </div>
 
-
               <div className="flex justify-end mt-6 p-0">
                 <div className="relative  h-[160px] w-full md:h-[280px] transform translate-y-12 p-0">
+                  <Image
+                    width={250}
+                    height={69.44}
+                    alt="ui-component-1"
+                    className="-left-10 lg:-left-2 bottom-20 absolute block dark:hidden w-40 lg:w-[250px]"
+                    src={UIComponent1Image}
+                  />
+                  <Image
+                    width={250}
+                    height={69.44}
+                    alt="ui-component-1-dark"
+                    className=" -left-10 lg:-left-2 bottom-20 absolute hidden dark:block w-40 lg:w-[250px]"
+                    src={UIComponent1ImageDark}
+                  />
 
-                  <Image width={250} height={69.44} alt='ui-component-1' className='-left-10 lg:-left-2 bottom-20 absolute block dark:hidden w-40 lg:w-[250px]' src={UIComponent1Image} />
-                  <Image width={250} height={69.44} alt='ui-component-1-dark' className=' -left-10 lg:-left-2 bottom-20 absolute hidden dark:block w-40 lg:w-[250px]' src={UIComponent1ImageDark} />
+                  <Image
+                    width={190}
+                    height={130}
+                    alt="ui-component-2"
+                    className="absolute z-10 left-26 lg:left-38 -top-5 block w-35 lg:w-48 dark:hidden"
+                    src={UIComponent2Image}
+                  />
+                  <Image
+                    width={190}
+                    height={130}
+                    alt="ui-component-2"
+                    className="absolute z-10 left-23 lg:left-38 -top-15  lg:-top-5 hidden dark:block w-36 lg:w-48"
+                    src={UIComponent2ImageDark}
+                  />
 
-                  <Image width={190} height={130} alt='ui-component-2' className='absolute z-10 left-26 lg:left-38 -top-5 block w-35 lg:w-48 dark:hidden' src={UIComponent2Image} />
-                  <Image width={190} height={130} alt='ui-component-2' className='absolute z-10 left-23 lg:left-38 -top-15  lg:-top-5 hidden dark:block w-36 lg:w-48' src={UIComponent2ImageDark} />
-
-
-
-                  <Image width={400} height={172} alt='ui-component-box' src={UIComponentBox} className=' -bottom-13 lg:-bottom-20 absolute -right-20 block dark:hidden w-70 lg:w-[400px] ' />
-                  <Image width={400} height={172} alt='ui-component-box' src={UIComponentBoxDark} className='bottom-5 absolute -right-20 hidden dark:block w-70 lg:w-[400px] ' />
+                  <Image
+                    width={400}
+                    height={172}
+                    alt="ui-component-box"
+                    src={UIComponentBox}
+                    className=" -bottom-13 lg:-bottom-20 absolute -right-20 block dark:hidden w-70 lg:w-[400px] "
+                  />
+                  <Image
+                    width={400}
+                    height={172}
+                    alt="ui-component-box"
+                    src={UIComponentBoxDark}
+                    className="bottom-5 absolute -right-20 hidden dark:block w-70 lg:w-[400px] "
+                  />
                 </div>
               </div>
             </div>

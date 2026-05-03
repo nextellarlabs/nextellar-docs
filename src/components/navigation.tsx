@@ -22,9 +22,9 @@ const NavigationBar = () => {
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-white dark:bg-black">
       {/* Desktop Navigation with side boxes */}
-      <div className="hidden md:grid md:grid-cols-[100px_1fr_100px] lg:grid-cols-[120px_1fr_120px] xl:grid-cols-[150px_1fr_150px] gap-4 lg:gap-6 p-4 lg:p-6">
+      <div className="hidden  md:grid md:grid-cols-[100px_1fr_100px] lg:grid-cols-[120px_1fr_120px] xl:grid-cols-[150px_1fr_150px] gap-4 lg:gap-6 p-4 lg:py-6">
         {/* Left side box */}
-        <div className="border border-black/10 dark:border-white/10 bg-white dark:bg-black" />
+        <div className="border border-black/10 dark:border-white/10 bg-white dark:bg-black left-0" />
 
         {/* Main navigation */}
         <nav className="border border-black/10 dark:border-white/10 bg-white dark:bg-black">

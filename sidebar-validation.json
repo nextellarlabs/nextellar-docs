@@ -1,0 +1,33 @@
+{
+  "valid": [
+    "button",
+    "checkbox",
+    "connect-wallet-button",
+    "dialog",
+    "folder-tree",
+    "input",
+    "label",
+    "menu",
+    "nav-menu",
+    "note",
+    "popover",
+    "search-button",
+    "select",
+    "sidebar",
+    "steps",
+    "syntax-highlighter",
+    "tabs",
+    "use-window-size"
+  ],
+  "sidebar": {
+    "broken": [],
+    "claimed": ["connect-wallet-button", "use-window-size"],
+    "total": 2
+  },
+  "toc": {
+    "broken": [],
+    "claimed": ["connect-wallet-button"],
+    "total": 1
+  },
+  "totalBroken": 0
+}
