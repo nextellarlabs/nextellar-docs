@@ -90,6 +90,46 @@ nextellar -v
 1.0.4
 ```
 
+## Diagnostic Commands
+
+### doctor
+
+Run environment diagnostics for a local Nextellar setup.
+
+```bash
+nextellar doctor
+```
+
+The `doctor` command checks the local tools and network endpoints that matter
+when creating or maintaining a Nextellar project. It reports required checks,
+optional checks, and practical fix guidance for anything that is missing or
+unreachable.
+
+**Checks include:**
+
+- Node.js 20 or newer
+- npm
+- optional package managers such as yarn and pnpm
+- Git
+- optional contract tooling such as Rust, Stellar CLI, and the
+  `wasm32-unknown-unknown` Rust target
+- Stellar testnet Horizon and Soroban RPC connectivity
+- available memory
+
+**Examples:**
+
+```bash
+# Print a human-readable diagnostics report
+nextellar doctor
+
+# Print diagnostics as JSON for CI or scripts
+nextellar doctor --json
+```
+
+The command exits with a non-zero status when a required check fails. Optional
+checks can fail without causing a non-zero exit status, which lets you use
+`doctor --json` in automation while still seeing advisory setup gaps.
+
 ## Project Creation Workflow
 
 When you run `nextellar my-app`, here's what happens:
