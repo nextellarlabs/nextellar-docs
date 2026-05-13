@@ -90,6 +90,42 @@ nextellar -v
 1.0.4
 ```
 
+## Deployment Commands
+
+### deploy
+
+Validate and prepare a deployment bundle from an existing Nextellar project.
+
+```bash
+nextellar deploy
+```
+
+Run this command from a built Next.js project root. The command validates that
+the current directory contains a `package.json`, that the project depends on
+Next.js, and that a production `.next` build exists. If validation passes,
+Nextellar creates a compressed bundle under `.nextellar/deploy/` and records
+the latest bundle metadata in `.nextellar/deploy/latest-bundle.json`.
+
+The bundle excludes large or local-only paths such as `node_modules`, `.git`,
+`.next/cache`, and previous `.nextellar/deploy` output.
+
+**Examples:**
+
+```bash
+# Build your app first
+npm run build
+
+# Create a deployment bundle
+nextellar deploy
+
+# Validate the project and preview the bundle path without writing a bundle
+nextellar deploy --dry-run
+```
+
+Nextellar Cloud upload is not available yet. After creating or validating the
+bundle, the CLI prints the current fallback recommendation to deploy with
+Vercel.
+
 ## Project Creation Workflow
 
 When you run `nextellar my-app`, here's what happens:
