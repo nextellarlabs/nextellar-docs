@@ -209,6 +209,30 @@ nextellar my-app -d
 
 > **Note:** Currently, Nextellar doesn't have interactive prompts, so this flag is reserved for future use.
 
+## Deployment Options
+
+### --dry-run
+
+Validate deployment readiness without creating a bundle.
+
+```bash
+nextellar deploy --dry-run
+```
+
+- **Default:** `false`
+- **Type:** Boolean
+- **Applies To:** `nextellar deploy`
+
+When used with `nextellar deploy`, this option checks the project root and
+prints the bundle path that would be created. It does not write a bundle or
+update `.nextellar/deploy/latest-bundle.json`.
+
+**Use Cases:**
+
+- Check deployment readiness in local development
+- Validate a build before packaging
+- Preview the generated bundle location in CI logs
+
 ## Information Options
 
 ### --version, -v
