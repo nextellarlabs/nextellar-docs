@@ -84,10 +84,10 @@ Your content here...
 - [NPM Package](https://www.npmjs.com/package/nextellar)
 - [Report Issues](https://github.com/nextellarlabs/nextellar/issues)
 
-## 📜 License
+## License
 
-MIT © 2025 [Nextellar Labs](https://github.com/nextellarlabs)
+MIT (c) 2025 [Nextellar Labs](https://github.com/nextellarlabs)
 
 ---
 
-**Built with ❤️ for the Stellar developer community**
+**Built with care for the Stellar developer community**
