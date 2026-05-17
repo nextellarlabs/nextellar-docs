@@ -98,12 +98,18 @@ These flags control how interactive or automated the CLI should be.
 | ---------------- | ----- | ----------------------------------------------- |
 | `--defaults`     | `-d`  | Use all default settings without prompting      |
 | `--skip-install` |       | Generate files but skip dependency installation |
+| `--no-telemetry` |       | Disable telemetry for the current CLI run       |
 
 **Example:**
 
 ```bash
 npx nextellar my-app --defaults --skip-install
+npx nextellar my-app --no-telemetry
 ```
+
+`--no-telemetry` applies only to that invocation. To persistently change the
+saved telemetry preference, use `nextellar telemetry enable` or
+`nextellar telemetry disable`.
 
 ---
 
@@ -111,17 +117,22 @@ npx nextellar my-app --defaults --skip-install
 
 These flags do not affect scaffolding but control CLI behavior.
 
-| Flag        | Alias | Description                               |
-| ----------- | ----- | ----------------------------------------- |
-| `--help`    | `-h`  | Show help text                            |
-| `--version` | `-v`  | Print the installed Nextellar CLI version |
+| Flag                              | Alias | Description                                             |
+| --------------------------------- | ----- | ------------------------------------------------------- |
+| `--help`                          | `-h`  | Show help text                                          |
+| `--version`                       | `-v`  | Print the installed Nextellar CLI version               |
+| `NEXTELLAR_TELEMETRY_DISABLED=1`  |       | Force telemetry off for the current shell or CI context |
 
 **Examples:**
 
 ```bash
 nextellar --help
 nextellar --version
+NEXTELLAR_TELEMETRY_DISABLED=1 nextellar my-app
 ```
+
+`NEXTELLAR_TELEMETRY_DISABLED` also accepts common truthy values such as
+`true`, `yes`, and `on`.
 
 ---
 
