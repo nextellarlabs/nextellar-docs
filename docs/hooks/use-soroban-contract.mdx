@@ -12,7 +12,7 @@ The `useSorobanContract` hook provides a complete interface for interacting with
 - **Read-Only Calls**: Simulate contract functions without submitting transactions
 - **Build Invocations**: Create unsigned contract invocation XDR
 - **Dev-Only Submission**: Sign and submit with secret keys (testing)
-- **Automatic XDR Conversion**: JavaScript �Stellar type conversion
+- **Automatic XDR Conversion**: JavaScript → Stellar type conversion
 - **Complex Types**: Support for maps, vectors, addresses, and custom types
 
 ## Basic Usage
@@ -92,12 +92,12 @@ const result = await callFunction('transfer', [
 
 **Supported Argument Types:**
 
-- `string` �ScvString
-- `number` �ScvI32
-- `boolean` �ScvBool
-- `Address` �ScvAddress
-- `Array` �ScvVec
-- `Object` �ScvMap
+- `string` → ScvString
+- `number` → ScvI32
+- `boolean` → ScvBool
+- `Address` → ScvAddress
+- `Array` → ScvVec
+- `Object` → ScvMap
 
 ### buildInvokeXDR()
 
@@ -166,19 +166,19 @@ try {
 
 ```tsx
 // String
-await callFunction('set_name', ['Alice']); // �ScvString
+await callFunction('set_name', ['Alice']); // → ScvString
 
 // Number
-await callFunction('set_count', [42]); // �ScvI32
+await callFunction('set_count', [42]); // → ScvI32
 
 // Boolean
-await callFunction('set_active', [true]); // �ScvBool
+await callFunction('set_active', [true]); // → ScvBool
 
 // Array
-await callFunction('set_list', [[1, 2, 3]]); // �ScvVec
+await callFunction('set_list', [[1, 2, 3]]); // → ScvVec
 
 // Object
-await callFunction('set_data', [{ key: 'value' }]); // �ScvMap
+await callFunction('set_data', [{ key: 'value' }]); // → ScvMap
 ```text
 
 ### XDR to JavaScript
@@ -186,11 +186,11 @@ await callFunction('set_data', [{ key: 'value' }]); // �ScvMap
 ```tsx
 const result = await callFunction('get_data', []);
 
-// ScvString �string
-// ScvI32 �number
-// ScvBool �boolean
-// ScvVec �Array
-// ScvMap �Object
+// ScvString → string
+// ScvI32 → number
+// ScvBool → boolean
+// ScvVec → Array
+// ScvMap → Object
 ```text
 
 ## Best Practices

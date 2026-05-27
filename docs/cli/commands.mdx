@@ -88,7 +88,69 @@ nextellar -v
 
 ```bash
 1.0.4
-```css
+```
+
+## Feature Commands
+
+### nextellar add
+
+Add Stellar features to an existing Nextellar project. This command allows you to incrementally add wallet adapters, smart contract support, or pre-built UI components as your application grows.
+
+```bash
+nextellar add <feature-name> [options]
+```
+
+**Arguments:**
+
+| Argument       | Type   | Required | Description                     |
+| -------------- | ------ | -------- | ------------------------------- |
+| `feature-name` | string | No       | Name of the feature to add      |
+
+**Options:**
+
+| Option                  | Alias  | Description                                                     |
+| ----------------------- | ------ | --------------------------------------------------------------- |
+| `--list`                | `-l`   | List all available features that can be added                   |
+| `--force`               | `-f`   | Force add feature, overwriting existing files without prompting |
+| `--skip-install`        |        | Skip automatic dependency installation after adding the feature |
+| `--package-manager <pm>`|        | Choose package manager (npm, yarn, pnpm) for installation      |
+
+**Examples:**
+
+```bash
+# List all available features
+nextellar add --list
+
+# Add a Soroban smart contract feature to the project
+nextellar add soroban
+
+# Force add Freighter wallet support, overwriting existing configuration
+nextellar add freighter --force --package-manager pnpm
+```
+
+### nextellar deploy
+
+Validate and prepare your project for production deployment. This command checks that your Horizon and Soroban RPC endpoints are properly configured, and builds a optimized production bundle of your Stellar dApp.
+
+```bash
+nextellar deploy [options]
+```
+
+**Options:**
+
+| Option       | Description                                                                 |
+| ------------ | --------------------------------------------------------------------------- |
+| `--dry-run`  | Validate configuration and build process without producing a deploy bundle |
+
+**Examples:**
+
+```bash
+# Prepare project for deployment
+nextellar deploy
+
+# Run a dry-run validation without actual deployment
+nextellar deploy --dry-run
+```
 
 ## Project Creation Workflow
 

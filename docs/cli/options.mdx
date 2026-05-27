@@ -209,6 +209,59 @@ nextellar my-app -d
 
 > **Note:** Currently, Nextellar doesn't have interactive prompts, so this flag is reserved for future use.
 
+## Feature Add Options
+
+The following options apply to the `nextellar add` command:
+
+### --list, -l
+
+List all available features that can be added to the project.
+
+```bash
+nextellar add --list
+# or
+nextellar add -l
+```
+
+**Type:** Boolean
+**Status:** Supported
+
+---
+
+### --force, -f
+
+Force addition of a feature, overwriting existing files without prompting.
+
+```bash
+nextellar add freighter --force
+# or
+nextellar add freighter -f
+```
+
+**Default:** `false`
+**Type:** Boolean
+**Status:** Supported
+
+---
+
+## Deployment Options
+
+The following options apply to the `nextellar deploy` command:
+
+### --dry-run
+
+Validate the project configuration and production build without generating a final deployment bundle.
+
+```bash
+nextellar deploy --dry-run
+```
+
+**Default:** `false`
+**Type:** Boolean
+**Status:** Supported
+
+---
+
 ## Information Options
 
 ### --version, -v
