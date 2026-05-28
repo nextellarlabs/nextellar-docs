@@ -19,7 +19,7 @@ The `useWindowSize` hook tracks window dimensions and exposes `width`, `height`,
 
 ```ts
 const { width, height, isMobile, isTablet, isDesktop } = useWindowSize({ throttle: 100 });
-```css
+```
 
 | Return      | Type              | Description                                      |
 | ----------- | ----------------- | ------------------------------------------------ |
@@ -75,6 +75,6 @@ export function AppNav() {
   // Tablet: could render either or a dedicated layout
   return <DesktopNav />;
 }
-```json
+```
 
 This pattern avoids hydration mismatch because the hook returns `undefined` on the server and on the first client paint until the effect runs; you can render a neutral placeholder until dimensions are known, then switch to mobile or desktop nav.

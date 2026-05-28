@@ -6,138 +6,51 @@ date: 2025-03-12
 
 # Nextellar CLI Flags & Options
 
-This page documents **all available CLI flags**, grouped into categories for clarity. Use this as a reference when customizing how the Nextellar CLI scaffolds your project.
+This page collects every Nextellar CLI flag into a single reference table.
+Flags are grouped by category and include default values where relevant.
 
-You can combine multiple flags in a single command:
+Use the table below to find the exact flag name, alias, default, and a short description.
 
-```bash
-npx nextellar my-app --javascript --wallets freighter,xbull --horizon-url https://horizon-testnet.stellar.org
-```css
+| Category     | Flag                     | Alias | Default                               | Description                                                                  |
+| ------------ | ------------------------ | ----- | ------------------------------------- | ---------------------------------------------------------------------------- |
+| Language     | `--typescript`           | `-t`  | `true`                                | Generate a TypeScript project (default).                                     |
+| Language     | `--javascript`           | `-j`  | `false`                               | Generate a JavaScript project instead of TypeScript; planned future support. |
+| Network      | `--horizon-url <url>`    |       | `https://horizon-testnet.stellar.org` | Override the default Horizon API endpoint.                                   |
+| Network      | `--soroban-url <url>`    |       | `https://soroban-testnet.stellar.org` | Override the default Soroban RPC endpoint.                                   |
+| Wallet       | `--wallets <list>`       | `-w`  | `freighter,albedo,lobstr`             | Comma-separated list of wallet adapters to include.                          |
+| Template     | `--example <name>`       | `-e`  | none                                  | Use a named example template for the generated project.                      |
+| Installation | `--skip-install`         |       | `false`                               | Generate files but skip automatic dependency installation.                   |
+| Installation | `--package-manager <pm>` |       | Auto-detected                         | Choose `npm`, `yarn`, or `pnpm` for install.                                 |
+| Installation | `--install-timeout <ms>` |       | `1200000`                             | Set dependency install timeout in milliseconds.                              |
+| Automation   | `--defaults`             | `-d`  | `false`                               | Skip prompts and use default settings.                                       |
+| Feature Add  | `--list`                 | `-l`  | `false`                               | List available features for `nextellar add`.                                 |
+| Feature Add  | `--force`                | `-f`  | `false`                               | Force feature addition, overwriting existing files.                          |
+| Deployment   | `--dry-run`              |       | `false`                               | Validate deployment without creating a final bundle.                         |
+| Information  | `--help`                 | `-h`  | `false`                               | Show CLI help text.                                                          |
+| Information  | `--version`              | `-v`  | `false`                               | Print the installed Nextellar CLI version.                                   |
 
----
+## How to use this table
 
-## 1. Language Options
-
-These flags determine whether the generated project uses **TypeScript** or **JavaScript**.
-
-| Flag           | Alias | Description                                         |
-| -------------- | ----- | --------------------------------------------------- |
-| `--typescript` | `-t`  | Generate a TypeScript project (default)             |
-| `--javascript` | `-j`  | Generate a JavaScript project instead of TypeScript |
-
-**Examples:**
-
-```bash
-npx nextellar my-app --typescript
-npx nextellar my-app --javascript
-```css
-
----
-
-## 2. Network Configuration Flags
-
-Configure the Horizon or Soroban RPC endpoints used inside the generated project.
-
-| Flag                  | Description                               |
-| --------------------- | ----------------------------------------- |
-| `--horizon-url <url>` | Override the default Horizon API endpoint |
-| `--soroban-url <url>` | Override the default Soroban RPC endpoint |
-
-**Examples:**
+Most options are used with the primary scaffold command:
 
 ```bash
-npx nextellar my-app --horizon-url https://horizon-testnet.stellar.org
-npx nextellar my-app --soroban-url https://rpc-futurenet.stellar.org
-```css
+npx nextellar my-app --wallets freighter,xbull --package-manager pnpm --skip-install
+```
 
----
-
-## 3. Wallet Configuration Flags
-
-Select which wallet adapters to include in the scaffold.
-
-| Flag               | Alias | Description                               |
-| ------------------ | ----- | ----------------------------------------- |
-| `--wallets <list>` | `-w`  | Commaseparated list of wallets to include |
-
-**Supported Wallets:**
-
-- `freighter`
-- `xbull`
-- `ledger`
-
-**Example:**
+Feature add options are used with `nextellar add`:
 
 ```bash
-npx nextellar my-app --wallets freighter,xbull
-```css
+nextellar add freighter --force --package-manager pnpm
+```
 
----
-
-## 4. Template Flags
-
-Use an example or template instead of the default scaffold.
-
-| Flag               | Alias | Description                                                                |
-| ------------------ | ----- | -------------------------------------------------------------------------- |
-| `--example <name>` | `-e`  | Generates a project using one of the available Nextellar example templates |
-
-**Example:**
+Deployment options are used with `nextellar deploy`:
 
 ```bash
-npx nextellar my-app --example payments-demo
-```css
+nextellar deploy --dry-run
+```
 
----
+## Notes
 
-## 5. Automation & Defaults
-
-These flags control how interactive or automated the CLI should be.
-
-| Flag             | Alias | Description                                     |
-| ---------------- | ----- | ----------------------------------------------- |
-| `--defaults`     | `-d`  | Use all default settings without prompting      |
-| `--skip-install` |       | Generate files but skip dependency installation |
-
-**Example:**
-
-```bash
-npx nextellar my-app --defaults --skip-install
-```css
-
----
-
-## 6. Global Flags
-
-These flags do not affect scaffolding but control CLI behavior.
-
-| Flag        | Alias | Description                               |
-| ----------- | ----- | ----------------------------------------- |
-| `--help`    | `-h`  | Show help text                            |
-| `--version` | `-v`  | Print the installed Nextellar CLI version |
-
-**Examples:**
-
-```bash
-nextellar --help
-nextellar --version
-```css
-
----
-
-## 7. Combining Multiple Flags
-
-You can combine any number of flags in a single command.
-
-```bash
-npx nextellar my-app \
-  --javascript \
-  --wallets freighter,ledger \
-  --horizon-url https://horizon-testnet.stellar.org \
-  --soroban-url https://rpc-futurenet.stellar.org \
-  --skip-install
-```bash
-
----
-
-This page serves as the complete reference for all current Nextellar CLI flags. New flags will be added as Nextellar introduces more templates, generators, and automation tools.
+- The `Alias` column shows shorthand forms where supported.
+- Default values are provided when the CLI exposes a standard fallback.
+- Use `--help` or `-h` to confirm available flags in your installed version.

@@ -29,7 +29,7 @@ export default function Header() {
     </header>
   );
 }
-```text
+```
 
 ## Props
 
@@ -37,7 +37,7 @@ export default function Header() {
 interface WalletConnectButtonProps {
   theme?: 'light' | 'dark';
 }
-```css
+```
 
 | Prop    | Type                | Default   | Description         |
 | ------- | ------------------- | --------- | ------------------- |
@@ -49,7 +49,7 @@ interface WalletConnectButtonProps {
 
 ```tsx
 <WalletConnectButton theme="light" />
-```text
+```
 
 Renders a black button with white text - ideal for light backgrounds.
 
@@ -57,7 +57,7 @@ Renders a black button with white text - ideal for light backgrounds.
 
 ```tsx
 <WalletConnectButton theme="dark" />
-```text
+```
 
 Renders a white button with black text - ideal for dark backgrounds.
 
@@ -86,7 +86,7 @@ localStorage.setItem('stellar_wallet_connected', 'true');
 localStorage.setItem('stellar_wallet_id', 'freighter');
 localStorage.setItem('stellar_wallet_address', 'GABC...');
 localStorage.setItem('stellar_wallet_name', 'Freighter');
-```text
+```
 
 ## Integration with WalletProvider
 
@@ -109,7 +109,7 @@ export default function RootLayout({
     </html>
   );
 }
-```text
+```
 
 ## Accessing Wallet State
 
@@ -131,7 +131,7 @@ function AccountInfo() {
     </div>
   );
 }
-```css
+```
 
 ## Button States
 
@@ -164,7 +164,7 @@ function CustomWalletButton() {
     </button>
   );
 }
-```text
+```
 
 ### With Dropdown Menu
 
@@ -206,7 +206,7 @@ function WalletDropdown() {
     </div>
   );
 }
-```text
+```
 
 ## Error Handling
 
@@ -239,7 +239,7 @@ function SafeWalletButton() {
     </div>
   );
 }
-```css
+```
 
 ## Supported Wallets
 
@@ -257,7 +257,7 @@ The component is located at:
 
 ```css
 src/components/WalletConnectButton.tsx
-```typescript
+```
 
 ## Related
 

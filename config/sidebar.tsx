@@ -67,7 +67,11 @@ export const sidebarNav: SidebarSection[] = [
     pages: [
       { title: 'Contributing', href: '/docs/guides/contributing' },
       { title: 'Editor Setup', href: '/docs/guides/editor-setup' },
-      { title: 'Internationalization', href: '/docs/guides/internationalization' },
+      { title: 'Add a Docs Page', href: '/docs/guides/add-docs-page' },
+      {
+        title: 'Internationalization',
+        href: '/docs/guides/internationalization',
+      },
       { title: 'Deployment', href: '/docs/guides/deployment' },
       { title: 'Glossary', href: '/docs/guides/glossary' },
     ],
