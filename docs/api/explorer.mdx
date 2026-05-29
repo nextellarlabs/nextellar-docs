@@ -1,0 +1,138 @@
+---
+title: API Explorer
+description: Explore Nextellar hooks, providers, and integration endpoints from one interactive reference page.
+---
+
+# API Explorer
+
+Use this explorer to scan the Nextellar API surface by workflow. Each section expands into the hooks, providers, endpoints, and documentation links that usually belong together.
+
+<Note type="info">
+  This page is documentation-first. It uses native browser controls so the content remains readable when JavaScript, custom styling, or client-side hydration is unavailable.
+</Note>
+
+## How to Use This Explorer
+
+1. Start with the workflow that matches your task.
+2. Expand the cards to compare the API surface.
+3. Open the linked reference pages for full options, return values, and examples.
+4. Copy the starter snippet into a local component and replace placeholder values.
+
+## Explore by Workflow
+
+<div className="grid gap-4 my-6">
+  <details className="rounded-lg border p-4">
+    <summary className="cursor-pointer font-semibold">Connect a wallet</summary>
+    <p className="text-sm text-muted-foreground">
+      Use the provider and wallet hook when a page needs connection state,
+      account identity, and signing access.
+    </p>
+
+    | API | Type | Use it for |
+    | --- | --- | --- |
+    | `WalletProvider` | Provider | Configure network, Horizon, and wallet state for the app |
+    | `useStellarWallet` | Hook | Connect, disconnect, and read the active public key |
+    | `ConnectWalletButton` | Component | Render the default wallet connection control |
+
+    ```tsx
+    <WalletProvider horizonUrl="https://horizon-testnet.stellar.org">
+      <ConnectWalletButton />
+    </WalletProvider>
+    ```
+
+    Related docs: [WalletProvider](/docs/hooks/wallet-provider), [useStellarWallet](/docs/hooks/use-stellar-wallet), [ConnectWalletButton](/docs/components/connect-wallet-button).
+  </details>
+
+  <details className="rounded-lg border p-4">
+    <summary className="cursor-pointer font-semibold">Read account data</summary>
+    <p className="text-sm text-muted-foreground">
+      Use Horizon-backed hooks when you need balances, trustlines, offers, or
+      recent activity for an account.
+    </p>
+
+    | API | Source | Use it for |
+    | --- | --- | --- |
+    | `useStellarBalances` | Horizon | Fetch native and issued-asset balances |
+    | `useTransactionHistory` | Horizon | List account operations and payments |
+    | `useTrustlines` | Horizon | Inspect and update asset trustlines |
+    | `useOfferBook` | Horizon | Read DEX order book entries |
+
+    ```tsx
+    const { balances, loading, error } = useStellarBalances(publicKey, {
+      horizonUrl: 'https://horizon-testnet.stellar.org',
+    });
+    ```
+
+    Related docs: [Stellar Horizon](/docs/integrations/horizon), [useStellarBalances](/docs/hooks/use-stellar-balances), [useTransactionHistory](/docs/hooks/use-transaction-history), [useOfferBook](/docs/hooks/use-offer-book).
+  </details>
+
+  <details className="rounded-lg border p-4">
+    <summary className="cursor-pointer font-semibold">Send payments</summary>
+    <p className="text-sm text-muted-foreground">
+      Use payment APIs when a connected wallet needs to build, sign, and submit
+      Stellar payment transactions.
+    </p>
+
+    | API | Network dependency | Use it for |
+    | --- | --- | --- |
+    | `useStellarPayment` | Horizon | Build and submit payment transactions |
+    | `useStellarWallet` | Wallet Kit | Request wallet signatures |
+    | `WalletProvider` | Horizon and Wallet Kit | Share account and network configuration |
+
+    ```tsx
+    const { sendPayment } = useStellarPayment();
+
+    await sendPayment({
+      destination: 'G...',
+      amount: '10',
+      assetCode: 'XLM',
+    });
+    ```
+
+    Related docs: [useStellarPayment](/docs/hooks/use-stellar-payment), [Wallet Integration](/docs/sdk/wallet-integration), [Wallets](/docs/integrations/wallets).
+  </details>
+
+  <details className="rounded-lg border p-4">
+    <summary className="cursor-pointer font-semibold">Work with Soroban contracts</summary>
+    <p className="text-sm text-muted-foreground">
+      Use Soroban APIs when a page needs to simulate contract calls, build
+      invocation XDR, submit signed transactions, or poll contract events.
+    </p>
+
+    | API | Source | Use it for |
+    | --- | --- | --- |
+    | `useSorobanContract` | Soroban RPC | Call functions and build invocation XDR |
+    | `useSorobanEvents` | Soroban RPC | Read recent contract events |
+    | `WalletProvider` | Soroban RPC | Provide shared RPC and network values |
+
+    ```tsx
+    const contract = useSorobanContract({
+      contractId: 'C...',
+      network: 'TESTNET',
+    });
+
+    const result = await contract.callFunction('balance', [publicKey]);
+    ```
+
+    Related docs: [Soroban Integration](/docs/integrations/soroban), [useSorobanContract](/docs/hooks/use-soroban-contract), [useSorobanEvents](/docs/hooks/use-soroban-events).
+  </details>
+</div>
+
+## Endpoint Map
+
+| Area | Default testnet endpoint | Production endpoint |
+| --- | --- | --- |
+| Horizon | `https://horizon-testnet.stellar.org` | `https://horizon.stellar.org` |
+| Soroban RPC | `https://soroban-testnet.stellar.org` | `https://soroban-rpc.stellar.org` |
+| Wallet connection | Browser wallet or wallet modal | Browser wallet or wallet modal |
+
+## Graceful Degradation
+
+The explorer uses semantic headings, tables, links, and native `<details>` controls. If custom components do not load, the page still presents a complete outline of the API surface. If a browser does not support disclosure controls, each section still contains the full text, tables, and linked references in document order.
+
+## Related
+
+- [SDK Overview](/docs/sdk/overview) - Architecture and package-level concepts
+- [API Reference](/docs/sdk/api-reference) - Types and utilities
+- [Hooks Reference](/docs/hooks) - Hook-by-hook documentation
+- [Integrations](/docs/integrations) - Stellar ecosystem integrations
