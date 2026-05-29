@@ -47,3 +47,74 @@ npm run dev
 ```
 
 ---
+
+## Quick Snippets
+
+Copy-paste snippets for common Stellar dApp tasks. Full context is on the [Examples index](/docs/examples).
+
+### Connect to wallet
+
+```tsx
+import { useWallet } from '@/contexts';
+
+function ConnectButton() {
+  const { connected, connect, disconnect, publicKey } = useWallet();
+
+  return connected ? (
+    <div>
+      <span>{publicKey?.slice(0, 8)}...</span>
+      <button onClick={disconnect}>Disconnect</button>
+    </div>
+  ) : (
+    <button onClick={connect}>Connect Wallet</button>
+  );
+}
+```
+
+### Display balances
+
+```tsx
+import { useStellarBalances } from '@/hooks/useStellarBalances';
+
+function Balances({ publicKey }: { publicKey: string }) {
+  const { balances, loading, error } = useStellarBalances(publicKey);
+
+  if (loading) return <p>Loading...</p>;
+  if (error) return <p>Error: {error.message}</p>;
+
+  return (
+    <ul>
+      {balances.map((b, i) => (
+        <li key={i}>
+          {b.asset_type === 'native' ? 'XLM' : b.asset_code}: {b.balance}
+        </li>
+      ))}
+    </ul>
+  );
+}
+```
+
+### Send payment
+
+```tsx
+import { useStellarPayment } from '@/hooks/useStellarPayment';
+
+const { buildPaymentXDR, submitSignedXDR } = useStellarPayment();
+const xdr = await buildPaymentXDR({ from, to, amount: '10', asset: 'XLM' });
+const signedXdr = await wallet.signTransaction(xdr);
+const result = await submitSignedXDR(signedXdr);
+```
+
+### Query smart contract
+
+```tsx
+import { useSorobanContract } from '@/hooks/useSorobanContract';
+
+const { callFunction } = useSorobanContract({
+  contractId: 'CDLZFC3...',
+  network: 'TESTNET',
+});
+const balance = await callFunction('get_balance', ['GABC...']);
+```
+
+---
