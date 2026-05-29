@@ -1,0 +1,25 @@
+---
+title: Accessibility Conformance Report
+description: WCAG 2.1 Level AA conformance audit of the Nextellar documentation site with findings and remediations.
+---
+
+# Accessibility Conformance Report
+
+Working draft for issue #250 — create a comprehensive accessibility conformance report.
+
+> This draft lives in `routes-d/` per the issue constraint and is outside `docs/`, so it is not picked up by Contentlayer and does not affect the production build.
+
+---
+
+## Conformance Target
+
+| Property | Value |
+| -------- | ----- |
+| **Standard** | [WCAG 2.1](https://www.w3.org/TR/WCAG21/) |
+| **Level** | AA |
+| **Scope** | Documentation content under `docs/` and documentation UI components referenced in MDX |
+| **Out of scope** | Third-party wallet extensions, Stellar network interfaces, marketing landing animations |
+
+The report evaluates whether readers using assistive technology can navigate, understand, and interact with the documentation. Theme-level color contrast is noted but primarily governed by `src/app/globals.css` and the Radix/Tailwind theme.
+
+---
