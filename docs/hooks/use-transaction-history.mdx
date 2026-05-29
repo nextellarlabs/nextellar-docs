@@ -20,7 +20,7 @@ The `useTransactionHistory` hook fetches and paginates transaction history for S
 ```tsx
 import { useTransactionHistory } from '@/hooks/useTransactionHistory';
 
-export default function TransactionList() {
+export default function TransactionHistoryList() {
   const { transactions, loading, loadMore, hasMore } =
     useTransactionHistory('GABC123...');
 
@@ -100,7 +100,7 @@ const paymentTxs = transactions.filter((tx) =>
 ### Infinite Scroll
 
 ```tsx
-function InfiniteTransactionList() {
+function InfiniteTransactionHistory() {
   const { transactions, loadMore, hasMore } = useTransactionHistory(publicKey);
 
   useEffect(() => {

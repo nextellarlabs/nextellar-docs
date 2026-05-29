@@ -47,9 +47,9 @@ src/
     page.tsx                    # Main payment interface
   components/
     WalletConnectButton.tsx     # Wallet connection
-    BalanceCard.tsx             # Balance display
-    SendPaymentForm.tsx         # Payment form
-    TransactionHistory.tsx      # Transaction list
+    BalanceSummary.tsx          # Balance display
+    PaymentForm.tsx             # Payment form
+    TransactionHistoryList.tsx   # Transaction list
     ReceiveQRCode.tsx           # QR code for receiving
   hooks/
     useStellarWallet.ts         # Wallet management
@@ -70,9 +70,9 @@ Create `src/app/page.tsx`:
 import { useState } from 'react';
 import { useStellarWallet } from '@/hooks/useStellarWallet';
 import WalletConnectButton from '@/components/WalletConnectButton';
-import BalanceCard from '@/components/BalanceCard';
-import SendPaymentForm from '@/components/SendPaymentForm';
-import TransactionHistory from '@/components/TransactionHistory';
+import BalanceSummary from '@/components/BalanceSummary';
+import PaymentForm from '@/components/PaymentForm';
+import TransactionHistoryList from '@/components/TransactionHistoryList';
 import ReceiveQRCode from '@/components/ReceiveQRCode';
 
 export default function PaymentApp() {
@@ -103,7 +103,7 @@ export default function PaymentApp() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Left Column - Balance */}
             <div className="lg:col-span-1">
-              <BalanceCard balances={balances} publicKey={publicKey} />
+              <BalanceSummary balances={balances} publicKey={publicKey} />
             </div>
 
             {/* Right Column - Actions */}
@@ -127,12 +127,12 @@ export default function PaymentApp() {
                 </div>
 
                 {/* Tab Content */}
-                {activeTab === 'send' && <SendPaymentForm />}
+                {activeTab === 'send' && <PaymentForm />}
                 {activeTab === 'receive' && (
                   <ReceiveQRCode publicKey={publicKey} />
                 )}
                 {activeTab === 'history' && (
-                  <TransactionHistory publicKey={publicKey} />
+                  <TransactionHistoryList publicKey={publicKey} />
                 )}
               </div>
             </div>
@@ -152,7 +152,7 @@ export default function PaymentApp() {
 
 ## Step 4: Balance Card Component
 
-Create `src/components/BalanceCard.tsx`:
+Create `src/components/BalanceSummary.tsx`:
 
 ```tsx
 'use client';
@@ -160,12 +160,15 @@ Create `src/components/BalanceCard.tsx`:
 import { Balance } from '@/hooks/useStellarWallet';
 import { RefreshCw } from 'lucide-react';
 
-interface BalanceCardProps {
+interface BalanceSummaryProps {
   balances: Balance[];
   publicKey?: string;
 }
 
-export default function BalanceCard({ balances, publicKey }: BalanceCardProps) {
+export default function BalanceSummary({
+  balances,
+  publicKey,
+}: BalanceSummaryProps) {
   const xlmBalance =
     balances.find((b) => b.asset_type === 'native')?.balance || '0';
   const assetBalances = balances.filter((b) => b.asset_type !== 'native');
@@ -228,7 +231,7 @@ export default function BalanceCard({ balances, publicKey }: BalanceCardProps) {
 
 ## Step 5: Send Payment Form
 
-Create `src/components/SendPaymentForm.tsx`:
+Create `src/components/PaymentForm.tsx`:
 
 ```tsx
 'use client';
@@ -237,7 +240,7 @@ import { useState } from 'react';
 import { useStellarWallet } from '@/hooks/useStellarWallet';
 import { Send } from 'lucide-react';
 
-export default function SendPaymentForm() {
+export default function PaymentForm() {
   const { sendPayment, balances } = useStellarWallet();
   const [recipient, setRecipient] = useState('');
   const [amount, setAmount] = useState('');
@@ -342,7 +345,7 @@ export default function SendPaymentForm() {
             rel="noopener noreferrer"
             className="text-sm text-green-600 dark:text-green-400 hover:underline break-all"
           >
-            View on Stellar Expert �
+            View on Stellar Expert ↗
           </a>
         </div>
       )}

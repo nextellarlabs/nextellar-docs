@@ -155,7 +155,7 @@ Returns `undefined` when used outside a `WalletProvider`.
 ## Sending Payments
 
 ```tsx
-function SendPaymentForm() {
+function PaymentForm() {
   const { connected, sendPayment } = useWallet();
   const [recipient, setRecipient] = useState('');
   const [amount, setAmount] = useState('');
