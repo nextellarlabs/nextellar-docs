@@ -128,6 +128,14 @@ nextellar add soroban
 nextellar add freighter --force --package-manager pnpm
 ```
 
+### nextellar doctor
+
+Run environment diagnostics to verify your machine is ready for Nextellar development. The doctor command checks local tooling, network connectivity to Stellar endpoints, and available system resources.
+
+```bash
+nextellar doctor [options]
+```
+
 ### nextellar deploy
 
 Validate and prepare your project for production deployment. This command checks that your Horizon and Soroban RPC endpoints are properly configured, and builds a optimized production bundle of your Stellar dApp.
