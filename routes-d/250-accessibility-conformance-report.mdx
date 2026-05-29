@@ -23,3 +23,35 @@ Working draft for issue #250 — create a comprehensive accessibility conformanc
 The report evaluates whether readers using assistive technology can navigate, understand, and interact with the documentation. Theme-level color contrast is noted but primarily governed by `src/app/globals.css` and the Radix/Tailwind theme.
 
 ---
+
+## Audit Methodology
+
+### Static content scan
+
+Every `*.mdx` and `*.md` file under `docs/` was scanned for:
+
+| Check | WCAG criterion | Tool / method |
+| ----- | -------------- | ------------- |
+| Heading hierarchy | 1.3.1 Info and Relationships | Manual review + regex for skipped levels |
+| Image alternative text | 1.1.1 Non-text Content | Search for `![]()` and `<img>` without `alt` |
+| Link purpose | 2.4.4 Link Purpose (In Context) | Search for non-descriptive phrases ("click here") |
+| Language | 3.1.1 Language of Page | Verify `lang="en"` on root layout |
+| Code block labels | 1.3.1 | Confirm fenced blocks declare a language for syntax highlighting |
+
+### Representative page review
+
+Five pages spanning different content types were reviewed manually:
+
+| Page | Path | Why selected |
+| ---- | ---- | ------------ |
+| Introduction | `docs/getting-started/introduction.mdx` | High-traffic entry point |
+| CLI Commands | `docs/cli/commands.mdx` | Long reference with tables and code blocks |
+| Examples index | `docs/examples/index.mdx` | Interactive grid links and snippets |
+| Wallet Provider | `docs/hooks/wallet-provider.mdx` | API reference with props tables |
+| Search Bar | `docs/search-bar.mdx` | Contains the only content image |
+
+### Component accessibility review
+
+Documentation for UI components (`docs/components/*.mdx`) was checked for explicit accessibility sections covering ARIA roles, keyboard interaction, and label association.
+
+---
