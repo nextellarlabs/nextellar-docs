@@ -1,0 +1,44 @@
+---
+title: Redirects Map
+description: A reference for moved and renamed docs pages and the redirects that keep old links working.
+---
+
+# Redirects Map
+
+When a docs page moves, keep the old URL alive long enough for bookmarks, search results, and external links to keep working. This page documents the redirect strategy used for the site.
+
+## Principles
+
+- Prefer permanent redirects for moved pages.
+- Redirect old URLs to the closest canonical replacement.
+- Keep redirect targets within the docs site when possible.
+- Update the redirect map whenever a page is renamed or reorganized.
+
+## Current redirects
+
+| Old URL | New URL | Notes |
+| --- | --- | --- |
+| `/docs` | `/docs/getting-started/introduction` | Implemented in `src/app/docs/page.tsx`. |
+| `/docs/contributing` | `/docs/guides/contributing` | Legacy shorthand for the contributing guide. |
+| `/docs/style-guide` | `/docs/guides/style-guide` | Preserves old handbook links. |
+| `/docs/versioning` | `/docs/guides/versioned-docs-strategy` | Alias for the versioning strategy guide. |
+| `/docs/redirects` | `/docs/guides/redirects-map` | Alias for this reference page. |
+| `/docs/hooks/errors` | `/docs/guides/hook-error-handling` | Legacy landing page for hook failures. |
+
+## How to maintain the map
+
+1. Add the new canonical page first.
+2. Record the old URL and the replacement URL in this table.
+3. Add the runtime redirect in the app layer when the move is user-facing.
+4. Verify the old path still resolves after deployment.
+
+## Notes
+
+- Redirects are part of the documentation contract, not just a deployment detail.
+- If two pages merge, redirect the weaker page to the stronger canonical page.
+- If a section is removed entirely, redirect to the closest conceptual replacement instead of a 404.
+
+## Related
+
+- [Navigation Configuration](/docs/guides/navigation-configuration)
+- [Contributing to Documentation](/docs/guides/contributing)

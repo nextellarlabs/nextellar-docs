@@ -1,0 +1,55 @@
+---
+title: Versioned Docs Strategy
+description: A documentation versioning model for maintaining current and historical Nextellar docs without breaking the main site.
+---
+
+# Versioned Docs Strategy
+
+This guide defines how Nextellar documentation should be versioned when major product changes need separate docs snapshots.
+
+## Strategy
+
+- Keep the latest docs canonical under `/docs`.
+- Publish versioned snapshots only for breaking releases.
+- Treat the current site as the default experience for new users.
+- Preserve older versions as read-only references once a major release ships.
+
+## Version layout
+
+Use one directory per supported major version when a split is required:
+
+- `/docs/v1/...` for legacy v1 content
+- `/docs/v2/...` for the current stable release
+- `/docs/latest/...` only if a release train needs a moving alias
+
+This keeps the main docs tree readable while making the version boundary explicit.
+
+## When to create a version
+
+Create a new versioned docs set when a change would otherwise invalidate existing guidance, for example:
+
+- A public hook signature changes.
+- A CLI flag is renamed or removed.
+- A default network or endpoint changes in a way users must notice.
+- A migration requires step-by-step instructions.
+
+## Publication workflow
+
+1. Update the canonical docs for the new behavior.
+2. Copy the affected pages into the versioned snapshot.
+3. Add migration notes that explain what changed.
+4. Add redirects or aliases for any moved canonical pages.
+5. Review the versioned content separately from the current docs.
+
+## Maintenance policy
+
+- Fix critical inaccuracies in supported versions.
+- Do not expand old versions with new features.
+- Link from the current docs to legacy content only when it helps users migrate.
+- Remove a version only after the support window ends.
+
+## Related documents
+
+- [Release Notes Workflow](/docs/guides/release-notes-workflow)
+- [Migration Guide](/docs/guides/migration)
+- [Contributing to Documentation](/docs/guides/contributing)

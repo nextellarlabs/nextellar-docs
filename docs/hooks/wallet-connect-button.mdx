@@ -53,7 +53,7 @@ The component uses inline shadcn/ui-inspired styles with Tailwind classes. It's 
                             GABC...XYZ
                             View on Stellar Expert ↗
                             Disconnect
-```typescript
+```
 
 ## Customization
 
@@ -121,7 +121,21 @@ import { WalletConnectButton } from '@/components/WalletConnectButton';
 export default function Page() {
   return <WalletConnectButton />;
 }
-```typescript
+```
+
+## Error Handling
+
+### No Supported Wallet
+
+If no supported wallet is installed, render an install prompt instead of repeatedly opening the modal.
+
+### User Rejection
+
+When the user cancels the connection request, keep the button interactive and explain that the connection was not approved.
+
+### Missing Provider Context
+
+If the button expects `WalletProvider`, surface a configuration error early so the page can be corrected before shipping.
 
 ## Component Source
 

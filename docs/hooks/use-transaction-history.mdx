@@ -38,7 +38,7 @@ export default function TransactionHistoryList() {
     </div>
   );
 }
-```text
+```
 
 ## API Reference
 
@@ -73,7 +73,7 @@ interface TransactionHistoryState {
   hasMore: boolean;
   refresh: () => Promise<void>;
 }
-```text
+```
 
 ## Examples
 
@@ -119,7 +119,32 @@ function InfiniteTransactionHistory() {
 
   return <div>{/* render transactions */}</div>;
 }
-```text
+```
+
+## Error Handling
+
+### Empty History
+
+A brand-new account can legitimately have no transactions yet. Render an empty state instead of a failure message.
+
+### Cursor Failures
+
+If pagination cursors become invalid, reset the cursor state and reload the first page.
+
+### Timeouts and Rate Limits
+
+Keep the current list visible while retrying the next request, and surface a retry button for transient failures.
+
+```tsx
+if (error) {
+  return (
+    <div>
+      <p>Unable to load history right now.</p>
+      <button onClick={refresh}>Retry</button>
+    </div>
+  );
+}
+```
 
 ## Best Practices
 

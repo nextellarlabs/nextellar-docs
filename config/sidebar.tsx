@@ -67,6 +67,16 @@ export const sidebarNav: SidebarSection[] = [
     defaultOpen: false,
     pages: [
       { title: 'Contributing', href: '/docs/guides/contributing' },
+      { title: 'Docs Style Guide', href: '/docs/guides/style-guide' },
+      {
+        title: 'Versioned Docs Strategy',
+        href: '/docs/guides/versioned-docs-strategy',
+      },
+      { title: 'Redirects Map', href: '/docs/guides/redirects-map' },
+      {
+        title: 'Hook Error Handling',
+        href: '/docs/guides/hook-error-handling',
+      },
       { title: 'Editor Setup', href: '/docs/guides/editor-setup' },
       { title: 'Add a Docs Page', href: '/docs/guides/add-docs-page' },
       {
@@ -172,6 +182,16 @@ export const sidebarNav: SidebarSection[] = [
     defaultOpen: false,
     pages: [
       { title: 'Contributing', href: '/docs/guides/contributing' },
+      { title: 'Docs Style Guide', href: '/docs/guides/style-guide' },
+      {
+        title: 'Versioned Docs Strategy',
+        href: '/docs/guides/versioned-docs-strategy',
+      },
+      { title: 'Redirects Map', href: '/docs/guides/redirects-map' },
+      {
+        title: 'Hook Error Handling',
+        href: '/docs/guides/hook-error-handling',
+      },
       { title: 'Editor Setup', href: '/docs/guides/editor-setup' },
       { title: 'Testing (Vitest)', href: '/docs/guides/testing' },
       {
