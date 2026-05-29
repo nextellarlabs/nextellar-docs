@@ -1,0 +1,87 @@
+---
+title: Docs Style Guide
+description: Writing conventions for Nextellar documentation, including tone, structure, formatting, and review expectations.
+---
+
+# Docs Style Guide
+
+Use this guide when adding or revising documentation pages. The goal is consistency: every page should read like part of the same site, even when the topic changes.
+
+## Tone
+
+- Write in clear, direct language.
+- Prefer active voice and concrete verbs.
+- Explain the outcome first, then the details.
+- Avoid filler phrases, marketing language, and vague advice.
+
+### Example
+
+**Preferred**
+
+> Add the page to `config/sidebar.tsx` and verify the new URL in the browser.
+
+**Avoid**
+
+> It is recommended that you consider updating the sidebar and checking the page.
+
+## Structure
+
+- Start with a short introduction that explains what the page covers.
+- Use `##` sections for major topics and `###` sections for subtopics.
+- Keep sections focused on one task or one idea.
+- End long pages with related links or next steps.
+
+### Example outline
+
+```mdx
+# Page Title
+
+Short intro paragraph.
+
+## Overview
+
+## Setup
+
+## Examples
+
+## Common Issues
+
+## Related
+```
+
+## Formatting
+
+- Use bullet lists for short sets of related items.
+- Use numbered lists for ordered workflows.
+- Wrap commands, paths, and code identifiers in backticks.
+- Use fenced code blocks with the correct language tag.
+- Keep tables narrow and readable.
+
+### Example
+
+```mdx
+1. Update the page content.
+2. Add the page to navigation.
+3. Verify the rendered output.
+```
+
+## Links
+
+- Use absolute docs paths like `/docs/guides/contributing`.
+- Link to the most specific page available.
+- Prefer named anchors for long guides.
+- Avoid linking to route fragments that depend on browser state.
+
+## Review Checklist
+
+- The page matches the existing frontmatter format.
+- The page uses the current site vocabulary.
+- Internal links resolve to real pages.
+- The page has no unexplained jargon.
+- The content answers the user question without requiring extra context.
+
+## Related
+
+- [Contributing to Documentation](/docs/guides/contributing)
+- [Navigation Configuration](/docs/guides/navigation-configuration)
+- [Link Validation](/docs/guides/link-validation)

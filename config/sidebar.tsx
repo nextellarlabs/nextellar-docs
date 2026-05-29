@@ -67,6 +67,16 @@ export const sidebarNav: SidebarSection[] = [
     defaultOpen: false,
     pages: [
       { title: 'Contributing', href: '/docs/guides/contributing' },
+      { title: 'Docs Style Guide', href: '/docs/guides/style-guide' },
+      {
+        title: 'Versioned Docs Strategy',
+        href: '/docs/guides/versioned-docs-strategy',
+      },
+      { title: 'Redirects Map', href: '/docs/guides/redirects-map' },
+      {
+        title: 'Hook Error Handling',
+        href: '/docs/guides/hook-error-handling',
+      },
       { title: 'Editor Setup', href: '/docs/guides/editor-setup' },
       { title: 'Add a Docs Page', href: '/docs/guides/add-docs-page' },
       {
@@ -113,6 +123,7 @@ export const sidebarNav: SidebarSection[] = [
     icon: <Database className="h-5 w-5" />,
     defaultOpen: true,
     pages: [
+      { title: 'API Explorer', href: '/docs/api/explorer' },
       { title: 'Overview', href: '/docs/sdk/overview' },
       { title: 'API Reference', href: '/docs/sdk/api-reference' },
       { title: 'Wallet Integration', href: '/docs/sdk/wallet-integration' },
@@ -153,16 +164,17 @@ export const sidebarNav: SidebarSection[] = [
     icon: <Plug className="h-5 w-5" />,
     defaultOpen: false,
     pages: [
-      { title: 'Stellar Horizon', href: '/docs/integrations/horizon' },
-      {
-        title: 'Soroban (Smart Contracts)',
-        href: '/docs/integrations/soroban',
-      },
+      { title: 'Overview', href: '/docs/integrations' },
       {
         title: 'Wallets (Freighter, Albedo, Lobstr, xBull, Hana)',
         href: '/docs/integrations/wallets',
       },
       { title: 'WalletConnect', href: '/docs/integrations/walletconnect' },
+      { title: 'Stellar Horizon', href: '/docs/integrations/horizon' },
+      {
+        title: 'Soroban (Smart Contracts)',
+        href: '/docs/integrations/soroban',
+      },
       { title: 'Testing (MSW)', href: '/docs/integrations/testing' },
     ],
   },
@@ -172,6 +184,16 @@ export const sidebarNav: SidebarSection[] = [
     defaultOpen: false,
     pages: [
       { title: 'Contributing', href: '/docs/guides/contributing' },
+      { title: 'Docs Style Guide', href: '/docs/guides/style-guide' },
+      {
+        title: 'Versioned Docs Strategy',
+        href: '/docs/guides/versioned-docs-strategy',
+      },
+      { title: 'Redirects Map', href: '/docs/guides/redirects-map' },
+      {
+        title: 'Hook Error Handling',
+        href: '/docs/guides/hook-error-handling',
+      },
       { title: 'Editor Setup', href: '/docs/guides/editor-setup' },
       { title: 'Testing (Vitest)', href: '/docs/guides/testing' },
       {

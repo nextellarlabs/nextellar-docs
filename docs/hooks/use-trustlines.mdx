@@ -65,7 +65,7 @@ export default function TrustlineManager({ publicKey }: { publicKey: string }) {
     </div>
   );
 }
-```text
+```
 
 ## API Reference
 
@@ -79,7 +79,7 @@ useTrustlines(
     network?: 'TESTNET' | 'PUBLIC';
   }
 ): TrustlinesState
-```text
+```
 
 ### Return Value
 
@@ -174,7 +174,32 @@ const xdr = await buildChangeTrustXDR({
 const { trustlines } = useTrustlines(publicKey);
 
 const hasUSDC = trustlines.some((tl) => tl.asset_code === 'USDC');
-```text
+```
+
+## Error Handling
+
+### Invalid Asset Data
+
+Validate the asset code and issuer before building the transaction. A malformed issuer address should fail fast.
+
+### Insufficient Reserve
+
+Explain that trustlines require account reserve when the wallet or Horizon returns an underfunded error.
+
+### Submission Failures
+
+When signing or submission fails, keep the form editable and surface the returned error message directly.
+
+```tsx
+if (error) {
+  return (
+    <div>
+      <p>{error.message}</p>
+      <button onClick={refresh}>Try again</button>
+    </div>
+  );
+}
+```
 
 ## Best Practices
 

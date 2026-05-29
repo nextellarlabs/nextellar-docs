@@ -116,7 +116,7 @@ const totalAskVolume = asks.reduce(
 
 console.log('Buy pressure:', totalBidVolume);
 console.log('Sell pressure:', totalAskVolume);
-```bash
+```
 
 ### Auto-Refresh Order Book
 
@@ -127,7 +127,32 @@ useEffect(() => {
   const interval = setInterval(refresh, 5000); // Refresh every 5s
   return () => clearInterval(interval);
 }, [refresh]);
-```bash
+```
+
+## Error Handling
+
+### Empty Market
+
+An empty bid or ask side is a valid state. Render the book with zero depth instead of treating it as a failure.
+
+### Invalid Pair
+
+Validate the assets before querying the order book so malformed pairs fail before the request is sent.
+
+### Network Failures
+
+If Horizon is unavailable, keep the last known book visible and expose `refresh()` so the user can retry.
+
+```tsx
+if (error) {
+  return (
+    <div>
+      <p>{error.message}</p>
+      <button onClick={refresh}>Retry</button>
+    </div>
+  );
+}
+```
 
 ## Best Practices
 

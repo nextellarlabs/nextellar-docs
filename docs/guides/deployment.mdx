@@ -1,199 +1,96 @@
 ---
 title: Deployment
-description: Deploy your Nextellar Stellar dApp to production
+description: How the Nextellar documentation site is built and deployed.
 ---
 
-# Deploy to Production
+# Docs Site Deployment
 
-This guide covers deploying your Nextellar application to production environments.
+This guide describes how changes to the Nextellar documentation site move from an MDX edit to a deployed site.
 
-## Prerequisites
+## Deployment Flow
 
-Before deploying:
+1. A contributor opens a branch with documentation changes.
+2. The branch is reviewed through a pull request.
+3. Content is generated with Contentlayer.
+4. Internal links are checked against the docs routes.
+5. The Next.js production build is created.
+6. After approval and merge, the hosting provider deploys the latest main branch.
 
-1. Your app builds successfully: `npm run build`
-2. Switch to Stellar Mainnet (if going live with real assets)
-3. Set up environment variables for production
+The deployed site is a Next.js app backed by MDX files in `docs/` and generated Contentlayer output.
 
----
+## Required Build Steps
 
-## Environment Variables
-
-Create production environment variables:
-
-````bash
-# .env.production
-NEXT_PUBLIC_HORIZON_URL=https://horizon.stellar.org
-NEXT_PUBLIC_NETWORK=PUBLIC
-NEXT_PUBLIC_SOROBAN_RPC=https://soroban-rpc.stellar.org
-```bash
-
-> [!IMPORTANT]
-> For testnet, use:
->
-> - Horizon: `https://horizon-testnet.stellar.org`
-> - Soroban RPC: `https://soroban-testnet.stellar.org`
-
----
-
-## Vercel (Recommended)
-
-Vercel provides the best Next.js deployment experience.
-
-### One-Click Deploy
-
-1. Push your code to GitHub/GitLab/Bitbucket
-2. Go to [vercel.com](https://vercel.com)
-3. Click **Import Project**
-4. Select your repository
-5. Add environment variables
-6. Deploy!
-
-### Via CLI
+Run these commands from the repository root when preparing a deployment:
 
 ```bash
-# Install Vercel CLI
-npm i -g vercel
+pnpm install --frozen-lockfile
+pnpm build:content
+pnpm check:links
+pnpm build
+```
 
-# Deploy
-vercel
+The scripts map to these checks:
 
-# Deploy to production
-vercel --prod
-```bash
+| Step | Script | Purpose |
+| --- | --- | --- |
+| Install | `pnpm install --frozen-lockfile` | Install the exact dependency graph from `pnpm-lock.yaml`. |
+| Content build | `pnpm build:content` | Generate Contentlayer data from files in `docs/`. |
+| Link check | `pnpm check:links` | Validate internal documentation links. |
+| Production build | `pnpm build` | Run `contentlayer2 build` and `next build`. |
 
-### Environment Variables on Vercel
+## Environment Requirements
 
-Go to **Project Settings �Environment Variables** and add:
+| Requirement | Value |
+| --- | --- |
+| Node.js | `>=18` |
+| Package manager | `pnpm` |
+| Lockfile | `pnpm-lock.yaml` |
+| Framework | Next.js |
+| Content pipeline | Contentlayer |
 
-| Variable                  | Value                         |
-| ------------------------- | ----------------------------- |
-| `NEXT_PUBLIC_HORIZON_URL` | `https://horizon.stellar.org` |
-| `NEXT_PUBLIC_NETWORK`     | `PUBLIC`                      |
+No Stellar network secrets are required to build the documentation site. Keep wallet keys, private RPC credentials, and deployment tokens out of MDX examples and repository files.
 
----
+## Hosting Configuration
 
-## Netlify
+Use the standard Next.js deployment settings for the hosting provider:
 
-### Deploy
+| Setting | Value |
+| --- | --- |
+| Install command | `pnpm install --frozen-lockfile` |
+| Build command | `pnpm build` |
+| Output | `.next` |
+| Runtime command | `pnpm start` when using a Node server |
 
-1. Push to GitHub
-2. Connect repository on [netlify.com](https://netlify.com)
-3. Set build command: `npm run build`
-4. Set publish directory: `.next`
-5. Add environment variables
-6. Deploy
+For Vercel, the default Next.js preset is sufficient once the install command uses pnpm. For another provider, make sure the build runs from the repository root and preserves the generated `.next` output.
 
-### netlify.toml
+## Contentlayer Notes
 
-```toml
-[build]
-  command = "npm run build"
-  publish = ".next"
+Contentlayer reads from the `docs/` directory. Drafts in `routes-d/` are not published by the docs app because the Contentlayer source is scoped to `docs`.
 
-[[plugins]]
-  package = "@netlify/plugin-nextjs"
-```css
+When adding a published page:
 
----
+1. Add the `.mdx` file under `docs/`.
+2. Include `title` and `description` frontmatter.
+3. Add sidebar or cross-links when the page should be discoverable.
+4. Run the content and link checks before merge.
 
-## Docker
+## Deployment Review Checklist
 
-### Dockerfile
+- [ ] The pull request only changes documentation for documentation-only tasks.
+- [ ] New pages use existing MDX frontmatter style.
+- [ ] New internal links use `/docs/...` routes.
+- [ ] `pnpm build:content` passes.
+- [ ] `pnpm check:links` passes.
+- [ ] `pnpm build` passes.
+- [ ] A maintainer has reviewed and approved the pull request.
 
-```dockerfile
-FROM node:20-alpine AS builder
+## Rollback
 
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci
-COPY . .
-RUN npm run build
-
-FROM node:20-alpine AS runner
-WORKDIR /app
-
-ENV NODE_ENV production
-
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
-
-EXPOSE 3000
-CMD ["node", "server.js"]
-```text
-
-### Build and Run
-
-```bash
-docker build -t my-stellar-app .
-docker run -p 3000:3000 my-stellar-app
-```bash
-
----
-
-## Production Checklist
-
-### Security
-
-- [ ] Remove any `signAndSubmitWithSecret` calls (dev-only)
-- [ ] Use environment variables for all endpoints
-- [ ] Enable HTTPS
-
-### Performance
-
-- [ ] Run `npm run build` and check for warnings
-- [ ] Enable caching headers for static assets
-- [ ] Consider CDN for global distribution
-
-### Stellar Network
-
-- [ ] Switch to mainnet Horizon URL
-- [ ] Test wallet connections with real wallets
-- [ ] Verify transaction submissions on testnet first
-
-### Monitoring
-
-- [ ] Set up error tracking (Sentry, etc.)
-- [ ] Monitor Horizon API rate limits
-- [ ] Log transaction failures
-
----
-
-## Switching Networks
-
-Update your `WalletProvider` for production:
-
-```tsx
-// For Mainnet
-<WalletProvider
-  horizonUrl="https://horizon.stellar.org"
-  network={Networks.PUBLIC}
->
-  <App />
-</WalletProvider>
-```text
-
-Or use environment variables:
-
-```tsx
-<WalletProvider
-  horizonUrl={process.env.NEXT_PUBLIC_HORIZON_URL}
-  network={
-    process.env.NEXT_PUBLIC_NETWORK === 'PUBLIC'
-      ? Networks.PUBLIC
-      : Networks.TESTNET
-  }
->
-  <App />
-</WalletProvider>
-```text
-
----
+If a deployment introduces a broken page, revert the merge commit or open a follow-up branch that restores the last known good docs content. After the fix merges, the hosting provider should deploy the corrected main branch through the same build flow.
 
 ## Related
 
-- [CLI Configuration](/docs/cli/configuration) - Build options
-- [WalletProvider](/docs/hooks/wallet-provider) - Network configuration
-- [Quick Start](/docs/getting-started/quick-start) - Development setup
-````
+- [Testing Docs Changes](/docs/guides/testing-docs-changes) - Local review workflow
+- [Link Validation](/docs/guides/link-validation) - Internal link checks
+- [Add a Docs Page](/docs/guides/add-docs-page) - Publishing new MDX routes
+- [Navigation Configuration](/docs/guides/navigation-configuration) - Sidebar updates

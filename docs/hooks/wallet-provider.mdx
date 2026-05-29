@@ -248,6 +248,20 @@ This means you can:
 2. **Override per-component** - Pass custom `horizonUrl` in options
 3. **Use standalone** - Works without provider (uses defaults)
 
+## Error Handling
+
+### Missing Network Configuration
+
+If `horizonUrl` or the network passphrase is missing, fail fast with a configuration message instead of guessing defaults.
+
+### Reconnect Failures
+
+If auto-reconnect fails after a reload or storage clear, surface the state clearly and let the user reconnect manually.
+
+### Downstream Hook Errors
+
+When child hooks fail, keep the provider state visible and let the child hook own its retry controls.
+
 ---
 
 ## Related

@@ -39,7 +39,7 @@ export default function EventListener() {
     </div>
   );
 }
-```text
+```
 
 ## API Reference
 
@@ -71,7 +71,7 @@ interface EventsState {
   startListening: () => void;
   stopListening: () => void;
 }
-```text
+```
 
 ## Examples
 
@@ -118,7 +118,32 @@ return (
     )}
   </div>
 );
-```text
+```
+
+## Error Handling
+
+### Invalid Cursor
+
+If the event cursor is no longer valid, restart from the last known good cursor or let the user resubscribe from the latest event.
+
+### Subscription Drops
+
+Treat a dropped RPC stream as recoverable. Keep the last event list visible and call `startListening()` again after a short delay.
+
+### Empty Stream
+
+No events is a valid state for a quiet contract. Render an empty state instead of a warning.
+
+```tsx
+if (error) {
+  return (
+    <div>
+      <p>{error.message}</p>
+      <button onClick={startListening}>Reconnect</button>
+    </div>
+  );
+}
+```
 
 ## Best Practices
 

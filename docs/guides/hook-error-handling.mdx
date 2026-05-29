@@ -1,0 +1,60 @@
+---
+title: Hook Error Handling
+description: Common failure modes and recovery patterns for Nextellar hook documentation.
+---
+
+# Hook Error Handling
+
+This guide collects the recurring error patterns used across the hook reference pages. Each hook has its own failure modes, but the same response pattern applies: surface the error, explain the likely cause, and provide a concrete retry or recovery path.
+
+## Shared pattern
+
+1. Show a loading state while the request is in flight.
+2. Render a clear empty state when the data set is legitimately empty.
+3. Surface network, validation, and permission errors separately.
+4. Offer a retry action whenever the request is safe to repeat.
+
+## Common hook failures
+
+| Hook | Common failure | Recommended recovery |
+| --- | --- | --- |
+| `useStellarWallet` | Wallet connection rejected or unavailable | Prompt the user to install or unlock a supported wallet, then retry connect. |
+| `useStellarBalances` | Unfunded account or Horizon failure | Treat `404` as an empty account and retry on transient failures. |
+| `useStellarPayment` | Invalid amount, address, or submission error | Validate input before submission and show the Horizon error message. |
+| `useTransactionHistory` | Empty history or cursor failure | Reset pagination state and retry the query. |
+| `useTrustlines` | Invalid asset or insufficient reserve | Verify issuer data and explain the trustline reserve requirement. |
+| `useOfferBook` | Empty market or unreachable Horizon endpoint | Render an empty book state and show a retry action for network failures. |
+| `useSorobanContract` | Simulation or invocation failure | Surface the contract error and keep read-only calls separate from submit flows. |
+| `useSorobanEvents` | Invalid cursor or dropped subscription | Restart from the last known cursor and resubscribe. |
+| `WalletProvider` | Missing or mismatched network configuration | Fail fast with a configuration error and document the expected values. |
+| `WalletConnectButton` | No supported wallet detected | Show an install or connect prompt before attempting a modal open. |
+
+## Recovery examples
+
+### Retry after a transient network error
+
+```tsx
+if (error) {
+  return <button onClick={refresh}>Retry</button>;
+}
+```
+
+### Fall back to an empty state
+
+```tsx
+if (!error && items.length === 0) {
+  return <p>No results yet.</p>;
+}
+```
+
+## Writing guidance for hook pages
+
+- Add the most likely failures directly under the hook reference.
+- Keep the error description specific to the hook instead of repeating generic advice.
+- Mention whether the error is recoverable.
+- Include the user action that should resolve the issue.
+
+## Related
+
+- [Docs Style Guide](/docs/guides/style-guide)
+- [Contributing to Documentation](/docs/guides/contributing)

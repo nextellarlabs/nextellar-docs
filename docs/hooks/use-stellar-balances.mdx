@@ -164,7 +164,32 @@ function MyComponent() {
   const { balances } = useStellarBalances(publicKey);
   // Uses mainnet automatically!
 }
-```json
+```
+
+## Error Handling
+
+### Unfunded Accounts
+
+Accounts without an active trustline or starting balance can return `404` or an empty payload. Treat that as a valid empty state instead of a hard failure.
+
+### Transient Horizon Failures
+
+If the network is temporarily unavailable, keep the last successful data on screen and expose `refresh()` so the user can retry.
+
+### Polling Issues
+
+Use `stopPolling()` when the component unmounts or when repeated errors indicate the endpoint is unhealthy.
+
+```tsx
+if (error) {
+  return (
+    <div>
+      <p>{error.message}</p>
+      <button onClick={refresh}>Retry</button>
+    </div>
+  );
+}
+```
 
 ## Best Practices
 
