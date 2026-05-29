@@ -55,3 +55,44 @@ Five pages spanning different content types were reviewed manually:
 Documentation for UI components (`docs/components/*.mdx`) was checked for explicit accessibility sections covering ARIA roles, keyboard interaction, and label association.
 
 ---
+
+## Representative Page Audit
+
+### `docs/getting-started/introduction.mdx`
+
+| Criterion | Result | Notes |
+| --------- | ------ | ----- |
+| Heading order | **Pass** | Single `h1` followed by sequential `h2` / `h3` sections |
+| Link text | **Pass** | All links use descriptive anchor text |
+| Lists | **Pass** | Feature lists use semantic bullet markup |
+
+### `docs/cli/commands.mdx`
+
+| Criterion | Result | Notes |
+| --------- | ------ | ----- |
+| Tables | **Pass** | Options and checks use markdown tables with header rows |
+| Code blocks | **Pass** | Bash examples include language tags |
+| Heading order | **Pass** | Command sections use consistent `h3` under page `h1` |
+
+### `docs/examples/index.mdx`
+
+| Criterion | Result | Notes |
+| --------- | ------ | ----- |
+| Card links | **Partial** | Grid cards use `<a>` with nested headings; recommend adding `aria-label` when promoted to production layout |
+| Code snippets | **Pass** | Snippets are in fenced blocks with language identifiers |
+
+### `docs/hooks/wallet-provider.mdx`
+
+| Criterion | Result | Notes |
+| --------- | ------ | ----- |
+| Props tables | **Pass** | Required props clearly marked |
+| Heading order | **Pass** | API sections follow `h2` → `h3` pattern |
+
+### `docs/search-bar.mdx`
+
+| Criterion | Result | Notes |
+| --------- | ------ | ----- |
+| Images | **Pass** | Demo image includes descriptive alt text ("Search Bar Demo") |
+| Keyboard shortcuts | **Pass** | Documents Cmd/Ctrl+K shortcut for search dialog |
+
+---
