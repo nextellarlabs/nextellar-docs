@@ -21,12 +21,17 @@
   ],
   "sidebar": {
     "broken": [],
-    "claimed": ["connect-wallet-button", "use-window-size"],
+    "claimed": [
+      "connect-wallet-button",
+      "use-window-size"
+    ],
     "total": 2
   },
   "toc": {
     "broken": [],
-    "claimed": ["connect-wallet-button"],
+    "claimed": [
+      "connect-wallet-button"
+    ],
     "total": 1
   },
   "totalBroken": 0

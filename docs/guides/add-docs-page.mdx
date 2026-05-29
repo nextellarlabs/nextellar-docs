@@ -1,0 +1,107 @@
+---
+title: Add a New Docs Page
+description: Step-by-step guide for creating a new documentation page and registering it in the sidebar.
+---
+
+# Add a New Docs Page
+
+This page explains the minimal steps for adding a new documentation page to Nextellar.
+It covers the file, required frontmatter, sidebar registration, and validation commands.
+
+## 1. Create the MDX file
+
+Place new documentation under `docs/` in the appropriate category folder.
+For this example, create:
+
+```bash
+mkdir -p docs/guides
+cat > docs/guides/add-docs-page.mdx <<'EOF'
+---
+title: Add a New Docs Page
+description: Step-by-step guide for creating a new documentation page and registering it in the sidebar.
+---
+
+# Add a New Docs Page
+
+Every docs page needs a clear title and a concise description.
+
+Write your content with standard Markdown and MDX where needed.
+EOF
+```
+
+## 2. Add required frontmatter
+
+Every page must include frontmatter at the very top of the file.
+The two required fields for docs pages are:
+
+- `title`: the page title shown in navigation and SEO
+- `description`: a short summary used by search and metadata
+
+Example:
+
+```yaml
+---
+title: Add a New Docs Page
+description: Step-by-step guide for creating a new documentation page and registering it in the sidebar.
+---
+```
+
+Additional frontmatter fields such as `date:` are optional and used only when needed.
+
+## 3. Register the page in the sidebar
+
+Open `config/sidebar.tsx` and add a new entry in the appropriate section.
+For a guide page, add it under the `Guides` section:
+
+```ts
+{
+  title: 'Guides',
+  icon: <BookOpen className="h-5 w-5" />,
+  defaultOpen: false,
+  pages: [
+    { title: 'Contributing', href: '/docs/guides/contributing' },
+    { title: 'Editor Setup', href: '/docs/guides/editor-setup' },
+    { title: 'Add a Docs Page', href: '/docs/guides/add-docs-page' },
+    { title: 'Internationalization', href: '/docs/guides/internationalization' },
+    { title: 'Deployment', href: '/docs/guides/deployment' },
+    { title: 'Glossary', href: '/docs/guides/glossary' },
+  ],
+},
+```
+
+The `href` must match the file path under `docs/` without the `.mdx` extension.
+
+## 4. Verify the page build and link validation
+
+Run the content build first:
+
+```bash
+pnpm build:content
+```
+
+Then verify site link checks:
+
+```bash
+pnpm check:links
+```
+
+If you added a sidebar entry, also run:
+
+```bash
+pnpm validate:sidebar
+```
+
+## Minimal example summary
+
+1. Create `docs/guides/add-docs-page.mdx`
+2. Add required frontmatter (`title`, `description`)
+3. Add a sidebar entry in `config/sidebar.tsx`
+4. Run `pnpm build:content`
+5. Run `pnpm check:links`
+6. Optionally run `pnpm validate:sidebar`
+
+## Notes
+
+- Keep file names in kebab-case and use the same path in `href`.
+- Use clear section headings and an introductory paragraph.
+- Avoid broken relative links by using absolute docs paths like `/docs/guides/contributing`.

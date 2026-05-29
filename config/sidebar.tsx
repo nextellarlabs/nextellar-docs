@@ -50,7 +50,34 @@ export const sidebarNav: SidebarSection[] = [
     ],
   },
   {
-    title: 'SDK Documentation',
+    title: 'CLI',
+    icon: <Zap className="h-5 w-5" />,
+    defaultOpen: true,
+    pages: [
+      { title: 'Commands', href: '/docs/cli/commands' },
+      { title: 'Cheat Sheet', href: '/docs/cli/cheat-sheet' },
+      { title: 'Flags & Options', href: '/docs/cli/flags' },
+      { title: 'Scaffolding Templates', href: '/docs/cli/templates' },
+    ],
+  },
+  {
+    title: 'Guides',
+    icon: <BookOpen className="h-5 w-5" />,
+    defaultOpen: false,
+    pages: [
+      { title: 'Contributing', href: '/docs/guides/contributing' },
+      { title: 'Editor Setup', href: '/docs/guides/editor-setup' },
+      { title: 'Add a Docs Page', href: '/docs/guides/add-docs-page' },
+      {
+        title: 'Internationalization',
+        href: '/docs/guides/internationalization',
+      },
+      { title: 'Deployment', href: '/docs/guides/deployment' },
+      { title: 'Glossary', href: '/docs/guides/glossary' },
+    ],
+  },
+  {
+    title: 'SDK & Reference',
     icon: <Database className="h-5 w-5" />,
     defaultOpen: true,
     pages: [

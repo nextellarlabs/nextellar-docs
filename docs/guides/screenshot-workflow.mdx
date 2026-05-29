@@ -1,0 +1,140 @@
+---
+title: Screenshot Workflow
+description: How to generate and update component screenshots for Nextellar documentation using Playwright
+date: 2026-05-29
+---
+
+# Screenshot Workflow
+
+Component documentation pages include preview screenshots so readers can see
+what each component looks like without running code locally. This guide explains
+how those screenshots are generated, where they live, and how to update them.
+
+## Prerequisites
+
+Before running the screenshot script you need:
+
+- **Node.js** 20.18.0 or later
+- **pnpm** installed
+- The local dev server able to start (`pnpm dev` runs without errors)
+- **Playwright** browsers installed
+
+Install Playwright if it is not yet a project dependency:
+
+```bash
+pnpm add -D @playwright/test
+pnpm playwright install chromium
+```
+
+## Storage and Naming Conventions
+
+Screenshots are committed to the repository under:
+
+```text
+public/screenshots/<component-slug>/<variant>.png
+```
+
+### Rules
+
+- **Component slug** — matches the MDX filename without the `.mdx` extension.
+  For example `connect-wallet-button.mdx` → `connect-wallet-button`.
+- **Variant name** — kebab-case string describing the prop combination or state
+  captured. For example `primary-xs`, `outline-md`, `dark-mode`.
+- **Viewport** — fixed at `1280 × 800 px`, then cropped to the component
+  bounding box so the image is compact.
+- **Format** — PNG, lossless.
+
+### Example paths
+
+```text
+public/screenshots/button/primary-xs.png
+public/screenshots/button/outline-md.png
+public/screenshots/dialog/default.png
+public/screenshots/tabs/overview.png
+public/screenshots/connect-wallet-button/disconnected.png
+public/screenshots/connect-wallet-button/connected.png
+```
+
+## Running the Screenshot Script
+
+```bash
+# Step 1 — start the dev server
+pnpm dev &
+
+# Step 2 — wait a few seconds for Next.js to compile, then run
+pnpm screenshot:components
+
+# Step 3 — commit the generated images
+git add public/screenshots
+git commit -m "docs: update component screenshots"
+```
+
+The `screenshot:components` script is defined in `package.json`:
+
+```json
+{
+  "scripts": {
+    "screenshot:components": "ts-node scripts/screenshot-components.ts"
+  }
+}
+```
+
+## How the Script Works
+
+The script (`scripts/screenshot-components.ts`) launches a headless Chromium
+browser via Playwright and navigates to the preview route for each component:
+
+1. Opens `http://localhost:3000/components/<slug>` with a fixed viewport.
+2. Waits for the `<Preview>` wrapper element to be visible.
+3. Crops the screenshot to the bounding box of that element.
+4. Saves the file to `public/screenshots/<slug>/<variant>.png`.
+5. Repeats for every variant listed in the script configuration.
+
+## Adding a New Component
+
+When you add a new component doc:
+
+1. Add an entry to the `components` array inside `scripts/screenshot-components.ts`.
+2. Run `pnpm screenshot:components`.
+3. Reference the generated image in your MDX file.
+
+### Referencing a screenshot in MDX
+
+```mdx
+![Button primary variant](/screenshots/button/primary-xs.png)
+```
+
+The path is relative to `public/`, which Next.js serves as the site root.
+
+## Updating Existing Screenshots
+
+After changing a component's visual appearance, re-run the script to overwrite
+stale images:
+
+```bash
+pnpm dev &
+pnpm screenshot:components
+git add public/screenshots
+```
+
+## Verifying Generated Assets
+
+Start the dev server and navigate to the component page to confirm the image
+renders at the expected position:
+
+```bash
+pnpm dev
+# Open http://localhost:3000/components/button
+```
+
+If an image is missing, check:
+
+1. The file exists at the expected path under `public/screenshots/`.
+2. The MDX `src` attribute matches the path exactly (case-sensitive on Linux).
+3. The dev server has been restarted after adding the file.
+
+## Related
+
+- [Contributing Guide](/docs/guides/contributing)
+- [Editor Setup](/docs/guides/editor-setup)
+- [Button Component](/docs/components/button)
