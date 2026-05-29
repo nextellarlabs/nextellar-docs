@@ -128,6 +128,91 @@ nextellar add soroban
 nextellar add freighter --force --package-manager pnpm
 ```
 
+### nextellar doctor
+
+Run environment diagnostics to verify your machine is ready for Nextellar development. The doctor command checks local tooling, network connectivity to Stellar endpoints, and available system resources.
+
+```bash
+nextellar doctor [options]
+```
+
+**Options:**
+
+| Option   | Description                                      |
+| -------- | ------------------------------------------------ |
+| `--json` | Output results as JSON for CI integration        |
+
+**What it checks:**
+
+| Check          | Required | Description                                              |
+| -------------- | -------- | -------------------------------------------------------- |
+| Node.js        | Yes      | Version 20 or later                                      |
+| npm            | Yes      | Package manager bundled with Node.js                     |
+| yarn           | No       | Optional package manager                                 |
+| pnpm           | No       | Optional package manager                                 |
+| Git            | Yes      | Version control for project scaffolding                  |
+| Rust           | No       | Needed for Soroban contract development                  |
+| Stellar CLI    | No       | Needed for contract deployment and testing               |
+| wasm32 target  | No       | Rust target for compiling Soroban contracts              |
+| Horizon API    | Yes      | Reachability of the default testnet Horizon endpoint     |
+| Soroban RPC    | No       | Reachability of the default testnet Soroban RPC endpoint |
+| Free memory    | Yes      | At least 1 GB of available RAM                           |
+
+**Examples:**
+
+```bash
+# Run environment diagnostics
+nextellar doctor
+
+# Output results as JSON (useful in CI pipelines)
+nextellar doctor --json
+```
+
+**Standard output:**
+
+```bash
+Nextellar Doctor
+
+✔ Node.js         v20.18.0 (>= 20.0.0 required)
+✔ npm             v10.8.2
+⚠ yarn            Not installed
+✔ pnpm            v9.15.4
+✔ Git             v2.47.0
+⚠ Rust            Not installed (needed for contract development)
+⚠ Stellar CLI     Not installed (needed for contract development)
+⚠ wasm32 target   Not installed
+✔ Horizon API     https://horizon-testnet.stellar.org (200)
+✔ Soroban RPC     https://soroban-testnet.stellar.org (200)
+✔ Free Memory (RAM) 4096 MB RAM free
+
+10 checks passed, 1 checks failed
+```
+
+**JSON output:**
+
+```bash
+nextellar doctor --json
+```
+
+```json
+{
+  "checks": [
+    {
+      "id": "node",
+      "name": "Node.js",
+      "required": true,
+      "ok": true,
+      "detail": "v20.18.0 (>= 20.0.0 required)"
+    }
+  ],
+  "passed": 10,
+  "failed": 1,
+  "requiredFailures": 0
+}
+```
+
+The command exits with code `0` when all required checks pass, or `1` when one or more required checks fail. Optional check failures are reported but do not affect the exit code.
+
 ### nextellar deploy
 
 Validate and prepare your project for production deployment. This command checks that your Horizon and Soroban RPC endpoints are properly configured, and builds a optimized production bundle of your Stellar dApp.
