@@ -1,0 +1,236 @@
+---
+title: Migration Guide
+description: Step-by-step instructions for upgrading Nextellar between major versions, including breaking changes and before/after examples
+date: 2026-05-29
+---
+
+# Migration Guide
+
+This guide covers every breaking change introduced in each major release of
+Nextellar and gives you the exact steps and code examples needed to upgrade.
+
+---
+
+## v1 → v2
+
+### Summary of breaking changes
+
+| Area                | Change                                                  |
+| ------------------- | ------------------------------------------------------- |
+| `WalletProvider`    | `network` prop renamed to `networkPassphrase`           |
+| `useStellarWallet`  | Balances no longer auto-fetched on connect              |
+| CLI                 | `--wallets` flag renamed to `--wallet-adapters`         |
+| Hook return shape   | `address` renamed to `publicKey`                        |
+| `useStellarPayment` | `signAndSubmitWithSecret` moved from `useStellarWallet` |
+| Node.js             | Minimum version raised from 18 to 20.18.0               |
+
+---
+
+### 1. `WalletProvider` — `network` renamed to `networkPassphrase`
+
+The `network` prop now expects the full Stellar network passphrase string instead
+of a short alias. This aligns with the Stellar SDK's own terminology.
+
+**Before (v1)**
+
+```tsx
+<WalletProvider
+  network="testnet"
+  horizonUrl="https://horizon-testnet.stellar.org"
+>
+  {children}
+</WalletProvider>
+```
+
+**After (v2)**
+
+```tsx
+import { Networks } from '@stellar/stellar-sdk';
+
+<WalletProvider
+  networkPassphrase={Networks.TESTNET}
+  horizonUrl="https://horizon-testnet.stellar.org"
+>
+  {children}
+</WalletProvider>;
+```
+
+For mainnet:
+
+```tsx
+import { Networks } from '@stellar/stellar-sdk';
+
+<WalletProvider
+  networkPassphrase={Networks.PUBLIC}
+  horizonUrl="https://horizon.stellar.org"
+>
+  {children}
+</WalletProvider>;
+```
+
+---
+
+### 2. `useStellarWallet` — balances no longer auto-fetched on connect
+
+In v1, connecting a wallet automatically triggered a balance fetch. In v2 you
+must call `fetchBalances()` explicitly. This gives you control over when network
+requests are made.
+
+**Before (v1)**
+
+```tsx
+const { connected, balances } = useStellarWallet();
+// balances populated automatically after connect
+```
+
+**After (v2)**
+
+```tsx
+const { connected, balances, fetchBalances } = useStellarWallet();
+
+useEffect(() => {
+  if (connected) {
+    fetchBalances();
+  }
+}, [connected]);
+```
+
+---
+
+### 3. CLI — `--wallets` flag renamed to `--wallet-adapters`
+
+The scaffolding CLI flag for selecting wallet adapters has been renamed for
+clarity.
+
+**Before (v1)**
+
+```bash
+npx nextellar my-app --wallets freighter,xbull
+```
+
+**After (v2)**
+
+```bash
+npx nextellar my-app --wallet-adapters freighter,xbull
+```
+
+---
+
+### 4. Hook return shape — `address` renamed to `publicKey`
+
+The `address` field returned by `useStellarWallet` has been renamed to
+`publicKey` to match Stellar SDK conventions.
+
+**Before (v1)**
+
+```tsx
+const { address } = useStellarWallet();
+console.log(address); // 'GABC...'
+```
+
+**After (v2)**
+
+```tsx
+const { publicKey } = useStellarWallet();
+console.log(publicKey); // 'GABC...'
+```
+
+Search for all uses of `.address` from `useStellarWallet` and replace them with
+`.publicKey`.
+
+---
+
+### 5. `signAndSubmitWithSecret` moved to `useStellarPayment`
+
+This method was removed from `useStellarWallet` and placed on
+`useStellarPayment` where it belongs alongside the other payment utilities.
+
+> [!CAUTION]
+> `signAndSubmitWithSecret` is for development and testing only. Never use
+> secret keys in production code.
+
+**Before (v1)**
+
+```tsx
+import { useStellarWallet } from '@/hooks/useStellarWallet';
+
+const { signAndSubmitWithSecret } = useStellarWallet();
+```
+
+**After (v2)**
+
+```tsx
+import { useStellarPayment } from '@/hooks/useStellarPayment';
+
+const { signAndSubmitWithSecret } = useStellarPayment();
+```
+
+---
+
+### 6. Node.js minimum version raised to 20.18.0
+
+Nextellar v2 requires Node.js 20.18.0 or later. Check your version before
+upgrading:
+
+```bash
+node --version
+# Must be v20.18.0 or higher
+```
+
+If you are on an older version, upgrade using a version manager:
+
+```bash
+# Using nvm
+nvm install 20
+nvm use 20
+
+# Using fnm
+fnm install 20
+fnm use 20
+```
+
+---
+
+## Upgrade steps (v1 → v2)
+
+Follow these steps in order to upgrade a v1 project:
+
+1. **Check Node.js version** — confirm `node --version` is 20.18.0 or later.
+
+2. **Update the package**
+
+   ```bash
+   npm install nextellar@latest
+   ```
+
+3. **Update `WalletProvider` props** — rename `network` to `networkPassphrase`
+   and pass the full passphrase string from `@stellar/stellar-sdk`.
+
+4. **Add explicit `fetchBalances()` calls** — find every place your code reads
+   `balances` from `useStellarWallet` and ensure `fetchBalances()` is called
+   first.
+
+5. **Rename `address` to `publicKey`** — search the project for `.address` from
+   the wallet hook and update to `.publicKey`.
+
+6. **Update `signAndSubmitWithSecret` import** — move it from
+   `useStellarWallet` to `useStellarPayment`.
+
+7. **Update CLI scripts** — replace `--wallets` with `--wallet-adapters` in any
+   scripts or CI commands that scaffold new projects.
+
+8. **Run a full build** — confirm everything compiles cleanly:
+
+   ```bash
+   pnpm build
+   ```
+
+---
+
+## Related
+
+- [Installation](/docs/getting-started/installation)
+- [Wallet Integration](/docs/sdk/wallet-integration)
+- [useStellarWallet](/docs/hooks/use-stellar-wallet)
+- [useStellarPayment](/docs/hooks/use-stellar-payment)
+- [WalletProvider](/docs/hooks/wallet-provider)
