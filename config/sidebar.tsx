@@ -154,16 +154,17 @@ export const sidebarNav: SidebarSection[] = [
     icon: <Plug className="h-5 w-5" />,
     defaultOpen: false,
     pages: [
-      { title: 'Stellar Horizon', href: '/docs/integrations/horizon' },
-      {
-        title: 'Soroban (Smart Contracts)',
-        href: '/docs/integrations/soroban',
-      },
+      { title: 'Overview', href: '/docs/integrations' },
       {
         title: 'Wallets (Freighter, Albedo, Lobstr, xBull, Hana)',
         href: '/docs/integrations/wallets',
       },
       { title: 'WalletConnect', href: '/docs/integrations/walletconnect' },
+      { title: 'Stellar Horizon', href: '/docs/integrations/horizon' },
+      {
+        title: 'Soroban (Smart Contracts)',
+        href: '/docs/integrations/soroban',
+      },
       { title: 'Testing (MSW)', href: '/docs/integrations/testing' },
     ],
   },

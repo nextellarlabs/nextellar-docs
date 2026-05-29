@@ -7,31 +7,21 @@ description: How Nextellar integrates with Stellar, Soroban, and wallet provider
 
 Nextellar provides seamless integrations with the Stellar ecosystem, including Horizon API, Soroban smart contracts, and multi-wallet support.
 
+## Recommended Reading Flow
+
+Read the integrations section in this order when you are adding Stellar support to an application:
+
+1. [Wallets](/docs/integrations/wallets) - Configure wallet providers and signing.
+2. [WalletConnect](/docs/integrations/walletconnect) - Add the user-facing connection flow.
+3. [Stellar Horizon](/docs/integrations/horizon) - Read accounts, balances, payments, and order books.
+4. [Soroban](/docs/integrations/soroban) - Add smart contract reads, invocations, and events.
+5. [Testing](/docs/integrations/testing) - Mock network APIs and wallet signing in tests.
+
 ## Core Integrations
 
 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-6">
   <a
-    href="/integrations/horizon"
-    className="block p-4 border rounded-lg hover:border-primary no-underline"
-  >
-    <h4 className="font-semibold">Stellar Horizon</h4>
-    <span className="text-sm text-muted-foreground block">
-      Account queries, payments, transaction history, and DEX operations
-    </span>
-  </a>
-
-  <a
-    href="/integrations/soroban"
-    className="block p-4 border rounded-lg hover:border-primary no-underline"
-  >
-    <h4 className="font-semibold">Soroban (Smart Contracts)</h4>
-    <span className="text-sm text-muted-foreground block">
-      Invoke contract functions, listen to events, and build dApps
-    </span>
-  </a>
-
-  <a
-    href="/integrations/wallets"
+    href="/docs/integrations/wallets"
     className="block p-4 border rounded-lg hover:border-primary no-underline"
   >
     <h4 className="font-semibold">
@@ -43,7 +33,7 @@ Nextellar provides seamless integrations with the Stellar ecosystem, including H
   </a>
 
   <a
-    href="/integrations/walletconnect"
+    href="/docs/integrations/walletconnect"
     className="block p-4 border rounded-lg hover:border-primary no-underline"
   >
     <h4 className="font-semibold">WalletConnect</h4>
@@ -53,7 +43,27 @@ Nextellar provides seamless integrations with the Stellar ecosystem, including H
   </a>
 
   <a
-    href="/integrations/testing"
+    href="/docs/integrations/horizon"
+    className="block p-4 border rounded-lg hover:border-primary no-underline"
+  >
+    <h4 className="font-semibold">Stellar Horizon</h4>
+    <span className="text-sm text-muted-foreground block">
+      Account queries, payments, transaction history, and DEX operations
+    </span>
+  </a>
+
+  <a
+    href="/docs/integrations/soroban"
+    className="block p-4 border rounded-lg hover:border-primary no-underline"
+  >
+    <h4 className="font-semibold">Soroban (Smart Contracts)</h4>
+    <span className="text-sm text-muted-foreground block">
+      Invoke contract functions, listen to events, and build dApps
+    </span>
+  </a>
+
+  <a
+    href="/docs/integrations/testing"
     className="block p-4 border rounded-lg hover:border-primary no-underline"
   >
     <h4 className="font-semibold">Testing (MSW)</h4>
@@ -170,6 +180,8 @@ function TokenBalance({ contractId }) {
 
 ## Related
 
+- [Wallets](/docs/integrations/wallets) - Start with provider and wallet configuration
+- [WalletConnect](/docs/integrations/walletconnect) - Add the connection UI
 - [SDK Overview](/docs/sdk/overview) - Full SDK documentation
 - [Hooks Reference](/docs/hooks) - All 8 production hooks
 - [Components](/docs/components/connect-wallet-button) - UI components
