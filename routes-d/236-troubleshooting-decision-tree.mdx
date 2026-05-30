@@ -1,0 +1,459 @@
+---
+title: Troubleshooting Decision Tree
+description: Interactive decision tree to diagnose and fix common Nextellar issues
+---
+
+# Troubleshooting Decision Tree
+
+Use this decision tree to quickly diagnose and fix issues with your Nextellar application. Start at the top and follow the path that matches your symptom.
+
+> **Quick tip**: Have your error message ready. Copy the exact error text from your terminal or browser console for the most accurate diagnosis.
+
+## Start: What are you experiencing?
+
+### 🚀 Installation & Setup Issues
+
+**Symptom**: Problems installing Nextellar or creating a new project
+
+→ [Go to Installation Decision Tree](#installation--setup-decision-tree)
+
+### 🔌 Wallet Connection Issues
+
+**Symptom**: Cannot connect wallet or wallet behaves unexpectedly
+
+→ [Go to Wallet Connection Decision Tree](#wallet-connection-decision-tree)
+
+### 💸 Payment & Transaction Issues
+
+**Symptom**: Payments fail, transactions don't appear, or balance issues
+
+→ [Go to Payment & Transaction Decision Tree](#payment--transaction-decision-tree)
+
+### ⚙️ Configuration & Environment Issues
+
+**Symptom**: Environment variables, network, or Horizon configuration problems
+
+→ [Go to Configuration Decision Tree](#configuration--environment-decision-tree)
+
+### 📚 Documentation Build Issues
+
+**Symptom**: Problems building documentation or content generation errors
+
+→ [Go to Documentation Build Decision Tree](#documentation-build-decision-tree)
+
+---
+
+## Installation & Setup Decision Tree
+
+### Symptom: `nextellar: command not found`
+
+**Q1**: Did you use `npx` to run the command?
+
+- **Yes** → The issue is likely with your Node.js installation or PATH
+  - **Fix**: Run `node --version` to verify Node.js 20.18.0+ is installed
+  - **Fix**: Upgrade Node.js from [nodejs.org](https://nodejs.org/) or use a version manager (`nvm`, `fnm`)
+  - **Fix**: Try `npx --version` to verify npx is working
+
+- **No** → You're trying to use a global install
+  - **Fix**: Use `npx nextellar my-app` instead (recommended, no global install needed)
+  - **Fix**: Or install globally: `npm install -g nextellar`
+  - **Fix**: Verify with `which nextellar` after global install
+
+### Symptom: Installation stops or times out
+
+**Q1**: Is it during dependency installation?
+
+- **Yes** → Network or disk space issue
+  - **Fix**: Increase timeout: `npx nextellar my-app --install-timeout 3600000`
+  - **Fix**: Skip auto-install: `npx nextellar my-app --skip-install`, then `cd my-app && npm install`
+  - **Fix**: Ensure at least 500MB free disk space
+  - **Fix**: Check network connection and npm registry: `npm config get registry`
+
+- **No** → Issue during scaffolding
+  - **Fix**: Check Node.js version: `node --version` (must be 20.18.0+)
+  - **Fix**: Clear npm cache: `npm cache clean --force`
+  - **Fix**: Try with a different package manager: `npx nextellar my-app --package-manager pnpm`
+
+### Symptom: `EACCES: permission denied`
+
+**Q1**: Are you using `sudo` with npm?
+
+- **Yes** → Permission issue with global install
+  - **Fix**: Avoid `sudo` with npm. Fix ownership: `sudo chown -R $(whoami) ~/.npm`
+  - **Fix**: Prefer `npx nextellar my-app` (no global install needed)
+
+- **No** → System directory permission issue
+  - **Fix**: Fix npm directory ownership: `sudo chown -R $(whoami) ~/.npm`
+  - **Fix**: Use `npx` instead of global install
+
+### Symptom: `Port 3000 is already in use`
+
+**Q1**: Do you need port 3000 specifically?
+
+- **Yes** → Stop the process using port 3000
+  - **Fix**: Find and kill the process: `lsof -ti:3000 | xargs kill -9` (Linux/Mac)
+  - **Fix**: Or close the app using port 3000
+
+- **No** → Use a different port
+  - **Fix**: Start on another port: `npm run dev -- -p 3001`
+
+### Symptom: `Module not found` or dependency errors
+
+**Q1**: Did you just install the project?
+
+- **Yes** → Incomplete installation
+  - **Fix**: Reinstall dependencies: `rm -rf node_modules package-lock.json && npm install`
+  - **Fix**: Use the same package manager the project was created with
+
+- **No** → Corrupted dependencies or mixed package managers
+  - **Fix**: Clear and reinstall: `rm -rf node_modules package-lock.json && npm install`
+  - **Fix**: Ensure consistent package manager usage (don't mix npm, yarn, pnpm)
+
+---
+
+## Wallet Connection Decision Tree
+
+### Symptom: Wallet connection fails with no specific error
+
+**Q1**: Is your wallet unlocked?
+
+- **No** → Unlock your wallet
+  - **Fix**: Unlock Freighter/Albedo/other wallet in your browser
+  - **Fix**: Retry connection
+
+- **Yes** → Network mismatch issue
+  - **Fix**: Check wallet network setting (testnet vs mainnet)
+  - **Fix**: Match wallet network to your app configuration
+  - **Fix**: For development, use TESTNET on both wallet and app
+  - **Fix**: Hard-refresh the page and try again
+
+### Symptom: `User rejected` or `User rejected the request`
+
+**Q1**: Did you intentionally cancel?
+
+- **Yes** → User cancelled the action
+  - **Fix**: This is expected behavior. Try again if you want to proceed
+  - **Fix**: Show a clear "Connection cancelled" message in your UI
+
+- **No** → Popup was closed accidentally
+  - **Fix**: Allow popups for your site (localhost or your domain)
+  - **Fix**: Check if popup blocker is enabled
+  - **Fix**: Try connecting again
+
+### Symptom: `not installed` or wallet extension not found
+
+**Q1**: Is the wallet installed in your browser?
+
+- **No** → Install the wallet
+  - **Fix**: Install [Freighter](https://www.freighter.app/)
+  - **Fix**: Install other supported wallets (Albedo, Lobstr, xBull, Hana)
+  - **Fix**: Refresh the page after installation
+  - **Fix**: See [Wallet Integrations](/docs/integrations/wallets) for links
+
+- **Yes** → Wallet is disabled or not detected
+  - **Fix**: Enable the wallet extension in browser settings
+  - **Fix**: Refresh the page
+  - **Fix**: Try a different browser
+
+### Symptom: Popup blocked or connection timeout
+
+**Q1**: Are you using localhost?
+
+- **Yes** → Popup blocker issue
+  - **Fix**: Allow popups for localhost in your browser
+  - **Fix**: Check browser popup blocker settings
+  - **Fix**: Try again after allowing popups
+
+- **No** → Domain popup issue
+  - **Fix**: Allow popups for your domain in browser settings
+  - **Fix**: Check if your wallet extension has permission for your site
+  - **Fix**: Try a different browser
+
+### Symptom: Wallet connects but balance shows 0
+
+**Q1**: Is this a new account?
+
+- **Yes** → Account not funded
+  - **Fix**: Fund testnet account via [Friendbot](https://laboratory.stellar.org/#account-creator)
+  - **Fix**: For mainnet, send XLM to the address from another account
+  - **Fix**: Wait 5-10 seconds for network confirmation
+  - **Fix**: Refresh balances: call `refreshBalances()` from the hook
+
+- **No** → Balance not refreshed or wrong network
+  - **Fix**: Manually refresh: call `refreshBalances()` from `useStellarWallet`
+  - **Fix**: Check you're on the correct network (testnet vs mainnet)
+  - **Fix**: Verify Horizon URL matches your network
+
+---
+
+## Payment & Transaction Decision Tree
+
+### Symptom: Payment fails with `op_underfunded` or insufficient balance
+
+**Q1**: Do you have enough XLM for the payment?
+
+- **No** → Insufficient funds
+  - **Fix**: Check your balance with [useStellarBalances](/docs/hooks/use-stellar-balances)
+  - **Fix**: On testnet, fund via [Friendbot](https://laboratory.stellar.org/#account-creator)
+  - **Fix**: Ensure amount is greater than 0
+  - **Fix**: Leave at least 2 XLM for minimum reserve (1 XLM base + 0.5 XLM per trustline/offer)
+
+- **Yes** → Reserve issue
+  - **Fix**: Stellar requires minimum balance (1 XLM base + 0.5 XLM per trustline/offer)
+  - **Fix**: Reduce payment amount to leave enough for reserves
+  - **Fix**: Check number of trustlines and offers on your account
+
+### Symptom: Payment fails with `tx_bad_seq`
+
+**Q1**: Did you recently submit another transaction?
+
+- **Yes** → Sequence number out of sync
+  - **Fix**: Rebuild and resubmit the transaction
+  - **Fix**: Fetch fresh sequence from Horizon before signing again
+  - **Fix**: Avoid submitting the same signed XDR twice
+
+- **No** → Concurrent transaction issue
+  - **Fix**: Wait for previous transaction to complete
+  - **Fix**: Rebuild transaction with current sequence number
+  - **Fix**: Use transaction queueing in your app
+
+### Symptom: Payment fails with `tx_too_late`
+
+**Q1**: Did the transaction take long to submit?
+
+- **Yes** → Transaction expired
+  - **Fix**: Rebuild the transaction with a new timebound
+  - **Fix**: Submit promptly after building
+  - **Fix**: Increase timebound if network is slow
+
+- **No** → Timebound too tight
+  - **Fix**: Increase transaction timebound when building
+  - **Fix**: Submit immediately after signing
+
+### Symptom: Payment fails with invalid recipient
+
+**Q1**: Is the recipient address format correct?
+
+- **No** → Invalid address format
+  - **Fix**: Use a valid Stellar address (starts with 'G', 56 characters)
+  - **Fix**: Validate address before submission
+  - **Fix**: Copy address carefully from source
+
+- **Yes** → Network mismatch
+  - **Fix**: Confirm testnet vs mainnet for recipient
+  - **Fix**: Ensure both sender and recipient on same network
+  - **Fix**: Check Horizon URL configuration
+
+### Symptom: Transaction not appearing in history
+
+**Q1**: Did you just submit it?
+
+- **Yes** → Ledger not yet closed
+  - **Fix**: Wait 5-10 seconds for network confirmation
+  - **Fix**: Refresh transaction history
+  - **Fix**: Check [Stellar Expert](https://stellar.expert) for transaction status
+
+- **No** → Wrong network or explorer
+  - **Fix**: Confirm testnet vs mainnet
+  - **Fix**: Check correct network explorer (testnet.stellar.expert vs stellar.expert)
+  - **Fix**: Verify Horizon URL matches network
+
+### Symptom: Horizon `404` or account not found
+
+**Q1**: Has this account been funded before?
+
+- **No** → Unfunded account
+  - **Fix**: Fund testnet account via [Friendbot](https://laboratory.stellar.org/#account-creator)
+  - **Fix**: For mainnet, send XLM to activate
+  - **Fix**: Wait for funding to complete
+
+- **Yes** → Wrong network or Horizon URL
+  - **Fix**: Verify `NEXT_PUBLIC_HORIZON_URL` is correct
+  - **Fix**: Check `NEXT_PUBLIC_NETWORK` matches your network
+  - **Fix**: See [Horizon Integration](/docs/integrations/horizon#error-handling)
+
+### Symptom: Horizon `400` or bad request
+
+**Q1**: Are you passing valid parameters?
+
+- **No** → Invalid parameters
+  - **Fix**: Validate addresses (56 characters, starts with 'G')
+  - **Fix**: Validate amounts (must be numbers, greater than 0)
+  - **Fix**: Check asset codes and issuers
+  - **Fix**: See [useStellarPayment](/docs/hooks/use-stellar-payment#error-handling)
+
+- **Yes** → Malformed request
+  - **Fix**: Check hook inputs for correct format
+  - **Fix**: Review Horizon API documentation
+  - **Fix**: Test with simpler parameters first
+
+### Symptom: Horizon `504` or timeout
+
+**Q1**: Is this a one-time issue?
+
+- **Yes** → Temporary network issue
+  - **Fix**: Retry the request
+  - **Fix**: Call `refresh()` on the hook
+  - **Fix**: Wait a few seconds and try again
+
+- **No** → Chronic Horizon issues
+  - **Fix**: Use a reliable Horizon endpoint
+  - **Fix**: Consider self-hosting Horizon for production
+  - **Fix**: Reduce aggressive polling intervals
+
+---
+
+## Configuration & Environment Decision Tree
+
+### Symptom: `NEXT_PUBLIC_HORIZON_URL is required`
+
+**Q1**: Is the environment variable set?
+
+- **No** → Missing environment variable
+  - **Fix**: Add `NEXT_PUBLIC_HORIZON_URL` to `.env.local`
+  - **Fix**: For testnet: `NEXT_PUBLIC_HORIZON_URL=https://horizon-testnet.stellar.org`
+  - **Fix**: For mainnet: `NEXT_PUBLIC_HORIZON_URL=https://horizon.stellar.org`
+  - **Fix**: Restart dev server after changing env files
+
+- **Yes** → Not loading correctly
+  - **Fix**: Ensure file is named `.env.local` (not `.env.example`)
+  - **Fix**: Restart dev server: `npm run dev`
+  - **Fix**: Check for typos in variable name
+
+### Symptom: `NEXT_PUBLIC_NETWORK is required`
+
+**Q1**: Is the network passphrase set?
+
+- **No** → Missing network variable
+  - **Fix**: Add `NEXT_PUBLIC_NETWORK` to `.env.local`
+  - **Fix**: For testnet: `NEXT_PUBLIC_NETWORK=Test SDF Network ; September 2015`
+  - **Fix**: For mainnet: `NEXT_PUBLIC_NETWORK=Public Global Stellar Network ; September 2015`
+  - **Fix**: Restart dev server
+
+- **Yes** → Incorrect value
+  - **Fix**: Verify exact passphrase (copy from docs)
+  - **Fix**: Ensure no extra spaces or quotes
+  - **Fix**: Restart dev server
+
+### Symptom: Wrong network / mainnet vs testnet mismatch
+
+**Q1**: Are wallet, Horizon URL, and network aligned?
+
+- **No** → Network configuration mismatch
+  - **Fix**: Update all three together
+  - **Fix**: Wallet network setting must match
+  - **Fix**: Horizon URL must match network
+  - **Fix**: `NEXT_PUBLIC_NETWORK` must match
+  - **Fix**: See [CLI Configuration](/docs/cli/configuration#network-switching)
+
+- **Yes** → Cached state issue
+  - **Fix**: Hard-refresh the page
+  - **Fix**: Clear browser cache
+  - **Fix**: Disconnect and reconnect wallet
+
+### Symptom: Environment variables not loading in production
+
+**Q1**: Did you set them in the hosting platform?
+
+- **No** → Missing production env vars
+  - **Fix**: Add environment variables in hosting platform (Vercel, Netlify, etc.)
+  - **Fix**: Ensure variables start with `NEXT_PUBLIC_` for client-side access
+  - **Fix**: Redeploy after adding variables
+
+- **Yes** → Build-time vs runtime issue
+  - **Fix**: `NEXT_PUBLIC_` vars are build-time in some platforms
+  - **Fix**: Use server-side environment variables for sensitive data
+  - **Fix**: Check hosting platform documentation
+
+---
+
+## Documentation Build Decision Tree
+
+### Symptom: `Missing required field "description"`
+
+**Q1**: Does your MDX file have frontmatter?
+
+- **No** → Missing frontmatter
+  - **Fix**: Add YAML frontmatter at top of file
+  - **Fix**: Include both `title` and `description` fields
+  - **Fix**: Example:
+    ```yaml
+    ---
+    title: My Page
+    description: A short description of this page.
+    ---
+    ```
+
+- **Yes** → Missing description field
+  - **Fix**: Add `description` field to frontmatter
+  - **Fix**: Ensure proper YAML formatting
+  - **Fix**: See [Contributing](/docs/guides/contributing#troubleshooting-content-build-issues)
+
+### Symptom: `Link target not found` or broken internal link
+
+**Q1**: Does the target file exist?
+
+- **No** → File doesn't exist
+  - **Fix**: Create the target file
+  - **Fix**: Or update the link to point to existing file
+  - **Fix**: Use paths like `/docs/cli/commands`
+
+- **Yes** → Incorrect path format
+  - **Fix**: Use correct path format: `/docs/section/file`
+  - **Fix**: Confirm file extension is `.mdx`
+  - **Fix**: Run `pnpm check:links` with `pnpm dev` running
+
+### Symptom: `Unexpected token` or MDX syntax error
+
+**Q1**: Do you have unclosed JSX tags?
+
+- **Yes** → Unclosed JSX
+  - **Fix**: Close all JSX components with proper closing tags
+  - **Fix**: Use self-closing tags for empty components: `<Component />`
+  - **Fix**: Run `pnpm build:content` for file and line number
+
+- **No** → Invalid MDX syntax
+  - **Fix**: Wrap literal angle-brackets in backticks: `<` → `\<`
+  - **Fix**: Check for unescaped special characters
+  - **Fix**: Run `pnpm build:content` for specific error location
+
+### Symptom: `Can't resolve 'contentlayer/generated'`
+
+**Q1**: Did you run the content build?
+
+- **No** → Content build not run
+  - **Fix**: Run `pnpm build:content`
+  - **Fix**: Then run `pnpm dev`
+
+- **Yes** → Build failed or cache issue
+  - **Fix**: Check build output for errors
+  - **Fix**: Clear cache: `rm -rf .contentlayer && pnpm build:content`
+  - **Fix**: Fix any MDX errors before running dev server
+
+---
+
+## Still Stuck?
+
+If you've followed the decision tree and the issue persists:
+
+1. **Copy the exact error message** from your terminal or browser console
+2. **Search the documentation** for the error text
+3. **Check the [Common Error Messages](/docs/troubleshooting/common-error-messages)** reference
+4. **Open a GitHub issue** with:
+   - The exact error message
+   - Steps to reproduce
+   - Your environment (Node.js version, OS, browser)
+   - What you've already tried
+
+### Get Help
+
+- [GitHub Issues](https://github.com/nextellarlabs/nextellar/issues) — Report bugs
+- [GitHub Discussions](https://github.com/nextellarlabs/nextellar/discussions) — Ask questions
+- [Installation Guide](/docs/getting-started/installation#troubleshooting) — Install-specific issues
+- [Hook Error Handling](/docs/guides/hook-error-handling) — Hook-specific patterns
+
+---
+
+<p className="text-sm text-center text-muted-foreground mt-8">
+  <a href="#">Back to top</a>
+</p>

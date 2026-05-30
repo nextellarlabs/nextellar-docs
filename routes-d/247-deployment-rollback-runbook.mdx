@@ -1,0 +1,476 @@
+---
+title: Deployment and Rollback Runbook
+description: Complete procedures for deploying and rolling back the Nextellar documentation site
+---
+
+# Deployment and Rollback Runbook
+
+This runbook provides step-by-step procedures for deploying and rolling back the Nextellar documentation site. Follow these procedures to ensure safe and reliable deployments.
+
+> **Important**: This runbook is for the documentation site deployment, not for Nextellar applications built with the CLI. For deploying your own Nextellar dApp, see the [Deployment Guide](/docs/guides/deployment).
+
+---
+
+## Pre-Deployment Checklist
+
+Before initiating a deployment, complete these checks:
+
+### Environment Verification
+
+- [ ] Node.js version is `>=18` (run `node --version`)
+- [ ] pnpm is installed (run `pnpm --version`)
+- [ ] You have write access to the repository
+- [ ] You have deployment permissions for the hosting provider
+- [ ] No ongoing incidents or outages
+
+### Code Quality Checks
+
+- [ ] All changes are committed to the branch
+- [ ] Pull request has been reviewed and approved
+- [ ] `pnpm install --frozen-lockfile` passes
+- [ ] `pnpm build:content` passes without errors
+- [ ] `pnpm check:links` passes (requires dev server running)
+- [ ] `pnpm build` passes
+- [ ] No TypeScript errors
+- [ ] No linting errors
+
+### Content Verification
+
+- [ ] New pages have proper frontmatter (`title` and `description`)
+- [ ] Internal links use `/docs/...` format
+- [ ] External links are accessible
+- [ ] Code blocks are properly formatted
+- [ ] Images and assets are present
+- [ ] Drafts are in `routes-d/` (not in `docs/`)
+
+### Documentation Review
+
+- [ ] Changes align with documentation standards
+- [ ] Technical accuracy verified
+- [ ] Spelling and grammar checked
+- [ ] Cross-references are correct
+- [ ] Maintainer has approved the changes
+
+---
+
+## Deployment Procedure
+
+### Step 1: Prepare the Branch
+
+Ensure your branch is ready for deployment:
+
+```bash
+# Ensure you're on the correct branch
+git checkout your-branch-name
+
+# Pull latest changes
+git pull origin your-branch-name
+
+# Verify no uncommitted changes
+git status
+```
+
+### Step 2: Run Local Build Verification
+
+Run the full build process locally to catch any issues:
+
+```bash
+# Install dependencies with exact versions
+pnpm install --frozen-lockfile
+
+# Generate content from MDX files
+pnpm build:content
+
+# Check internal links (requires dev server in separate terminal)
+pnpm dev  # Run in separate terminal
+pnpm check:links  # Run in original terminal
+
+# Build production bundle
+pnpm build
+```
+
+If any step fails, fix the issues before proceeding.
+
+### Step 3: Merge to Main
+
+After all checks pass:
+
+```bash
+# Switch to main branch
+git checkout main
+
+# Pull latest main
+git pull origin main
+
+# Merge your branch
+git merge your-branch-name
+
+# Push to main
+git push origin main
+```
+
+### Step 4: Trigger Deployment
+
+The hosting provider will automatically detect the push to main and initiate deployment.
+
+**For Vercel**:
+
+- Deployment starts automatically on push to main
+- Monitor deployment in Vercel dashboard
+- Wait for deployment to complete
+
+**For other providers**:
+
+- Trigger deployment through provider's interface
+- Monitor deployment logs
+- Wait for deployment to complete
+
+### Step 5: Post-Deployment Verification
+
+After deployment completes, verify the site:
+
+```bash
+# Visit the production URL
+# Check the following pages:
+```
+
+- [ ] Homepage loads correctly
+- [ ] Navigation works
+- [ ] New/changed pages render properly
+- [ ] Internal links work
+- [ ] External links work
+- [ ] Images load correctly
+- [ ] Code blocks display properly
+- [ ] Search functionality works
+- [ ] Mobile responsiveness is intact
+
+### Step 6: Smoke Test Key Pages
+
+Test critical pages:
+
+- [ ] [Getting Started](/docs/getting-started)
+- [ ] [Installation](/docs/getting-started/installation)
+- [ ] [Quick Start](/docs/getting-started/quick-start)
+- [ ] [Hooks Index](/docs/hooks)
+- [ ] [CLI Reference](/docs/cli/commands)
+- [ ] [Deployment Guide](/docs/guides/deployment)
+
+---
+
+## Rollback Procedure
+
+### When to Rollback
+
+Initiate a rollback if:
+
+- Critical pages are broken or inaccessible
+- Navigation is non-functional
+- Internal links are broken
+- Content is garbled or missing
+- Build errors prevent site access
+- Security concerns are identified
+- Performance degradation is severe
+
+### Rollback Decision Matrix
+
+| Severity                      | Action             | Timeframe    |
+| ----------------------------- | ------------------ | ------------ |
+| Critical (site down)          | Immediate rollback | < 5 minutes  |
+| High (major feature broken)   | Rollback or hotfix | < 15 minutes |
+| Medium (minor feature broken) | Hotfix preferred   | < 1 hour     |
+| Low (cosmetic issue)          | Schedule fix       | Next release |
+
+### Rollback Procedure: Git Revert
+
+Use this method for quick rollbacks:
+
+```bash
+# Checkout main branch
+git checkout main
+
+# Pull latest main
+git pull origin main
+
+# Find the commit hash before the broken deployment
+git log --oneline -10
+
+# Revert the merge commit
+git revert <merge-commit-hash>
+
+# Push the revert
+git push origin main
+```
+
+The hosting provider will automatically deploy the reverted version.
+
+### Rollback Procedure: Branch Fix
+
+Use this method if you need to make changes during rollback:
+
+```bash
+# Create a hotfix branch from main
+git checkout main
+git pull origin main
+git checkout -b hotfix/rollback-issue
+
+# Revert the problematic changes
+git revert <commit-hash>
+
+# Or manually edit files to restore working state
+# ... make necessary changes ...
+
+# Commit and push the hotfix branch
+git add .
+git commit -m "Hotfix: Rollback broken deployment"
+git push origin hotfix/rollback-issue
+
+# Create and merge pull request
+# Follow normal deployment procedure
+```
+
+### Rollback Procedure: Hosting Provider Rollback
+
+Some hosting providers offer direct rollback:
+
+**Vercel**:
+
+1. Go to the Vercel dashboard
+2. Select the project
+3. Go to Deployments
+4. Find the last successful deployment
+5. Click "..." → "Redeploy" or "Rollback"
+
+**Netlify**:
+
+1. Go to the Netlify dashboard
+2. Select the site
+3. Go to Deploys
+4. Find the last successful deployment
+5. Click "Publish deploy"
+
+### Post-Rollback Verification
+
+After rollback completes:
+
+- [ ] Site is accessible
+- [ ] Homepage loads correctly
+- [ ] Navigation works
+- [ ] Critical pages are functional
+- [ ] Internal links work
+- [ ] No error messages in browser console
+- [ ] No errors in hosting provider logs
+
+### Document the Incident
+
+After rollback, document:
+
+1. What broke
+2. When it broke
+3. What caused the break
+4. What was rolled back
+5. Timeline of events
+6. Lessons learned
+
+Add this information to the deployment notes or incident log.
+
+---
+
+## Emergency Contacts
+
+### On-Call Responsibilities
+
+| Role                     | Contact       | Availability                                |
+| ------------------------ | ------------- | ------------------------------------------- |
+| Documentation Maintainer | GitHub Issues | Response within 24 hours                    |
+| Site Administrator       | GitHub Issues | Response within 4 hours for critical issues |
+| Infrastructure Team      | GitHub Issues | Response within 1 hour for site outages     |
+
+### Contact Channels
+
+**For Critical Issues** (site down, broken deployments):
+
+- Open a GitHub Issue with label `critical`
+- Tag relevant maintainainers
+- Include deployment ID and error logs
+
+**For Non-Critical Issues**:
+
+- Open a GitHub Issue with label `bug`
+- Describe the issue and impact
+- Include steps to reproduce
+
+**For Security Issues**:
+
+- Do not open a public issue
+- Follow the repository's security policy
+- Contact maintainers privately
+
+### Escalation Path
+
+1. **First**: Open a GitHub Issue
+2. **If no response in 4 hours**: Tag additional maintainers
+3. **If no response in 8 hours**: Use project communication channels (Discord, Slack, etc.)
+4. **For critical outages**: Contact infrastructure team directly
+
+---
+
+## Common Deployment Issues
+
+### Issue: Build Fails
+
+**Symptoms**: Deployment fails during build step
+
+**Troubleshooting**:
+
+1. Check build logs for specific error
+2. Verify `pnpm build` passes locally
+3. Check Node.js version matches requirements
+4. Verify all dependencies are installed
+5. Check for syntax errors in MDX files
+
+**Resolution**:
+
+- Fix the build error locally
+- Test with `pnpm build`
+- Commit and push the fix
+- Trigger new deployment
+
+### Issue: Link Check Fails
+
+**Symptoms**: `pnpm check:links` reports broken links
+
+**Troubleshooting**:
+
+1. Ensure dev server is running (`pnpm dev`)
+2. Check for typos in link paths
+3. Verify target files exist in `docs/`
+4. Check for incorrect link format
+
+**Resolution**:
+
+- Fix broken links
+- Re-run `pnpm check:links`
+- Commit and push the fix
+
+### Issue: Content Build Fails
+
+**Symptoms**: `pnpm build:content` reports errors
+
+**Troubleshooting**:
+
+1. Check for missing frontmatter in MDX files
+2. Verify proper YAML formatting
+3. Check for unclosed JSX tags
+4. Look for syntax errors in MDX
+
+**Resolution**:
+
+- Fix MDX syntax errors
+- Re-run `pnpm build:content`
+- Commit and push the fix
+
+### Issue: Deployment Succeeds but Site Broken
+
+**Symptoms**: Deployment completes but site is non-functional
+
+**Troubleshooting**:
+
+1. Check browser console for errors
+2. Verify hosting provider logs
+3. Check if environment variables are set
+4. Verify CDN is propagating changes
+5. Check for caching issues
+
+**Resolution**:
+
+- If critical: Initiate rollback immediately
+- If minor: Create hotfix branch
+- Document the issue for investigation
+
+### Issue: Slow Deployment
+
+**Symptoms**: Deployment takes longer than usual
+
+**Troubleshooting**:
+
+1. Check hosting provider status page
+2. Verify no network issues
+3. Check if build cache is working
+4. Look for large file changes
+
+**Resolution**:
+
+- Wait for deployment to complete
+- If consistently slow, investigate build optimization
+- Consider splitting large deployments
+
+---
+
+## Deployment Best Practices
+
+### Before Deployment
+
+- Test changes locally first
+- Use feature branches for all changes
+- Get code reviews before merging
+- Run all build checks
+- Verify links and content
+
+### During Deployment
+
+- Monitor deployment logs
+- Have rollback plan ready
+- Communicate with team
+- Document any issues
+
+### After Deployment
+
+- Verify site functionality
+- Monitor for errors
+- Gather user feedback
+- Document any issues
+- Update runbook if needed
+
+### Regular Maintenance
+
+- Keep dependencies updated
+- Review deployment logs regularly
+- Update runbook with lessons learned
+- Monitor deployment metrics
+- Practice rollback procedures
+
+---
+
+## Deployment Metrics
+
+Track these metrics to improve deployment reliability:
+
+| Metric                  | Target              | Current |
+| ----------------------- | ------------------- | ------- |
+| Build success rate      | > 95%               | TBD     |
+| Average deployment time | < 5 minutes         | TBD     |
+| Rollback frequency      | < 5% of deployments | TBD     |
+| Post-deployment issues  | < 2% of deployments | TBD     |
+
+---
+
+## Related Documentation
+
+- [Deployment Guide](/docs/guides/deployment) - Overview of deployment process
+- [Testing Docs Changes](/docs/guides/testing-docs-changes) - Local testing workflow
+- [Link Validation](/docs/guides/link-validation) - Internal link checks
+- [Contributing](/docs/guides/contributing) - Contribution guidelines
+
+---
+
+## Change Log
+
+| Date       | Change                   | Author             |
+| ---------- | ------------------------ | ------------------ |
+| 2026-05-30 | Initial runbook creation | Documentation Team |
+
+---
+
+<p className="text-sm text-center text-muted-foreground mt-8">
+  <a href="#">Back to top</a>
+</p>
