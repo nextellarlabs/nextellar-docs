@@ -1,0 +1,251 @@
+---
+title: Documentation Page Lifecycle
+description: Draft guide for the complete lifecycle of a docs page, from initial draft through review, publication, maintenance, and archive.
+---
+
+# Documentation Page Lifecycle
+
+Working draft for issue #336 - document the full lifecycle of a docs page from draft to archive.
+
+> This draft lives in `routes-d/` per the issue constraint and is outside `docs/`, so it is not picked up by Contentlayer and does not affect the production build.
+
+---
+
+## Overview
+
+A docs page should move through a predictable lifecycle so maintainers can decide when content is ready to publish, when it needs a refresh, and when it should be retired. This guide defines each stage, the review gates between stages, and the criteria for archiving content that is no longer current.
+
+The workflow is designed to keep pages accurate without letting outdated material linger in the active docs set.
+
+---
+
+## Lifecycle Stages
+
+### 1. Draft
+
+The page is being written in `routes-d/` or another working location before it becomes part of the published docs.
+
+**Purpose**
+
+- Capture the initial structure, scope, and examples
+- Validate that the topic is worth publishing
+- Keep unfinished content out of the live docs tree
+
+**Exit criteria**
+
+- Frontmatter is present with `title` and `description`
+- The page has a clear purpose and intended audience
+- Internal links point only to existing docs pages
+- The content follows the current writing style in [Docs Style Guide](/docs/guides/style-guide)
+
+### 2. Content Review
+
+The draft is reviewed for clarity, completeness, and consistency before it is promoted.
+
+**Purpose**
+
+- Confirm the page answers the intended question
+- Check that examples, steps, and links are accurate
+- Make sure the page matches related guides and reference pages
+
+**Exit criteria**
+
+- A second reviewer confirms the content is technically sound
+- The page uses correct headings, lists, tables, and code fences
+- Any missing context or unclear sections are resolved
+
+### 3. Maintainer Review
+
+A maintainer gives the final approval before the page is published or merged.
+
+**Purpose**
+
+- Confirm the page fits the documentation roadmap
+- Check that it does not duplicate another page unnecessarily
+- Verify the page can be maintained over time
+
+**Exit criteria**
+
+- A maintainer has explicitly approved the page
+- Any requested edits have been completed
+- The page passes build and link validation checks
+
+### 4. Published
+
+The page is moved into `docs/` and becomes part of the live site.
+
+**Purpose**
+
+- Make the content discoverable through navigation and search
+- Provide a stable, public reference for readers
+- Keep the page aligned with the rest of the docs site
+
+**Ongoing requirements**
+
+- Re-run checks when the page changes
+- Update related pages when terminology or process changes
+- Keep links and examples current
+
+### 5. Active Maintenance
+
+The page is live, but it still needs periodic review.
+
+**Purpose**
+
+- Refresh examples when APIs or workflows change
+- Update links when pages move
+- Adjust wording when the product vocabulary changes
+
+**Signals that the page needs maintenance**
+
+- A linked page has moved or been renamed
+- The content no longer matches current behavior
+- Readers report confusion, gaps, or stale instructions
+
+### 6. Retirement Candidate
+
+The page is still live, but maintainers have identified it as a candidate for removal or archival.
+
+**Purpose**
+
+- Decide whether the page still belongs in the active docs set
+- Confirm whether a newer page supersedes it
+- Preserve useful history without leaving stale guidance in place
+
+**Exit criteria**
+
+- A replacement page exists or the topic is no longer relevant
+- Redirects or cross-links are planned
+- The decision is documented for future maintainers
+
+### 7. Archived
+
+The page is removed from active navigation and kept only for historical reference.
+
+**Purpose**
+
+- Preserve context for old releases, deprecated features, or historical decisions
+- Avoid showing outdated instructions to new readers
+- Keep a stable record of what changed and why
+
+**Archive behavior**
+
+- Remove the page from the main sidebar
+- Add a redirect or a replacement link when appropriate
+- Keep the archived page clearly labeled as historical
+
+---
+
+## Required Reviews
+
+Every page should pass through the same review gates before it reaches the published state.
+
+### Author self-review
+
+The author checks the page for:
+
+- Correct frontmatter
+- Correct headings and formatting
+- Clear examples and accurate references
+- Working internal links
+
+### Peer review
+
+A second contributor should review the draft for:
+
+- Accuracy of the technical content
+- Clarity of the explanation
+- Consistency with nearby docs pages
+- Missing context or confusing transitions
+
+### Maintainer approval
+
+A maintainer must approve the final version before merge.
+
+**Maintainer checks**
+
+- The page fits the docs information architecture
+- The topic is not duplicated elsewhere without reason
+- The page is ready for the published docs set
+- The proposed retirement path is sound if the page is replacing or retiring older content
+
+### Validation checks
+
+Before merge, verify the page with:
+
+```bash
+pnpm build:content
+pnpm check:links
+```
+
+If the page is still a draft in `routes-d/`, these commands should still remain clean for the repository as a whole.
+
+---
+
+## Retirement Criteria
+
+A docs page should be retired when it no longer serves the active docs set.
+
+### Retire the page when
+
+- The feature, command, or workflow has been removed
+- A newer page fully replaces the content
+- The page has become too stale to be safely followed
+- The information is redundant with a more complete canonical page
+- The topic is no longer relevant to current readers
+
+### Do not retire the page yet when
+
+- It still answers a common reader question
+- The content can be repaired with a small update
+- The page is still the canonical source for that topic
+- A replacement page has not been published
+
+### Retire with care
+
+When a page is retired, maintainers should:
+
+1. Point readers to the replacement page when one exists
+2. Update sidebar, index, and cross-links
+3. Add redirects if the URL changes
+4. Keep the archived version labeled clearly as historical
+
+For broader migration and redirect planning, see [Versioned Docs Strategy](/docs/guides/versioned-docs-strategy) and [Redirects Map](/docs/guides/redirects-map).
+
+---
+
+## Rendering Verification
+
+The page should render correctly before promotion to `docs/`.
+
+### Checklist
+
+- [ ] Frontmatter includes `title` and `description`
+- [ ] Heading levels stay in order from `#` through `###`
+- [ ] Tables render correctly in light and dark mode
+- [ ] Code blocks use valid language tags
+- [ ] Internal links point to existing pages
+- [ ] The page does not depend on unpublished routes
+- [ ] The draft stays outside `docs/` until it is approved
+- [ ] `pnpm build:content` passes without errors
+- [ ] `pnpm check:links` passes without errors
+- [ ] A maintainer has reviewed and approved the final content
+
+### Suggested live-page placement
+
+If this draft is promoted, a natural home would be:
+
+- `docs/guides/page-lifecycle.mdx`
+
+That location keeps the topic alongside the rest of the contributor-facing documentation workflow.
+
+---
+
+## Related Pages
+
+- [Add a Docs Page](/docs/guides/add-docs-page)
+- [Contributing to Documentation](/docs/guides/contributing)
+- [Docs Style Guide](/docs/guides/style-guide)
+- [Testing Docs Changes](/docs/guides/testing-docs-changes)
+- [Link Validation](/docs/guides/link-validation)
+- [Deployment](/docs/guides/deployment)
