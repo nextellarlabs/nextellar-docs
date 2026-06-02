@@ -1,0 +1,27 @@
+---
+title: Terminal Support Note
+description: Draft for issue #335 - Add a short note about supported terminals
+---
+
+# Terminal Support Note
+
+## Supported Terminals
+
+The Nextellar CLI works with all standard terminal emulators:
+
+- **bash** (Linux, macOS, Windows via WSL/Git Bash)
+- **zsh** (macOS default, Linux)
+- **fish** (Linux, macOS)
+- **PowerShell** (Windows)
+- **Command Prompt** (Windows - limited support)
+- **nu** (Nushell)
+
+## Caveats
+
+- Windows Command Prompt has limited support for some CLI features; use PowerShell or Git Bash for full functionality
+- Terminal color output requires ANSI support (most modern terminals support this)
+- Interactive prompts work best in terminals with full UTF-8 support
+
+## Where to Add
+
+Add this note to `/docs/cli/overview.mdx` in a new section after "Installation Methods" or in the troubleshooting section.
