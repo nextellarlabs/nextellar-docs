@@ -23,6 +23,7 @@ Use the table below to find the exact flag name, alias, default, and a short des
 | Installation | `--package-manager <pm>` |       | Auto-detected                         | Choose `npm`, `yarn`, or `pnpm` for install.                                 |
 | Installation | `--install-timeout <ms>` |       | `1200000`                             | Set dependency install timeout in milliseconds.                              |
 | Automation   | `--defaults`             | `-d`  | `false`                               | Skip prompts and use default settings.                                       |
+| Telemetry    | `--no-telemetry`         |       | `false`                               | Disable telemetry for the current scaffold invocation.                       |
 | Feature Add  | `--list`                 | `-l`  | `false`                               | List available features for `nextellar add`.                                 |
 | Feature Add  | `--force`                | `-f`  | `false`                               | Force feature addition, overwriting existing files.                          |
 | Deployment   | `--dry-run`              |       | `false`                               | Validate deployment without creating a final bundle.                         |
@@ -47,6 +48,12 @@ Deployment options are used with `nextellar deploy`:
 
 ```bash
 nextellar deploy --dry-run
+```
+
+Telemetry can be disabled for a single scaffold command:
+
+```bash
+npx nextellar my-app --no-telemetry
 ```
 
 ## Notes
