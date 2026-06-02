@@ -83,7 +83,7 @@ useTrustlines(
 
 ### Return Value
 
-```typescript
+````typescript
 interface TrustlinesState {
   trustlines: Trustline[];
   loading: boolean;
@@ -174,7 +174,7 @@ const xdr = await buildChangeTrustXDR({
 const { trustlines } = useTrustlines(publicKey);
 
 const hasUSDC = trustlines.some((tl) => tl.asset_code === 'USDC');
-```
+````
 
 ## Error Handling
 
@@ -213,7 +213,7 @@ if (error) {
 
 The hook automatically consumes configuration from `WalletProvider`:
 
-```tsx
+````tsx
 // In your app layout
 <WalletProvider horizonUrl="https://horizon.stellar.org" network="PUBLIC">
   <App />

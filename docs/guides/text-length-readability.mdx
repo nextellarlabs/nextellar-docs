@@ -1,0 +1,60 @@
+---
+title: Text Length and Readability
+description: Guidelines for paragraph length, line length, readability checks, and before-and-after editing examples.
+---
+
+# Text Length and Readability
+
+Readable docs help users find the next action quickly. Use this guide when drafting or reviewing pages that feel dense, repetitive, or hard to scan.
+
+## Targets
+
+- Keep most paragraphs between 2 and 4 sentences.
+- Keep list items focused on one idea.
+- Use headings before long explanations.
+- Prefer short sentences for setup, warnings, and workflows.
+- Break up code-heavy sections with a short explanation before and after the example.
+
+Line length depends on the rendered layout, but source prose is easier to review when lines stay reasonably short. Aim for readable source lines instead of very long paragraphs on a single line.
+
+## Readability Tools
+
+Use these checks while editing:
+
+- Read the section aloud to find missing words and long sentences.
+- Use editor spellcheck for typos and repeated words.
+- Use grammar or readability tools for a second pass, then review suggestions manually.
+- Run `pnpm build:content` to catch MDX syntax issues.
+- Run `pnpm check:links` to catch broken internal links.
+
+Automated tools should support judgment, not replace it. Keep technical terms when they are accurate and explain them when the surrounding context needs it.
+
+## Before And After
+
+**Before**
+
+```mdx
+The sidebar configuration is something that should be updated whenever a new page is added because users need to be able to find pages and the navigation should be kept synchronized with the docs content so that the page can be reached from the docs interface.
+```
+
+**After**
+
+```mdx
+Update the sidebar when you add a docs page. This keeps navigation synchronized with the content and helps users find the new route.
+```
+
+The revised version keeps the same instruction, removes filler, and splits the idea into two direct sentences.
+
+## Review Checklist
+
+- The first paragraph explains the page's purpose.
+- Long sections are split with descriptive headings.
+- Examples are close to the guidance they support.
+- Lists use parallel structure where possible.
+- The page has no avoidable filler phrases.
+
+## Related
+
+- [Docs Style Guide](/docs/guides/style-guide)
+- [Contributing to Documentation](/docs/guides/contributing)
+

@@ -17,7 +17,7 @@ The `useStellarPayment` hook provides advanced utilities for building, signing, 
 
 ## Basic Usage
 
-```tsx
+````tsx
 import { useStellarPayment } from '@/hooks/useStellarPayment';
 
 export default function PaymentBuilder() {
@@ -114,10 +114,10 @@ console.log(xdr); // "AAAAAgAAAAC..."
 
 **Validation:**
 
-- Validates sender and recipient addresses (56 chars, starts with 'G')
-- Validates amount (positive, within Stellar limits)
-- Validates memo length (max 28 characters)
-- Checks account exists on network
+- Validates sender and recipient addresses (56 chars, starts with 'G').
+- Validates amount (positive, within Stellar limits).
+- Validates memo length (max 28 characters).
+- Checks account exists on network.
 
 ### submitSignedXDR()
 

@@ -11,11 +11,11 @@ The Nextellar CLI is a powerful command-line tool for scaffolding production-rea
 
 Nextellar CLI is a one-command solution that:
 
-- Scaffolds complete Next.js 16 applications
-- Configures Stellar SDK and wallet adapters
-- Installs all dependencies automatically
-- Sets up TypeScript, Tailwind CSS, and ESLint
-- Creates 8 production-ready React hooks
+- Scaffolds complete Next.js 16 applications.
+- Configures Stellar SDK and wallet adapters.
+- Installs all dependencies automatically.
+- Sets up TypeScript, Tailwind CSS, and ESLint.
+- Creates 8 production-ready React hooks.
 
 ## Quick Start
 
@@ -44,6 +44,12 @@ The Nextellar CLI works with all standard terminal emulators:
 - Terminal color output requires ANSI support (most modern terminals support this)
 - Interactive prompts work best in terminals with full UTF-8 support
 
+### Interactive Prompting
+
+When the CLI runs in a suitable terminal, it can prompt for scaffold settings such as project configuration, network endpoints, wallet adapters, package manager, and whether to skip dependency installation.
+
+Prompting is enabled only when standard input and output are both TTYs, the `CI` environment variable is not set, and `--defaults` is not provided. In CI, scripted, or redirected environments, Nextellar uses explicit flags and default values instead. Any flag you pass keeps that setting fixed and skips prompting for it.
+
 ### Method 1: npx (Recommended)
 
 No installation required. Run directly:
@@ -54,13 +60,13 @@ npx nextellar my-app
 
 **Pros:**
 
-- Always uses latest version
-- No global installation needed
-- Works immediately
+- Always uses latest version.
+- No global installation needed.
+- Works immediately.
 
 **Cons:**
 
-- Slightly slower first run (downloads package)
+- Slightly slower first run (downloads package).
 
 ### Method 2: Global Installation
 
@@ -73,14 +79,14 @@ nextellar my-app
 
 **Pros:**
 
-- Faster execution
-- Works offline (after first install)
-- Convenient for multiple projects
+- Faster execution.
+- Works offline (after first install).
+- Convenient for multiple projects.
 
 **Cons:**
 
-- Requires manual updates (`npm update -g nextellar`)
-- Takes up global npm space
+- Requires manual updates (`npm update -g nextellar`).
+- Takes up global npm space.
 
 ### Method 3: Package Manager Specific
 

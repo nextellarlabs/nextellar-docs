@@ -213,42 +213,35 @@ nextellar doctor --json
 
 The command exits with code `0` when all required checks pass, or `1` when one or more required checks fail. Optional check failures are reported but do not affect the exit code.
 
-### nextellar telemetry
+### nextellar upgrade
 
-Manage anonymous telemetry settings for the local environment.
+Upgrade an existing Nextellar project to the latest template files.
 
 ```bash
-nextellar telemetry <action>
+nextellar upgrade [options]
 ```
 
-**Arguments:**
+Run this command from the root of an existing Nextellar project. Use a dry run first to review the files that would change, then run the upgrade when you are ready to apply updates.
 
-| Argument | Type   | Required | Description                                  |
-| -------- | ------ | -------- | -------------------------------------------- |
-| `action` | string | Yes      | One of `status`, `enable`, or `disable`      |
+**Options:**
 
-**Actions:**
-
-| Action    | Description                                                        |
-| --------- | ------------------------------------------------------------------ |
-| `status`  | Show whether telemetry is enabled and where the config is stored   |
-| `enable`  | Enable anonymous telemetry and save the preference locally         |
-| `disable` | Disable anonymous telemetry and save the preference locally        |
+| Option      | Description                                           |
+| ----------- | ----------------------------------------------------- |
+| `--dry-run` | Show what would change without applying the upgrade   |
+| `--yes`     | Apply changes without prompting for confirmation      |
 
 **Examples:**
 
 ```bash
-# Check the current telemetry setting
-nextellar telemetry status
+# Preview upgrade changes
+nextellar upgrade --dry-run
 
-# Enable telemetry
-nextellar telemetry enable
+# Apply the upgrade interactively
+nextellar upgrade
 
-# Disable telemetry
-nextellar telemetry disable
+# Apply the upgrade without prompting
+nextellar upgrade --yes
 ```
-
-If `NEXTELLAR_TELEMETRY_DISABLED` is set, the status output reports that telemetry is forced off for the current environment.
 
 ### nextellar deploy
 
@@ -280,28 +273,28 @@ When you run `nextellar my-app`, here's what happens:
 
 ### Step 1: Validation
 
-- Checks if project name is valid
-- Verifies directory doesn't already exist
-- Validates CLI options
+- Checks if project name is valid.
+- Verifies directory doesn't already exist.
+- Validates CLI options.
 
 ### Step 2: Scaffolding
 
-- Creates project directory
-- Copies template files
-- Substitutes configuration variables
-- Generates package.json
+- Creates project directory.
+- Copies template files.
+- Substitutes configuration variables.
+- Generates package.json.
 
 ### Step 3: Installation
 
-- Detects package manager (npm/yarn/pnpm)
-- Installs dependencies
-- Verifies installation success
+- Detects package manager (npm/yarn/pnpm).
+- Installs dependencies.
+- Verifies installation success.
 
 ### Step 4: Success
 
-- Displays success message
-- Shows next steps
-- Provides helpful links
+- Displays success message.
+- Shows next steps.
+- Provides helpful links.
 
 ## Exit Codes
 
@@ -362,9 +355,11 @@ Increases installation timeout to 1 hour (useful for slow networks).
 
 ## Interactive Mode
 
-Currently, Nextellar runs in non-interactive mode. All configuration is done via CLI flags.
+Nextellar can prompt for scaffold configuration when it runs in a suitable interactive terminal.
 
-**Future Enhancement:** Interactive prompts for configuration (coming soon).
+Prompts are shown when standard input and output are both TTYs, the `CI` environment variable is not set, and `--defaults` is not provided. If any of those conditions are not met, the CLI uses provided flags and default values instead.
+
+Flags still take precedence over prompts. For example, passing `--wallets`, `--horizon-url`, `--soroban-url`, `--package-manager`, or `--skip-install` keeps those values fixed and skips prompting for that setting.
 
 ## Command Aliases
 

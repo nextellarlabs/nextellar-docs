@@ -11,11 +11,11 @@ Nextellar uses the official `@stellar/stellar-sdk` to interact with Stellar's Ho
 
 Horizon is Stellar's HTTP API server that provides a RESTful interface to the Stellar network. It allows you to:
 
-- Query account balances and details
-- Submit transactions
-- Fetch transaction history
-- Query the order book (DEX)
-- Stream real-time updates
+- Query account balances and details.
+- Submit transactions.
+- Fetch transaction history.
+- Query the order book (DEX).
+- Stream real-time updates.
 
 ## How Nextellar Uses Horizon
 
@@ -45,7 +45,7 @@ Nextellar hooks default to Stellar's public Horizon servers:
 
 Configure once at the provider level:
 
-```tsx
+````tsx
 <WalletProvider horizonUrl="https://horizon.stellar.org">
   <App /> {/* All hooks use mainnet Horizon */}
 </WalletProvider>

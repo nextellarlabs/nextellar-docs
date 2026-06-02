@@ -79,7 +79,7 @@ interface TransactionHistoryState {
 
 ### Filter by Date Range
 
-```tsx
+````tsx
 const { transactions } = useTransactionHistory(publicKey);
 
 const recentTxs = transactions.filter((tx) => {
@@ -119,7 +119,7 @@ function InfiniteTransactionHistory() {
 
   return <div>{/* render transactions */}</div>;
 }
-```
+````
 
 ## Error Handling
 

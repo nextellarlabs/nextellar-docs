@@ -128,10 +128,8 @@ nextellar my-app --skip-install
 
 **Use Cases:**
 
-- Install dependencies manually later
-- Use a different package manager
-- Customize installation process
-- Faster scaffolding (for testing)
+- Install dependencies manually later.
+- Use a different package manager.
 
 **After Skipping:**
 
@@ -207,7 +205,7 @@ nextellar my-app -d
 - Quick testing
 - Non-interactive environments
 
-> **Note:** Currently, Nextellar doesn't have interactive prompts, so this flag is reserved for future use.
+> **Note:** In an interactive terminal, Nextellar can prompt for scaffold configuration. Use `--defaults` to skip prompts and apply default values instead.
 
 ## Feature Add Options
 
@@ -236,6 +234,38 @@ Force addition of a feature, overwriting existing files without prompting.
 nextellar add freighter --force
 # or
 nextellar add freighter -f
+```
+
+**Default:** `false`
+**Type:** Boolean
+**Status:** Supported
+
+---
+
+## Upgrade Options
+
+The following options apply to the `nextellar upgrade` command:
+
+### --dry-run
+
+Show which template files would change without applying the upgrade.
+
+```bash
+nextellar upgrade --dry-run
+```
+
+**Default:** `false`
+**Type:** Boolean
+**Status:** Supported
+
+---
+
+### --yes
+
+Apply upgrade changes without prompting for confirmation.
+
+```bash
+nextellar upgrade --yes
 ```
 
 **Default:** `false`

@@ -1,0 +1,82 @@
+---
+title: Accessibility Best Practices for Docs
+description: Draft guidance for contributors on accessibility best practices for documentation (issue #195).
+---
+
+# Accessibility Best Practices for Docs
+
+This draft addresses accessibility guidance contributors should follow when writing documentation. It covers headings, alt text for images, and link text, with concrete, actionable examples.
+
+## Principles
+
+- Prefer clear, descriptive language so assistive technologies convey meaning.
+- Keep examples short and focused so they can be reviewed quickly.
+- Verify changes by building the docs and validating links.
+
+## Headings
+
+- Use headings to express document structure, not visual style.
+- Start at `#` for page titles and use `##`, `###` for nested sections.
+- Avoid skipping heading levels (for example, do not jump from `##` to `####`).
+
+Example:
+
+- Good: `# Component overview` followed by `## Props` and `### Example`.
+- Bad: `# Component overview` followed directly by `### Example` (skips `##`).
+
+Actionable checklist:
+
+- Ensure each page has one `#` title.
+- Use headings to group related content semantically.
+
+## Alt text for images
+
+- Provide concise, descriptive alt text for meaningful images.
+- For decorative images, use an empty alt attribute (in MDX: `alt=""`).
+
+Examples:
+
+- Meaningful image: `![Diagram of payment flow](./images/payment-flow.png) {"alt": "Diagram showing payment flow from wallet to Horizon"}`
+- Decorative image: `![ ](./images/ornament.svg)` or `![decorative](./images/ornament.svg){"alt":""}`
+
+Actionable checklist:
+
+- Add `alt` to every image that conveys information.
+- If an image is purely decorative, set `alt` to an empty string.
+
+## Link text
+
+- Use descriptive link text that makes sense out of context (avoid "click here").
+- Keep link text concise and use the link destination in parentheses if helpful.
+
+Examples:
+
+- Good: `[See the CLI commands reference](/docs/cli/commands)`
+- Bad: `[Click here](/docs/cli/commands)`
+
+Actionable checklist:
+
+- Replace generic link text like "here" or "this page" with descriptive phrases.
+- Ensure links are unique and meaningful.
+
+## Concrete Patterns to Follow
+
+- Headings: one `#` per page; increment levels by one when nesting.
+- Images: always include `alt`; empty `alt` for decorative images.
+- Links: descriptive, context-independent link text.
+
+## How to Validate
+
+- Build the content locally: `pnpm build:content`.
+- Run link checks locally: start the dev server `pnpm dev` and then `pnpm check:links`.
+- Review rendered pages for heading order and image alt text in browser DevTools.
+
+## Notes and Constraints
+
+This draft follows existing MDX frontmatter and writing style. Place comments or additional examples below and submit for maintainer review before merging.
+
+## Acceptance checklist (for this draft)
+
+- [ ] Content builds with `pnpm build:content` without errors related to this file.
+- [ ] Internal links pass `pnpm check:links` when the dev server is running.
+- [ ] Reviewed by a maintainer before merge.
