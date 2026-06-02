@@ -13,7 +13,7 @@ Detailed reference for all command-line options available in Nextellar CLI.
 
 Generate a TypeScript project (default).
 
-```bash
+````bash
 nextellar my-app --typescript
 # or
 nextellar my-app -t
@@ -86,7 +86,7 @@ Specify which wallet adapters to include.
 nextellar my-app --wallets freighter,xbull,ledger
 # or
 nextellar my-app -w freighter,albedo
-```text
+````
 
 **Default:** `freighter,albedo,lobstr`
 **Type:** Comma-separated string
@@ -102,7 +102,7 @@ nextellar my-app -w freighter,albedo
 
 **Examples:**
 
-```bash
+````bash
 # Only Freighter
 nextellar my-app --wallets freighter
 
@@ -121,7 +121,7 @@ Skip automatic dependency installation.
 
 ```bash
 nextellar my-app --skip-install
-```text
+````
 
 **Default:** `false`
 **Type:** Boolean
@@ -135,7 +135,7 @@ nextellar my-app --skip-install
 
 **After Skipping:**
 
-```bash
+````bash
 cd my-app
 npm install  # or yarn install, pnpm install
 ```css
@@ -221,7 +221,7 @@ List all available features that can be added to the project.
 nextellar add --list
 # or
 nextellar add -l
-```
+````
 
 **Type:** Boolean
 **Status:** Supported
@@ -268,7 +268,7 @@ nextellar deploy --dry-run
 
 Display CLI version.
 
-```bash
+````bash
 nextellar --version
 # or
 nextellar -v
@@ -284,7 +284,7 @@ Display help information.
 nextellar --help
 # or
 nextellar -h
-```text
+````
 
 **Output:** Complete usage guide with all options
 
@@ -298,7 +298,7 @@ nextellar stellar-mainnet-app \
   --soroban-url https://soroban-rpc.stellar.org \
   --wallets freighter,xbull,ledger \
   --package-manager pnpm
-```text
+```
 
 ### Development Setup
 
@@ -306,7 +306,7 @@ nextellar stellar-mainnet-app \
 nextellar dev-app \
   --skip-install \
   --wallets freighter
-```text
+```
 
 ### CI/CD Setup
 
@@ -315,7 +315,7 @@ nextellar ci-app \
   --defaults \
   --package-manager npm \
   --install-timeout 600000
-```text
+```
 
 ### Custom Network
 
@@ -324,7 +324,7 @@ nextellar custom-app \
   --horizon-url https://my-horizon.example.com \
   --soroban-url https://my-soroban.example.com \
   --wallets freighter
-```text
+```
 
 ## Environment Variables
 
@@ -337,7 +337,7 @@ Used for package manager detection.
 ```bash
 # Set by package managers automatically
 npm_config_user_agent="npm/10.2.0 node/v20.10.0"
-```text
+```
 
 ### NODE_ENV
 
@@ -345,7 +345,7 @@ Environment mode (development/production).
 
 ```bash
 NODE_ENV=production npx nextellar my-app
-```text
+```
 
 ## Validation Rules
 
@@ -362,11 +362,11 @@ NODE_ENV=production npx nextellar my-app
 nextellar my-app
 nextellar stellar_payment_app
 nextellar my-dapp-2024
-```text
+```
 
 **Invalid:**
 
-```bash
+````bash
 nextellar "my app"        # Spaces not allowed
 nextellar my@app          # Special characters not allowed
 nextellar ../my-app       # Path traversal not allowed
@@ -389,3 +389,4 @@ nextellar ../my-app       # Path traversal not allowed
 - [CLI Commands](/docs/cli/commands) - Command reference
 - [Configuration](/docs/cli/configuration) - Project configuration
 - [Troubleshooting](/docs/troubleshooting/installation-issues) - Common issues
+````

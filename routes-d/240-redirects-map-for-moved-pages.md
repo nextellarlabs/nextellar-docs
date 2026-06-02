@@ -11,4 +11,3 @@ Working draft for the docs change requested in issue #240.
 - Record canonical redirects for moved or renamed docs pages.
 - Document how the map is maintained.
 - Cross-link the redirects reference from the contributing guide.
-

@@ -39,13 +39,13 @@ export default function WalletDemo() {
     </div>
   );
 }
-```text
+```
 
 ## API Reference
 
 ### Parameters
 
-```typescript
+````typescript
 useStellarWallet(
   horizonUrl?: string,
   network?: string
@@ -72,7 +72,7 @@ interface StellarWalletState {
     opts: PaymentOptions
   ) => Promise<HorizonApi.SubmitTransactionResponse>;
 }
-```text
+````
 
 #### Properties
 
@@ -80,7 +80,7 @@ interface StellarWalletState {
 
 Whether a wallet is currently connected.
 
-```tsx
+````tsx
 {
   connected && <p>Wallet is connected!</p>;
 }
@@ -119,7 +119,7 @@ interface Balance {
   asset_code?: string;
   asset_issuer?: string;
 }
-```text
+````
 
 ```tsx
 {
@@ -129,7 +129,7 @@ interface Balance {
     </div>
   ));
 }
-```text
+```
 
 #### Methods
 
@@ -137,7 +137,7 @@ interface Balance {
 
 Opens the wallet selection modal and connects to the chosen wallet.
 
-```tsx
+````tsx
 const handleConnect = async () => {
   try {
     await connect();
@@ -186,7 +186,7 @@ interface PaymentOptions {
   asset?: 'XLM' | { code: string; issuer: string };
   memo?: string;
 }
-```text
+````
 
 ```tsx
 const result = await sendPayment({
@@ -197,7 +197,7 @@ const result = await sendPayment({
 });
 
 console.log('Transaction hash:', result.hash);
-```text
+```
 
 ## Advanced Examples
 
@@ -210,7 +210,7 @@ const wallet = useStellarWallet(
   'https://horizon.stellar.org', // Mainnet Horizon
   Networks.PUBLIC // Mainnet passphrase
 );
-```text
+```
 
 ### Sending Custom Assets
 
@@ -228,13 +228,13 @@ await sendPayment({
   },
   memo: 'USDC payment',
 });
-```text
+```
 
 ### Displaying All Balances
 
 Show all assets the account holds:
 
-```tsx
+````tsx
 function BalanceList() {
   const { balances, connected } = useStellarWallet();
 
@@ -289,7 +289,7 @@ function SendPaymentWithRefresh() {
 
   return <button onClick={handleSend}>Send 10 XLM</button>;
 }
-```text
+````
 
 ### Handling Unfunded Accounts
 
@@ -321,7 +321,7 @@ function AccountStatus() {
 
   return <p>Account is active with {balances[0].balance} XLM</p>;
 }
-```text
+```
 
 ## Error Handling
 
@@ -346,7 +346,7 @@ const handleConnect = async () => {
     }
   }
 };
-```text
+```
 
 ### Payment Errors
 
@@ -377,7 +377,7 @@ const handlePayment = async () => {
     }
   }
 };
-```text
+```
 
 ## TypeScript Types
 
@@ -410,7 +410,7 @@ interface StellarWalletState {
     opts: PaymentOptions
   ) => Promise<Horizon.HorizonApi.SubmitTransactionResponse>;
 }
-```text
+```
 
 ## Best Practices
 
@@ -426,7 +426,7 @@ interface StellarWalletState {
 
 // Bad
 <button onClick={handleSend}>Send Payment</button>;
-```text
+```
 
 ### 2. Handle Loading States
 
@@ -441,7 +441,7 @@ const handleConnect = async () => {
     setLoading(false);
   }
 };
-```text
+```
 
 ### 3. Validate Addresses
 
@@ -457,7 +457,7 @@ const handleSend = async () => {
   }
   // ... proceed with payment
 };
-```text
+```
 
 ### 4. Use Memos for Tracking
 
@@ -468,7 +468,7 @@ await sendPayment({
   asset: 'XLM',
   memo: `Order #${orderId}`, // Track payments
 });
-```text
+```
 
 ## Related Hooks
 
@@ -494,7 +494,7 @@ const handleConnect = async () => {
     }
   }
 };
-```text
+```
 
 ### Balance Shows 0 After Funding
 
@@ -502,7 +502,7 @@ const handleConnect = async () => {
 
 **Solution**:
 
-```tsx
+````tsx
 // Manually refresh after funding
 await refreshBalances();
 ```bash
@@ -558,3 +558,4 @@ await refreshBalances();
 <p className="text-sm text-center text-muted-foreground mt-8">
   <a href="#"> Back to top</a>
 </p>
+````

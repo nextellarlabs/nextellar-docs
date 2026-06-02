@@ -21,23 +21,23 @@ The Nextellar documentation site needs a lightweight, privacy-respecting approac
 
 Focus on actionable signals that help maintainers prioritize documentation work. Avoid vanity metrics that do not inform content decisions.
 
-| Metric | What it measures | Why it matters |
-| ------ | ---------------- | -------------- |
-| **Page views** | Unique visits per docs page | Identifies high-traffic reference pages worth keeping current |
-| **Search queries** | Terms entered in the Cmd/Ctrl+K search dialog | Surfaces content gaps when readers search but find no match |
-| **Zero-result searches** | Queries that return no indexed page | Direct signal for missing or poorly titled pages |
-| **Outbound link clicks** | Clicks on external links (GitHub, Stellar docs) | Shows which external resources readers rely on |
-| **Time on page (median)** | How long readers stay on a page | Very short dwell times on long guides may indicate confusion |
-| **404 rate** | Requests to missing routes | Catches broken links and stale bookmarks early |
-| **Feedback submissions** | Thumbs up/down or free-text responses | Qualitative signal tied to specific pages |
+| Metric                    | What it measures                                | Why it matters                                                |
+| ------------------------- | ----------------------------------------------- | ------------------------------------------------------------- |
+| **Page views**            | Unique visits per docs page                     | Identifies high-traffic reference pages worth keeping current |
+| **Search queries**        | Terms entered in the Cmd/Ctrl+K search dialog   | Surfaces content gaps when readers search but find no match   |
+| **Zero-result searches**  | Queries that return no indexed page             | Direct signal for missing or poorly titled pages              |
+| **Outbound link clicks**  | Clicks on external links (GitHub, Stellar docs) | Shows which external resources readers rely on                |
+| **Time on page (median)** | How long readers stay on a page                 | Very short dwell times on long guides may indicate confusion  |
+| **404 rate**              | Requests to missing routes                      | Catches broken links and stale bookmarks early                |
+| **Feedback submissions**  | Thumbs up/down or free-text responses           | Qualitative signal tied to specific pages                     |
 
 ### Recommended tooling
 
-| Layer | Tool | Notes |
-| ----- | ---- | ----- |
-| Page analytics | [Plausible](https://plausible.io/) or [Vercel Web Analytics](https://vercel.com/docs/analytics) | Cookie-free, GDPR-friendly, minimal script footprint |
-| Search analytics | Custom event on `SearchDialog` selection | Log query + selected result slug; no PII |
-| Feedback | GitHub Discussions or a lightweight form | Route submissions to `nextellar-docs` issues |
+| Layer            | Tool                                                                                            | Notes                                                |
+| ---------------- | ----------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| Page analytics   | [Plausible](https://plausible.io/) or [Vercel Web Analytics](https://vercel.com/docs/analytics) | Cookie-free, GDPR-friendly, minimal script footprint |
+| Search analytics | Custom event on `SearchDialog` selection                                                        | Log query + selected result slug; no PII             |
+| Feedback         | GitHub Discussions or a lightweight form                                                        | Route submissions to `nextellar-docs` issues         |
 
 ### What not to track
 
@@ -66,7 +66,9 @@ export function DocsFeedback({ pageSlug }: { pageSlug: string }) {
       <p>Was this page helpful?</p>
       <button onClick={() => submitFeedback(pageSlug, 'yes')}>Yes</button>
       <button onClick={() => submitFeedback(pageSlug, 'no')}>No</button>
-      <a href={`https://github.com/nextellarlabs/nextellar-docs/issues/new?labels=docs&title=Docs+feedback:+${pageSlug}`}>
+      <a
+        href={`https://github.com/nextellarlabs/nextellar-docs/issues/new?labels=docs&title=Docs+feedback:+${pageSlug}`}
+      >
         Suggest an improvement
       </a>
     </div>
@@ -99,20 +101,20 @@ Documentation analytics must respect reader privacy and comply with common regul
 
 ### Data minimization
 
-| Principle | Implementation |
-| --------- | -------------- |
-| No cookies by default | Use Plausible or Vercel Analytics (cookie-less) |
-| Aggregate only | Report page-level counts, never individual reader profiles |
-| Short retention | Delete raw event logs after 90 days; keep only aggregates |
-| No fingerprinting | Do not collect canvas, font, or hardware identifiers |
-| Opt-out respect | Honor `Do Not Track` and provide a `/privacy` page explaining data collection |
+| Principle             | Implementation                                                                |
+| --------------------- | ----------------------------------------------------------------------------- |
+| No cookies by default | Use Plausible or Vercel Analytics (cookie-less)                               |
+| Aggregate only        | Report page-level counts, never individual reader profiles                    |
+| Short retention       | Delete raw event logs after 90 days; keep only aggregates                     |
+| No fingerprinting     | Do not collect canvas, font, or hardware identifiers                          |
+| Opt-out respect       | Honor `Do Not Track` and provide a `/privacy` page explaining data collection |
 
 ### Consent for free-text feedback
 
 When a reader submits written feedback:
 
 - Do **not** require an email address
-- Display a notice: *"Your feedback may be posted publicly in GitHub Issues."*
+- Display a notice: _"Your feedback may be posted publicly in GitHub Issues."_
 - Strip accidental PII (email patterns, API keys) before storing events server-side
 
 ### Third-party processors
@@ -146,9 +148,9 @@ pnpm check:links
 
 ### Planned doc location
 
-| File | Purpose |
-| ---- | ------- |
-| `docs/guides/analytics-and-feedback.mdx` | Live strategy page (future) |
-| `routes-d/249-docs-analytics-feedback-strategy.mdx` | Working draft (this file) |
+| File                                                | Purpose                     |
+| --------------------------------------------------- | --------------------------- |
+| `docs/guides/analytics-and-feedback.mdx`            | Live strategy page (future) |
+| `routes-d/249-docs-analytics-feedback-strategy.mdx` | Working draft (this file)   |
 
 ---

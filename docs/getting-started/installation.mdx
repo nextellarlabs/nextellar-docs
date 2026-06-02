@@ -20,7 +20,7 @@ Before you begin, ensure you have:
 ```bash
 node --version
 # Should output v20.18.0 or higher
-```text
+```
 
 ## Quick Install
 
@@ -28,7 +28,7 @@ The fastest way to create a Nextellar project is with `npx` (no global installat
 
 ```bash
 npx nextellar my-stellar-app
-```text
+```
 
 This command will:
 
@@ -45,7 +45,7 @@ If you plan to create multiple projects, you can install Nextellar globally:
 ```bash
 npm install -g nextellar
 nextellar my-stellar-app
-```text
+```
 
 ## CLI Options
 
@@ -53,7 +53,7 @@ Customize your project during scaffolding:
 
 ### Basic Usage
 
-```bash
+````bash
 npx nextellar <project-name> [options]
 ```bash
 
@@ -75,7 +75,7 @@ npx nextellar <project-name> [options]
 
 ```bash
 npx nextellar my-app --package-manager pnpm
-```text
+````
 
 **Skip installation (install later):**
 
@@ -83,19 +83,19 @@ npx nextellar my-app --package-manager pnpm
 npx nextellar my-app --skip-install
 cd my-app
 npm install
-```text
+```
 
 **Configure for mainnet:**
 
 ```bash
 npx nextellar my-app --horizon-url https://horizon.stellar.org
-```text
+```
 
 **Select specific wallets:**
 
 ```bash
 npx nextellar my-app --wallets freighter,xbull
-```text
+```
 
 ## What Gets Installed?
 
@@ -122,7 +122,7 @@ Your new Nextellar project includes:
 
 ### Project Structure
 
-```text
+```
 my-stellar-app/
 src/
   app/                    # Next.js App Router
@@ -149,13 +149,13 @@ tsconfig.json
 tailwind.config.ts
 next.config.ts
 README.md
-```text
+```
 
 ## Running Your Project
 
 After installation completes:
 
-```bash
+````bash
 cd my-stellar-app
 npm run dev
 ```bash
@@ -287,3 +287,4 @@ Fixes:
 - [Read the FAQ](/docs/troubleshooting/faq)
 - [Report an issue](https://github.com/nextellarlabs/nextellar/issues)
 - [Join discussions](https://github.com/nextellarlabs/nextellar/discussions)
+````

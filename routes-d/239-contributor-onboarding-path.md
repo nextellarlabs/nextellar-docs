@@ -18,4 +18,3 @@ Working draft for the docs change requested in issue #239.
 - `pnpm build:content`
 - `pnpm check:links`
 - Manual walkthrough of the onboarding path
-

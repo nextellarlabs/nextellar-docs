@@ -18,4 +18,3 @@ Working draft for the docs change requested in issue #216.
 - `pnpm build:content`
 - `pnpm check:links`
 - Manual review of the locale workflow and example page
-

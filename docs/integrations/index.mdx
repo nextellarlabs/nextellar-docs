@@ -32,35 +32,35 @@ Read the integrations section in this order when you are adding Stellar support 
     </span>
   </a>
 
-  <a
-    href="/docs/integrations/walletconnect"
-    className="block p-4 border rounded-lg hover:border-primary no-underline"
-  >
-    <h4 className="font-semibold">WalletConnect</h4>
-    <span className="text-sm text-muted-foreground block">
-      Connect wallet functionality with pre-built UI components
-    </span>
-  </a>
+<a
+  href="/docs/integrations/walletconnect"
+  className="block p-4 border rounded-lg hover:border-primary no-underline"
+>
+  <h4 className="font-semibold">WalletConnect</h4>
+  <span className="text-sm text-muted-foreground block">
+    Connect wallet functionality with pre-built UI components
+  </span>
+</a>
 
-  <a
-    href="/docs/integrations/horizon"
-    className="block p-4 border rounded-lg hover:border-primary no-underline"
-  >
-    <h4 className="font-semibold">Stellar Horizon</h4>
-    <span className="text-sm text-muted-foreground block">
-      Account queries, payments, transaction history, and DEX operations
-    </span>
-  </a>
+<a
+  href="/docs/integrations/horizon"
+  className="block p-4 border rounded-lg hover:border-primary no-underline"
+>
+  <h4 className="font-semibold">Stellar Horizon</h4>
+  <span className="text-sm text-muted-foreground block">
+    Account queries, payments, transaction history, and DEX operations
+  </span>
+</a>
 
-  <a
-    href="/docs/integrations/soroban"
-    className="block p-4 border rounded-lg hover:border-primary no-underline"
-  >
-    <h4 className="font-semibold">Soroban (Smart Contracts)</h4>
-    <span className="text-sm text-muted-foreground block">
-      Invoke contract functions, listen to events, and build dApps
-    </span>
-  </a>
+<a
+  href="/docs/integrations/soroban"
+  className="block p-4 border rounded-lg hover:border-primary no-underline"
+>
+  <h4 className="font-semibold">Soroban (Smart Contracts)</h4>
+  <span className="text-sm text-muted-foreground block">
+    Invoke contract functions, listen to events, and build dApps
+  </span>
+</a>
 
   <a
     href="/docs/integrations/testing"
@@ -88,7 +88,7 @@ Nextellar integrations are powered by these libraries:
 
 ## Architecture Overview
 
-```text
+````
 
                   Your Application
 
@@ -128,7 +128,7 @@ export default function RootLayout({ children }) {
     </WalletProvider>
   );
 }
-```text
+````
 
 ### 2. Use Pre-built Components
 
@@ -138,7 +138,7 @@ import WalletConnectButton from '@/components/WalletConnectButton';
 function Header() {
   return <WalletConnectButton />;
 }
-```text
+```
 
 ### 3. Access Wallet State
 
@@ -152,11 +152,11 @@ function Dashboard() {
 
   return <p>Balance: {balances[0]?.balance} XLM</p>;
 }
-```text
+```
 
 ### 4. Interact with Smart Contracts
 
-```tsx
+````tsx
 import { useSorobanContract } from '@/hooks/useSorobanContract';
 
 function TokenBalance({ contractId }) {
@@ -185,3 +185,4 @@ function TokenBalance({ contractId }) {
 - [SDK Overview](/docs/sdk/overview) - Full SDK documentation
 - [Hooks Reference](/docs/hooks) - All 8 production hooks
 - [Components](/docs/components/connect-wallet-button) - UI components
+````

@@ -34,7 +34,7 @@ sequenceDiagram
     App-->>User: wallet connected, shows address
 ```
 
-*Caption: The wallet connection sequence. The app never sees the private key — only the public key is returned.*
+_Caption: The wallet connection sequence. The app never sees the private key — only the public key is returned._
 
 ---
 
@@ -61,7 +61,7 @@ sequenceDiagram
     Hook-->>App: { success, hash }
 ```
 
-*Caption: Transaction signing stays inside the wallet extension. The app only passes the unsigned XDR and receives the signed XDR back.*
+_Caption: Transaction signing stays inside the wallet extension. The app only passes the unsigned XDR and receives the signed XDR back._
 
 ---
 
@@ -80,7 +80,7 @@ flowchart LR
     C -- No --> H([show disconnected state])
 ```
 
-*Caption: Balance fetching is triggered automatically on connection and when `refreshBalances()` is called.*
+_Caption: Balance fetching is triggered automatically on connection and when `refreshBalances()` is called._
 
 ---
 
@@ -109,7 +109,7 @@ flowchart TD
     Hook -- result --> Components
 ```
 
-*Caption: Full end-to-end data flow. `WalletProvider` is the central state hub; Horizon is the only network endpoint the app talks to directly.*
+_Caption: Full end-to-end data flow. `WalletProvider` is the central state hub; Horizon is the only network endpoint the app talks to directly._
 
 ---
 
@@ -128,7 +128,7 @@ flowchart TD
     Provider --> Connected([Show wallet address + balances])
 ```
 
-*Caption: Auto-reconnect on page load avoids asking users to connect every time they visit.*
+_Caption: Auto-reconnect on page load avoids asking users to connect every time they visit._
 
 ---
 
@@ -137,7 +137,7 @@ flowchart TD
 - All diagrams use [Mermaid](https://mermaid.js.org/) and render in the Nextellar docs pipeline via the configured rehype plugin.
 - Use `sequenceDiagram` for time-ordered interactions between named actors.
 - Use `flowchart LR` (left-to-right) or `flowchart TD` (top-down) for data and state flows.
-- Keep node labels short; add a *Caption* line below each diagram for context.
+- Keep node labels short; add a _Caption_ line below each diagram for context.
 
 See [Diagram and Image Style Guide](/docs/guides/diagram-image-style) for visual conventions.
 

@@ -18,7 +18,7 @@ Nextellar supports configuration in two ways:
 
 Configure your project during scaffolding:
 
-```bash
+````bash
 npx nextellar my-app \
   --horizon-url https://horizon.stellar.org \
   --soroban-url https://soroban-rpc.stellar.org \
@@ -64,7 +64,7 @@ const allowedWallets = [
   WalletNetwork.XBULL,
   WalletNetwork.LEDGER,
 ];
-```text
+````
 
 ### 3. Package Manager
 
@@ -74,13 +74,13 @@ const allowedWallets = [
 {
   "packageManager": "pnpm@8.0.0"
 }
-```text
+```
 
 ### 4. TypeScript Configuration
 
 **File:** `tsconfig.json`
 
-```json
+````json
 {
   "compilerOptions": {
     "strict": true,
@@ -105,7 +105,7 @@ export default {
     },
   },
 };
-```text
+````
 
 ## Environment Variables
 
@@ -120,13 +120,13 @@ NEXT_PUBLIC_NETWORK=TESTNET
 # Feature Flags
 NEXT_PUBLIC_ENABLE_ANALYTICS=false
 NEXT_PUBLIC_ENABLE_DEBUG=true
-```text
+```
 
 **Usage in Code:**
 
 ```typescript
 const horizonUrl = process.env.NEXT_PUBLIC_HORIZON_URL;
-```text
+```
 
 ## Network Switching
 
@@ -137,26 +137,26 @@ const horizonUrl = process.env.NEXT_PUBLIC_HORIZON_URL;
 ```typescript
 // src/lib/stellar-wallet-kit.ts
 export const HORIZON_URL = 'https://horizon.stellar.org';
-```text
+```
 
 2. **Update Soroban URL:**
 
 ```typescript
 export const SOROBAN_URL = 'https://soroban-rpc.stellar.org';
-```text
+```
 
 3. **Update Network Passphrase:**
 
 ```typescript
 import { Networks } from '@stellar/stellar-sdk';
 export const NETWORK = Networks.PUBLIC;
-```text
+```
 
 4. **Update Environment Variables:**
 
 ```bash
 NEXT_PUBLIC_NETWORK=PUBLIC
-```text
+```
 
 ### Runtime Network Switching
 
@@ -174,7 +174,7 @@ export function useNetwork() {
 
   return { network, setNetwork, horizonUrl };
 }
-```text
+```
 
 ## Custom Wallet Configuration
 
@@ -184,7 +184,7 @@ export function useNetwork() {
 
 ```bash
 npm install @custom/wallet-adapter
-```text
+```
 
 2. **Update Wallet Provider:**
 
@@ -196,7 +196,7 @@ const allowedWallets = [
   WalletNetwork.FREIGHTER,
   WalletNetwork.CUSTOM, // Add new wallet
 ];
-```text
+```
 
 ### Remove Wallet
 
@@ -206,7 +206,7 @@ const allowedWallets = [
   WalletNetwork.FREIGHTER,
   // WalletNetwork.ALBEDO, // Removed
 ];
-```text
+```
 
 ## Advanced Configuration
 
@@ -222,13 +222,13 @@ const server = new Server(HORIZON_URL, {
     Authorization: 'Bearer YOUR_TOKEN',
   },
 });
-```text
+```
 
 ### Custom Soroban RPC
 
 ```typescript
 export const SOROBAN_URL = 'https://my-soroban.example.com';
-```text
+```
 
 ### Multiple Networks
 
@@ -248,7 +248,7 @@ export const NETWORKS = {
     passphrase: Networks.PUBLIC,
   },
 };
-```text
+```
 
 ## Configuration Best Practices
 
@@ -262,7 +262,7 @@ export const NETWORKS = {
 
 Validate configuration at runtime:
 
-```typescript
+````typescript
 // src/lib/validateConfig.ts
 export function validateConfig() {
   if (!process.env.NEXT_PUBLIC_HORIZON_URL) {
@@ -280,3 +280,4 @@ export function validateConfig() {
 - [CLI Commands](/docs/cli/commands) - Command reference
 - [CLI Options](/docs/cli/options) - Option reference
 - [Environment Variables](/docs/guides/deployment#environment-variables) - Deployment config
+````

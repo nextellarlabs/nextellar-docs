@@ -66,9 +66,12 @@ pages: [
   { title: 'Contributing', href: '/docs/guides/contributing' },
   { title: 'Editor Setup', href: '/docs/guides/editor-setup' },
   { title: 'Add a Docs Page', href: '/docs/guides/add-docs-page' },
-  { title: 'Configure the Sidebar Navigation', href: '/docs/guides/configure-sidebar' },
+  {
+    title: 'Configure the Sidebar Navigation',
+    href: '/docs/guides/configure-sidebar',
+  },
   // ...
-]
+];
 ```
 
 Use:
@@ -132,4 +135,3 @@ pnpm dev
 2. Open the page at its expected URL (based on file path). For example, `docs/guides/contributing.mdx` renders at `/docs/guides/contributing`.
 
 If the page loads and the content build/link checks pass, the guide is ready for PR review.
-

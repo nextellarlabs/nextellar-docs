@@ -44,13 +44,13 @@ export default function PaymentBuilder() {
 
   return <button onClick={handleBuildAndSign}>Send Payment</button>;
 }
-```text
+```
 
 ## API Reference
 
 ### Parameters
 
-```typescript
+````typescript
 useStellarPayment(options?: {
   horizonUrl?: string;
   network?: 'TESTNET' | 'PUBLIC';
@@ -72,7 +72,7 @@ interface PaymentHookReturn {
     params: PaymentParams & { secret: string }
   ) => Promise<PaymentResult>;
 }
-```text
+````
 
 ### Types
 
@@ -91,7 +91,7 @@ interface PaymentResult {
   raw?: unknown;
   error?: string;
 }
-```text
+```
 
 ## Methods
 
@@ -110,7 +110,7 @@ const xdr = await buildPaymentXDR({
 
 // Returns base64-encoded XDR string
 console.log(xdr); // "AAAAAgAAAAC..."
-```text
+```
 
 **Validation:**
 
@@ -123,7 +123,7 @@ console.log(xdr); // "AAAAAgAAAAC..."
 
 Submit a signed transaction XDR to the network.
 
-```tsx
+````tsx
 const result = await submitSignedXDR(signedXDR);
 
 if (result.success) {
@@ -151,7 +151,7 @@ const result = await signAndSubmitWithSecret({
   amount: '10',
   secret: 'SABC123...', // Never use in production!
 });
-```text
+````
 
 > **Warning**: Never use this method in production. Secret keys should never be handled in client-side code. Use external wallet signing instead.
 
@@ -170,7 +170,7 @@ const xdr = await buildPaymentXDR({
   },
   memo: 'USDC payment',
 });
-```text
+```
 
 ### Multi-Step Payment Flow
 
@@ -212,7 +212,7 @@ function MultiStepPayment() {
     </div>
   );
 }
-```text
+```
 
 ### Batch Payments
 
@@ -240,7 +240,7 @@ async function sendBatchPayments(
     }
   }
 }
-```text
+```
 
 ## Error Handling
 
@@ -262,7 +262,7 @@ try {
     alert('Transaction failed: ' + error.message);
   }
 }
-```text
+```
 
 ### Validation Errors
 
@@ -276,7 +276,7 @@ try {
 } catch (error) {
   // "Invalid sender address format"
 }
-```text
+```
 
 ## Best Practices
 
@@ -291,7 +291,7 @@ if (!isValidAddress(recipient)) {
   alert('Invalid recipient address');
   return;
 }
-```text
+```
 
 ### 2. Handle Transaction Timeouts
 
@@ -303,7 +303,7 @@ const xdr = await buildPaymentXDR(params);
 setTimeout(() => {
   console.warn('Transaction may have expired');
 }, 25000);
-```text
+```
 
 ### 3. Use Memos for Tracking
 
@@ -314,11 +314,11 @@ await buildPaymentXDR({
   amount: amount,
   memo: `Order-${orderId}`, // Track payments
 });
-```text
+```
 
 ### 4. Verify Before Submitting
 
-```tsx
+````tsx
 const xdr = await buildPaymentXDR(params);
 
 // Show confirmation to user
@@ -359,3 +359,4 @@ if (!confirmed) return;
 <p className="text-sm text-center text-muted-foreground mt-8">
   <a href="#"> Back to top</a>
 </p>
+````

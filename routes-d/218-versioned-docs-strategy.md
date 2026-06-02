@@ -12,4 +12,3 @@ Working draft for the docs change requested in issue #218.
 - Explain the directory layout for major versions.
 - Document maintenance rules for legacy versions.
 - Link to migration and release-notes guidance.
-

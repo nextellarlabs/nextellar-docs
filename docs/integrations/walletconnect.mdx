@@ -27,7 +27,7 @@ import { WalletProvider } from '@/contexts';
 export default function RootLayout({ children }) {
   return <WalletProvider>{children}</WalletProvider>;
 }
-```text
+```
 
 ### 2. Add the Connect Button
 
@@ -41,7 +41,7 @@ function Header() {
     </header>
   );
 }
-```text
+```
 
 ### 3. Access Wallet State
 
@@ -63,11 +63,11 @@ function Dashboard() {
     </div>
   );
 }
-```text
+```
 
 ## Connection Flow
 
-```text
+```
 User clicks "Connect Wallet"
         ->
 Wallet selection modal opens
@@ -81,7 +81,7 @@ Public key retrieved and stored
 Balances fetched automatically
         ->
 Session saved to localStorage
-```text
+```
 
 ## Session Persistence
 
@@ -95,7 +95,7 @@ stellar_wallet_address: 'GABC...';
 stellar_wallet_name: 'Freighter';
 
 // On page reload - auto-reconnects if session exists
-```text
+```
 
 ## Components
 
@@ -103,7 +103,7 @@ stellar_wallet_name: 'Freighter';
 
 Pre-built button component with loading states and theme support:
 
-```tsx
+````tsx
 <WalletConnectButton theme="light" />
 <WalletConnectButton theme="dark" />
 ```json
@@ -162,7 +162,7 @@ const kit = new StellarWalletsKit({
     new xBullModule(), // Add new wallet
   ],
 });
-```text
+````
 
 ## Error Handling
 
@@ -178,7 +178,7 @@ const handleConnect = async () => {
     }
   }
 };
-```text
+```
 
 ## Related
 

@@ -63,7 +63,7 @@ Each TOC entry follows this format:
         }[];
     }
 ]
-```text
+```
 
 The `page-slug` is derived from the `slug` metadata of the respective documentation page.
 
@@ -98,13 +98,13 @@ export const TocData = {
     },
   ],
 };
-```text
+```
 
 ### Adding a New TOC Entry
 
 To add a new TOC entry, insert a new key-value pair in `TocData`:
 
-```tsx
+````tsx
 'new-section/page-slug': [
     {
         title: "New Section",
@@ -144,3 +144,4 @@ The TOC is used in the `toc.tsx` component, which dynamically retrieves TOC data
 - Changes are simple and allow for easy customization.
 
 This guide ensures developers can efficiently modify and maintain the TOC structure for their documentation.
+````

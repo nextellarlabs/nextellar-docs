@@ -18,4 +18,3 @@ Working draft for the docs change requested in issue #234.
 - `pnpm build:content`
 - `pnpm check:links`
 - Manual review of the coverage report output
-

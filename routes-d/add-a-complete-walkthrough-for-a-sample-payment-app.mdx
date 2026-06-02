@@ -62,8 +62,12 @@ export default function Home() {
         </div>
       ) : (
         <div className="text-center p-12 border-2 border-dashed rounded-xl">
-          <h2 className="text-xl mb-4">Please connect your wallet to continue</h2>
-          <p className="text-muted-foreground">You need to connect a Stellar wallet to send payments.</p>
+          <h2 className="text-xl mb-4">
+            Please connect your wallet to continue
+          </h2>
+          <p className="text-muted-foreground">
+            You need to connect a Stellar wallet to send payments.
+          </p>
         </div>
       )}
     </main>
@@ -87,11 +91,12 @@ import { useStellarBalances } from '@/hooks/useStellarBalances';
 export default function PaymentForm() {
   const [destination, setDestination] = useState('');
   const [amount, setAmount] = useState('');
-  
+
   const { sendPayment, isPending, error, isSuccess } = useStellarPayment();
   const { balances } = useStellarBalances();
-  
-  const xlmBalance = balances?.find(b => b.asset_type === 'native')?.balance || '0';
+
+  const xlmBalance =
+    balances?.find((b) => b.asset_type === 'native')?.balance || '0';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,15 +105,20 @@ export default function PaymentForm() {
     await sendPayment({
       destination,
       amount,
-      assetCode: 'XLM'
+      assetCode: 'XLM',
     });
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 bg-card p-6 rounded-xl border shadow-sm">
+    <form
+      onSubmit={handleSubmit}
+      className="space-y-6 bg-card p-6 rounded-xl border shadow-sm"
+    >
       <div className="flex justify-between items-end mb-4">
         <h3 className="text-lg font-semibold">Send Payment</h3>
-        <span className="text-sm text-muted-foreground">Balance: {xlmBalance} XLM</span>
+        <span className="text-sm text-muted-foreground">
+          Balance: {xlmBalance} XLM
+        </span>
       </div>
 
       <div>

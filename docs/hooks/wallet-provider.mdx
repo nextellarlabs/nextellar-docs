@@ -32,7 +32,7 @@ export default function RootLayout({ children }) {
     </html>
   );
 }
-```text
+```
 
 ## Configuration
 
@@ -44,11 +44,11 @@ interface WalletProviderProps {
   horizonUrl?: string; // Default: 'https://horizon-testnet.stellar.org'
   network?: string; // Default: Networks.TESTNET
 }
-```text
+```
 
 ### Networks
 
-```tsx
+````tsx
 // Testnet (default)
 <WalletProvider>
   <App />
@@ -97,11 +97,11 @@ function WalletStatus() {
     </div>
   );
 }
-```text
+````
 
 ### Return Value
 
-```typescript
+````typescript
 interface WalletContextState {
   connected: boolean;
   publicKey?: string;
@@ -137,11 +137,11 @@ function MultiNetworkComponent() {
 
   return <div>...</div>;
 }
-```text
+````
 
 ### Return Value
 
-```typescript
+````typescript
 interface WalletConfigContextState {
   horizonUrl: string;
   network: string;
@@ -197,11 +197,11 @@ function PaymentForm() {
     </form>
   );
 }
-```text
+````
 
 ### PaymentOptions
 
-```typescript
+````typescript
 interface PaymentOptions {
   to: string;
   amount: string;
@@ -269,3 +269,4 @@ When child hooks fail, keep the provider state visible and let the child hook ow
 - [useStellarWallet](/docs/hooks/use-stellar-wallet) - Standalone wallet hook
 - [WalletConnectButton](/docs/hooks/wallet-connect-button) - Pre-built UI component
 - [useStellarBalances](/docs/hooks/use-stellar-balances) - Balance fetching
+````

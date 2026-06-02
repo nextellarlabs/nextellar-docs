@@ -61,7 +61,7 @@ Each sidebar item follows this structure:
         href: string; // Sub-page link
     }[];
 }
-```text
+```
 
 ### Adding a New Sidebar Section
 
@@ -78,13 +78,13 @@ If you want to add a new section, append an object to the `sidebarNav` array:
         }
     ]
 }
-```text
+```
 
 ### Adding a Single Page Without Sub-Pages
 
 To add a single page (without dropdown sub-pages):
 
-```tsx
+````tsx
 {
     title: "Standalone Page",
     icon: <Search className="h-5 w-5" />,
@@ -114,3 +114,4 @@ The sidebar is typically used inside a `Sidebar.tsx` component inside the `compo
 - This is a simple modification that can be done quickly.
 
 This guide should help developers easily navigate and modify the sidebar for their documentation.
+````

@@ -53,14 +53,14 @@ export const meta = {
 
 ### Recommended defaults
 
-| Field | Recommended value |
-| --- | --- |
-| `metadataBase` | Your production domain (e.g. `https://nextellar.dev`) |
-| `title` | Product name + short tagline, under 60 characters |
-| `description` | 50–160 characters, plain language summary |
-| `openGraph.images` | 1200 × 630 px PNG at `/public/og-image.png` |
-| `twitter.card` | `summary_large_image` for rich link previews |
-| `robots` | `index, follow` for public pages |
+| Field              | Recommended value                                     |
+| ------------------ | ----------------------------------------------------- |
+| `metadataBase`     | Your production domain (e.g. `https://nextellar.dev`) |
+| `title`            | Product name + short tagline, under 60 characters     |
+| `description`      | 50–160 characters, plain language summary             |
+| `openGraph.images` | 1200 × 630 px PNG at `/public/og-image.png`           |
+| `twitter.card`     | `summary_large_image` for rich link previews          |
+| `robots`           | `index, follow` for public pages                      |
 
 ## Per-page metadata
 
@@ -74,10 +74,12 @@ import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'Getting Started — Nextellar',
-  description: 'Install Nextellar and create your first Stellar dApp in under 2 minutes.',
+  description:
+    'Install Nextellar and create your first Stellar dApp in under 2 minutes.',
   openGraph: {
     title: 'Getting Started — Nextellar',
-    description: 'Install Nextellar and create your first Stellar dApp in under 2 minutes.',
+    description:
+      'Install Nextellar and create your first Stellar dApp in under 2 minutes.',
   },
 };
 ```
@@ -89,7 +91,11 @@ Use `generateMetadata` when the title or description depends on content loaded a
 ```tsx
 import type { Metadata } from 'next';
 
-export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
+export async function generateMetadata({
+  params,
+}: {
+  params: { slug: string };
+}): Promise<Metadata> {
   const doc = await getDoc(params.slug);
   return {
     title: `${doc.title} — Nextellar`,

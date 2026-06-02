@@ -99,7 +99,7 @@ interface TrustlinesState {
     secret: string
   ) => Promise<{ success: boolean; hash?: string; error?: string }>;
 }
-```text
+```
 
 ### Trustline Interface
 
@@ -111,7 +111,7 @@ interface Trustline {
   balance?: string;
   authorized?: boolean;
 }
-```text
+```
 
 ## Examples
 
@@ -129,7 +129,7 @@ const xdr = await buildChangeTrustXDR({
 
 // Sign with Freighter or other wallet
 const signedXdr = await freighter.signTransaction(xdr);
-```text
+```
 
 ### Dev-Only: Submit with Secret Key
 
@@ -154,7 +154,7 @@ if (result.success) {
 } else {
   console.error('Failed:', result.error);
 }
-```text
+```
 
 ### Remove Trustline
 
@@ -166,7 +166,7 @@ const xdr = await buildChangeTrustXDR({
   issuer: 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
   limit: '0', // Setting limit to 0 removes the trustline
 });
-```text
+```
 
 ### Check if Trustline Exists
 
@@ -224,11 +224,11 @@ function MyComponent() {
   const { trustlines } = useTrustlines(publicKey);
   // Uses mainnet automatically from provider
 }
-```text
+```
 
 Or override per-component:
 
-```tsx
+````tsx
 const { trustlines } = useTrustlines(publicKey, {
   horizonUrl: 'https://horizon-testnet.stellar.org',
   network: 'TESTNET',
@@ -240,3 +240,4 @@ const { trustlines } = useTrustlines(publicKey, {
 - [`useStellarBalances`](/docs/hooks/use-stellar-balances) - View asset balances
 - [`useStellarPayment`](/docs/hooks/use-stellar-payment) - Send custom assets
 - [`useStellarWallet`](/docs/hooks/use-stellar-wallet) - Wallet connection and management
+````

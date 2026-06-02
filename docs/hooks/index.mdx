@@ -102,7 +102,7 @@ function MyComponent() {
   const { balances } = useStellarBalances(publicKey);
   // Uses mainnet automatically!
 }
-```text
+```
 
 ### Override Per-Component
 
@@ -112,13 +112,13 @@ You can always override the provider config:
 const { balances } = useStellarBalances(publicKey, {
   horizonUrl: 'https://horizon-testnet.stellar.org',
 });
-```text
+```
 
 ### Standalone Usage
 
 Hooks work without a provider too:
 
-```tsx
+````tsx
 // No WalletProvider needed
 const { balances } = useStellarBalances(publicKey, {
   horizonUrl: 'https://horizon-testnet.stellar.org',
@@ -139,13 +139,13 @@ const { data, loading, error, refresh } = useSomeHook();
 if (loading) return <Spinner />;
 if (error) return <button onClick={refresh}>Retry</button>;
 return <DisplayData data={data} />;
-```text
+````
 
 ### XDR Building Pattern
 
 Transaction hooks follow a consistent pattern for wallet integration:
 
-```tsx
+````tsx
 // 1. Build unsigned XDR
 const xdr = await buildPaymentXDR({ from, to, amount });
 
@@ -164,3 +164,4 @@ const result = await submitSignedXDR(signedXdr);
 - [CLI Commands](/docs/cli/commands) — Scaffold options
 - [WalletProvider](/docs/hooks/wallet-provider) — Global wallet context
 - [Hook Error Handling](/docs/guides/hook-error-handling) — Shared recovery patterns and common failures
+````

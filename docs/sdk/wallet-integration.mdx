@@ -48,7 +48,7 @@ const kit = new StellarWalletsKit({
     new HanaModule(),
   ],
 });
-```text
+```
 
 ### Connection Flow
 
@@ -71,7 +71,7 @@ function ConnectButton() {
     </button>
   );
 }
-```text
+```
 
 ## Adding More Wallets
 
@@ -98,13 +98,13 @@ const kit = new StellarWalletsKit({
     new xBullModule(), // Add to modules array
   ],
 });
-```text
+```
 
 ## Transaction Signing
 
 When a transaction needs to be signed, the wallet kit handles the communication with the user's wallet:
 
-```tsx
+````tsx
 import { kit, signTransaction } from '@/lib/stellar-wallet-kit';
 
 // Option 1: Use the kit directly
@@ -130,7 +130,7 @@ const kit = new StellarWalletsKit({
   network: WalletNetwork.TESTNET,
   // ...
 });
-```text
+````
 
 ### Mainnet
 
@@ -139,7 +139,7 @@ const kit = new StellarWalletsKit({
   network: WalletNetwork.PUBLIC,
   // ...
 });
-```text
+```
 
 ### Dynamic Network Switching
 
@@ -154,7 +154,7 @@ const network =
   localStorage.getItem('network') === 'mainnet'
     ? WalletNetwork.PUBLIC
     : WalletNetwork.TESTNET;
-```text
+```
 
 ## Session Persistence
 
@@ -166,7 +166,7 @@ localStorage.getItem('stellar_wallet_connected'); // 'true' | 'false'
 localStorage.getItem('stellar_wallet_id'); // wallet adapter ID
 localStorage.getItem('stellar_wallet_address'); // public key
 localStorage.getItem('stellar_wallet_name'); // display name
-```text
+```
 
 On page reload, the `WalletProvider` or `useStellarWallet` hook automatically reconnects if a previous session exists.
 
@@ -185,7 +185,7 @@ const handleConnect = async () => {
     console.error('Connection failed:', error);
   }
 };
-```text
+```
 
 ### Disconnection
 
@@ -196,7 +196,7 @@ const handleDisconnect = () => {
   disconnect();
   // localStorage is cleared automatically
 };
-```text
+```
 
 ## Testing Without a Wallet
 
@@ -205,7 +205,7 @@ For development, you can use the `signAndSubmitWithSecret` methods available on 
 > [!CAUTION]
 > This is for development/testing only. Never use secret keys in production.
 
-```tsx
+````tsx
 const { signAndSubmitWithSecret } = useStellarPayment();
 
 // DEV ONLY
@@ -248,3 +248,4 @@ If the connection is lost unexpectedly:
 - [WalletProvider](/docs/hooks/wallet-provider) - Global wallet context
 - [useStellarWallet](/docs/hooks/use-stellar-wallet) - Wallet connection hook
 - [WalletConnectButton](/docs/hooks/wallet-connect-button) - Pre-built UI component
+````

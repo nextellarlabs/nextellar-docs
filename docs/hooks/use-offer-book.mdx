@@ -46,13 +46,13 @@ export default function OrderBook() {
     </div>
   );
 }
-```text
+```
 
 ## API Reference
 
 ### Parameters
 
-```typescript
+````typescript
 useOfferBook(options: {
   selling: Asset;
   buying: Asset;
@@ -80,7 +80,7 @@ interface OfferBookState {
   error: Error | null;
   refresh: () => Promise<void>;
 }
-```text
+````
 
 ## Examples
 
@@ -98,7 +98,7 @@ return (
     <p>Spread: {spread}%</p>
   </div>
 );
-```text
+```
 
 ### Calculate Order Book Depth
 

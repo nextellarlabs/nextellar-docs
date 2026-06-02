@@ -1,0 +1,43 @@
+---
+title: Page Lifecycle
+description: Guide documenting the full lifecycle of a docs page from draft to archive.
+---
+
+# Documentation Page Lifecycle
+
+This guide outlines the standard lifecycle of every documentation page in the Nextellar documentation repository. Understanding these stages ensures high-quality and up-to-date content for our users.
+
+## Lifecycle Stages
+
+Every page goes through the following distinct stages:
+
+### 1. Draft
+
+- **Definition**: The initial creation phase where content is being written.
+- **Location**: Drafts should be placed in the `routes-d/` directory with a prefix relating to the issue number (e.g., `routes-d/123-my-new-guide.mdx`).
+- **Characteristics**: Content may be incomplete, unreviewed, and is excluded from the main navigation menu and production builds.
+
+### 2. Review
+
+- **Definition**: The page is ready for feedback from maintainers and domain experts.
+- **Process**: A Pull Request (PR) is opened. Reviewers check for technical accuracy, tone, formatting, and adherence to the style guide.
+- **Required Reviews**: At least one core maintainer and one technical stakeholder must approve the PR before the page can move forward.
+
+### 3. Publish
+
+- **Definition**: The content is finalized and merged into the `main` branch.
+- **Location**: The file is moved from `routes-d/` to its appropriate permanent directory (e.g., `docs/guides/`).
+- **Visibility**: The page becomes live on the documentation site and is indexable by the search feature.
+
+### 4. Archive (Retirement)
+
+- **Definition**: The page is no longer relevant, usually due to feature deprecation or significant architectural changes.
+- **Process**: The file is removed from `docs/` or moved to a legacy section. Redirects are set up in `next.config.ts` to point users to the most relevant updated page.
+
+## Retirement Criteria
+
+A documentation page should be considered for retirement if:
+
+- The underlying feature, CLI command, or hook has been deprecated and removed.
+- The content has been fully superseded and consolidated into a newer, more comprehensive guide.
+- Analytics show near-zero traffic over a 12-month period and the content is determined to be non-critical.

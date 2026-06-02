@@ -16,23 +16,28 @@ Working draft for the docs change requested in issue #192.
 ## Command Categories
 
 ### Project Creation
+
 - `nextellar <name>` - Create new Stellar dApp
 - `nextellar <name> --skip-install` - Create without installing deps
 
 ### Development
+
 - `npm run dev` - Start development server
 - `pnpm build:content` - Build content layer
 - `pnpm check:links` - Validate internal links
 
 ### Feature Management
+
 - `nextellar add --list` - List available features
 - `nextellar add <feature>` - Add feature to project
 
 ### Deployment
+
 - `nextellar deploy` - Prepare for production
 - `nextellar deploy --dry-run` - Validate without deploying
 
 ### Help & Info
+
 - `nextellar --help` - Show help information
 - `nextellar --version` - Show CLI version
 

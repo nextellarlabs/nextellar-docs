@@ -10,6 +10,7 @@ Quick reference for common Nextellar CLI commands and development workflow. Book
 ## Project Creation
 
 ### Basic Project Setup
+
 ```bash
 # Create new Stellar dApp
 nextellar my-stellar-app
@@ -25,6 +26,7 @@ nextellar my-app --wallets freighter,xbull
 ```
 
 ### Advanced Project Creation
+
 ```bash
 # Full customization
 nextellar my-app \
@@ -40,6 +42,7 @@ nextellar my-app --defaults
 ## Development Commands
 
 ### Content & Build
+
 ```bash
 # Build content layer (required after adding/editing MDX)
 pnpm build:content
@@ -55,6 +58,7 @@ pnpm start
 ```
 
 ### Code Quality
+
 ```bash
 # Format code with Prettier
 pnpm format
@@ -70,6 +74,7 @@ pnpm test
 ```
 
 ### Documentation Validation
+
 ```bash
 # Validate internal links
 pnpm check:links
@@ -84,6 +89,7 @@ pnpm build:content && pnpm check:links
 ## Feature Management
 
 ### Adding Features
+
 ```bash
 # List all available features
 nextellar add --list
@@ -99,6 +105,7 @@ nextellar add soroban --force
 ```
 
 ### Feature Examples
+
 ```bash
 # Add multiple wallet adapters
 nextellar add wallets --wallets freighter,albedo,xbull
@@ -113,6 +120,7 @@ nextellar add testing
 ## Deployment
 
 ### Production Preparation
+
 ```bash
 # Validate and prepare for deployment
 nextellar deploy
@@ -125,6 +133,7 @@ nextellar deploy --env production
 ```
 
 ### Build Verification
+
 ```bash
 # Verify production build works
 pnpm build && pnpm start
@@ -136,6 +145,7 @@ pnpm build && npx @next/bundle-analyzer
 ## Help & Information
 
 ### CLI Information
+
 ```bash
 # Run environment diagnostics
 nextellar doctor
@@ -155,6 +165,7 @@ nextellar deploy --help
 ```
 
 ### Project Information
+
 ```bash
 # Check Node.js version
 node --version
@@ -172,6 +183,7 @@ npm list
 ## Git Workflow
 
 ### Branch Management
+
 ```bash
 # Create feature branch
 git checkout -b feature/my-new-feature
@@ -185,6 +197,7 @@ git push -u origin feature/my-feature
 ```
 
 ### Commit Workflow
+
 ```bash
 # Stage changes
 git add .
@@ -203,6 +216,7 @@ gh pr create --title "Add new feature" --body "Description"
 ## Troubleshooting
 
 ### Common Issues
+
 ```bash
 # Clear content cache
 rm -rf .contentlayer && pnpm build:content
@@ -219,6 +233,7 @@ git clean -fd
 ```
 
 ### Debugging
+
 ```bash
 # Run with verbose output
 DEBUG=* pnpm dev
@@ -236,6 +251,7 @@ pnpm outdated
 ## Environment Setup
 
 ### Prerequisites
+
 ```bash
 # Check Node.js version (requires 18+)
 node --version
@@ -248,6 +264,7 @@ pnpm --version
 ```
 
 ### Project Setup
+
 ```bash
 # Clone repository
 git clone https://github.com/nextellarlabs/nextellar-docs.git
@@ -268,6 +285,7 @@ pnpm dev
 ## Quick Workflows
 
 ### Adding New Documentation
+
 ```bash
 # 1. Create new MDX file
 touch docs/guides/my-new-guide.mdx
@@ -286,6 +304,7 @@ pnpm dev
 ```
 
 ### Fixing Broken Links
+
 ```bash
 # 1. Find broken links
 pnpm check:links
@@ -301,6 +320,7 @@ pnpm build:content
 ```
 
 ### Preparing for PR
+
 ```bash
 # Complete validation workflow
 pnpm format:check && \
@@ -313,6 +333,7 @@ pnpm build
 ## Keyboard Shortcuts
 
 ### VS Code (Recommended Editor)
+
 ```bash
 # Format document
 Ctrl+Shift+I (Windows/Linux)
@@ -334,6 +355,7 @@ Cmd+` (macOS)
 ## Package Manager Commands
 
 ### pnpm (Recommended)
+
 ```bash
 pnpm install          # Install dependencies
 pnpm add <package>    # Add dependency
@@ -343,6 +365,7 @@ pnpm run <script>     # Run package.json script
 ```
 
 ### npm Alternative
+
 ```bash
 npm install           # Install dependencies
 npm install <package> # Add dependency
@@ -352,6 +375,7 @@ npm run <script>      # Run package.json script
 ```
 
 ### yarn Alternative
+
 ```bash
 yarn install          # Install dependencies
 yarn add <package>    # Add dependency
@@ -365,6 +389,7 @@ yarn run <script>     # Run package.json script
 ## Quick Reference Card
 
 **Most Used Commands:**
+
 - `nextellar my-app` - Create new project
 - `pnpm dev` - Start development
 - `pnpm build:content` - Process MDX files
@@ -372,13 +397,15 @@ yarn run <script>     # Run package.json script
 - `nextellar add --list` - Show available features
 
 **Before Every PR:**
+
 - `pnpm format:check` - Check formatting
-- `pnpm lint` - Check code quality  
+- `pnpm lint` - Check code quality
 - `pnpm build:content` - Process content
 - `pnpm check:links` - Validate links
 - `pnpm build` - Test production build
 
 **Need Help?**
+
 - `nextellar --help` - CLI help
 - [GitHub Discussions](https://github.com/nextellarlabs/nextellar/discussions) - Community support
 - [Full Documentation](/docs) - Complete reference

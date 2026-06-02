@@ -11,4 +11,3 @@ Working draft for the docs change requested in issue #224.
 - Cover tone, structure, formatting, and linking rules.
 - Include examples for preferred wording and page layout.
 - Link from the contributing guide and related docs standards pages.
-

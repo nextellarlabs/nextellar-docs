@@ -145,7 +145,7 @@ Call `disconnect()` to clear the session from context and localStorage:
 ```tsx
 const { disconnect } = useWallet();
 
-<button onClick={disconnect}>Disconnect</button>
+<button onClick={disconnect}>Disconnect</button>;
 ```
 
 ---
@@ -233,7 +233,9 @@ const { connected, network } = useWallet();
 const expectedNetwork = process.env.NEXT_PUBLIC_NETWORK; // "TESTNET" or "PUBLIC"
 
 if (connected && network !== expectedNetwork) {
-  return <Banner>Switch your wallet to {expectedNetwork} and reconnect.</Banner>;
+  return (
+    <Banner>Switch your wallet to {expectedNetwork} and reconnect.</Banner>
+  );
 }
 ```
 

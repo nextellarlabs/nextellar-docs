@@ -26,14 +26,14 @@ MDX pages can use the components registered in `src/components/mdx-components.ts
 
 ## Content Components
 
-| Component | Props | Constraints |
-| --- | --- | --- |
-| `Note` | `type?: "none" \| "info" \| "warning" \| "alert" \| "success" \| "tip"`, `hideIcon?: boolean`, standard `div` props | Use for short callouts, not long sections. |
-| `Preview` | Standard `div` props | Designed for framed component previews. Keep one focused example inside it. |
-| `SearchButton` | `placeholder?: string`, `size?: "xs" \| "sm" \| "md" \| "lg" \| "xl"`, standard `button` props | Opens nothing by itself in MDX examples unless you wire an event handler. |
-| `Mermaid` | `chart: string` | Prefer fenced `mermaid` blocks for readable source. Invalid diagrams render an error message. |
-| `CodeTabs` | `tabs: Record<string, { syntax: string; language: string }>` | Each tab needs a stable key and syntax string. |
-| `CustomSyntaxHighlighter` | `tabs`, `className?`, `themeMode?: "light" \| "dark"`, `lightTheme?`, `darkTheme?`, `indicatorColor?` | Use `CodeTabs` unless you need theme or indicator options. |
+| Component                 | Props                                                                                                               | Constraints                                                                                   |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `Note`                    | `type?: "none" \| "info" \| "warning" \| "alert" \| "success" \| "tip"`, `hideIcon?: boolean`, standard `div` props | Use for short callouts, not long sections.                                                    |
+| `Preview`                 | Standard `div` props                                                                                                | Designed for framed component previews. Keep one focused example inside it.                   |
+| `SearchButton`            | `placeholder?: string`, `size?: "xs" \| "sm" \| "md" \| "lg" \| "xl"`, standard `button` props                      | Opens nothing by itself in MDX examples unless you wire an event handler.                     |
+| `Mermaid`                 | `chart: string`                                                                                                     | Prefer fenced `mermaid` blocks for readable source. Invalid diagrams render an error message. |
+| `CodeTabs`                | `tabs: Record<string, { syntax: string; language: string }>`                                                        | Each tab needs a stable key and syntax string.                                                |
+| `CustomSyntaxHighlighter` | `tabs`, `className?`, `themeMode?: "light" \| "dark"`, `lightTheme?`, `darkTheme?`, `indicatorColor?`               | Use `CodeTabs` unless you need theme or indicator options.                                    |
 
 ```mdx
 <Note>Run `pnpm build:content` after adding any new MDX file.</Note>
@@ -47,12 +47,12 @@ MDX pages can use the components registered in `src/components/mdx-components.ts
 
 ## Tabs
 
-| Component | Props | Constraints |
-| --- | --- | --- |
-| `Tabs` | `defaultValue: string`, `children`, `className?` | `defaultValue` must match one `Tab` and one `TabsContent` value. |
-| `TabsList` | `children`, `className?` | Place `Tab` children inside it. |
-| `Tab` | `value: string`, `children`, `className?` | Must be rendered inside `Tabs`. |
-| `TabsContent` | `value: string`, `children`, `className?` | Must be rendered inside `Tabs`. Hidden content is not mounted. |
+| Component     | Props                                            | Constraints                                                      |
+| ------------- | ------------------------------------------------ | ---------------------------------------------------------------- |
+| `Tabs`        | `defaultValue: string`, `children`, `className?` | `defaultValue` must match one `Tab` and one `TabsContent` value. |
+| `TabsList`    | `children`, `className?`                         | Place `Tab` children inside it.                                  |
+| `Tab`         | `value: string`, `children`, `className?`        | Must be rendered inside `Tabs`.                                  |
+| `TabsContent` | `value: string`, `children`, `className?`        | Must be rendered inside `Tabs`. Hidden content is not mounted.   |
 
 ````mdx
 <Tabs defaultValue="npm">
@@ -67,13 +67,13 @@ MDX pages can use the components registered in `src/components/mdx-components.ts
 
 ## Steps
 
-| Component | Props | Constraints |
-| --- | --- | --- |
-| `Steps` | Standard `div` props | Only valid `Step` children receive automatic numbering. |
-| `Step` | `contentPosition?: "right" \| "below"`, `className?`, `titleClassName?`, `contentClassName?`, `lineClassName?`, `numberClassName?` | Use with `StepTitle` and `StepContent`. |
-| `StepTitle` | Standard `div` props | Must be a child of `Step` to appear in the expected position. |
-| `StepContent` | Standard `div` props | Must be a child of `Step` to appear in the expected position. |
-| `Stepper` | `steps: { title: ReactNode; content: ReactNode }[]`, `mode?: "vertical" \| "horizontal"`, class override props | Best for compact generated step lists. |
+| Component     | Props                                                                                                                              | Constraints                                                   |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `Steps`       | Standard `div` props                                                                                                               | Only valid `Step` children receive automatic numbering.       |
+| `Step`        | `contentPosition?: "right" \| "below"`, `className?`, `titleClassName?`, `contentClassName?`, `lineClassName?`, `numberClassName?` | Use with `StepTitle` and `StepContent`.                       |
+| `StepTitle`   | Standard `div` props                                                                                                               | Must be a child of `Step` to appear in the expected position. |
+| `StepContent` | Standard `div` props                                                                                                               | Must be a child of `Step` to appear in the expected position. |
+| `Stepper`     | `steps: { title: ReactNode; content: ReactNode }[]`, `mode?: "vertical" \| "horizontal"`, class override props                     | Best for compact generated step lists.                        |
 
 ```mdx
 <Steps>
@@ -90,19 +90,19 @@ MDX pages can use the components registered in `src/components/mdx-components.ts
 <Stepper
   mode="horizontal"
   steps={[
-    { title: "Draft", content: "Create the MDX page." },
-    { title: "Link", content: "Add sidebar and related links." },
+    { title: 'Draft', content: 'Create the MDX page.' },
+    { title: 'Link', content: 'Add sidebar and related links.' },
   ]}
 />
 ```
 
 ## Folder Tree
 
-| Component | Props | Constraints |
-| --- | --- | --- |
-| `FolderTree` | `indentSize?: number`, standard `div` props | Use only for small structures that help the reader. |
-| `Folder` | `element: string`, `defaultOpen?: boolean`, standard `div` props | Must be inside `FolderTree`. |
-| `File` | Standard `div` props | Use plain file names or short inline content. |
+| Component    | Props                                                            | Constraints                                         |
+| ------------ | ---------------------------------------------------------------- | --------------------------------------------------- |
+| `FolderTree` | `indentSize?: number`, standard `div` props                      | Use only for small structures that help the reader. |
+| `Folder`     | `element: string`, `defaultOpen?: boolean`, standard `div` props | Must be inside `FolderTree`.                        |
+| `File`       | Standard `div` props                                             | Use plain file names or short inline content.       |
 
 ```mdx
 <FolderTree>
@@ -139,7 +139,9 @@ MDX pages can use the components registered in `src/components/mdx-components.ts
 </FolderTree>
 
 ```mdx
-<Button variant="primary" size="sm">Connect wallet</Button>
+<Button variant="primary" size="sm">
+  Connect wallet
+</Button>
 
 <Label htmlFor="asset-code">Asset code</Label>
 <Input id="asset-code" placeholder="XLM" fullWidth />
@@ -160,24 +162,24 @@ MDX pages can use the components registered in `src/components/mdx-components.ts
 
 ## Overlays and Menus
 
-| Component | Props | Constraints |
-| --- | --- | --- |
-| `Dialog` | `open?: boolean`, `setOpen?`, `children` | Use uncontrolled examples in docs unless state is already available. |
-| `DialogTrigger` | Standard `div` props | Must be inside `Dialog`. |
-| `DialogContent` | `overlayClassName?`, `closeOnClickOutside?: boolean`, standard `div` props | Must be inside `Dialog`; renders through a portal. |
-| `DialogHeader` | `children`, `className?` | Use inside `DialogContent`. |
-| `DialogTitle` | `children`, `className?` | Use one title per dialog. |
-| `DialogDescription` | `children`, `className?` | Keep it short. |
-| `DialogFooter` | `children`, `className?` | Use for actions. |
-| `DialogCloseTrigger` | `children?`, `className?`, `asChild?: boolean` | Must be inside `Dialog`. |
-| `Popover` | `open?: boolean`, `onClose?`, `closeOnOutsideClick?: boolean`, `closeOnEsc?: boolean`, `position?: "top" \| "bottom" \| "left" \| "right"` | Must wrap trigger and content. |
-| `PopoverTrigger` | `asChild?: boolean`, standard `div` props | Must be inside `Popover`. |
-| `PopoverContent` | `sideOffset?: number`, `position?: "top" \| "bottom" \| "left" \| "right"`, `showArrow?: boolean`, `arrowClassName?`, `arrowSize?: number`, `className?` | Must be inside `Popover`. |
-| `PopoverClose` | `asChild?: boolean`, standard `div` props | Must be inside `Popover`. |
-| `Menu` | `open?: boolean`, `setOpen?`, standard `div` props | Must wrap `MenuTrigger` and `PopMenu`. |
-| `MenuTrigger` | Standard `button` props | Must be inside `Menu`. |
-| `PopMenu` | `position?`, `isPositioning?`, `onClose?`, standard `div` props | Normally let `Menu` provide positioning props. |
-| `MenuItem` | Standard `button` props | Must be inside `PopMenu` for menu semantics. |
+| Component            | Props                                                                                                                                                    | Constraints                                                          |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `Dialog`             | `open?: boolean`, `setOpen?`, `children`                                                                                                                 | Use uncontrolled examples in docs unless state is already available. |
+| `DialogTrigger`      | Standard `div` props                                                                                                                                     | Must be inside `Dialog`.                                             |
+| `DialogContent`      | `overlayClassName?`, `closeOnClickOutside?: boolean`, standard `div` props                                                                               | Must be inside `Dialog`; renders through a portal.                   |
+| `DialogHeader`       | `children`, `className?`                                                                                                                                 | Use inside `DialogContent`.                                          |
+| `DialogTitle`        | `children`, `className?`                                                                                                                                 | Use one title per dialog.                                            |
+| `DialogDescription`  | `children`, `className?`                                                                                                                                 | Keep it short.                                                       |
+| `DialogFooter`       | `children`, `className?`                                                                                                                                 | Use for actions.                                                     |
+| `DialogCloseTrigger` | `children?`, `className?`, `asChild?: boolean`                                                                                                           | Must be inside `Dialog`.                                             |
+| `Popover`            | `open?: boolean`, `onClose?`, `closeOnOutsideClick?: boolean`, `closeOnEsc?: boolean`, `position?: "top" \| "bottom" \| "left" \| "right"`               | Must wrap trigger and content.                                       |
+| `PopoverTrigger`     | `asChild?: boolean`, standard `div` props                                                                                                                | Must be inside `Popover`.                                            |
+| `PopoverContent`     | `sideOffset?: number`, `position?: "top" \| "bottom" \| "left" \| "right"`, `showArrow?: boolean`, `arrowClassName?`, `arrowSize?: number`, `className?` | Must be inside `Popover`.                                            |
+| `PopoverClose`       | `asChild?: boolean`, standard `div` props                                                                                                                | Must be inside `Popover`.                                            |
+| `Menu`               | `open?: boolean`, `setOpen?`, standard `div` props                                                                                                       | Must wrap `MenuTrigger` and `PopMenu`.                               |
+| `MenuTrigger`        | Standard `button` props                                                                                                                                  | Must be inside `Menu`.                                               |
+| `PopMenu`            | `position?`, `isPositioning?`, `onClose?`, standard `div` props                                                                                          | Normally let `Menu` provide positioning props.                       |
+| `MenuItem`           | Standard `button` props                                                                                                                                  | Must be inside `PopMenu` for menu semantics.                         |
 
 ```mdx
 <CodeTabs
@@ -190,22 +192,22 @@ MDX pages can use the components registered in `src/components/mdx-components.ts
 
 ## Sidebar Components
 
-| Component | Props | Constraints |
-| --- | --- | --- |
-| `SidebarProvider` | `defaultOpen?: boolean`, `defaultSide?: "left" \| "right"`, `defaultMaxWidth?: number`, `showIconsOnCollapse?: boolean`, `mobileView?: boolean`, standard `div` props | Must wrap every sidebar component. |
-| `SidebarLayout` | Standard `div` props | Use as the outer shell. |
-| `MainContent` | Standard `div` props | Use for content beside the sidebar. |
-| `Sidebar` | Standard `aside` props | Must be inside `SidebarProvider`. |
-| `SidebarHeader` | Standard `div` props | Shows the first child when collapsed. |
-| `SidebarContent` | Standard `div` props | Hidden when collapsed and icons are disabled. |
-| `SidebarFooter` | Standard `div` props | Shows the first child when collapsed. |
-| `SidebarMenu` | Standard `div` props | Wraps `SidebarMenuItem` children. |
-| `SidebarMenuItem` | `icon?`, `label: string`, `href?`, `isActive?`, `defaultOpen?`, `alwaysOpen?`, `isCollapsable?`, `children?` | Use `children` with nested links or collapsible groups. |
-| `NestedLink` | `href?: string`, `isActive?: boolean`, `children` | Must be inside a sidebar menu item for nested navigation. |
-| `SidebarTrigger` | No props | Must be inside `SidebarProvider`. |
-| `SidebarHeaderLogo` | `logo?: ReactNode`, `className?` | Use in `SidebarHeader`. |
-| `SidebarHeaderTitle` | Standard heading props | Use in `SidebarHeader`. |
-| `UserAvatar` | Standard `div` props | Use in `SidebarFooter` for examples. |
+| Component            | Props                                                                                                                                                                 | Constraints                                               |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| `SidebarProvider`    | `defaultOpen?: boolean`, `defaultSide?: "left" \| "right"`, `defaultMaxWidth?: number`, `showIconsOnCollapse?: boolean`, `mobileView?: boolean`, standard `div` props | Must wrap every sidebar component.                        |
+| `SidebarLayout`      | Standard `div` props                                                                                                                                                  | Use as the outer shell.                                   |
+| `MainContent`        | Standard `div` props                                                                                                                                                  | Use for content beside the sidebar.                       |
+| `Sidebar`            | Standard `aside` props                                                                                                                                                | Must be inside `SidebarProvider`.                         |
+| `SidebarHeader`      | Standard `div` props                                                                                                                                                  | Shows the first child when collapsed.                     |
+| `SidebarContent`     | Standard `div` props                                                                                                                                                  | Hidden when collapsed and icons are disabled.             |
+| `SidebarFooter`      | Standard `div` props                                                                                                                                                  | Shows the first child when collapsed.                     |
+| `SidebarMenu`        | Standard `div` props                                                                                                                                                  | Wraps `SidebarMenuItem` children.                         |
+| `SidebarMenuItem`    | `icon?`, `label: string`, `href?`, `isActive?`, `defaultOpen?`, `alwaysOpen?`, `isCollapsable?`, `children?`                                                          | Use `children` with nested links or collapsible groups.   |
+| `NestedLink`         | `href?: string`, `isActive?: boolean`, `children`                                                                                                                     | Must be inside a sidebar menu item for nested navigation. |
+| `SidebarTrigger`     | No props                                                                                                                                                              | Must be inside `SidebarProvider`.                         |
+| `SidebarHeaderLogo`  | `logo?: ReactNode`, `className?`                                                                                                                                      | Use in `SidebarHeader`.                                   |
+| `SidebarHeaderTitle` | Standard heading props                                                                                                                                                | Use in `SidebarHeader`.                                   |
+| `UserAvatar`         | Standard `div` props                                                                                                                                                  | Use in `SidebarFooter` for examples.                      |
 
 ```mdx
 <SidebarProvider defaultOpen={true}>
@@ -217,8 +219,17 @@ MDX pages can use the components registered in `src/components/mdx-components.ts
       </SidebarHeader>
       <SidebarContent>
         <SidebarMenu>
-          <SidebarMenuItem icon={<Home className="h-4 w-4" />} label="Home" href="/docs" />
-          <SidebarMenuItem icon={<Component className="h-4 w-4" />} label="Components" defaultOpen isCollapsable>
+          <SidebarMenuItem
+            icon={<Home className="h-4 w-4" />}
+            label="Home"
+            href="/docs"
+          />
+          <SidebarMenuItem
+            icon={<Component className="h-4 w-4" />}
+            label="Components"
+            defaultOpen
+            isCollapsable
+          >
             <NestedLink href="/docs/components/button">Button</NestedLink>
           </SidebarMenuItem>
         </SidebarMenu>
@@ -237,17 +248,17 @@ MDX pages can use the components registered in `src/components/mdx-components.ts
 
 ## Icon Components
 
-| Component | Props | Constraints |
-| --- | --- | --- |
-| `Home` | Lucide icon props | Use with `className`, `size`, or `strokeWidth`. |
-| `Users` | Lucide icon props | Use as a visual aid, not as the only label. |
-| `Settings` | Lucide icon props | Pair with text for accessibility. |
-| `FileText` | Lucide icon props | Pair with text for accessibility. |
-| `BarChart` | Lucide icon props | Pair with text for accessibility. |
-| `Mail` | Lucide icon props | Pair with text for accessibility. |
-| `Bell` | Lucide icon props | Pair with text for accessibility. |
-| `BookOpen` | Lucide icon props | Pair with text for accessibility. |
-| `Component` | Lucide icon props | Pair with text for accessibility. |
+| Component   | Props             | Constraints                                     |
+| ----------- | ----------------- | ----------------------------------------------- |
+| `Home`      | Lucide icon props | Use with `className`, `size`, or `strokeWidth`. |
+| `Users`     | Lucide icon props | Use as a visual aid, not as the only label.     |
+| `Settings`  | Lucide icon props | Pair with text for accessibility.               |
+| `FileText`  | Lucide icon props | Pair with text for accessibility.               |
+| `BarChart`  | Lucide icon props | Pair with text for accessibility.               |
+| `Mail`      | Lucide icon props | Pair with text for accessibility.               |
+| `Bell`      | Lucide icon props | Pair with text for accessibility.               |
+| `BookOpen`  | Lucide icon props | Pair with text for accessibility.               |
+| `Component` | Lucide icon props | Pair with text for accessibility.               |
 
 ```mdx
 <div className="flex gap-3">
@@ -267,12 +278,12 @@ MDX pages can use the components registered in `src/components/mdx-components.ts
 
 The MDX renderer also customizes standard Markdown output for `h1`, `h2`, `h3`, `h4`, `p`, `a`, `ul`, `ol`, `li`, `blockquote`, `hr`, `table`, `tr`, `th`, `td`, and `code`.
 
-| Element | Props | Constraints |
-| --- | --- | --- |
-| Headings and paragraphs | Standard HTML props | Use Markdown syntax unless a custom class is required. |
-| Links | Standard anchor props | Internal docs links should use `/docs/...` paths. |
-| Lists and tables | Standard HTML props | Keep tables narrow enough to scan on mobile. |
-| `code` | `className` with `language-*` for code fences | Fenced `mermaid` code blocks render through `Mermaid`. |
+| Element                 | Props                                         | Constraints                                            |
+| ----------------------- | --------------------------------------------- | ------------------------------------------------------ |
+| Headings and paragraphs | Standard HTML props                           | Use Markdown syntax unless a custom class is required. |
+| Links                   | Standard anchor props                         | Internal docs links should use `/docs/...` paths.      |
+| Lists and tables        | Standard HTML props                           | Keep tables narrow enough to scan on mobile.           |
+| `code`                  | `className` with `language-*` for code fences | Fenced `mermaid` code blocks render through `Mermaid`. |
 
 ````mdx
 ## Example Heading

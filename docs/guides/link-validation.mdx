@@ -9,11 +9,11 @@ Nextellar docs ships three validation scripts in the `scripts/` directory. Run t
 
 ## Scripts overview
 
-| Script | npm command | What it checks |
-| --- | --- | --- |
+| Script                         | npm command             | What it checks                                   |
+| ------------------------------ | ----------------------- | ------------------------------------------------ |
 | `scripts/validate-sidebar.cjs` | `pnpm validate:sidebar` | Sidebar and TOC entries against actual MDX files |
-| `scripts/check-links.cjs` | `pnpm check:links` | Component page URLs against a running dev server |
-| `scripts/final-validation.cjs` | _(run directly)_ | Acceptance criteria summary for PR review |
+| `scripts/check-links.cjs`      | `pnpm check:links`      | Component page URLs against a running dev server |
+| `scripts/final-validation.cjs` | _(run directly)_        | Acceptance criteria summary for PR review        |
 
 ## validate-sidebar.cjs
 
@@ -34,7 +34,7 @@ pnpm validate:sidebar
 
 ### Reading the output
 
-```text
+```
 🔍 COMPONENTS INVENTORY (SOURCE OF TRUTH)
 VALID (2): connect-wallet-button, use-window-size
 
@@ -84,7 +84,7 @@ pnpm check:links
 
 ### Reading the output
 
-```text
+```
 🔗 TESTING COMPONENT LINKS
 
 Testing 2 links...
@@ -122,7 +122,7 @@ node scripts/final-validation.cjs
 
 ### Reading the output
 
-```text
+```
 🔗 FINAL VALIDATION #127
 
 📊 STATISTICS

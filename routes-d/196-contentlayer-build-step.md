@@ -16,23 +16,27 @@ Working draft for the docs change requested in issue #196.
 ## Content Build Process
 
 ### What it does
+
 - Processes MDX files into structured data
 - Validates frontmatter and content structure
 - Generates type-safe content objects
 - Creates navigation and search indices
 
 ### Command
+
 ```bash
 pnpm build:content
 ```
 
 ### When to run
+
 - After adding new MDX files
 - After modifying frontmatter
 - Before running the development server
 - As part of the full build process
 
 ### Integration
+
 - Runs automatically during `pnpm build`
 - Required for proper content rendering
 - Validates content structure and links

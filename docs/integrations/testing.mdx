@@ -23,7 +23,7 @@ This guide covers how to add MSW to your Nextellar project for testing Stellar A
 
 ### 1. Install MSW
 
-```bash
+````bash
 npm install msw --save-dev
 ```typescript
 
@@ -91,7 +91,7 @@ import { server } from './src/mocks/server';
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
-```text
+````
 
 ## Example Test
 
@@ -130,7 +130,7 @@ describe('useStellarBalances', () => {
     expect(result.current.balances).toHaveLength(0);
   });
 });
-```text
+```
 
 ## Mock Soroban RPC
 
@@ -159,7 +159,7 @@ http.post('https://soroban-testnet.stellar.org', async ({ request }) => {
 
   return HttpResponse.json({ error: 'Unknown method' });
 });
-```text
+```
 
 ## Testing Transaction Signing
 
@@ -178,7 +178,7 @@ export const kit = {
 };
 
 export const getKit = () => kit;
-```text
+```
 
 ```typescript
 // In your test
@@ -193,7 +193,7 @@ it('signs transaction with wallet', async () => {
     expect.objectContaining({ address: expect.any(String) })
   );
 });
-```text
+```
 
 ## Browser Testing with MSW
 
@@ -205,9 +205,9 @@ import { setupWorker } from 'msw/browser';
 import { handlers } from './handlers';
 
 export const worker = setupWorker(...handlers);
-```text
+```
 
-```typescript
+````typescript
 // Start in development
 if (process.env.NODE_ENV === 'development') {
   const { worker } = await import('./mocks/browser');
@@ -223,3 +223,4 @@ if (process.env.NODE_ENV === 'development') {
 - [MSW Documentation](https://mswjs.io/docs)
 - [Stellar Horizon](/docs/integrations/horizon) - APIs to mock
 - [Soroban](/docs/integrations/soroban) - Smart contract testing
+````

@@ -11,4 +11,3 @@ Working draft for the docs change requested in issue #237.
 - Summarize the common failure modes across all hook pages.
 - Document retry and recovery guidance for each hook family.
 - Add hook-specific error sections to the reference pages.
-

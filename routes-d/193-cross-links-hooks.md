@@ -14,18 +14,18 @@ All files under `docs/hooks/`.
 
 ## Hook relationship map
 
-| Hook | Related hooks |
-|------|--------------|
-| `useStellarWallet` | `useStellarBalances`, `useStellarPayment`, `WalletProvider`, `WalletConnectButton` |
-| `useStellarBalances` | `useStellarWallet`, `useTrustlines` |
-| `useStellarPayment` | `useStellarWallet`, `useTransactionHistory` |
-| `useSorobanContract` | `useSorobanEvents` |
-| `useSorobanEvents` | `useSorobanContract` |
-| `useTransactionHistory` | `useStellarPayment`, `useStellarWallet` |
-| `useTrustlines` | `useStellarBalances`, `useStellarWallet` |
-| `useOfferBook` | `useStellarWallet` |
-| `WalletProvider` | `useStellarWallet`, `WalletConnectButton` |
-| `WalletConnectButton` | `WalletProvider`, `useStellarWallet` |
+| Hook                    | Related hooks                                                                      |
+| ----------------------- | ---------------------------------------------------------------------------------- |
+| `useStellarWallet`      | `useStellarBalances`, `useStellarPayment`, `WalletProvider`, `WalletConnectButton` |
+| `useStellarBalances`    | `useStellarWallet`, `useTrustlines`                                                |
+| `useStellarPayment`     | `useStellarWallet`, `useTransactionHistory`                                        |
+| `useSorobanContract`    | `useSorobanEvents`                                                                 |
+| `useSorobanEvents`      | `useSorobanContract`                                                               |
+| `useTransactionHistory` | `useStellarPayment`, `useStellarWallet`                                            |
+| `useTrustlines`         | `useStellarBalances`, `useStellarWallet`                                           |
+| `useOfferBook`          | `useStellarWallet`                                                                 |
+| `WalletProvider`        | `useStellarWallet`, `WalletConnectButton`                                          |
+| `WalletConnectButton`   | `WalletProvider`, `useStellarWallet`                                               |
 
 ## Draft section to append to each hook page
 

@@ -45,7 +45,7 @@ export default function EventListener() {
 
 ### Parameters
 
-```typescript
+````typescript
 useSorobanEvents(options: {
   contractId: string;
   eventTypes?: string[];
@@ -71,7 +71,7 @@ interface EventsState {
   startListening: () => void;
   stopListening: () => void;
 }
-```
+````
 
 ## Examples
 
@@ -82,7 +82,7 @@ const { events } = useSorobanEvents({
   contractId,
   eventTypes: ['transfer'], // Only listen for transfers
 });
-```text
+```
 
 ### React to Events
 
@@ -100,7 +100,7 @@ function EventReactor() {
 
   return <div>Monitoring contract events...</div>;
 }
-```text
+```
 
 ### Manual Control
 

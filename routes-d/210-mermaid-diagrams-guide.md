@@ -14,7 +14,7 @@ Working draft for the docs change requested in issue #210.
 
 ## Draft content
 
-```mdx
+`````mdx
 ---
 title: Adding Diagrams with Mermaid
 description: Embed interactive diagrams in your Nextellar docs using Mermaid
@@ -32,6 +32,9 @@ flowchart LR
   B --> C[useStellarWallet]
   C -->|sign tx| D[Stellar Network]
 ```
+````
+`````
+
 ````
 
 ### Rendered result
@@ -68,3 +71,4 @@ sequenceDiagram
 - Confirm Mermaid is already wired into the MDX pipeline before merging.
   Check `next.config.*` or the rehype plugins for `rehype-mermaid` / `remark-mermaidjs`.
 - If not wired, the setup steps should be added to the guide.
+````

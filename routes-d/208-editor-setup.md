@@ -16,6 +16,7 @@ Working draft for the docs change requested in issue #208.
 ## Recommended Extensions
 
 ### VS Code Extensions
+
 - **ESLint**: Automatic linting and error detection
 - **Prettier**: Code formatting on save
 - **MDX**: Syntax highlighting for MDX files
@@ -23,6 +24,7 @@ Working draft for the docs change requested in issue #208.
 - **TypeScript Importer**: Auto-import management
 
 ### Editor Configuration
+
 - Format on save settings
 - ESLint integration
 - Prettier configuration

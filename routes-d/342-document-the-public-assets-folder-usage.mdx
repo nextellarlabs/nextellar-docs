@@ -1,0 +1,50 @@
+---
+title: Public Assets Folder Usage
+description: Guide on how the public assets folder is organized and how to reference assets in Nextellar documentation.
+---
+
+# Public Assets Folder Usage
+
+This document outlines the organization and usage of the public assets folder in the Nextellar documentation project.
+
+## Folder Layout
+
+The `public` folder serves as the root directory for all statically served assets. Its structure is organized by asset type to maintain order:
+
+- **`/public/images/`**: General documentation images (e.g., screenshots, diagrams).
+- **`/public/logos/`**: Brand logos and project icons.
+- **`/public/fonts/`**: Custom fonts loaded in the application.
+- **`/public/figmaAssets/`**: Exported design assets from Figma.
+
+## Allowed Asset Types
+
+To ensure fast loading times and optimal rendering, only the following asset types are allowed in the `public` folder:
+
+- **Images**: `.png`, `.jpg`, `.jpeg`, `.webp`, `.svg`, `.gif`
+- **Icons/Logos**: `.svg`, `.ico`
+- **Fonts**: `.woff`, `.woff2`, `.ttf`, `.otf`
+
+> Note: We recommend using `.webp` or `.svg` for new images due to their smaller file size and better performance.
+
+## Referencing Assets in Docs
+
+When writing documentation in MDX, assets in the `public` folder should be referenced using absolute paths starting from the root `/`, omitting the `public/` directory name.
+
+### Markdown Syntax
+
+```md
+![Alternative text for the image](/images/my-screenshot.webp)
+```
+
+### HTML/JSX Syntax
+
+```tsx
+<img
+  src="/logos/nextellar-logo.svg"
+  alt="Nextellar Logo"
+  width={200}
+  height={50}
+/>
+```
+
+By following these conventions, the site builder ensures assets are properly resolved and cached in production.

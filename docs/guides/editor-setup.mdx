@@ -16,20 +16,24 @@ VS Code is the recommended editor for Nextellar documentation development due to
 ### Essential Extensions
 
 **Code Quality & Formatting**
+
 - **[ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint)**: Real-time linting and error detection
 - **[Prettier](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode)**: Automatic code formatting on save
 - **[Code Spell Checker](https://marketplace.visualstudio.com/items?itemName=streetsidesoftware.code-spell-checker)**: Catch typos in documentation
 
 **Language Support**
+
 - **[MDX](https://marketplace.visualstudio.com/items?itemName=unifiedjs.vscode-mdx)**: Syntax highlighting and IntelliSense for MDX files
 - **[TypeScript Importer](https://marketplace.visualstudio.com/items?itemName=pmneo.tsimporter)**: Auto-import TypeScript modules
 - **[Path Intellisense](https://marketplace.visualstudio.com/items?itemName=christian-kohler.path-intellisense)**: Autocomplete for file paths
 
 **Styling & UI**
+
 - **[Tailwind CSS IntelliSense](https://marketplace.visualstudio.com/items?itemName=bradlc.vscode-tailwindcss)**: Autocomplete and hover info for Tailwind classes
 - **[CSS Peek](https://marketplace.visualstudio.com/items?itemName=pranaygp.vscode-css-peek)**: Navigate to CSS definitions
 
 **Git & Collaboration**
+
 - **[GitLens](https://marketplace.visualstudio.com/items?itemName=eamodio.gitlens)**: Enhanced Git capabilities
 - **[GitHub Pull Requests](https://marketplace.visualstudio.com/items?itemName=GitHub.vscode-pull-request-github)**: Manage PRs from VS Code
 
@@ -83,12 +87,14 @@ Add to your `keybindings.json`:
 ### WebStorm / IntelliJ IDEA
 
 **Plugins**
+
 - **Prettier**: Built-in formatting support
-- **ESLint**: Built-in linting integration  
+- **ESLint**: Built-in linting integration
 - **MDX**: Syntax highlighting for MDX files
 - **Tailwind CSS**: Autocomplete and validation
 
 **Configuration**
+
 ```javascript
 // .idea/prettier.xml
 <component name="PrettierConfiguration">
@@ -100,6 +106,7 @@ Add to your `keybindings.json`:
 ### Vim/Neovim
 
 **Essential Plugins**
+
 ```lua
 -- Using lazy.nvim
 {
@@ -111,6 +118,7 @@ Add to your `keybindings.json`:
 ```
 
 **Configuration Example**
+
 ```lua
 -- LSP setup for TypeScript and ESLint
 require('lspconfig').tsserver.setup{}
@@ -128,6 +136,7 @@ vim.api.nvim_create_autocmd("BufWritePre", {
 ### Sublime Text
 
 **Packages**
+
 - **LSP**: Language Server Protocol support
 - **Prettier**: Code formatting
 - **MDX**: Syntax highlighting
@@ -138,6 +147,7 @@ vim.api.nvim_create_autocmd("BufWritePre", {
 The project includes several configuration files that your editor should automatically detect:
 
 ### Prettier Configuration
+
 ```json
 // .prettierrc
 {
@@ -151,6 +161,7 @@ The project includes several configuration files that your editor should automat
 ```
 
 ### ESLint Configuration
+
 ```javascript
 // eslint.config.mjs
 export default [
@@ -158,13 +169,14 @@ export default [
     files: ['**/*.{js,jsx,ts,tsx,mdx}'],
     rules: {
       'no-unused-vars': 'warn',
-      'prefer-const': 'error'
-    }
-  }
-]
+      'prefer-const': 'error',
+    },
+  },
+];
 ```
 
 ### EditorConfig
+
 ```ini
 # .editorconfig
 root = true
@@ -184,21 +196,27 @@ trim_trailing_whitespace = false
 ## Development Workflow Integration
 
 ### Format on Save
+
 Ensure your editor is configured to:
+
 - Run Prettier formatting on save
 - Apply ESLint auto-fixes on save
 - Trim trailing whitespace
 - Insert final newline
 
 ### Live Validation
+
 Your editor should provide:
+
 - Real-time TypeScript error checking
 - ESLint rule violations highlighting
 - Spell checking for documentation
 - Broken link detection (with appropriate extensions)
 
 ### Git Integration
+
 Recommended git workflow features:
+
 - Inline blame annotations
 - Diff viewing in editor
 - Commit message templates
@@ -209,6 +227,7 @@ Recommended git workflow features:
 ### Common Issues
 
 **Prettier not formatting MDX files**
+
 ```json
 // Add to VS Code settings.json
 {
@@ -217,33 +236,33 @@ Recommended git workflow features:
 ```
 
 **ESLint not working with MDX**
+
 ```javascript
 // eslint.config.mjs
 export default [
   {
     files: ['**/*.mdx'],
-    processor: '@mdx-js/eslint/processor'
-  }
-]
+    processor: '@mdx-js/eslint/processor',
+  },
+];
 ```
 
 **Tailwind classes not autocompleting**
+
 ```json
 // VS Code settings.json
 {
   "tailwindCSS.includeLanguages": {
     "mdx": "html"
   },
-  "tailwindCSS.classAttributes": [
-    "class",
-    "className"
-  ]
+  "tailwindCSS.classAttributes": ["class", "className"]
 }
 ```
 
 ### Performance Optimization
 
 **Large Project Performance**
+
 - Exclude `node_modules` from file watching
 - Disable unused language features
 - Use workspace-specific settings

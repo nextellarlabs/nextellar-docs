@@ -1,34 +1,40 @@
 # Issue 223: Consolidate duplicate content across overlapping pages
 
 ## Summary
+
 This document outlines the content consolidation strategy for reducing duplicate content across the documentation.
 
 ## Identified Overlapping Content
 
 ### 1. Testing Documentation
+
 - **guides/testing.mdx** - Vitest/jsdom setup for unit testing
 - **integrations/testing.mdx** - Mock Service Worker (MSW) for API mocking
 
 **Action**: These are complementary topics. The guides/testing.mdx covers unit testing infrastructure, while integrations/testing.mdx covers API mocking. They should remain separate but be cross-linked in the sidebar.
 
 **Changes**:
+
 - Updated sidebar to place guides/testing as "Testing (Vitest)"
 - Updated sidebar to place integrations/testing as "Testing (MSW)"
 - Both pages should add cross-references to each other
 
 ### 2. Getting Started and Examples
+
 - **docs/getting-started/quick-start.mdx** - Quick start guide
 - **docs/examples/payment-app.mdx** - Payment app example
 
 **Action**: These are complementary. Quick start is conceptual guidance, examples are working code. No consolidation needed, but should be cross-linked.
 
 ### 3. Guides Index and Examples Index
+
 - **docs/guides/index.mdx** - Landing page with links to guides
 - **docs/examples/index.mdx** - Landing page with example code and snippets
 
 **Action**: Both are landing pages serving different purposes. Guides index links to deployment, contributing, etc. Examples index shows quick snippets. These are distinct and should remain separate.
 
 ### 4. Hook Documentation Structure
+
 - **docs/sdk/overview.mdx** - Overview mentions all 8 hooks with table
 - **docs/hooks/** - Individual hook documentation pages
 - **docs/examples/index.mdx** - Contains usage examples for hooks

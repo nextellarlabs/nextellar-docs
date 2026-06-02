@@ -45,7 +45,7 @@ function TokenBalance() {
 
   return <button onClick={getBalance}>Check Balance</button>;
 }
-```text
+```
 
 ### useSorobanEvents
 
@@ -71,7 +71,7 @@ function EventListener() {
     </ul>
   );
 }
-```text
+```
 
 ## Contract Operations
 
@@ -85,7 +85,7 @@ const { callFunction } = useSorobanContract({ contractId });
 // Read contract state
 const result = await callFunction('get_admin', []);
 const balance = await callFunction('balance', [address]);
-```text
+```
 
 ### Build Invocation XDR
 
@@ -102,13 +102,13 @@ const signedXdr = await wallet.signTransaction(xdr);
 
 // Submit to network
 const result = await submitTransaction(signedXdr);
-```text
+```
 
 ### Dev-Only Submission
 
 For testing only - sign with secret key:
 
-```tsx
+````tsx
 const { submitInvokeWithSecret } = useSorobanContract({ contractId });
 
 // DEV ONLY - Never use in production!
@@ -135,7 +135,7 @@ await callFunction('transfer', [
   1000, // �ScvI128
   true, // �ScvBool
 ]);
-```text
+````
 
 ## Configuration
 
@@ -145,7 +145,7 @@ await callFunction('transfer', [
 <WalletProvider sorobanRpc="https://soroban-rpc.stellar.org" network="PUBLIC">
   <App />
 </WalletProvider>
-```text
+```
 
 ### Per-Hook Override
 
@@ -155,7 +155,7 @@ const contract = useSorobanContract({
   sorobanRpc: 'https://soroban-rpc.stellar.org',
   network: 'PUBLIC',
 });
-```text
+```
 
 ## Common Patterns
 
@@ -184,7 +184,7 @@ function TokenActions({ contractId, userAddress }) {
     </div>
   );
 }
-```text
+```
 
 ### Listening to Mint Events
 
@@ -207,7 +207,7 @@ function MintEventMonitor({ contractId }) {
     </div>
   );
 }
-```text
+```
 
 ## Error Handling
 
@@ -223,11 +223,11 @@ try {
     console.log('Contract not deployed');
   }
 }
-```text
+```
 
 ## Environment Variables
 
-```bash
+````bash
 # .env.local
 NEXT_PUBLIC_SOROBAN_RPC=https://soroban-rpc.stellar.org
 NEXT_PUBLIC_NETWORK=PUBLIC
@@ -240,3 +240,4 @@ NEXT_PUBLIC_NETWORK=PUBLIC
 - [useSorobanContract](/docs/hooks/use-soroban-contract) - Full hook documentation
 - [useSorobanEvents](/docs/hooks/use-soroban-events) - Event listening hook
 - [Stellar Horizon](/docs/integrations/horizon) - Standard Stellar operations
+````

@@ -27,10 +27,10 @@ Each component is fully typed and works out of the box with `WalletProvider`.
 
 ## Wallet
 
-| Component | Description |
-|-----------|-------------|
-| [WalletConnectButton](./wallet-connect-button) | One-click wallet connection modal |
-| [WalletProvider](./wallet-provider) | Context provider — wrap your app root |
+| Component                                      | Description                           |
+| ---------------------------------------------- | ------------------------------------- |
+| [WalletConnectButton](./wallet-connect-button) | One-click wallet connection modal     |
+| [WalletProvider](./wallet-provider)            | Context provider — wrap your app root |
 
 ## Planned components
 

@@ -542,8 +542,8 @@ Simple but effective:
 
 ```typescript
 const config = {
-  "{{APP_NAME}}": appName,
-  "{{HORIZON_URL}}": horizonUrl || "https://horizon-testnet.stellar.org",
+  '{{APP_NAME}}': appName,
+  '{{HORIZON_URL}}': horizonUrl || 'https://horizon-testnet.stellar.org',
   // ...
 };
 // Replace in files
@@ -570,8 +570,8 @@ Auto-reconnect on page reload is a **UX win**:
 
 ```typescript
 useEffect(() => {
-  const wasConnected = localStorage.getItem("stellar_wallet_connected");
-  if (wasConnected === "true") {
+  const wasConnected = localStorage.getItem('stellar_wallet_connected');
+  if (wasConnected === 'true') {
     // Auto-reconnect logic
   }
 }, []);

@@ -46,7 +46,7 @@ The **Nextellar SDK** is a set of React hooks, utilities, and typed APIs that ma
 
 ## Architecture
 
-```mermaid
+````mermaid
 flowchart TB
     APP["Your Application"]
     HOOKS["React Hooks<br/>useStellarWallet · useStellarPayment · useStellarBalances"]
@@ -75,7 +75,7 @@ All hooks automatically consume configuration from `WalletProvider`:
 <WalletProvider horizonUrl="https://horizon.stellar.org">
   <App /> {/* All hooks use mainnet automatically */}
 </WalletProvider>
-```text
+````
 
 ### XDR Building Pattern
 
@@ -90,7 +90,7 @@ const signedXdr = await wallet.signTransaction(xdr);
 
 // Submit to network
 const result = await submitSignedXDR(signedXdr);
-```text
+```
 
 ### Type Safety
 
@@ -104,13 +104,13 @@ interface Balance {
   balance: string;
   limit?: string;
 }
-```text
+```
 
 ### Error Handling
 
 Consistent loading/error states across all hooks:
 
-```tsx
+````tsx
 const { data, loading, error, refresh } = useSomeHook();
 
 if (loading) return <Spinner />;
@@ -171,3 +171,4 @@ The SDK is built on:
 - [API Reference](/docs/sdk/api-reference) - Type definitions and utilities
 - [Wallet Integration](/docs/sdk/wallet-integration) - Multi-wallet setup
 - [CLI Reference](/docs/cli/commands) - Scaffolding options
+````

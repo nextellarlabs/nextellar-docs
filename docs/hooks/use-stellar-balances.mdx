@@ -49,13 +49,13 @@ export default function BalanceDisplay({ publicKey }: { publicKey: string }) {
     </div>
   );
 }
-```text
+```
 
 ## API Reference
 
 ### Parameters
 
-```typescript
+````typescript
 useStellarBalances(
   publicKey?: string | null,
   options?: {
@@ -89,7 +89,7 @@ interface Balance {
   balance: string;
   limit?: string;
 }
-```text
+````
 
 ## Examples
 
@@ -104,11 +104,11 @@ const { balances, stopPolling } = useStellarBalances(publicKey, {
 useEffect(() => {
   return () => stopPolling();
 }, [stopPolling]);
-```text
+```
 
 ### Filter by Asset Type
 
-```tsx
+````tsx
 const { balances } = useStellarBalances(publicKey);
 
 const xlmBalance =
@@ -138,7 +138,7 @@ const handleSend = async () => {
   await sendPayment({ to, amount, asset: 'XLM' });
   await refresh(); // Update balances after payment
 };
-```text
+````
 
 ### With Custom Horizon URL
 
@@ -147,7 +147,7 @@ const handleSend = async () => {
 const { balances } = useStellarBalances(publicKey, {
   horizonUrl: 'https://horizon.stellar.org', // Use mainnet
 });
-```text
+```
 
 ## Auto-Consume Pattern
 

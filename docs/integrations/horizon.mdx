@@ -49,7 +49,7 @@ Configure once at the provider level:
 <WalletProvider horizonUrl="https://horizon.stellar.org">
   <App /> {/* All hooks use mainnet Horizon */}
 </WalletProvider>
-```text
+```
 
 ### Per-Hook Override
 
@@ -59,7 +59,7 @@ Override for specific components:
 const { balances } = useStellarBalances(publicKey, {
   horizonUrl: 'https://horizon.stellar.org', // Use mainnet
 });
-```text
+```
 
 ### Standalone Usage
 
@@ -69,7 +69,7 @@ Use without WalletProvider:
 const { balances } = useStellarBalances(publicKey, {
   horizonUrl: 'https://horizon-testnet.stellar.org',
 });
-```text
+```
 
 ## Direct Horizon Usage
 
@@ -93,7 +93,7 @@ const transactions = await server
 
 // Load account for transaction building
 const sourceAccount = await server.loadAccount(publicKey);
-```text
+```
 
 ## Transaction Building
 
@@ -122,7 +122,7 @@ const transaction = new TransactionBuilder(sourceAccount, {
   )
   .setTimeout(30)
   .build();
-```text
+```
 
 ## Environment Variables
 
@@ -132,9 +132,9 @@ Configure Horizon endpoints via environment variables:
 # .env.local
 NEXT_PUBLIC_HORIZON_URL=https://horizon.stellar.org
 NEXT_PUBLIC_NETWORK=PUBLIC
-```text
+```
 
-```tsx
+````tsx
 // Access in your app
 const horizonUrl = process.env.NEXT_PUBLIC_HORIZON_URL;
 ```css
@@ -157,7 +157,7 @@ const { error, refresh } = useStellarBalances(publicKey);
 if (error?.message.includes('404')) {
   return <p>Account not funded yet</p>;
 }
-```text
+````
 
 ## Rate Limiting
 
@@ -167,7 +167,7 @@ Stellar's public Horizon servers have rate limits. For production:
 2. **Consider self-hosting** - Run your own Horizon instance
 3. **Use caching** - Implement client-side caching
 
-```tsx
+````tsx
 const { balances } = useStellarBalances(publicKey, {
   pollIntervalMs: 15000, // Poll every 15 seconds
 });
@@ -180,3 +180,4 @@ const { balances } = useStellarBalances(publicKey, {
 - [useStellarBalances](/docs/hooks/use-stellar-balances) - Balance fetching hook
 - [useStellarPayment](/docs/hooks/use-stellar-payment) - Payment transactions
 - [useTransactionHistory](/docs/hooks/use-transaction-history) - Transaction queries
+````

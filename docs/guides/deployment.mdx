@@ -31,22 +31,22 @@ pnpm build
 
 The scripts map to these checks:
 
-| Step | Script | Purpose |
-| --- | --- | --- |
-| Install | `pnpm install --frozen-lockfile` | Install the exact dependency graph from `pnpm-lock.yaml`. |
-| Content build | `pnpm build:content` | Generate Contentlayer data from files in `docs/`. |
-| Link check | `pnpm check:links` | Validate internal documentation links. |
-| Production build | `pnpm build` | Run `contentlayer2 build` and `next build`. |
+| Step             | Script                           | Purpose                                                   |
+| ---------------- | -------------------------------- | --------------------------------------------------------- |
+| Install          | `pnpm install --frozen-lockfile` | Install the exact dependency graph from `pnpm-lock.yaml`. |
+| Content build    | `pnpm build:content`             | Generate Contentlayer data from files in `docs/`.         |
+| Link check       | `pnpm check:links`               | Validate internal documentation links.                    |
+| Production build | `pnpm build`                     | Run `contentlayer2 build` and `next build`.               |
 
 ## Environment Requirements
 
-| Requirement | Value |
-| --- | --- |
-| Node.js | `>=18` |
-| Package manager | `pnpm` |
-| Lockfile | `pnpm-lock.yaml` |
-| Framework | Next.js |
-| Content pipeline | Contentlayer |
+| Requirement      | Value            |
+| ---------------- | ---------------- |
+| Node.js          | `>=18`           |
+| Package manager  | `pnpm`           |
+| Lockfile         | `pnpm-lock.yaml` |
+| Framework        | Next.js          |
+| Content pipeline | Contentlayer     |
 
 No Stellar network secrets are required to build the documentation site. Keep wallet keys, private RPC credentials, and deployment tokens out of MDX examples and repository files.
 
@@ -54,11 +54,11 @@ No Stellar network secrets are required to build the documentation site. Keep wa
 
 Use the standard Next.js deployment settings for the hosting provider:
 
-| Setting | Value |
-| --- | --- |
-| Install command | `pnpm install --frozen-lockfile` |
-| Build command | `pnpm build` |
-| Output | `.next` |
+| Setting         | Value                                 |
+| --------------- | ------------------------------------- |
+| Install command | `pnpm install --frozen-lockfile`      |
+| Build command   | `pnpm build`                          |
+| Output          | `.next`                               |
 | Runtime command | `pnpm start` when using a Node server |
 
 For Vercel, the default Next.js preset is sufficient once the install command uses pnpm. For another provider, make sure the build runs from the repository root and preserves the generated `.next` output.

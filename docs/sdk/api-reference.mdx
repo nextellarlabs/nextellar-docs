@@ -18,7 +18,7 @@ Nextellar uses `@creit.tech/stellar-wallets-kit` for multi-wallet support.
 ```typescript
 // src/lib/stellar-wallet-kit.ts
 import { kit, getKit, signTransaction } from '@/lib/stellar-wallet-kit';
-```text
+```
 
 ### `getKit()`
 
@@ -26,7 +26,7 @@ Returns the StellarWalletsKit singleton instance.
 
 ```typescript
 const kit = getKit();
-```text
+```
 
 ### `kit.openModal(options)`
 
@@ -41,7 +41,7 @@ await kit.openModal({
     // Handle connection
   },
 });
-```text
+```
 
 ### `kit.signTransaction(xdr, options)`
 
@@ -52,13 +52,13 @@ const { signedTxXdr } = await kit.signTransaction(unsignedXdr, {
   address: publicKey,
   networkPassphrase: Networks.TESTNET,
 });
-```text
+```
 
 ### `kit.disconnect()`
 
 Disconnects the current wallet session.
 
-```typescript
+````typescript
 await kit.disconnect();
 ```typescript
 
@@ -96,7 +96,7 @@ const sourceAccount = await server.loadAccount(publicKey);
 
 // Submit transaction
 const result = await server.submitTransaction(transaction);
-```text
+````
 
 ### Soroban RPC
 
@@ -110,7 +110,7 @@ const simulation = await rpcServer.simulateTransaction(transaction);
 
 // Send transaction
 const result = await rpcServer.sendTransaction(transaction);
-```text
+```
 
 ### Transaction Building
 
@@ -137,7 +137,7 @@ const transaction = new TransactionBuilder(sourceAccount, {
   )
   .setTimeout(30)
   .build();
-```text
+```
 
 ### Assets
 
@@ -152,11 +152,11 @@ const usdc = new Asset(
   'USDC',
   'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN'
 );
-```text
+```
 
 ### Networks
 
-```typescript
+````typescript
 import { Networks } from '@stellar/stellar-sdk';
 
 Networks.TESTNET; // 'Test SDF Network ; September 2015'
@@ -177,7 +177,7 @@ interface Balance {
   balance: string;
   limit?: string;
 }
-```text
+````
 
 ### Trustline
 
@@ -189,7 +189,7 @@ interface Trustline {
   balance?: string;
   authorized?: boolean;
 }
-```text
+```
 
 ### PaymentOptions
 
@@ -200,7 +200,7 @@ interface PaymentOptions {
   asset?: 'XLM' | { code: string; issuer: string };
   memo?: string;
 }
-```text
+```
 
 ### PaymentParams
 
@@ -212,7 +212,7 @@ interface PaymentParams {
   asset?: 'XLM' | { code: string; issuer: string };
   memo?: string;
 }
-```text
+```
 
 ### PaymentResult
 
@@ -223,7 +223,7 @@ interface PaymentResult {
   raw?: unknown;
   error?: string;
 }
-```text
+```
 
 ### WalletContextState
 
@@ -238,11 +238,11 @@ interface WalletContextState {
   refreshBalances: () => Promise<void>;
   sendPayment?: (opts: PaymentOptions) => Promise<TransactionResponse>;
 }
-```text
+```
 
 ### WalletConfigContextState
 
-```typescript
+````typescript
 interface WalletConfigContextState {
   horizonUrl: string;
   network: string;
@@ -260,25 +260,25 @@ The hooks include built-in validation:
 ```typescript
 // Public keys are 56 characters starting with 'G'
 const isValid = key.length === 56 && key.startsWith('G');
-```text
+````
 
 ### Secret Key Validation
 
 ```typescript
 // Secret keys are 56 characters starting with 'S'
 const isValid = secret.length === 56 && secret.startsWith('S');
-```text
+```
 
 ### Amount Validation
 
 ```typescript
 // Must be positive and within Stellar limits
 const isValid = amount > 0 && amount <= 922337203685.4775807;
-```text
+```
 
 ### Memo Validation
 
-```typescript
+````typescript
 // Text memos cannot exceed 28 characters
 const isValid = memo.length <= 28;
 ```css
@@ -302,3 +302,4 @@ NEXT_PUBLIC_SOROBAN_RPC=https://soroban-rpc.stellar.org
 - [Hooks Overview](/docs/hooks) - React hooks reference
 - [Wallet Integration](/docs/sdk/wallet-integration) - Multi-wallet setup guide
 - [CLI Reference](/docs/cli/commands) - Scaffolding options
+````

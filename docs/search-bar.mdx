@@ -35,7 +35,7 @@ Developers can tweak the search experience by modifying:
 
 ## Code Snippet: Search Highlighting
 
-```tsx
+````tsx
 function highlightText(text: string, searchTerm: string): React.ReactNode {
   if (!searchTerm) return text;
   const regex = new RegExp(`(${searchTerm})`, 'gi');
@@ -72,3 +72,4 @@ This makes **Pinexiosearch a true "No-Setup Search" solution**, saving time and 
 ---
 
 Want to enhance search further? Feel free to tweak the `SearchDialog` component to add fuzzy search, filters, or UI improvements.
+````
