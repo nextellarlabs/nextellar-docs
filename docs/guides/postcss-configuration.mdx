@@ -1,0 +1,66 @@
+---
+title: PostCSS Configuration
+description: How the Nextellar docs site configures PostCSS, Tailwind CSS processing, and safe extension points.
+---
+
+# PostCSS Configuration
+
+The docs site uses PostCSS to run Tailwind CSS during local development and production builds. The configuration is intentionally small so styling behavior stays predictable.
+
+## Current Configuration
+
+The project keeps PostCSS settings in `postcss.config.mjs`:
+
+```js
+const config = {
+  plugins: { "@tailwindcss/postcss": {} },
+};
+
+export default config;
+```
+
+## Plugins In Use
+
+`@tailwindcss/postcss` loads Tailwind CSS through PostCSS. It reads the project's Tailwind and CSS entry points, expands Tailwind utilities, and emits the generated styles used by the Next.js app.
+
+The plugin is configured with an empty options object. That means the docs site uses the default Tailwind PostCSS behavior instead of custom project-level overrides.
+
+## Project Settings
+
+The configuration uses ESM syntax because the package is configured as a module. Keep `export default config` in place so Next.js and the build tools can load the file consistently.
+
+The docs site does not currently configure extra PostCSS plugins such as Autoprefixer in this file. Additions should be tested against both content generation and the full Next.js build because CSS processing can affect rendered documentation pages.
+
+## Extending Safely
+
+1. Add one plugin at a time.
+2. Keep plugin options explicit.
+3. Prefer documented plugin defaults unless the docs site needs a project-specific override.
+4. Run the docs checks before opening a pull request.
+
+For example:
+
+```js
+const config = {
+  plugins: {
+    "@tailwindcss/postcss": {},
+    // Add future PostCSS plugins here after validating the rendered docs.
+  },
+};
+
+export default config;
+```
+
+## Review Checklist
+
+- The plugin is needed by the docs site.
+- The plugin supports the current Next.js and Tailwind versions.
+- The change does not alter unrelated typography, spacing, or color output.
+- `pnpm build:content` completes without errors.
+- `pnpm check:links` completes without errors.
+
+## Related
+
+- [Docs Style Guide](/docs/guides/style-guide)
+- [Testing Docs Changes](/docs/guides/testing-docs-changes)
+

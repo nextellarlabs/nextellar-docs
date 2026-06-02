@@ -69,6 +69,19 @@ export const sidebarNav: SidebarSection[] = [
       { title: 'Contributing', href: '/docs/guides/contributing' },
       { title: 'Docs Style Guide', href: '/docs/guides/style-guide' },
       {
+        title: 'PostCSS Configuration',
+        href: '/docs/guides/postcss-configuration',
+      },
+      {
+        title: 'CDN and Cache Invalidation',
+        href: '/docs/guides/cdn-cache-invalidation',
+      },
+      {
+        title: 'Text Length and Readability',
+        href: '/docs/guides/text-length-readability',
+      },
+      { title: 'Feature Flags', href: '/docs/guides/feature-flags' },
+      {
         title: 'Versioned Docs Strategy',
         href: '/docs/guides/versioned-docs-strategy',
       },

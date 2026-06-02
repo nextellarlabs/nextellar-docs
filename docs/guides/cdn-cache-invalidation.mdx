@@ -1,0 +1,66 @@
+---
+title: CDN and Cache Invalidation
+description: How to understand the docs CDN layout, invalidate stale content, and avoid common caching pitfalls.
+---
+
+# CDN and Cache Invalidation
+
+Use this guide when a deployed docs page, asset, or redirect shows stale content after a release. The goal is to identify the cached layer, invalidate only what changed, and verify the public result.
+
+## CDN Layout
+
+The docs site is served through a CDN in front of the production deployment. Requests usually pass through these layers:
+
+- Browser cache for pages, JavaScript, CSS, fonts, and images.
+- CDN edge cache for static assets and generated routes.
+- Production hosting origin for the current Next.js build.
+- Source-controlled docs content in the repository.
+
+Static assets with hashed filenames can stay cached for a long time because the filename changes when the content changes. Human-readable routes, redirects, and reused asset paths need more careful invalidation.
+
+## When To Invalidate
+
+Invalidate the CDN cache when:
+
+- A published page still shows old MDX content after a successful deploy.
+- A redirect points to the wrong location.
+- A public asset was replaced without changing its path.
+- A broken page was fixed but the public route still returns the old response.
+
+Do not invalidate the full site for routine content updates unless the stale content appears across many routes.
+
+## Invalidation Steps
+
+1. Confirm the latest commit deployed successfully.
+2. Identify the exact public path, such as `/docs/guides/style-guide`.
+3. Check whether the stale response is a page, redirect, or asset.
+4. Purge the affected path in the CDN dashboard or deployment provider.
+5. Include related assets only when they reused the same public path.
+6. Wait for the purge to propagate.
+7. Reload the page with browser cache disabled.
+8. Verify the page from a second browser or network when possible.
+
+For a docs page, purge the route and any trailing-slash variant if the provider treats them separately:
+
+```txt
+/docs/guides/example
+/docs/guides/example/
+```
+
+## Common Pitfalls
+
+- Purging the source MDX path instead of the public docs URL.
+- Replacing an image without changing its filename.
+- Testing only in a browser tab that still has a local cached response.
+- Invalidating the homepage but not the nested route that is stale.
+- Assuming a failed deploy is a cache problem.
+
+## Verification
+
+After invalidation, compare the rendered page against the current repository content. If the route still shows stale content, check the deployment status before running a broader purge.
+
+## Related
+
+- [Deployment](/docs/guides/deployment)
+- [Testing Docs Changes](/docs/guides/testing-docs-changes)
+

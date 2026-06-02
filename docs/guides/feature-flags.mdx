@@ -1,0 +1,76 @@
+---
+title: Feature Flags
+description: How to document, add, remove, roll out, and roll back feature flags across docs and product work.
+---
+
+# Feature Flags
+
+Feature flags let teams release behavior gradually, test changes safely, and turn features off without reverting code. Use this guide to document flags consistently across docs and product work.
+
+## Flag System
+
+A feature flag should have a clear owner, a default state, and a removal plan. Treat each flag as temporary unless it controls a long-lived product entitlement or environment-specific behavior.
+
+Document these fields when a flag is introduced:
+
+| Field | Purpose |
+| --- | --- |
+| Name | Stable identifier used in code and release notes. |
+| Owner | Team or person responsible for rollout decisions. |
+| Default | Whether the flag is on or off by default. |
+| Scope | Users, environments, routes, or components affected. |
+| Removal plan | Condition for deleting the flag and cleanup work. |
+
+## Adding A Flag
+
+1. Choose a descriptive flag name.
+2. Define the default state for local, staging, and production environments.
+3. Add code paths for both enabled and disabled states.
+4. Document the rollout plan before enabling the flag for users.
+5. Add monitoring or manual checks for the behavior behind the flag.
+
+Avoid vague names like `newFlow`. Prefer names that describe the behavior, such as `enableWalletRecoveryPrompt`.
+
+## Rollout Steps
+
+Start with the smallest useful audience:
+
+- Enable the flag locally and verify both code paths.
+- Enable it in staging for internal review.
+- Enable it for a limited production group if the flag system supports targeting.
+- Increase exposure after checking errors, support reports, and product metrics.
+- Record the rollout status in the relevant release notes or project tracker.
+
+## Rollback Steps
+
+1. Turn the flag off in the production flag system.
+2. Confirm the disabled state renders correctly.
+3. Check logs and user reports for remaining errors.
+4. Leave a short note in the rollout tracker explaining why the rollback happened.
+5. Keep the code in place until the fix is reviewed and redeployed.
+
+If disabling the flag does not restore the previous behavior, treat the issue as a production incident instead of a routine rollback.
+
+## Removing A Flag
+
+Remove a flag after the feature is stable and the old path is no longer needed.
+
+1. Confirm the flag is enabled for every intended environment.
+2. Delete the disabled code path.
+3. Remove configuration entries and stale docs references.
+4. Run the relevant tests and docs checks.
+5. Mention the cleanup in release notes when it affects contributors.
+
+## Common Pitfalls
+
+- Shipping a flag without a documented owner.
+- Forgetting to test the disabled state.
+- Leaving permanent flags with temporary names.
+- Removing the flag configuration before deleting code references.
+- Rolling out broadly before monitoring is in place.
+
+## Related
+
+- [Release Notes Workflow](/docs/guides/release-notes-workflow)
+- [Testing Docs Changes](/docs/guides/testing-docs-changes)
+
