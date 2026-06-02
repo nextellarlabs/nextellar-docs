@@ -325,9 +325,11 @@ Increases installation timeout to 1 hour (useful for slow networks).
 
 ## Interactive Mode
 
-Currently, Nextellar runs in non-interactive mode. All configuration is done via CLI flags.
+Nextellar can prompt for scaffold configuration when it runs in a suitable interactive terminal.
 
-**Future Enhancement:** Interactive prompts for configuration (coming soon).
+Prompts are shown when standard input and output are both TTYs, the `CI` environment variable is not set, and `--defaults` is not provided. If any of those conditions are not met, the CLI uses provided flags and default values instead.
+
+Flags still take precedence over prompts. For example, passing `--wallets`, `--horizon-url`, `--soroban-url`, `--package-manager`, or `--skip-install` keeps those values fixed and skips prompting for that setting.
 
 ## Command Aliases
 

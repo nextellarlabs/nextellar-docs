@@ -44,6 +44,12 @@ The Nextellar CLI works with all standard terminal emulators:
 - Terminal color output requires ANSI support (most modern terminals support this)
 - Interactive prompts work best in terminals with full UTF-8 support
 
+### Interactive Prompting
+
+When the CLI runs in a suitable terminal, it can prompt for scaffold settings such as project configuration, network endpoints, wallet adapters, package manager, and whether to skip dependency installation.
+
+Prompting is enabled only when standard input and output are both TTYs, the `CI` environment variable is not set, and `--defaults` is not provided. In CI, scripted, or redirected environments, Nextellar uses explicit flags and default values instead. Any flag you pass keeps that setting fixed and skips prompting for it.
+
 ### Method 1: npx (Recommended)
 
 No installation required. Run directly:
