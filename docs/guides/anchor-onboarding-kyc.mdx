@@ -1,0 +1,389 @@
+---
+title: Anchor Onboarding with KYC
+description: Complete guide to onboarding a Stellar Anchor and submitting KYC data via SEP-6 and SEP-12.
+date: 2026-06-24
+---
+
+# Anchor Onboarding with KYC
+
+This guide explains how to integrate a Stellar Anchor into your Nextellar application, walk users through the SEP-6 deposit/withdrawal flow, and submit KYC data via SEP-12. It covers both the CLI commands and the programmatic SDK approach.
+
+---
+
+## Introduction
+
+A **Stellar Anchor** is an off-chain entity — a bank, fintech, or exchange — that issues Stellar-native tokens backed by real-world assets (e.g. USDC, EURC, or a bank's stablecoin). To deposit or withdraw funds through an Anchor, users must complete a KYC process defined by two Stellar Ecosystem Proposals:
+
+- **SEP-6** — Non-interactive deposit and withdrawal flow (machine-to-machine)
+- **SEP-12** — Customer KYC data submission to a Stellar Anchor
+
+Nextellar wraps these protocols into first-class CLI commands and a typed SDK so you spend time on your product, not on raw HTTP calls.
+
+---
+
+## Prerequisites
+
+1. **Nextellar CLI** — `npx nextellar --version` or globally installed.
+2. A **funded Stellar testnet account** — Friendbot at `https://friendbot.stellar.org/?addr=GYOUR_ADDRESS`.
+3. A **trustline** on your account for the Anchor's asset (e.g. USDC).
+4. The **Anchor's home domain** — e.g. `testanchor.stellar.org` (SDF's reference Anchor on Testnet).
+5. `.env.local` with:
+
+```bash
+STELLAR_NETWORK=testnet
+STELLAR_SECRET_KEY=S...YOUR_SECRET...
+HORIZON_URL=https://horizon-testnet.stellar.org
+```
+
+<Note type="info">
+  Use `testanchor.stellar.org` throughout this guide. It is the SDF-maintained
+  reference Anchor on Testnet and supports all SEP-6 and SEP-12 fields required
+  here.
+</Note>
+
+### Verify Your Setup
+
+```bash
+npx nextellar doctor
+```
+
+---
+
+## Understanding the Anchor Flow
+
+Before issuing any commands, it helps to see the full user journey:
+
+<Mermaid chart={`
+sequenceDiagram
+  participant User
+  participant App as Nextellar App
+  participant Anchor as Anchor Server
+  participant Stellar as Stellar Network
+
+  User->>App: Start deposit
+  App->>Anchor: GET /info (SEP-6)
+  Anchor-->>App: Supported assets + KYC fields required
+  App->>Anchor: POST /customer (SEP-12) — submit KYC
+  Anchor-->>App: customer_id + status (NEEDS_INFO | ACCEPTED)
+  App->>Anchor: GET /deposit?asset_code=USDC (SEP-6)
+  Anchor-->>App: how_to_deposit instructions + transaction_id
+  User->>Anchor: Send fiat (bank transfer)
+  Anchor->>Stellar: Issue USDC to user's Stellar address
+  Stellar-->>App: Transaction confirmed
+  App-->>User: USDC credited to wallet
+`} />
+
+The same flow applies to withdrawals in reverse — the user sends Stellar tokens to the Anchor and receives fiat on their bank account.
+
+---
+
+## Step 1: Discover Anchor Capabilities
+
+Fetch the Anchor's TOML file and SEP-6 `/info` endpoint to understand which assets and KYC fields it requires.
+
+```bash
+npx nextellar anchor info --domain testanchor.stellar.org
+```
+
+Output:
+
+```
+Anchor: testanchor.stellar.org
+  SIGNING_KEY    GCSGSR6KQQ...
+  TRANSFER_SERVER https://testanchor.stellar.org/sep6
+
+Assets:
+  USDC (issuer: GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5)
+    deposit:    enabled
+    withdraw:   enabled
+    min_amount: 10
+    max_amount: 10000
+
+KYC fields required (SEP-12):
+  first_name        text      required
+  last_name         text      required
+  email_address     email     required
+  birth_date        date      required
+  bank_account_number text    optional
+  bank_number       text      optional
+```
+
+Store the output to your config:
+
+```bash
+npx nextellar anchor info --domain testanchor.stellar.org --save
+```
+
+This writes `nextellar-anchor.config.js` to your project root.
+
+---
+
+## Step 2: Add the Asset Trustline
+
+The user's account must trust the Anchor's asset before any deposit can arrive.
+
+```bash
+npx nextellar trustline add \
+  --asset USDC \
+  --issuer GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5
+```
+
+Confirm:
+
+```
+✔ Trustline added for USDC:GBBD47...
+  Transaction: abc123...def456
+  Ledger:      50200100
+```
+
+---
+
+## Step 3: Submit KYC Data via SEP-12
+
+Before the Anchor allows a deposit, it needs identity documents. Submit them with `nextellar anchor kyc put`:
+
+```bash
+npx nextellar anchor kyc put \
+  --domain testanchor.stellar.org \
+  --first-name "Ada" \
+  --last-name "Lovelace" \
+  --email-address "ada@example.com" \
+  --birth-date "1815-12-10"
+```
+
+The CLI handles the SEP-10 authentication challenge internally (sign-and-submit), obtains a JWT, and POSTs to `/customer`.
+
+Output:
+
+```
+✔ SEP-10 authentication complete
+  JWT expires: 2026-06-25T09:00:00Z
+
+Submitting KYC to testanchor.stellar.org/customer ...
+{
+  "id": "d1ce3c1c-a1e6-4d28-b5be-aa0e3c91c2c3",
+  "status": "NEEDS_INFO",
+  "fields": {
+    "bank_account_number": { "description": "US bank account number", "optional": true }
+  }
+}
+
+Status: NEEDS_INFO — anchor requires additional fields.
+Run `nextellar anchor kyc get --domain testanchor.stellar.org` to check progress.
+```
+
+### Polling KYC Status
+
+```bash
+npx nextellar anchor kyc get --domain testanchor.stellar.org
+```
+
+Once accepted:
+
+```
+{
+  "id": "d1ce3c1c-...",
+  "status": "ACCEPTED"
+}
+✔ KYC accepted. You may proceed with deposits and withdrawals.
+```
+
+Possible statuses and what they mean:
+
+| Status | Description | Action required |
+| --- | --- | --- |
+| `NEEDS_INFO` | Anchor needs more fields | Run `kyc put` with missing fields |
+| `PROCESSING` | Under manual review | Wait and poll again |
+| `ACCEPTED` | KYC approved | Proceed to deposit/withdraw |
+| `REJECTED` | KYC denied | Contact Anchor support |
+
+---
+
+## Step 4: Initiate a Deposit (SEP-6)
+
+```bash
+npx nextellar anchor deposit \
+  --domain testanchor.stellar.org \
+  --asset USDC \
+  --amount 100 \
+  --account GYOUR_STELLAR_ADDRESS
+```
+
+Output:
+
+```
+✔ Deposit initiated
+  Transaction ID:    txn_5e9a7c...
+  How to deposit:    Transfer $100.00 USD via ACH to:
+                       Routing: 021000021
+                       Account: 987654321
+                       Reference: NXT-5e9a7c
+  Estimated arrival: 1–2 business days (testnet: instant)
+```
+
+Track the deposit:
+
+```bash
+npx nextellar anchor transaction --id txn_5e9a7c --domain testanchor.stellar.org
+```
+
+---
+
+## Step 5: Initiate a Withdrawal (SEP-6)
+
+```bash
+npx nextellar anchor withdraw \
+  --domain testanchor.stellar.org \
+  --asset USDC \
+  --amount 50 \
+  --dest-type bank_account \
+  --bank-account "123456789" \
+  --bank-number "021000021"
+```
+
+Output:
+
+```
+✔ Withdrawal initiated
+  Transaction ID:    txn_7f1b3d...
+  Send to:           GWITHDRAWAL_ADDRESS_OF_ANCHOR
+  Amount to send:    50.0000000 USDC
+  Memo:              id:88271
+```
+
+Nextellar then signs and submits the Stellar payment automatically:
+
+```bash
+npx nextellar anchor withdraw --submit txn_7f1b3d
+```
+
+```
+✔ Stellar payment submitted
+  Stellar TX Hash:  e8c42a...1f99
+  Ledger:           50300200
+  Status:           pending_external — anchor processing payout
+```
+
+---
+
+## Programmatic Usage (SDK)
+
+For server-side automation or building a custom UI, use the Nextellar SDK directly:
+
+```typescript
+import { AnchorClient } from '@nextellar/sdk';
+import { Keypair } from '@stellar/stellar-sdk';
+
+const keypair = Keypair.fromSecret(process.env.STELLAR_SECRET_KEY!);
+
+const anchor = new AnchorClient({
+  homeDomain: 'testanchor.stellar.org',
+  network: 'testnet',
+  keypair,
+});
+
+// 1. Authenticate
+const token = await anchor.authenticate();
+
+// 2. Submit KYC
+const customer = await anchor.putCustomer(token, {
+  first_name: 'Ada',
+  last_name: 'Lovelace',
+  email_address: 'ada@example.com',
+  birth_date: '1815-12-10',
+});
+
+if (customer.status !== 'ACCEPTED') {
+  console.log('KYC pending:', customer.status);
+  process.exit(0);
+}
+
+// 3. Initiate deposit
+const deposit = await anchor.initiateDeposit(token, {
+  asset_code: 'USDC',
+  asset_issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+  account: keypair.publicKey(),
+  amount: '100',
+});
+
+console.log('Deposit instructions:', deposit.how);
+console.log('Transaction ID:', deposit.id);
+```
+
+---
+
+## Compliance Considerations
+
+### Data Minimisation
+
+Only request and transmit the KYC fields that the Anchor explicitly marks as required in `/customer` info. Collecting unnecessary PII increases your compliance burden without benefit.
+
+### Data Storage
+
+Do not store raw KYC data in your application database. The Anchor is the controller of that data. If you cache KYC status locally (e.g. to skip repeat submissions), store only the Anchor-issued `customer_id` and the `status` string.
+
+### JWT Expiry
+
+SEP-10 JWTs expire (typically 24 hours). Nextellar SDK automatically refreshes the token before it expires. If you cache the JWT yourself, check the `exp` claim and re-authenticate when needed.
+
+### Sanctions Screening
+
+Some Anchors run OFAC / sanctions checks as part of the KYC flow. A `REJECTED` status may indicate a sanctions hit. Do not expose this reason to the end user; follow your legal counsel's guidance on how to handle it.
+
+### GDPR / Right to Erasure
+
+If operating in the EU, users may request deletion of their KYC data. Issue a SEP-12 DELETE request:
+
+```bash
+npx nextellar anchor kyc delete \
+  --domain testanchor.stellar.org \
+  --customer-id d1ce3c1c-a1e6-4d28-b5be-aa0e3c91c2c3
+```
+
+---
+
+## Troubleshooting
+
+### `Authentication failed` on `kyc put`
+
+The SEP-10 challenge signature failed. Ensure `STELLAR_SECRET_KEY` matches the public key you are sending as `account` in the request.
+
+```bash
+npx nextellar anchor auth --domain testanchor.stellar.org --verbose
+```
+
+### KYC stuck at `NEEDS_INFO`
+
+Run `nextellar anchor kyc get` — the `fields` object will list which fields are still required. Re-run `kyc put` with the missing values.
+
+### `op_no_trust` on deposit credit
+
+The user's account does not trust the Anchor's asset. Add the trustline:
+
+```bash
+npx nextellar trustline add --asset USDC --issuer GBBD47...
+```
+
+### Deposit status stays `pending_external`
+
+This is normal for fiat rails. On testnet, check if the Anchor's reference implementation is running. Use `nextellar anchor transaction` to poll status every 30 seconds.
+
+### `400 Bad Request` from Anchor `/deposit`
+
+Usually caused by a missing or stale JWT. Re-authenticate:
+
+```bash
+npx nextellar anchor auth --domain testanchor.stellar.org --refresh
+```
+
+---
+
+## Related Resources
+
+- [CLI Commands](/docs/cli/commands) — Full Nextellar CLI reference
+- [Recurring Payments via CLI](/docs/guides/recurring-payments-cli) — Automate payments on a schedule
+- [Extending the CLI](/docs/guides/extending-the-cli) — Add custom Anchor integrations
+- [SEP-6 Specification](https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0006.md) — Deposit and withdrawal protocol
+- [SEP-12 Specification](https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0012.md) — KYC data API
+- [SEP-10 Specification](https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0010.md) — Stellar Web Authentication
+- [SDF Reference Anchor](https://testanchor.stellar.org) — Testnet Anchor for development

@@ -1,0 +1,349 @@
+---
+title: Recurring Payments via CLI
+description: Set up and manage recurring Stellar payment schedules using the Nextellar CLI.
+date: 2026-06-24
+---
+
+# Recurring Payments via CLI
+
+This guide walks you through scheduling recurring payments on the Stellar network using the Nextellar CLI. You will configure a payment schedule, handle retries, and avoid common pitfalls.
+
+---
+
+## Introduction
+
+Recurring payments on Stellar are not natively enforced by the protocol — there is no on-chain cron. Instead, they are driven by an off-chain scheduler that signs and submits a Stellar transaction on each interval. Nextellar provides the `nextellar payments schedule` command group to manage this loop with built-in retry logic, sequence-number tracking, and fee-bump support.
+
+Common use cases:
+
+- Subscription billing for token-gated services
+- Salary disbursements in XLM or anchored assets
+- Dollar-cost-averaging into a Stellar asset
+- Automated treasury rebalancing
+
+---
+
+## Prerequisites
+
+Before you begin, make sure you have:
+
+1. **Node.js 18+** and **pnpm** installed.
+2. **Nextellar CLI** available (`npx nextellar --version` or globally installed).
+3. A **funded Stellar account** — the source account that will sign payments. On Testnet, use Friendbot.
+4. A **trustline** on the source account for any non-XLM asset you plan to send.
+5. A **`.env.local`** file (or environment variables) with at minimum:
+
+```bash
+STELLAR_NETWORK=testnet
+STELLAR_SECRET_KEY=S...YOUR_SOURCE_SECRET...
+HORIZON_URL=https://horizon-testnet.stellar.org
+```
+
+<Note type="warning">
+  Never commit your secret key. Add `.env.local` to `.gitignore` immediately.
+</Note>
+
+### Verify Your Environment
+
+```bash
+npx nextellar doctor
+```
+
+Expected output:
+
+```
+✔ Node.js  v20.12.0
+✔ pnpm     9.1.0
+✔ .env.local found
+✔ STELLAR_SECRET_KEY  set (S...)
+✔ Horizon reachable   200 OK (testnet)
+```
+
+---
+
+## Setting Up a Recurring Payment Schedule
+
+### Step 1: Initialize the Payments Config
+
+Run the interactive setup to generate a `nextellar-payments.config.js` file:
+
+```bash
+npx nextellar payments init
+```
+
+You will be prompted for:
+
+- **Asset** — `XLM`, or an asset code + issuer (e.g. `USDC:GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5`)
+- **Amount** — fixed amount per payment, or a formula key
+- **Destination** — a single address, or a path to a recipients CSV
+- **Schedule** — cron expression (e.g. `0 9 * * 1` = every Monday at 09:00 UTC)
+- **Retry policy** — max attempts and backoff strategy
+
+The generated config:
+
+```javascript
+// nextellar-payments.config.js
+module.exports = {
+  network: process.env.STELLAR_NETWORK || 'testnet',
+  source: {
+    secretKey: process.env.STELLAR_SECRET_KEY,
+  },
+  payments: [
+    {
+      id: 'weekly-salary',
+      asset: 'XLM',
+      amount: '100',
+      destination: 'GDESTINATION_ADDRESS_HERE',
+      schedule: '0 9 * * 1',
+      memo: { type: 'text', value: 'salary' },
+      retry: {
+        maxAttempts: 3,
+        backoffMs: 5000,
+      },
+    },
+  ],
+};
+```
+
+### Step 2: Validate the Config
+
+```bash
+npx nextellar payments validate
+```
+
+Expected output:
+
+```
+✔ Config loaded  nextellar-payments.config.js
+✔ Source account GABC... found on testnet  (balance: 9 900.00 XLM)
+✔ Destination    GDEST... found on testnet
+✔ Trustlines     XLM — no trustline required
+✔ Schedule       "0 9 * * 1" — next run: Mon Jun 30 2026 09:00:00 UTC
+All checks passed.
+```
+
+<Note type="info">
+  For non-XLM assets, the validate command checks that the source account holds
+  the required trustline and that the destination account also trusts the asset.
+</Note>
+
+### Step 3: Run a Dry-Run
+
+Before activating the schedule, simulate one payment to confirm the transaction would succeed:
+
+```bash
+npx nextellar payments run --dry-run
+```
+
+Output:
+
+```
+[dry-run] Building transaction for payment "weekly-salary"
+[dry-run] Source:       GABC...  (sequence: 12345678)
+[dry-run] Destination:  GDEST...
+[dry-run] Amount:       100.0000000 XLM
+[dry-run] Fee:          100 stroops
+[dry-run] Memo:         salary
+[dry-run] XDR (unsigned):
+  AAAAAgAAAAAB...AAAAA...
+[dry-run] Transaction valid. No submission made.
+```
+
+### Step 4: Start the Scheduler
+
+```bash
+npx nextellar payments start
+```
+
+The process stays running and fires each payment at the scheduled time:
+
+```
+Nextellar Payments Scheduler started.
+  Config:   nextellar-payments.config.js
+  Network:  testnet
+  Jobs:     1 active
+  Uptime:   0s
+
+[2026-06-30T09:00:00Z] Executing payment "weekly-salary"
+[2026-06-30T09:00:01Z] Transaction submitted: a3f1...8b22
+[2026-06-30T09:00:01Z] Confirmed in ledger 50123456  (fee: 100 stroops)
+[2026-06-30T09:00:01Z] Payment "weekly-salary" complete.
+```
+
+In production, run this process under a supervisor such as systemd, PM2, or a Kubernetes CronJob.
+
+---
+
+## Multiple Recipients via CSV
+
+For bulk payments (e.g., payroll), provide a CSV file instead of a single destination address.
+
+```bash
+npx nextellar payments init --recipients ./recipients.csv
+```
+
+**recipients.csv format:**
+
+```csv
+id,destination,amount,memo
+emp-001,GDEST1...,250,payroll
+emp-002,GDEST2...,310,payroll
+emp-003,GDEST3...,275,payroll
+```
+
+The scheduler issues one transaction per recipient per cycle. If your operation count exceeds Stellar's per-transaction limit (100 operations), Nextellar batches them automatically into multiple transactions.
+
+---
+
+## Handling Failures and Retries
+
+### Retry Policy
+
+The `retry` block in your config controls automatic retries after a failed submission:
+
+```javascript
+retry: {
+  maxAttempts: 5,
+  backoffMs: 10000,     // 10 s initial wait
+  backoffMultiplier: 2, // doubles on each attempt
+  jitterMs: 1000,       // randomises to avoid thundering herd
+},
+```
+
+Nextellar retries on these error classes:
+
+| Error Code | Description | Retried |
+| --- | --- | --- |
+| `tx_bad_seq` | Sequence number mismatch | Yes — re-fetches sequence |
+| `op_underfunded` | Insufficient balance at submission time | Yes |
+| `tx_insufficient_fee` | Base fee spike | Yes — bumps fee |
+| `timeout` | Horizon did not respond | Yes |
+| `op_no_trust` | Destination lacks trustline | No — requires manual fix |
+| `op_no_destination` | Destination account does not exist | No — requires manual fix |
+
+### Inspecting Failure Logs
+
+```bash
+npx nextellar payments logs --job weekly-salary --tail 50
+```
+
+```
+[2026-06-30T09:00:00Z] Attempt 1/3 — submitted a3f1...
+[2026-06-30T09:00:01Z] Error: tx_bad_seq
+[2026-06-30T09:00:06Z] Attempt 2/3 — re-fetched sequence 12345679
+[2026-06-30T09:00:07Z] Confirmed in ledger 50123457
+```
+
+### Manually Triggering a Missed Payment
+
+If the scheduler was offline during a scheduled window, run the payment immediately:
+
+```bash
+npx nextellar payments run --job weekly-salary --force
+```
+
+---
+
+## Fee Management
+
+Stellar's base fee fluctuates. Nextellar uses **fee-bump transactions** to resubmit stuck transactions with a higher fee without changing the inner transaction hash.
+
+```javascript
+fees: {
+  strategy: 'auto',   // 'fixed' | 'auto' | 'aggressive'
+  maxFeeStroops: 500, // cap to avoid overpaying during spikes
+},
+```
+
+- `fixed` — always pays the configured fee
+- `auto` — queries Horizon's `/fee_stats` before each submission and uses the P90 fee
+- `aggressive` — uses the P99 fee; useful for time-sensitive payments
+
+Check current fee stats at any time:
+
+```bash
+npx nextellar payments fee-stats
+```
+
+---
+
+## Edge Cases and Pitfalls
+
+### Sequence Number Collisions
+
+If two processes submit transactions from the same source account simultaneously, one will fail with `tx_bad_seq`. Ensure only one scheduler process runs per source account. Use the `--lock` flag to acquire a distributed lock via Redis:
+
+```bash
+npx nextellar payments start --lock redis://localhost:6379
+```
+
+### Destination Account Not Created
+
+A payment to a non-existent Stellar account fails with `op_no_destination`. You need to send at least the **minimum balance** (1 XLM for a base account) as a `createAccount` operation, not a payment. Nextellar handles this automatically when `autoCreateDestination: true` is set:
+
+```javascript
+{
+  destination: 'GNEW...',
+  autoCreateDestination: true,
+  autoCreateFundingXlm: '2',
+}
+```
+
+### Non-XLM Asset Trustline Missing
+
+If the destination does not trust the asset, the payment fails with `op_no_trust`. Nextellar logs a permanent failure and skips future retries for that recipient. Resolve it by having the destination account add the trustline before the next scheduled run.
+
+### Clock Drift
+
+The scheduler uses the local system clock. If the machine clock drifts significantly, Stellar may reject the transaction because it falls outside the `timeBounds` window. Keep NTP in sync on your server.
+
+### Memo Encoding
+
+Nextellar supports four memo types. Choose carefully — memos cannot be changed after submission:
+
+| Type | Max size | Use case |
+| --- | --- | --- |
+| `text` | 28 bytes | Human-readable labels |
+| `id` | uint64 | Internal reference IDs |
+| `hash` | 32 bytes | Content or order hashes |
+| `return` | 32 bytes | Return-payment reference |
+
+---
+
+## Troubleshooting
+
+### Scheduler exits immediately
+
+Check that `STELLAR_SECRET_KEY` is a valid Stellar secret key (starts with `S`, 56 characters).
+
+```bash
+npx nextellar payments validate --verbose
+```
+
+### Payments fire at wrong time
+
+The schedule uses UTC. Confirm with:
+
+```bash
+npx nextellar payments schedule --show weekly-salary
+```
+
+Output includes next 5 scheduled times in both UTC and your local timezone.
+
+### `tx_insufficient_fee` persists
+
+The network base fee may have spiked. Increase `maxFeeStroops` or switch the `fees.strategy` to `aggressive`.
+
+### Horizon returns 503
+
+Your Horizon instance may be overloaded. Switch to the SDF-hosted instance (`https://horizon.stellar.org` for Mainnet) or run a local Horizon node.
+
+---
+
+## Related Resources
+
+- [CLI Commands](/docs/cli/commands) — Full command reference
+- [CLI Configuration](/docs/cli/configuration) — Configure Nextellar for your project
+- [Extending the CLI](/docs/guides/extending-the-cli) — Build custom payment plugins
+- [Hook Error Handling](/docs/guides/hook-error-handling) — Recover from failures in hooks
+- [Stellar Payments Docs](https://developers.stellar.org/docs/learn/fundamentals/transactions/operations-and-effects) — Stellar protocol reference
