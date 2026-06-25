@@ -1,0 +1,272 @@
+---
+title: Transaction Observability for Stellar dApps
+description: Set up metrics, structured logs, and traces for Stellar transactions — including recommended dashboards and a small end-to-end example.
+date: 2026-06-25
+---
+
+# Transaction Observability for Stellar dApps
+
+Knowing that your dApp submitted a transaction is not the same as knowing the transaction succeeded, what fee it paid, or whether it was submitted during a Horizon rate-limit spike. This guide explains how to instrument the three pillars of observability — metrics, logs, and traces — specifically for Stellar transaction flows, and which dashboards to maintain.
+
+---
+
+## The Three Pillars
+
+| Pillar | What it answers | Stellar-specific examples |
+|---|---|---|
+| **Metrics** | Is the system healthy right now? | Submission rate, success rate, fee percentile, Horizon latency |
+| **Logs** | What happened in this specific transaction? | Ledger number, tx hash, operation type, error code |
+| **Traces** | Where did time go across services? | Time in fee-bump construction, time waiting for Horizon, time polling for finality |
+
+---
+
+## Metrics
+
+### Key Metrics to Track
+
+```
+stellar_tx_submitted_total          counter   — incremented on every submission attempt
+stellar_tx_success_total            counter   — incremented on SUCCESSFUL result code
+stellar_tx_failed_total             counter   — incremented on failed result code
+stellar_tx_fee_stroops              histogram — distribution of fees paid
+stellar_horizon_latency_ms          histogram — time from submit() call to HTTP response
+stellar_tx_finality_wait_ms         histogram — time from submit to ledger close confirmation
+stellar_horizon_rate_limit_total    counter   — 429 responses from Horizon
+```
+
+### Prometheus / OpenMetrics Instrumentation
+
+```ts
+// lib/metrics.ts
+import { Counter, Histogram, register } from 'prom-client';
+
+export const txSubmitted = new Counter({
+  name: 'stellar_tx_submitted_total',
+  help: 'Total Stellar transactions submitted',
+  labelNames: ['network', 'operation_type'],
+});
+
+export const txSuccess = new Counter({
+  name: 'stellar_tx_success_total',
+  help: 'Total Stellar transactions that succeeded',
+  labelNames: ['network', 'operation_type'],
+});
+
+export const txFailed = new Counter({
+  name: 'stellar_tx_failed_total',
+  help: 'Total Stellar transactions that failed',
+  labelNames: ['network', 'operation_type', 'result_code'],
+});
+
+export const feeStroops = new Histogram({
+  name: 'stellar_tx_fee_stroops',
+  help: 'Fee paid per transaction in stroops',
+  buckets: [100, 500, 1000, 5000, 10000, 50000],
+});
+
+export const horizonLatency = new Histogram({
+  name: 'stellar_horizon_latency_ms',
+  help: 'Horizon submit latency in ms',
+  buckets: [50, 100, 250, 500, 1000, 3000, 10000],
+});
+```
+
+### Wrap Your Submit Function
+
+```ts
+// lib/stellar.ts
+import { txSubmitted, txSuccess, txFailed, feeStroops, horizonLatency } from './metrics';
+
+export async function submitTransaction(tx: Transaction, network: string, opType: string) {
+  txSubmitted.inc({ network, operation_type: opType });
+  const start = Date.now();
+
+  try {
+    const result = await server.submitTransaction(tx);
+    horizonLatency.observe(Date.now() - start);
+    txSuccess.inc({ network, operation_type: opType });
+    feeStroops.observe(Number(tx.fee));
+    return result;
+  } catch (err: unknown) {
+    horizonLatency.observe(Date.now() - start);
+    const code = extractResultCode(err) ?? 'unknown';
+    txFailed.inc({ network, operation_type: opType, result_code: code });
+    throw err;
+  }
+}
+
+function extractResultCode(err: unknown): string | null {
+  if (err && typeof err === 'object' && 'response' in err) {
+    const body = (err as { response?: { data?: { extras?: { result_codes?: { transaction?: string } } } } }).response?.data;
+    return body?.extras?.result_codes?.transaction ?? null;
+  }
+  return null;
+}
+```
+
+---
+
+## Structured Logs
+
+Every transaction event should be logged as a structured object — not a string. This allows log aggregators to filter and correlate without regex.
+
+```ts
+// lib/logger.ts (extend from your existing logger)
+export function logTxEvent(event: {
+  action:    'submit' | 'confirmed' | 'failed' | 'fee_bump';
+  txHash?:   string;
+  ledger?:   number;
+  opType?:   string;
+  fee?:      number;
+  resultCode?: string;
+  durationMs?: number;
+}) {
+  logger.info({ context: 'stellar_tx', ...event });
+}
+```
+
+Usage:
+
+```ts
+logTxEvent({ action: 'submit', opType: 'payment', fee: 100 });
+// On success:
+logTxEvent({ action: 'confirmed', txHash: result.hash, ledger: result.ledger, durationMs: 340 });
+// On failure:
+logTxEvent({ action: 'failed', resultCode: 'tx_bad_seq', durationMs: 120 });
+```
+
+Sample log line (JSON):
+```json
+{
+  "level": "info",
+  "context": "stellar_tx",
+  "action": "confirmed",
+  "txHash": "a1b2c3d4...",
+  "ledger": 54321098,
+  "opType": "invoke_host_function",
+  "fee": 500,
+  "durationMs": 612,
+  "time": "2026-06-25T10:34:22.001Z"
+}
+```
+
+---
+
+## Traces
+
+Distributed tracing captures timing across service boundaries. For a Stellar dApp, a single user action may span:
+
+1. Frontend wallet signing (user-side)
+2. Backend transaction construction
+3. Horizon submission
+4. Polling for finality
+5. Database write (update order status)
+
+Using OpenTelemetry:
+
+```ts
+// lib/tracer.ts
+import { trace, SpanStatusCode } from '@opentelemetry/api';
+
+const tracer = trace.getTracer('nextellar-dapp');
+
+export async function tracedSubmit(tx: Transaction, opType: string) {
+  return tracer.startActiveSpan(`stellar.submit.${opType}`, async (span) => {
+    span.setAttribute('stellar.operation_type', opType);
+    span.setAttribute('stellar.fee_stroops', Number(tx.fee));
+    try {
+      const result = await server.submitTransaction(tx);
+      span.setAttribute('stellar.tx_hash', result.hash);
+      span.setAttribute('stellar.ledger', result.ledger);
+      span.setStatus({ code: SpanStatusCode.OK });
+      return result;
+    } catch (err) {
+      span.setStatus({ code: SpanStatusCode.ERROR, message: String(err) });
+      throw err;
+    } finally {
+      span.end();
+    }
+  });
+}
+```
+
+---
+
+## Dashboards to Maintain
+
+### Dashboard 1 — Transaction Health
+
+| Panel | Query (PromQL) |
+|---|---|
+| Submission rate | `rate(stellar_tx_submitted_total[5m])` |
+| Success rate | `rate(stellar_tx_success_total[5m]) / rate(stellar_tx_submitted_total[5m])` |
+| Error breakdown | `sum by (result_code)(rate(stellar_tx_failed_total[5m]))` |
+| p95 fee | `histogram_quantile(0.95, stellar_tx_fee_stroops)` |
+
+Alert: success rate < 95% for 5 minutes → page on-call.
+
+### Dashboard 2 — Horizon Latency
+
+| Panel | Query |
+|---|---|
+| p50 latency | `histogram_quantile(0.50, stellar_horizon_latency_ms)` |
+| p99 latency | `histogram_quantile(0.99, stellar_horizon_latency_ms)` |
+| Rate-limit events | `rate(stellar_horizon_rate_limit_total[5m])` |
+
+Alert: p99 > 3000 ms for 10 minutes → investigate Horizon or switch to backup.
+
+### Dashboard 3 — Finality Wait
+
+Track how long transactions take to close after submission. A spike here indicates ledger congestion.
+
+| Panel | Query |
+|---|---|
+| p95 finality wait | `histogram_quantile(0.95, stellar_tx_finality_wait_ms)` |
+
+---
+
+## Small End-to-End Example
+
+The following wires metrics, logs, and a trace for a single claim submission:
+
+```ts
+// server/actions/submit-claim.ts
+import { tracedSubmit } from '@/lib/tracer';
+import { logTxEvent } from '@/lib/logger';
+import { txSubmitted } from '@/lib/metrics';
+
+export async function submitClaim(policyId: string, claimantAddress: string) {
+  const tx = await buildClaimTransaction(policyId, claimantAddress);
+
+  logTxEvent({ action: 'submit', opType: 'claim', fee: Number(tx.fee) });
+
+  const start = Date.now();
+  try {
+    const result = await tracedSubmit(tx, 'claim');
+    logTxEvent({
+      action: 'confirmed',
+      txHash: result.hash,
+      ledger: result.ledger,
+      durationMs: Date.now() - start,
+    });
+    return result;
+  } catch (err) {
+    logTxEvent({
+      action: 'failed',
+      resultCode: extractResultCode(err) ?? 'unknown',
+      durationMs: Date.now() - start,
+    });
+    throw err;
+  }
+}
+```
+
+---
+
+## Acceptance Checklist
+
+- [ ] Guide renders without build errors (`pnpm build:content`)
+- [ ] Internal links resolve (`pnpm check:links`)
+- [ ] Metrics, logs, and traces are all covered with runnable code
+- [ ] Dashboard panel table lists concrete PromQL queries
+- [ ] End-to-end example ties all three pillars together

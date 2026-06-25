@@ -1,0 +1,243 @@
+---
+title: Building a Referral System on Stellar
+description: Walk through tracking referrals, distributing on-chain rewards, and preventing abuse in a Stellar-based referral programme.
+date: 2026-06-25
+---
+
+# Building a Referral System on Stellar
+
+A referral system rewards users who bring new participants to your dApp. On Stellar, both tracking and reward distribution can be done on-chain, making the programme transparent and trustless. This guide covers how to track referrals, distribute rewards in XLM or an anchored asset, and prevent common abuse patterns.
+
+---
+
+## How Referral Tracking Works
+
+The simplest model: every existing user has a referral code tied to their Stellar account. When a new user signs up with that code, an on-chain record is written linking the newcomer to the referrer. Once the newcomer completes a qualifying action (first deposit, first policy purchase), the contract credits the referrer.
+
+```
+Referrer shares link → /signup?ref=GABC...REFERRER
+New user signs up     → dApp calls contract: register(new_user, referrer)
+New user qualifies    → dApp calls contract: credit_referral(new_user)
+Contract pays referrer → transfer reward to GABC...REFERRER
+```
+
+---
+
+## Soroban Contract
+
+```rust
+// contracts/referral/src/lib.rs
+#![no_std]
+use soroban_sdk::{contract, contractimpl, contracttype, token, Address, Env};
+
+#[contracttype]
+pub struct ReferralRecord {
+    pub referrer:   Address,
+    pub qualified:  bool,
+    pub rewarded:   bool,
+}
+
+#[contracttype]
+pub enum DataKey {
+    Admin,
+    RewardToken,
+    RewardAmount,
+    Referral(Address), // keyed by the new user's address
+}
+
+#[contract]
+pub struct ReferralContract;
+
+#[contractimpl]
+impl ReferralContract {
+    pub fn init(env: Env, admin: Address, reward_token: Address, reward_amount: i128) {
+        assert!(!env.storage().instance().has(&DataKey::Admin), "already init");
+        admin.require_auth();
+        env.storage().instance().set(&DataKey::Admin, &admin);
+        env.storage().instance().set(&DataKey::RewardToken, &reward_token);
+        env.storage().instance().set(&DataKey::RewardAmount, &reward_amount);
+    }
+
+    /// Called when a new user signs up with a referral code.
+    pub fn register(env: Env, new_user: Address, referrer: Address) {
+        new_user.require_auth();
+        assert!(new_user != referrer, "cannot refer yourself");
+        assert!(
+            !env.storage().persistent().has(&DataKey::Referral(new_user.clone())),
+            "already registered"
+        );
+        env.storage().persistent().set(
+            &DataKey::Referral(new_user),
+            &ReferralRecord { referrer, qualified: false, rewarded: false },
+        );
+    }
+
+    /// Called by the admin (backend service) once the new user completes a qualifying action.
+    pub fn credit_referral(env: Env, admin: Address, new_user: Address) {
+        Self::require_admin(&env, &admin);
+        admin.require_auth();
+
+        let mut record: ReferralRecord = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Referral(new_user.clone()))
+            .expect("no referral record");
+
+        assert!(!record.rewarded, "already rewarded");
+        record.qualified = true;
+        record.rewarded  = true;
+
+        let token:  Address = env.storage().instance().get(&DataKey::RewardToken).unwrap();
+        let amount: i128    = env.storage().instance().get(&DataKey::RewardAmount).unwrap();
+
+        token::Client::new(&env, &token).transfer(
+            &env.current_contract_address(),
+            &record.referrer,
+            &amount,
+        );
+
+        env.storage().persistent().set(&DataKey::Referral(new_user), &record);
+    }
+
+    fn require_admin(env: &Env, caller: &Address) {
+        let admin: Address = env.storage().instance().get(&DataKey::Admin).expect("not init");
+        assert!(*caller == admin, "not admin");
+    }
+}
+```
+
+---
+
+## Implementation Steps
+
+### 1. Generate Referral Codes
+
+A referral code is just the referrer's Stellar public key (or a shortened hash of it). No separate code table is needed.
+
+```ts
+// lib/referral.ts
+export function getReferralLink(accountId: string): string {
+  const code = accountId.slice(0, 8); // short display code
+  return `${process.env.NEXT_PUBLIC_APP_URL}/signup?ref=${accountId}&code=${code}`;
+}
+```
+
+### 2. Capture the Referrer at Sign-Up
+
+```tsx
+// app/signup/page.tsx
+'use client';
+
+import { useSearchParams } from 'next/navigation';
+import { useWallet } from '@/hooks/useWallet';
+
+export default function SignupPage() {
+  const params   = useSearchParams();
+  const referrer = params.get('ref');  // full Stellar address of referrer
+  const { address, connect } = useWallet();
+
+  const handleSignup = async () => {
+    await connect();
+    if (referrer && address && referrer !== address) {
+      await registerReferral(address, referrer);
+    }
+    // continue with normal onboarding
+  };
+
+  return <button onClick={handleSignup}>Connect wallet & sign up</button>;
+}
+```
+
+### 3. Register On-Chain
+
+```ts
+// lib/referral.ts (continued)
+import { rpc, Contract, TransactionBuilder, Networks, BASE_FEE, Keypair } from '@stellar/stellar-sdk';
+
+const server   = new rpc.Server(process.env.NEXT_PUBLIC_RPC_URL!);
+const contract = new Contract(process.env.NEXT_PUBLIC_REFERRAL_CONTRACT!);
+
+export async function registerReferral(newUser: string, referrer: string) {
+  // In practice, sign with the user's connected wallet
+  const account = await server.getAccount(newUser);
+  const tx = new TransactionBuilder(account, {
+    fee: BASE_FEE,
+    networkPassphrase: Networks.TESTNET,
+  })
+    .addOperation(contract.call('register', /* newUser, referrer args */))
+    .setTimeout(30)
+    .build();
+  // sign and submit via wallet kit
+}
+```
+
+### 4. Credit the Reward
+
+Call `credit_referral` from your backend after verifying the qualifying action:
+
+```ts
+// server/referral-creditor.ts (runs after first purchase confirmed)
+export async function creditReferral(newUserAddress: string) {
+  // Build and sign with admin keypair, submit to network
+  // contract.call('credit_referral', adminAddress, newUserAddress)
+}
+```
+
+---
+
+## Abuse Prevention
+
+### Self-Referral
+
+The contract rejects `new_user == referrer` at registration time — no extra check needed in the frontend.
+
+### Sybil Attacks (Fake Accounts)
+
+Require a qualifying action before crediting rewards — not just sign-up. Good qualifying gates:
+
+- First deposit above a minimum amount
+- First policy purchase
+- Account age ≥ 24 hours (check ledger sequence against account creation ledger)
+
+```ts
+async function isQualified(accountId: string): Promise<boolean> {
+  const account = await server.getAccount(accountId);
+  // Reject very new accounts with low sequence numbers
+  const seqNum = BigInt(account.sequenceNumber());
+  return seqNum > 1_000_000n; // rough proxy for account age
+}
+```
+
+### Duplicate Registration
+
+The contract stores one `ReferralRecord` per `new_user` address and panics on a second `register` call. Backend should also deduplicate before calling the contract.
+
+### Reward Cap
+
+Optionally add a per-referrer cap to the contract:
+
+```rust
+// Track how many times each referrer has been rewarded
+DataKey::ReferrerCount(Address)
+// Reject credit_referral if count >= MAX_REFERRALS_PER_USER
+```
+
+---
+
+## Reward Distribution Options
+
+| Reward type | Mechanism | Notes |
+|---|---|---|
+| XLM | Native payment in contract | Simplest; no trustline needed |
+| USDC / stablecoin | Token transfer via `token::Client` | Requires referrer to have trustline |
+| Points (off-chain) | Backend DB; periodic on-chain settlement | Flexible; no per-referral tx fee |
+| NFT badge | Soroban NFT mint | Non-fungible; good for tiered rewards |
+
+---
+
+## Acceptance Checklist
+
+- [ ] Guide renders without build errors (`pnpm build:content`)
+- [ ] Internal links resolve (`pnpm check:links`)
+- [ ] Abuse prevention section covers self-referral, Sybil, and duplicates
+- [ ] Contract compiles against current Soroban SDK

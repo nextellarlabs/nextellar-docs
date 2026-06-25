@@ -1,0 +1,154 @@
+---
+title: Privacy Considerations for Stellar dApps
+description: Apply data minimisation principles, understand identity correlation risks on the public Stellar ledger, and implement mitigations in your dApp.
+date: 2026-06-25
+---
+
+# Privacy Considerations for Stellar dApps
+
+The Stellar ledger is public and permanent. Every payment, every contract invocation, and every account creation is visible to anyone with a Horizon or Stellar Expert query. This creates unique privacy challenges for dApp builders. This guide explains the risks and the practical steps you can take to minimise them.
+
+---
+
+## The Public Ledger Problem
+
+When a user connects their Stellar wallet to your dApp and completes a transaction, three things become permanently visible:
+
+1. **Their public key** — linked to every transaction they have ever made on Stellar.
+2. **The contract they interacted with** — identifies your dApp.
+3. **The operation parameters** — amounts, asset types, and in some cases memos.
+
+A motivated observer can correlate these data points. If your backend also logs the user's email alongside their wallet address, you have linked an on-chain identity to a real-world identity — a potentially significant privacy risk depending on your jurisdiction.
+
+---
+
+## Data Minimisation Principles
+
+### Collect only what you need
+
+Before storing any data about a user, ask: "Do we need this to deliver the service?"
+
+| Data | Needed? | Action |
+|---|---|---|
+| Stellar public key | Yes — to query their policies | Store |
+| Full name | Only for KYC-required features | Store encrypted, access-controlled |
+| Email address | Only if you send transactional email | Store; offer deletion |
+| IP address | Rarely needed post-login | Do not log; do not store |
+| Browser fingerprint | Almost never needed | Do not collect |
+| Transaction history | Already public; do not duplicate | Query Horizon live |
+
+### Prefer ephemeral storage
+
+Use session storage (cleared on tab close) over `localStorage` (persists indefinitely) for wallet connection state:
+
+```ts
+// lib/wallet-store.ts
+// Session storage clears when the tab closes — safer for wallet addresses
+export const walletStore = {
+  set: (address: string) => sessionStorage.setItem('wallet_address', address),
+  get: ()                => sessionStorage.getItem('wallet_address'),
+  clear: ()              => sessionStorage.removeItem('wallet_address'),
+};
+```
+
+### Minimise memo field usage
+
+The memo field on Stellar transactions is public and permanent. Never place PII in memos:
+
+```ts
+// BAD — user's email visible on-chain forever
+transaction.addMemo(Memo.text(userEmail));
+
+// GOOD — use an opaque internal reference
+transaction.addMemo(Memo.id(internalOrderId));
+```
+
+---
+
+## Identity Correlation Risks
+
+### Cross-dApp Tracking
+
+If a user interacts with your dApp using the same wallet they use elsewhere, any third party can see all their activity across all Stellar dApps. This is equivalent to every website sharing a cookie.
+
+**Mitigation**: educate users about this risk. Power users may choose to use separate wallets per dApp. You cannot prevent it, but you should not make it worse by linking their wallet to additional off-chain identifiers unnecessarily.
+
+### Linking On-Chain to Off-Chain Identity
+
+The most serious risk: storing `wallet_address → email` in your database links the user's full on-chain history to their real-world identity.
+
+**Mitigations**:
+- Store the wallet address separately from the email with no direct foreign key.
+- Use a one-way hash of the wallet address as the database key for analytics.
+- Never log both fields in the same log line.
+
+```ts
+// lib/analytics.ts
+import { createHash } from 'crypto';
+
+// Use a hashed wallet address for analytics — cannot be reversed to the original
+export function anonymiseWallet(address: string): string {
+  return createHash('sha256').update(address + process.env.ANALYTICS_SALT).digest('hex').slice(0, 16);
+}
+```
+
+### Payment Graph Analysis
+
+An observer who sees that wallet A sends USDC to contract B and wallet B sends USDC to wallet C can infer a relationship between A and C. This is a payment graph attack.
+
+**Mitigation**: if privacy is a core requirement (healthcare, political applications), consider recommending users use a fresh wallet per interaction or use a privacy-preserving intermediary like a Stellar path payment through a liquidity pool to obscure the payment trail.
+
+### Timing Correlation
+
+If your backend makes a Stellar transaction within milliseconds of a user action, a network observer can correlate the two.
+
+**Mitigation**: introduce a random delay (1–30 seconds) between user action and on-chain submission for sensitive operations.
+
+```ts
+async function submitWithDelay(tx: Transaction) {
+  const delay = Math.random() * 30_000; // 0–30 seconds
+  await new Promise((r) => setTimeout(r, delay));
+  return server.submitTransaction(tx);
+}
+```
+
+---
+
+## Regulatory Considerations
+
+### GDPR (EU)
+
+If you serve EU residents, the GDPR applies to personal data you store. Public keys alone are not personal data under most interpretations, but a wallet address linked to a name or email is.
+
+Key obligations:
+- **Right to erasure**: if a user requests deletion, delete their email and any off-chain profile. You cannot delete their on-chain history (it is public and immutable), but you can delete your copies of it.
+- **Data processing agreements**: if you use a third-party KYC provider, you need a DPA with them.
+- **Privacy policy**: disclose what you collect and why.
+
+### CCPA (California)
+
+Similar to GDPR for California residents. Key addition: users can opt out of having their data sold. If you share wallet addresses with analytics providers, this may constitute a "sale."
+
+---
+
+## Mitigation Summary
+
+| Risk | Mitigation |
+|---|---|
+| Wallet address logged with PII | Separate storage; truncated logs |
+| Memo contains PII | Use opaque IDs only |
+| Analytics links wallet to user | Hash wallet address with salt |
+| Payment graph analysis | Recommend fresh wallets for sensitive actions |
+| Timing correlation | Random submission delay |
+| GDPR erasure request | Delete off-chain profile; cannot delete on-chain |
+| Third-party KYC exposure | Signed DPA; minimal data sharing |
+
+---
+
+## Acceptance Checklist
+
+- [ ] Guide renders without build errors (`pnpm build:content`)
+- [ ] Internal links resolve (`pnpm check:links`)
+- [ ] Data minimisation table covers common Stellar dApp data types
+- [ ] Identity correlation risks include both on-chain and off-chain scenarios
+- [ ] Regulatory section covers GDPR and CCPA

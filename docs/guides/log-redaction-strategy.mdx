@@ -1,0 +1,224 @@
+---
+title: Log Redaction Strategy for Stellar dApps
+description: Identify sensitive fields in Stellar dApp logs, apply redaction patterns at the source, and establish a review procedure to keep logs clean over time.
+date: 2026-06-25
+---
+
+# Log Redaction Strategy for Stellar dApps
+
+Logs are your primary debugging tool, but they can also become a liability. A single unredacted log line that captures a Stellar secret key or a user's full wallet address alongside personally identifiable information (PII) can constitute a data breach. This guide explains which fields to redact, how to redact them at the source, and how to keep logs clean as your codebase evolves.
+
+---
+
+## Sensitive Fields in Stellar dApps
+
+| Field | Why sensitive | Redaction target |
+|---|---|---|
+| **Secret key** (`S...`) | Full account compromise | Remove entirely — never log |
+| **Full public key** (`G...`) | Links on-chain activity to a server-side identity | Truncate to first 8 chars |
+| **JWT / SEP-10 token** | Session hijack | Remove entirely |
+| **KYC data** (name, DOB, ID number) | PII / GDPR scope | Remove entirely |
+| **IP address** | Links wallet to physical location | Hash or remove |
+| **Transaction memo** | May contain PII or payment references | Truncate or remove |
+| **Webhook payload** | May contain full user profile | Redact nested PII fields |
+| **API keys / PATs** | Service account compromise | Remove entirely |
+
+---
+
+## Redaction Patterns
+
+### Pattern 1 — Blocklist at the Logger Level
+
+Intercept every log call and strip known sensitive keys before writing to the transport.
+
+```ts
+// lib/logger.ts
+import pino from 'pino';
+
+const SENSITIVE_KEYS = new Set([
+  'secret', 'secretKey', 'privateKey', 'jwt', 'token', 'authorization',
+  'password', 'apiKey', 'api_key', 'memo', 'dob', 'ssn', 'idNumber',
+]);
+
+function redact(obj: unknown, depth = 0): unknown {
+  if (depth > 10 || obj === null || typeof obj !== 'object') return obj;
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+    if (SENSITIVE_KEYS.has(key)) {
+      result[key] = '[REDACTED]';
+    } else if (typeof value === 'string' && isStellarSecret(value)) {
+      result[key] = '[STELLAR_SECRET]';
+    } else if (typeof value === 'string' && isStellarPublicKey(value)) {
+      result[key] = truncatePublicKey(value);
+    } else {
+      result[key] = redact(value, depth + 1);
+    }
+  }
+  return result;
+}
+
+function isStellarSecret(s: string)    { return /^S[A-Z2-7]{55}$/.test(s); }
+function isStellarPublicKey(s: string) { return /^G[A-Z2-7]{55}$/.test(s); }
+function truncatePublicKey(key: string) { return `${key.slice(0, 8)}…`; }
+
+export const logger = pino({
+  serializers: {
+    // pino calls this on every log object
+    req:  (req) => redact(req),
+    res:  (res) => redact(res),
+    err:  (err) => redact(err),
+  },
+});
+```
+
+### Pattern 2 — Structured Log Fields with Explicit Allow-List
+
+Instead of redacting a blocklist, only log fields you have explicitly approved. This is safer but requires more discipline.
+
+```ts
+// Only log these fields from a Stellar transaction object
+function safeTransactionLog(tx: StellarTransaction) {
+  return {
+    txHash:       tx.hash,
+    ledger:       tx.ledger,
+    operationType: tx.operations[0]?.type,
+    feePaid:      tx.fee_charged,
+    // NOT: source_account, memo, operations[].destination (if it's a user address)
+  };
+}
+```
+
+### Pattern 3 — Environment-Specific Verbosity
+
+Log more in development, log less in production.
+
+```ts
+export const logger = pino({
+  level: process.env.NODE_ENV === 'production' ? 'warn' : 'debug',
+  redact: {
+    paths: ['*.secret', '*.token', '*.jwt', '*.authorization', 'req.headers.authorization'],
+    censor: '[REDACTED]',
+  },
+});
+```
+
+Pino's built-in `redact` option handles nested paths using fast-redact under the hood.
+
+---
+
+## Where to Apply Redaction
+
+### API Route Handlers
+
+```ts
+// app/api/deposit/route.ts
+import { logger } from '@/lib/logger';
+
+export async function POST(req: Request) {
+  const body = await req.json();
+  // Log the action, not the payload
+  logger.info({ action: 'deposit.initiated', accountId: body.accountId?.slice(0, 8) });
+  // NOT: logger.info(body) — body may contain jwt, amount, memo
+}
+```
+
+### Stellar SDK Operations
+
+The Stellar SDK does not log by default, but custom wrappers often do:
+
+```ts
+// lib/stellar.ts
+export async function submitTransaction(tx: Transaction, keypair: Keypair) {
+  // NEVER: logger.info({ tx: tx.toXDR(), keypair: keypair.secret() })
+  logger.info({ action: 'tx.submit', txHash: tx.hash('testnet').toString('hex') });
+  return server.submitTransaction(tx);
+}
+```
+
+### SEP-10 / SEP-24 Flows
+
+JWT tokens appear in authorization headers. Strip them at the HTTP layer:
+
+```ts
+// middleware.ts (Next.js)
+export function middleware(req: NextRequest) {
+  // Do not log authorization headers
+  const safeHeaders = Object.fromEntries(
+    [...req.headers.entries()].filter(([k]) => k !== 'authorization')
+  );
+  logger.debug({ path: req.nextUrl.pathname, headers: safeHeaders });
+}
+```
+
+---
+
+## Review Procedures
+
+### 1. Pre-Commit Hook — Secret Scan
+
+Use `detect-secrets` or `gitleaks` to scan staged files for accidentally committed secrets:
+
+```bash
+# .husky/pre-commit
+npx detect-secrets scan --baseline .secrets.baseline
+```
+
+### 2. Log Audit on Every PR
+
+Add a PR checklist item:
+
+```
+- [ ] No `console.log` / `logger.debug` calls log raw user addresses, keys, or tokens
+- [ ] Any new log call uses structured fields from the approved list
+```
+
+### 3. Periodic Log Sampling
+
+Once a week, pull 100 random log lines from production and run them through a regex scanner for `G[A-Z2-7]{55}` and `S[A-Z2-7]{55}` patterns:
+
+```bash
+# Pull sample from your log aggregator and scan
+grep -E '[GS][A-Z2-7]{55}' sample.log && echo "LEAK FOUND" || echo "clean"
+```
+
+### 4. Retention Policy
+
+Keep production logs for 30 days maximum unless compliance requires longer. Configure this at the transport level:
+
+```ts
+// pino-loki transport example
+transport: {
+  target: 'pino-loki',
+  options: {
+    labels: { app: 'nextellar-dapp' },
+    // Loki retention configured server-side to 30d
+  },
+}
+```
+
+---
+
+## Quick Reference — Redact or Keep?
+
+| Data | Action |
+|---|---|
+| `G...` public key (alone) | Truncate to 8 chars |
+| `G...` public key + PII in same log line | Remove public key entirely |
+| `S...` secret key | Remove — never log under any circumstance |
+| Transaction hash | Keep — it's public |
+| Ledger sequence number | Keep |
+| Fee amount | Keep |
+| Operation type | Keep |
+| Memo text | Remove or truncate to 4 chars |
+| JWT / Bearer token | Remove |
+| IP address | Hash with SHA-256 or remove |
+
+---
+
+## Acceptance Checklist
+
+- [ ] Guide renders without build errors (`pnpm build:content`)
+- [ ] Internal links resolve (`pnpm check:links`)
+- [ ] Sensitive fields table covers Stellar-specific data types
+- [ ] At least two redaction patterns shown with code
+- [ ] Review procedure is actionable (runnable commands provided)
