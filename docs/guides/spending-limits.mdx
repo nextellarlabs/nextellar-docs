@@ -1,0 +1,214 @@
+---
+title: Spending Limits on Stellar
+description: Implement on-chain spending limits for Stellar dApps — daily caps, per-transaction limits, velocity controls, and Soroban contract enforcement.
+date: 2026-06-25
+---
+
+# Spending Limits on Stellar
+
+Spending limits protect users from runaway session keys, hacked accounts, and accidental large transfers. On Stellar, limits can be enforced at the Soroban contract layer, in your backend before submission, or via account-level controls. This guide covers all three tiers.
+
+---
+
+## Why Spending Limits Matter
+
+Without limits:
+- A compromised session key can drain a wallet entirely in one transaction.
+- A bug in contract logic can transfer arbitrary amounts.
+- A phishing transaction submitted by a malicious dApp appears legitimate to the signer.
+
+With limits:
+- Damage is bounded even if a key is compromised.
+- Users can set comfortable limits and approve higher amounts explicitly.
+
+---
+
+## Tier 1 — Account-Level: Stellar Multisig Thresholds
+
+The simplest limit: require multisig for transactions above a threshold. Not enforced by amount, but by operation type.
+
+```ts
+// setOptions to require 2-of-2 for payments (medium threshold)
+Operation.setOptions({
+  medThreshold: 2,  // payments require master + session key
+  signer: { ed25519PublicKey: sessionKey, weight: 1 },
+});
+// Master key weight = 2 → master alone can still pay (for emergency)
+// Session key weight = 1 → session alone cannot reach threshold of 2
+```
+
+This prevents a session key from sending payments unilaterally.
+
+---
+
+## Tier 2 — Soroban Contract Enforcement
+
+Enforce amount limits inside the contract itself:
+
+```rust
+// contracts/spending-limits/src/lib.rs
+#![no_std]
+use soroban_sdk::{contract, contractimpl, contracttype, token, Address, Env};
+
+#[contracttype]
+pub struct SpendingPolicy {
+    pub owner:             Address,
+    pub per_tx_limit:      i128,
+    pub daily_limit:       i128,
+    pub spent_today:       i128,
+    pub last_reset_ledger: u32,
+}
+
+#[contracttype]
+pub enum DataKey {
+    Policy(Address),
+}
+
+const LEDGERS_PER_DAY: u32 = 17_280; // ~5s per ledger
+
+#[contract]
+pub struct SpendingLimitsContract;
+
+#[contractimpl]
+impl SpendingLimitsContract {
+    pub fn set_policy(
+        env: Env,
+        owner: Address,
+        per_tx_limit: i128,
+        daily_limit: i128,
+    ) {
+        owner.require_auth();
+        let policy = SpendingPolicy {
+            owner: owner.clone(),
+            per_tx_limit,
+            daily_limit,
+            spent_today: 0,
+            last_reset_ledger: env.ledger().sequence(),
+        };
+        env.storage().persistent().set(&DataKey::Policy(owner), &policy);
+    }
+
+    pub fn spend(env: Env, owner: Address, token: Address, to: Address, amount: i128) {
+        owner.require_auth();
+        let mut policy: SpendingPolicy = env
+            .storage().persistent()
+            .get(&DataKey::Policy(owner.clone()))
+            .expect("no policy set");
+
+        // Reset daily counter if a new day has started
+        if env.ledger().sequence() - policy.last_reset_ledger >= LEDGERS_PER_DAY {
+            policy.spent_today       = 0;
+            policy.last_reset_ledger = env.ledger().sequence();
+        }
+
+        assert!(amount <= policy.per_tx_limit,                        "exceeds per-tx limit");
+        assert!(policy.spent_today + amount <= policy.daily_limit,    "exceeds daily limit");
+
+        token::Client::new(&env, &token).transfer(
+            &env.current_contract_address(),
+            &to,
+            &amount,
+        );
+
+        policy.spent_today += amount;
+        env.storage().persistent().set(&DataKey::Policy(owner), &policy);
+    }
+
+    pub fn get_remaining_daily(env: Env, owner: Address) -> i128 {
+        let policy: SpendingPolicy = env
+            .storage().persistent()
+            .get(&DataKey::Policy(owner))
+            .expect("no policy");
+        policy.daily_limit - policy.spent_today
+    }
+}
+```
+
+---
+
+## Tier 3 — Backend Pre-Submission Check
+
+Before submitting any user transaction, validate the amount server-side:
+
+```ts
+// server/spending-guard.ts
+
+interface SpendingLimit {
+  perTx:  number; // in stroops or asset units
+  daily:  number;
+}
+
+const USER_LIMITS: Record<string, SpendingLimit> = {
+  default: { perTx: 1000_0000000, daily: 5000_0000000 }, // 1000 XLM / tx, 5000 XLM / day
+};
+
+const dailySpend = new Map<string, { total: number; date: string }>();
+
+export function checkSpendingLimit(walletAddress: string, amount: number): void {
+  const limit = USER_LIMITS[walletAddress] ?? USER_LIMITS.default;
+  const today = new Date().toISOString().slice(0, 10);
+
+  if (amount > limit.perTx) {
+    throw new Error(`Amount ${amount} exceeds per-transaction limit of ${limit.perTx}`);
+  }
+
+  const record = dailySpend.get(walletAddress);
+  const spent  = record?.date === today ? record.total : 0;
+
+  if (spent + amount > limit.daily) {
+    throw new Error(`Daily spending limit of ${limit.daily} would be exceeded`);
+  }
+
+  dailySpend.set(walletAddress, { total: spent + amount, date: today });
+}
+```
+
+---
+
+## Showing Limits in the UI
+
+```tsx
+// components/SpendingLimitBadge.tsx
+'use client';
+
+import { useEffect, useState } from 'react';
+
+export function SpendingLimitBadge({ walletAddress }: { walletAddress: string }) {
+  const [remaining, setRemaining] = useState<number | null>(null);
+
+  useEffect(() => {
+    // fetch from your API which reads from the Soroban contract
+    fetch(`/api/spending-limit?wallet=${walletAddress}`)
+      .then((r) => r.json())
+      .then((d) => setRemaining(d.remainingToday));
+  }, [walletAddress]);
+
+  if (remaining === null) return null;
+  return (
+    <div className="text-sm text-gray-500">
+      Daily limit remaining: <strong>{(remaining / 10_000_000).toFixed(2)} XLM</strong>
+    </div>
+  );
+}
+```
+
+---
+
+## Limit Configuration Reference
+
+| Scenario | Per-tx limit | Daily limit | Enforcement |
+|---|---|---|---|
+| Consumer app (default) | 100 XLM | 500 XLM | Backend + contract |
+| Premium user | 1,000 XLM | 5,000 XLM | Backend + contract |
+| Session key | 50 XLM | 200 XLM | Contract only |
+| Institutional | Custom | Custom | Multisig threshold |
+
+---
+
+## Acceptance Checklist
+
+- [ ] Guide renders without build errors (`pnpm build:content`)
+- [ ] Internal links resolve (`pnpm check:links`)
+- [ ] All 3 enforcement tiers covered (account-level, contract, backend)
+- [ ] Soroban contract with per-tx and daily limit logic
+- [ ] UI component for displaying remaining limit

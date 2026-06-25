@@ -1,0 +1,214 @@
+---
+title: Building a Paymaster on Stellar
+description: Build a paymaster service that pays transaction fees on behalf of users, enabling gasless UX for Stellar dApps using fee-bump transactions and a Soroban sponsorship contract.
+date: 2026-06-25
+---
+
+# Building a Paymaster on Stellar
+
+A paymaster is a service that pays Stellar transaction fees on behalf of users. This enables "gasless" UX — users interact with your dApp without needing XLM for fees. Stellar supports this natively via **fee-bump transactions** and **sponsored reserves**.
+
+---
+
+## How Fee Bumping Works
+
+A fee-bump transaction wraps an inner transaction (already signed by the user) and adds an outer fee payer. The inner transaction's source account pays nothing — the outer fee-bump account pays the fee.
+
+```
+User signs inner tx (fee = 0 or BASE_FEE)
+   ↓
+Paymaster wraps in fee-bump tx (pays actual network fee)
+   ↓
+Submit fee-bump tx — user pays no XLM
+```
+
+---
+
+## Architecture
+
+```
+User → dApp frontend
+  → User signs inner tx with their wallet (no fee concern)
+  → POST /api/paymaster with signed inner tx XDR
+
+Backend paymaster service:
+  → Validates the inner tx (scope, amount, contract)
+  → Wraps in fee-bump signed by paymaster keypair
+  → Submits to Horizon
+  → Returns result to frontend
+```
+
+---
+
+## Paymaster Backend
+
+```ts
+// server/paymaster.ts
+import {
+  TransactionBuilder,
+  FeeBumpTransaction,
+  Keypair,
+  Networks,
+  rpc,
+} from '@stellar/stellar-sdk';
+import { Horizon } from '@stellar/stellar-sdk';
+
+const paymasterKeypair = Keypair.fromSecret(process.env.PAYMASTER_SECRET!);
+const horizonServer    = new Horizon.Server(process.env.HORIZON_URL!);
+
+interface PaymasterRequest {
+  innerXdr: string; // user-signed inner transaction XDR
+}
+
+export async function handlePaymasterRequest({ innerXdr }: PaymasterRequest): Promise<string> {
+  const inner = TransactionBuilder.fromXDR(innerXdr, Networks.MAINNET);
+
+  // Validate before wrapping — only sponsor allowed operations
+  validateInnerTransaction(inner);
+
+  // Determine fee: read current fee stats and bid p90
+  const stats      = await horizonServer.feeStats();
+  const feePerOp   = parseInt(stats.fee_charged.p90);
+  const totalOps   = inner.operations.length + 1;
+  const totalFee   = (feePerOp * totalOps).toString();
+
+  const feeBumpTx = TransactionBuilder.buildFeeBumpTransaction(
+    paymasterKeypair.publicKey(),
+    totalFee,
+    inner as any,
+    Networks.MAINNET,
+  );
+  feeBumpTx.sign(paymasterKeypair);
+
+  const result = await horizonServer.submitTransaction(feeBumpTx);
+  return result.hash;
+}
+
+function validateInnerTransaction(tx: any) {
+  for (const op of tx.operations) {
+    // Only allow invoke_host_function (contract calls) — not payments or account changes
+    if (op.type !== 'invokeHostFunction') {
+      throw new Error(`Paymaster does not sponsor operation type: ${op.type}`);
+    }
+    // Optionally: only sponsor calls to your own contract
+    // const contractId = extractContractId(op);
+    // if (contractId !== process.env.ALLOWED_CONTRACT) throw new Error('Unrecognised contract');
+  }
+}
+```
+
+---
+
+## API Route
+
+```ts
+// app/api/paymaster/route.ts
+import { handlePaymasterRequest } from '@/server/paymaster';
+import { checkRateLimit }         from '@/lib/rate-limit';
+
+export async function POST(req: Request) {
+  const ip = req.headers.get('x-forwarded-for') ?? 'unknown';
+  const { success } = await checkRateLimit(`paymaster:${ip}`);
+  if (!success) return new Response('Too many requests', { status: 429 });
+
+  const { innerXdr } = await req.json();
+  if (!innerXdr) return new Response('Missing innerXdr', { status: 400 });
+
+  try {
+    const hash = await handlePaymasterRequest({ innerXdr });
+    return Response.json({ hash });
+  } catch (err) {
+    return new Response(String(err), { status: 400 });
+  }
+}
+```
+
+---
+
+## Sponsored Reserves
+
+For creating new accounts without requiring the user to fund the minimum balance (1 XLM reserve), use sponsored reserves:
+
+```ts
+import { Operation, Keypair, TransactionBuilder, Networks, BASE_FEE } from '@stellar/stellar-sdk';
+
+export async function sponsorNewAccount(
+  sponsorKeypair: Keypair,
+  newAccountPublicKey: string,
+) {
+  const sponsorAccount = await horizonServer.loadAccount(sponsorKeypair.publicKey());
+
+  const tx = new TransactionBuilder(sponsorAccount, {
+    fee: BASE_FEE,
+    networkPassphrase: Networks.MAINNET,
+  })
+    .addOperation(Operation.beginSponsoringFutureReserves({ sponsoredId: newAccountPublicKey }))
+    .addOperation(Operation.createAccount({
+      destination:     newAccountPublicKey,
+      startingBalance: '0', // zero — sponsor covers the reserve
+    }))
+    .addOperation(Operation.endSponsoringFutureReserves())
+    .setTimeout(30)
+    .build();
+
+  tx.sign(sponsorKeypair);
+  // New account must also sign endSponsoringFutureReserves
+  return tx;
+}
+```
+
+---
+
+## Frontend Integration
+
+```ts
+// lib/paymaster-client.ts
+
+export async function submitViaPaymaster(innerTxXdr: string): Promise<string> {
+  const res = await fetch('/api/paymaster', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ innerXdr: innerTxXdr }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Paymaster error: ${text}`);
+  }
+
+  const { hash } = await res.json();
+  return hash;
+}
+```
+
+Usage in a transaction flow:
+
+```ts
+// 1. User signs inner tx with their wallet (Freighter, Lobstr, etc.)
+const signedXdr = await walletKit.signTransaction(innerTxXdr);
+
+// 2. Submit via paymaster — user pays no fee
+const txHash = await submitViaPaymaster(signedXdr);
+```
+
+---
+
+## Cost and Sustainability
+
+| Strategy | Description |
+|---|---|
+| Protocol fee revenue | Deduct paymaster costs from protocol fee income |
+| Per-user allowance | Each user gets N sponsored transactions/month |
+| Token-gate sponsorship | Only PASS holders get fee sponsorship |
+| Whitelist by contract | Only sponsor interactions with your own contracts |
+
+---
+
+## Acceptance Checklist
+
+- [ ] Guide renders without build errors (`pnpm build:content`)
+- [ ] Internal links resolve (`pnpm check:links`)
+- [ ] Fee-bump mechanism explained with TypeScript backend service
+- [ ] Sponsored reserves for new account creation covered
+- [ ] Frontend client integration included
+- [ ] Sustainability / cost strategy table present
