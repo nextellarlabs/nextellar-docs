@@ -1,0 +1,195 @@
+---
+title: Stellar Event Indexers
+description: Compare third-party and self-hosted Stellar event indexers, understand when to use each, and integrate one into your dApp.
+date: 2026-06-25
+---
+
+# Stellar Event Indexers
+
+Stellar's ledger grows by one closed ledger every five seconds. Querying Horizon for historical events across large time windows — tracking all payments to a contract address, computing aggregate volumes, or feeding a leaderboard — quickly exceeds what per-request API calls can deliver efficiently. An event indexer solves this by processing ledgers continuously and exposing pre-indexed data through a fast query interface.
+
+---
+
+## What Is an Event Indexer?
+
+An event indexer connects to the Stellar network, streams every closed ledger, parses the operations and events inside, and writes the results to a queryable store. Your application queries the index rather than Horizon directly.
+
+Key capabilities an indexer adds:
+
+- Historical queries across arbitrary time ranges without pagination loops
+- Aggregations (total volume, unique senders, claim counts) computed offline
+- Subscriptions or webhooks when a specific event pattern is observed
+- Joins across operations and contract events in a single query
+
+---
+
+## Indexer Comparison
+
+| Indexer | Self-hosted | Hosted tier | Soroban events | SQL query | GraphQL | Notes |
+|---|---|---|---|---|---|---|
+| **Horizon** (SDF) | Yes | Via QuickNode / Nownodes | Partial (event stream only) | No | No | Official; best for single-operation lookups |
+| **Galexie** (SDF) | Yes | No | Yes | No | No | Exports ledger metadata to GCS; build your own query layer |
+| **Subquery** | Yes | Yes | Yes | No | Yes | GraphQL + EVM-style mappings; good for multi-chain teams |
+| **Mercury** (Soroban) | No | Yes | Yes | Yes (via REST) | No | Purpose-built for Soroban contracts; low-latency |
+| **Hubble** (SDF) | Partial (BigQuery) | Yes | No | Yes (BigQuery) | No | Analytics-scale; strong for aggregate queries |
+| **StellarBeat** | No | Yes | No | No | REST | Community tool; good for explorer use cases |
+
+### When to Use Each
+
+**Horizon** — default choice for operational queries: "has this payment settled?", "what is the current balance?". Query the `/payments`, `/effects`, or `/transactions` endpoints. Avoid for large historical scans.
+
+**Mercury** — best when your app is Soroban-first and you need low-latency contract event subscriptions. Managed; no infrastructure required.
+
+**Subquery** — good fit when your team already uses Subquery on another chain, or when you need GraphQL subscriptions consumed by a React frontend.
+
+**Galexie + custom layer** — choose this path when you need full control over the data model and already run your own infrastructure (Postgres, ClickHouse, BigQuery).
+
+**Hubble** — analytics and business intelligence. Queries run against Google BigQuery; cost scales with data scanned, not with your application traffic.
+
+---
+
+## Integration Example: Mercury
+
+Mercury exposes a REST API over indexed Soroban contract events. The following example fetches the last 50 `claim` events from a parametric insurance contract.
+
+### 1. Register Your Contract
+
+```bash
+curl -X POST https://api.mercurydata.app/zephyr/register \
+  -H "Authorization: Bearer $MERCURY_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "contract_id": "CCONTRACTIDHERE",
+    "event_types": ["claim", "payout"]
+  }'
+```
+
+### 2. Query Events
+
+```ts
+// lib/indexer.ts
+const MERCURY_BASE = 'https://api.mercurydata.app';
+
+export interface ClaimEvent {
+  ledger: number;
+  timestamp: number;
+  txHash: string;
+  policyId: string;
+  payoutAmount: string;
+}
+
+export async function fetchRecentClaims(contractId: string, limit = 50): Promise<ClaimEvent[]> {
+  const res = await fetch(
+    `${MERCURY_BASE}/zephyr/events?contract=${contractId}&event=claim&limit=${limit}`,
+    { headers: { Authorization: `Bearer ${process.env.MERCURY_API_KEY}` } }
+  );
+  if (!res.ok) throw new Error(`Mercury error: ${res.status}`);
+  const { data } = await res.json();
+  return data.map((e: Record<string, unknown>) => ({
+    ledger:       Number(e.ledger_sequence),
+    timestamp:    Number(e.closed_at),
+    txHash:       String(e.tx_hash),
+    policyId:     String(e.topic_1),
+    payoutAmount: String(e.value_1),
+  }));
+}
+```
+
+### 3. Use in a React Component
+
+```tsx
+// components/ClaimFeed.tsx
+'use client';
+
+import { useEffect, useState } from 'react';
+import { fetchRecentClaims, type ClaimEvent } from '@/lib/indexer';
+
+const CONTRACT_ID = process.env.NEXT_PUBLIC_CONTRACT_ID!;
+
+export function ClaimFeed() {
+  const [claims, setClaims] = useState<ClaimEvent[]>([]);
+
+  useEffect(() => {
+    fetchRecentClaims(CONTRACT_ID).then(setClaims).catch(console.error);
+  }, []);
+
+  return (
+    <ul>
+      {claims.map((c) => (
+        <li key={c.txHash}>
+          Policy {c.policyId.slice(0, 8)} — {c.payoutAmount} stroops at ledger {c.ledger}
+        </li>
+      ))}
+    </ul>
+  );
+}
+```
+
+---
+
+## Self-Hosted Path with Galexie
+
+Galexie streams ledger metadata from the Stellar Core history archive to Google Cloud Storage. You run a secondary processor that reads from GCS and writes to your own database.
+
+### Architecture
+
+```
+Stellar Core ──► Galexie ──► GCS bucket ──► your processor ──► Postgres/BigQuery
+```
+
+### Processor Skeleton
+
+```ts
+// indexer/processor.ts
+import { Storage } from '@google-cloud/storage';
+import { Pool } from 'pg';
+
+const gcs = new Storage();
+const db  = new Pool({ connectionString: process.env.DATABASE_URL });
+
+async function processLedger(ledgerSeq: number) {
+  const [file] = await gcs
+    .bucket(process.env.GCS_BUCKET!)
+    .file(`ledgers/${ledgerSeq}.json`)
+    .download();
+
+  const ledger = JSON.parse(file.toString());
+
+  for (const tx of ledger.transactions ?? []) {
+    for (const op of tx.operations ?? []) {
+      if (op.type === 'invoke_host_function') {
+        await db.query(
+          `INSERT INTO events (ledger, tx_hash, contract, topic, value)
+           VALUES ($1, $2, $3, $4, $5) ON CONFLICT DO NOTHING`,
+          [ledgerSeq, tx.hash, op.contract_id, op.event_topic, op.event_value]
+        );
+      }
+    }
+  }
+}
+```
+
+<Note type="info">
+  Galexie is optimised for export throughput, not low latency. Expect 30–90 seconds of indexing lag behind the tip of the ledger.
+</Note>
+
+---
+
+## Choosing a Query Interface
+
+| Need | Recommendation |
+|---|---|
+| Single event lookup by tx hash | Horizon `/transactions/:hash` |
+| Recent N events for a contract | Mercury REST API |
+| Aggregate stats (total volume, DAUs) | Hubble / BigQuery |
+| Real-time subscriptions from a React app | Subquery GraphQL subscriptions |
+| Full control over schema and joins | Galexie + Postgres |
+
+---
+
+## Acceptance Checklist
+
+- [ ] Guide renders without build errors (`pnpm build:content`)
+- [ ] Internal links resolve (`pnpm check:links`)
+- [ ] Code samples are copy-pasteable without modification
+- [ ] Indexer comparison table is accurate as of the publication date

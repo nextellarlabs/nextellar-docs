@@ -1,0 +1,194 @@
+---
+title: Smart Wallet Patterns on Stellar
+description: Compare common smart wallet patterns layered over Stellar accounts, understand their tradeoffs, and implement a session-key pattern with a Soroban contract.
+date: 2026-06-25
+---
+
+# Smart Wallet Patterns on Stellar
+
+A "smart wallet" adds programmable logic on top of a standard Stellar account — spending limits, multi-factor authentication, session keys, or social recovery — without requiring the user to manage raw secret keys directly. Stellar supports this through a combination of multi-signature accounts and Soroban smart contracts.
+
+---
+
+## Core Primitives
+
+Before choosing a pattern, understand the two building blocks:
+
+### Stellar Multi-Sig Accounts
+
+Every Stellar account has a set of signers and a threshold structure. You can:
+
+- Add co-signers with different weights
+- Require N-of-M signatures for payments
+- Set per-operation thresholds (low, medium, high)
+
+This is purely on-chain, gasless to configure, and supported by all Stellar wallets. The limitation: logic is static. You cannot enforce "only payments below $100 need one signature; above $100 need two" without rebuilding the signer weights each time.
+
+### Soroban Contract Wallets
+
+A Soroban contract acts as the wallet. The user signs a transaction that invokes the contract; the contract enforces the policy. This enables:
+
+- Dynamic spending limits (read from contract storage)
+- Session keys with expiry (contract checks ledger timestamp)
+- On-chain social recovery (contract verifies guardian signatures)
+- Batched operations in a single transaction
+
+The tradeoff is higher complexity and per-invocation fees.
+
+---
+
+## Pattern Comparison
+
+| Pattern | Mechanism | Gas cost | Complexity | Best for |
+|---|---|---|---|---|
+| **Multi-sig** | Account signers + thresholds | Minimal | Low | Team treasury, simple 2-of-3 |
+| **Session key** | Short-lived signer + Soroban expiry | Medium | Medium | dApp UX (no re-sign per action) |
+| **Spending limit** | Soroban policy contract | Medium | Medium | Parental controls, budget enforcement |
+| **Social recovery** | Guardian set in contract storage | Medium–High | High | Non-custodial consumer wallets |
+| **Account abstraction (AA)** | Contract-as-account via Soroban auth | High | High | Full EVM-like AA on Stellar |
+
+---
+
+## Pattern 1 — Multi-Sig Treasury
+
+The simplest pattern. Three team members each hold a signer key; any two must co-sign disbursements.
+
+```bash
+# Set signers and require medium threshold = 2 (each signer weight 1)
+stellar tx new account-set-options \
+  --signer "GABC...KEY1:1" \
+  --signer "GDEF...KEY2:1" \
+  --signer "GHIJ...KEY3:1" \
+  --med-threshold 2 \
+  --source $TREASURY_ADDRESS \
+  --network testnet \
+  --sign
+```
+
+**Tradeoff**: Any signer key leak reduces security to 1-of-2. Rotate compromised keys immediately with a co-signed `AccountSetOptions`.
+
+---
+
+## Pattern 2 — Session Key with Soroban
+
+A session key is a temporary ed25519 keypair granted limited signing authority for a fixed time window. The dApp generates it client-side; the contract validates that it has not expired.
+
+### Contract
+
+```rust
+// contracts/session-wallet/src/lib.rs
+#![no_std]
+use soroban_sdk::{contract, contractimpl, contracttype, Address, BytesN, Env};
+
+#[contracttype]
+pub struct SessionKey {
+    pub expires_at: u64,
+}
+
+#[contract]
+pub struct SessionWallet;
+
+#[contractimpl]
+impl SessionWallet {
+    pub fn register_session(env: Env, owner: Address, session_pub: BytesN<32>, expires_at: u64) {
+        owner.require_auth();
+        assert!(expires_at > env.ledger().timestamp(), "already expired");
+        env.storage().persistent().set(&session_pub, &SessionKey { expires_at });
+    }
+
+    pub fn is_valid(env: Env, session_pub: BytesN<32>) -> bool {
+        match env.storage().persistent().get::<BytesN<32>, SessionKey>(&session_pub) {
+            Some(sk) => env.ledger().timestamp() < sk.expires_at,
+            None => false,
+        }
+    }
+
+    pub fn revoke(env: Env, owner: Address, session_pub: BytesN<32>) {
+        owner.require_auth();
+        env.storage().persistent().remove(&session_pub);
+    }
+}
+```
+
+### Client Integration
+
+```ts
+// lib/session.ts
+import { Keypair, Networks, TransactionBuilder, BASE_FEE, rpc } from '@stellar/stellar-sdk';
+
+const HORIZON_URL = 'https://horizon-testnet.stellar.org';
+const RPC_URL     = 'https://soroban-testnet.stellar.org';
+const CONTRACT_ID = process.env.NEXT_PUBLIC_SESSION_CONTRACT!;
+
+/** Generate a session keypair valid for `durationSeconds`. */
+export async function createSession(ownerKeypair: Keypair, durationSeconds = 3600) {
+  const sessionKeypair = Keypair.random();
+  const expiresAt = Math.floor(Date.now() / 1000) + durationSeconds;
+
+  const server = new rpc.Server(RPC_URL);
+  const account = await server.getAccount(ownerKeypair.publicKey());
+
+  const tx = new TransactionBuilder(account, {
+    fee: BASE_FEE,
+    networkPassphrase: Networks.TESTNET,
+  })
+    .addOperation(/* invoke register_session on CONTRACT_ID */ {})
+    .setTimeout(30)
+    .build();
+
+  tx.sign(ownerKeypair);
+  await server.sendTransaction(tx);
+
+  return { sessionKeypair, expiresAt };
+}
+```
+
+**Tradeoff**: Session keys must be stored securely client-side (e.g., in-memory only, never localStorage). If the user closes the browser, the session is lost and they must re-authenticate with their owner key.
+
+---
+
+## Pattern 3 — Social Recovery
+
+Guardian addresses stored in contract storage can collectively re-sign ownership to a new key when the owner loses access.
+
+### High-Level Flow
+
+1. Owner deploys the contract with a guardian set (3–5 trusted addresses).
+2. Owner loses their key.
+3. Owner contacts guardians; they each call `approve_recovery(new_owner)` on-chain.
+4. Once threshold is reached, the contract updates the owner address.
+
+```rust
+pub fn approve_recovery(env: Env, guardian: Address, new_owner: Address) {
+    guardian.require_auth();
+    // ... accumulate approvals, check threshold, update owner
+}
+```
+
+**Tradeoff**: Guardian collusion can steal the wallet. Mitigate with time-locks (a 48-hour delay between threshold reached and ownership transfer applied).
+
+---
+
+## Choosing a Pattern
+
+```
+Is the wallet a team treasury?
+  └── Yes → Multi-sig account (simplest, no contract needed)
+
+Does the dApp need frictionless UX (sign once per session)?
+  └── Yes → Session key pattern
+
+Do you need dynamic spending rules?
+  └── Yes → Soroban spending-limit contract
+
+Are you building a consumer wallet with non-technical users?
+  └── Yes → Social recovery + session keys combined
+```
+
+---
+
+## Acceptance Checklist
+
+- [ ] Guide renders without build errors (`pnpm build:content`)
+- [ ] Internal links resolve (`pnpm check:links`)
+- [ ] Code samples compile against current Soroban SDK

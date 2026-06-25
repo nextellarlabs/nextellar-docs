@@ -1,0 +1,232 @@
+---
+title: Integrating a Fiat Onramp
+description: Walk through the SEPs involved, the full user flow, and the compliance considerations for integrating a fiat onramp with a Stellar dApp.
+date: 2026-06-25
+---
+
+# Integrating a Fiat Onramp
+
+A fiat onramp lets users deposit local currency and receive a Stellar-anchored asset — typically USDC or a local stablecoin — into their wallet. This guide covers the Stellar Ecosystem Proposals (SEPs) involved, a step-by-step user flow, and the compliance requirements your application must handle.
+
+---
+
+## Relevant SEPs
+
+| SEP | Purpose | Required for onramp |
+|---|---|---|
+| **SEP-0001** | `stellar.toml` metadata file — anchors publish their capabilities here | Yes (discover anchor) |
+| **SEP-0006** | Deposit and withdrawal API (REST, synchronous) | Yes (classic anchors) |
+| **SEP-0010** | Stellar Web Authentication — wallet-signed challenge token | Yes (anchor auth) |
+| **SEP-0012** | KYC API — collect and upload user identity data | Often required |
+| **SEP-0024** | Hosted deposit and withdrawal (iframe/popup flow) | Yes (modern anchors, e.g., MoneyGram) |
+| **SEP-0038** | Quote API — get a fixed exchange rate before deposit | Recommended |
+
+Most production anchors implement **SEP-0024 + SEP-0010 + SEP-0012**. SEP-0006 is the older alternative and is increasingly deprecated.
+
+---
+
+## User Flow
+
+```
+User                  dApp                     Anchor
+  |                     |                          |
+  |-- "Deposit $50" --> |                          |
+  |                     |-- GET stellar.toml ----> |
+  |                     |<-- capabilities, TRANSFER_SERVER_SEP0024
+  |                     |                          |
+  |                     |-- SEP-10 challenge -----> |
+  |                     |<-- JWT -------------------|
+  |                     |                          |
+  |                     |-- POST /transactions/deposit/interactive
+  |                     |<-- { url, id }            |
+  |                     |                          |
+  |<-- open popup URL --|                          |
+  |                                                |
+  |-- KYC form (SEP-12) -----------------------> |
+  |-- select payment method -------------------- |
+  |-- complete deposit ------------------------- |
+  |<-- webhook / poll: status = completed ------- |
+  |                     |                          |
+  |                     |<- send anchored asset --- |
+  |<-- asset in wallet--|                          |
+```
+
+---
+
+## Step-by-Step Implementation
+
+### 1. Discover the Anchor
+
+```ts
+// lib/onramp.ts
+export async function fetchAnchorConfig(anchorDomain: string) {
+  const res = await fetch(`https://${anchorDomain}/.well-known/stellar.toml`);
+  const text = await res.text();
+  // Parse TOML — use a library like `@iarna/toml` or `smol-toml`
+  return parseToml(text);
+}
+```
+
+### 2. Authenticate with SEP-10
+
+```ts
+import { Keypair, Networks } from '@stellar/stellar-sdk';
+import StellarSdk from '@stellar/stellar-sdk';
+
+export async function getSep10Token(
+  anchorAuthServer: string,
+  accountId: string,
+  signTx: (xdr: string) => Promise<string>  // wallet sign callback
+): Promise<string> {
+  // Get challenge
+  const challengeRes = await fetch(
+    `${anchorAuthServer}?account=${accountId}&home_domain=${window.location.hostname}`
+  );
+  const { transaction } = await challengeRes.json();
+
+  // Sign challenge
+  const signedXdr = await signTx(transaction);
+
+  // Exchange for JWT
+  const tokenRes = await fetch(anchorAuthServer, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ transaction: signedXdr }),
+  });
+  const { token } = await tokenRes.json();
+  return token;
+}
+```
+
+### 3. Initiate a SEP-24 Deposit
+
+```ts
+export async function initiateDeposit(
+  transferServer: string,
+  jwt: string,
+  assetCode: string,
+  accountId: string
+): Promise<{ url: string; id: string }> {
+  const res = await fetch(`${transferServer}/transactions/deposit/interactive`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${jwt}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ asset_code: assetCode, account: accountId }),
+  });
+  const data = await res.json();
+  return { url: data.url, id: data.id };
+}
+```
+
+### 4. Open the Anchor's Hosted UI
+
+```tsx
+// components/OnrampButton.tsx
+'use client';
+
+import { useState } from 'react';
+import { useWallet } from '@/hooks/useWallet';
+import { fetchAnchorConfig, getSep10Token, initiateDeposit } from '@/lib/onramp';
+
+const ANCHOR_DOMAIN = process.env.NEXT_PUBLIC_ANCHOR_DOMAIN!;
+const ASSET_CODE    = 'USDC';
+
+export function OnrampButton() {
+  const { address, signTransaction } = useWallet();
+  const [loading, setLoading] = useState(false);
+
+  const handleDeposit = async () => {
+    if (!address) return;
+    setLoading(true);
+    try {
+      const config = await fetchAnchorConfig(ANCHOR_DOMAIN);
+      const jwt    = await getSep10Token(config.WEB_AUTH_ENDPOINT, address, signTransaction);
+      const { url } = await initiateDeposit(config.TRANSFER_SERVER_SEP0024, jwt, ASSET_CODE, address);
+      // Open anchor's hosted KYC + deposit flow
+      window.open(url, 'stellar-onramp', 'width=500,height=700');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <button onClick={handleDeposit} disabled={loading || !address}>
+      {loading ? 'Opening…' : 'Deposit USD'}
+    </button>
+  );
+}
+```
+
+### 5. Poll for Completion
+
+```ts
+export async function pollDeposit(
+  transferServer: string,
+  jwt: string,
+  id: string,
+  onComplete: () => void
+) {
+  const poll = setInterval(async () => {
+    const res  = await fetch(`${transferServer}/transaction?id=${id}`, {
+      headers: { Authorization: `Bearer ${jwt}` },
+    });
+    const { transaction } = await res.json();
+    if (transaction.status === 'completed') {
+      clearInterval(poll);
+      onComplete();
+    }
+  }, 5_000);
+}
+```
+
+---
+
+## Compliance Considerations
+
+### KYC (SEP-12)
+
+Most anchors require identity verification before allowing large deposits. The anchor's SEP-24 UI handles collection, but your app may need to:
+
+- Prompt users to complete KYC before enabling the deposit button
+- Handle `needs_more_info` status responses from the anchor
+
+### Sanctions Screening
+
+Anchors run their own OFAC/sanctions checks. If a deposit is rejected due to sanctions, the anchor returns `status: error` with a reason. Surface this clearly to users — do not silently drop rejected deposits.
+
+### Jurisdiction Restrictions
+
+Not all anchors support all countries. Check the anchor's `stellar.toml` `[[CURRENCIES]]` section for `redemption_instructions` and any geographic restrictions before advertising the feature to users.
+
+### Record-Keeping
+
+Your application should log:
+- The SEP-24 transaction `id` and `stellar_transaction_id` once completed
+- The amount and asset code
+- The timestamp of completion
+
+This creates an audit trail if a user disputes a deposit.
+
+---
+
+## Testing on Testnet
+
+Use the SDF's reference anchor (`testanchor.stellar.org`) for end-to-end testing:
+
+```bash
+NEXT_PUBLIC_ANCHOR_DOMAIN=testanchor.stellar.org
+NEXT_PUBLIC_STELLAR_NETWORK=testnet
+```
+
+The test anchor accepts any KYC data and completes deposits automatically within 30 seconds.
+
+---
+
+## Acceptance Checklist
+
+- [ ] Guide renders without build errors (`pnpm build:content`)
+- [ ] Internal links resolve (`pnpm check:links`)
+- [ ] SEP references link to the correct SDF documentation
+- [ ] Test anchor domain is noted so readers can validate the flow

@@ -1,0 +1,188 @@
+---
+title: Cross-Chain Considerations
+description: Document custody flows, message passing, risk considerations, and a sample reference design for integrating Stellar with other blockchains.
+date: 2026-06-25
+---
+
+# Cross-Chain Considerations
+
+Integrating Stellar with another chain — Ethereum, Solana, or a Cosmos chain — adds reach but introduces new failure modes. This guide covers the architectural options, the risks each carries, and a reference design you can adapt.
+
+---
+
+## Why Cross-Chain?
+
+Common reasons to bridge Stellar:
+
+- **Liquidity**: USDC exists on both Stellar and Ethereum. Bridging lets users move between the two without going through a centralised exchange.
+- **NFT or token portability**: an asset issued on another chain can be represented on Stellar via an anchor, or vice versa.
+- **Interoperability**: a Soroban contract triggers a downstream action on another chain (e.g., minting an NFT on Polygon when an insurance claim is paid on Stellar).
+
+---
+
+## Architectural Options
+
+### Option 1 — Custodial Bridge (Lock-and-Mint)
+
+An operator controls a wallet on each chain. To move asset X from Chain A to Stellar:
+
+1. User sends X to the operator's Chain A address (lock).
+2. Operator observes the lock and issues a wrapped X on Stellar (mint).
+3. To redeem, user sends wrapped X back; operator burns it and releases X on Chain A.
+
+**Custody risk**: the operator can steal locked funds. Mitigate with multi-sig on the custody wallet and a transparent reserve proof.
+
+**Message flow**:
+```
+User ──lock──► Chain A custody wallet
+Operator       ──observe──► Stellar mint tx
+User ◄──receive── Stellar wrapped asset
+```
+
+### Option 2 — Atomic Swap (Hash Time-Locked Contract)
+
+Both sides use a hash time-locked contract (HTLC). The swap is atomic: either both legs complete or both refund.
+
+1. Alice generates a secret `s`; computes `h = sha256(s)`.
+2. Alice locks funds on Chain A with HTLC: "release to Bob if he reveals `s` within 24h".
+3. Bob locks funds on Stellar with HTLC: "release to Alice if she reveals `s` within 12h".
+4. Alice reveals `s` on Stellar to claim Bob's funds.
+5. Bob reads `s` from Stellar and uses it to claim Alice's funds on Chain A.
+
+**Risk**: if Alice reveals `s` after Bob's HTLC expires, Bob loses funds. Use asymmetric timeouts (Alice's window shorter than Bob's) to prevent this.
+
+### Option 3 — Trust-Minimised Bridge (Light Client / Wormhole)
+
+A decentralised relayer network (Wormhole, Axelar) observes finality on the source chain and posts a signed attestation on the destination chain. A smart contract on the destination verifies the attestation before minting.
+
+**Message flow**:
+```
+Chain A tx ──finality──► Guardian network (19-of-19 multi-sig attestation)
+                                     │
+                          Relayer posts VAA on Stellar
+                                     │
+                       Soroban bridge contract verifies and mints
+```
+
+**Risk**: guardian set compromise. Wormhole's February 2022 exploit drained $320 M due to a signature verification bug. Audit bridge contracts independently.
+
+---
+
+## Risk Comparison
+
+| Approach | Custody risk | Smart contract risk | Liveness risk | Complexity |
+|---|---|---|---|---|
+| Custodial bridge | High (operator) | Low | Medium | Low |
+| HTLC atomic swap | Low | Low | Low (self-custodied) | Medium |
+| Trust-minimised (Wormhole) | Low (guardian set) | High (two contracts) | Low | High |
+
+---
+
+## Reference Design: Stellar ↔ Ethereum USDC Bridge
+
+This design uses a custodial bridge with a 3-of-5 multi-sig custody wallet on Ethereum and a Soroban contract on Stellar.
+
+### Components
+
+```
+Ethereum side:
+  - CustodyMultiSig.sol   (3-of-5 Gnosis Safe)
+  - BridgeEvents.sol      (emits Deposit / Withdrawal events)
+
+Stellar side:
+  - bridge contract       (mint / burn wrapped USDC)
+  - Relayer service       (listens to Ethereum events, calls Stellar contract)
+```
+
+### Soroban Bridge Contract Sketch
+
+```rust
+// contracts/bridge/src/lib.rs
+#![no_std]
+use soroban_sdk::{contract, contractimpl, contracttype, Address, BytesN, Env, String};
+
+#[contracttype]
+pub struct BridgeRecord {
+    pub eth_tx_hash: BytesN<32>,
+    pub amount:      i128,
+    pub recipient:   Address,
+    pub settled:     bool,
+}
+
+#[contract]
+pub struct StellarBridge;
+
+#[contractimpl]
+impl StellarBridge {
+    /// Called by the trusted relayer after observing an Ethereum Deposit event.
+    pub fn settle(
+        env: Env,
+        relayer: Address,
+        eth_tx_hash: BytesN<32>,
+        recipient: Address,
+        amount: i128,
+    ) {
+        relayer.require_auth();
+        Self::require_trusted_relayer(&env, &relayer);
+
+        if env.storage().persistent().has(&eth_tx_hash) {
+            panic!("already settled");
+        }
+
+        // Mint wrapped USDC to recipient (token contract call omitted for brevity)
+        env.storage().persistent().set(
+            &eth_tx_hash,
+            &BridgeRecord { eth_tx_hash: eth_tx_hash.clone(), amount, recipient, settled: true },
+        );
+    }
+
+    fn require_trusted_relayer(env: &Env, candidate: &Address) {
+        let trusted: Address = env
+            .storage()
+            .instance()
+            .get(&soroban_sdk::symbol_short!("relayer"))
+            .expect("bridge not initialized");
+        assert!(*candidate == trusted, "unauthorized relayer");
+    }
+}
+```
+
+### Relayer Service (TypeScript)
+
+```ts
+// relayer/index.ts
+import { ethers } from 'ethers';
+import { rpc, Contract, Networks, Keypair } from '@stellar/stellar-sdk';
+
+const provider       = new ethers.JsonRpcProvider(process.env.ETH_RPC_URL);
+const bridgeEth      = new ethers.Contract(process.env.ETH_BRIDGE_ADDRESS!, BRIDGE_ABI, provider);
+const stellarServer  = new rpc.Server(process.env.STELLAR_RPC_URL!);
+const relayerKeypair = Keypair.fromSecret(process.env.RELAYER_SECRET!);
+
+bridgeEth.on('Deposit', async (recipient, amount, ethTxHash) => {
+  console.log(`Deposit observed: ${amount} from ${recipient}`);
+  // Build and submit Stellar settle() invocation
+  // ... (transaction building omitted for brevity)
+});
+```
+
+---
+
+## Operational Considerations
+
+**Finality**: wait for sufficient confirmations on the source chain before minting on the destination. Ethereum reorgs within 6 blocks; Stellar ledgers are final immediately.
+
+**Fee asymmetry**: Stellar fees are fractions of a cent; Ethereum gas can spike. Design your fee model around the more expensive leg.
+
+**Reserve proofs**: for custodial bridges, publish a real-time reserve proof (e.g., a signed Ethereum balance query result). This lets users verify the peg without trusting the operator's word.
+
+**Emergency pause**: both the Ethereum and Stellar contracts should have an admin pause function that halts minting if an exploit is detected.
+
+---
+
+## Acceptance Checklist
+
+- [ ] Guide renders without build errors (`pnpm build:content`)
+- [ ] Internal links resolve (`pnpm check:links`)
+- [ ] Risk table is accurate for the described approaches
+- [ ] Reference design compiles against the current Soroban SDK
