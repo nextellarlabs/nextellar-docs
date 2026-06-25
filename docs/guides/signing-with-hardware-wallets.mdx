@@ -1,0 +1,233 @@
+---
+title: Signing with Hardware Wallets on Stellar
+description: Integrate Ledger and Trezor hardware wallets into your Stellar dApp — device detection, transaction signing, key derivation, and error handling.
+date: 2026-06-25
+---
+
+# Signing with Hardware Wallets on Stellar
+
+Hardware wallets keep private keys on a dedicated secure chip — they never touch the browser or your backend. This guide covers how to integrate Ledger and Trezor into a Stellar dApp, including device detection, transaction signing, BIP-32 derivation paths, and handling common errors.
+
+---
+
+## Why Hardware Wallets
+
+| Property | Software wallet | Hardware wallet |
+|---|---|---|
+| Key storage | Browser memory / extension storage | Secure element chip |
+| Signing | In-browser | On-device |
+| Phishing resistance | Low — malicious sites can intercept | High — user confirms on device screen |
+| Recovery | Seed phrase in software | Seed phrase offline |
+
+---
+
+## Ledger Integration
+
+Ledger exposes a WebHID and WebUSB transport. The `@ledgerhq/hw-transport-webhid` package handles the browser connection.
+
+### Install
+
+```bash
+pnpm add @ledgerhq/hw-transport-webhid @ledgerhq/hw-app-str
+```
+
+### Connect and Get Public Key
+
+```ts
+// lib/ledger.ts
+import TransportWebHID from '@ledgerhq/hw-transport-webhid';
+import Str             from '@ledgerhq/hw-app-str';
+
+const STELLAR_PATH = "44'/148'/0'"; // BIP-44: coin_type=148 for Stellar
+
+export async function connectLedger() {
+  const transport = await TransportWebHID.create();
+  const str       = new Str(transport);
+  return { transport, str };
+}
+
+export async function getLedgerPublicKey(): Promise<string> {
+  const { str, transport } = await connectLedger();
+  try {
+    const { publicKey } = await str.getPublicKey(STELLAR_PATH, false, false);
+    return publicKey;
+  } finally {
+    await transport.close();
+  }
+}
+```
+
+### Sign a Transaction
+
+```ts
+// lib/ledger.ts (continued)
+import { Transaction, Keypair } from '@stellar/stellar-sdk';
+
+export async function signWithLedger(tx: Transaction): Promise<Transaction> {
+  const { str, transport } = await connectLedger();
+  try {
+    // Ledger signs the transaction hash
+    const txHash = tx.hash('mainnet'); // returns Buffer
+    const { signature } = await str.signTransaction(STELLAR_PATH, txHash);
+
+    // Get the public key to build a Keypair for adding the signature
+    const { publicKey } = await str.getPublicKey(STELLAR_PATH, false, false);
+    const kp = Keypair.fromPublicKey(publicKey);
+
+    // Add the hardware signature to the transaction
+    const decoratedSig = kp.signatureHint();
+    tx.signatures.push(
+      xdr.DecoratedSignature.fromXDR(
+        Buffer.concat([decoratedSig, Buffer.from(signature, 'hex')]),
+      ),
+    );
+    return tx;
+  } finally {
+    await transport.close();
+  }
+}
+```
+
+---
+
+## Trezor Integration
+
+Trezor uses a bridge (Trezor Suite) or WebUSB. The `@trezor/connect-web` package provides a high-level API.
+
+### Install
+
+```bash
+pnpm add @trezor/connect-web
+```
+
+### Connect and Get Public Key
+
+```ts
+// lib/trezor.ts
+import TrezorConnect from '@trezor/connect-web';
+
+TrezorConnect.init({
+  lazyLoad:  true,
+  manifest: { email: 'your@email.com', appUrl: process.env.NEXT_PUBLIC_APP_URL! },
+});
+
+export async function getTrezorPublicKey(): Promise<string> {
+  const result = await TrezorConnect.stellarGetAddress({
+    path:    "m/44'/148'/0'",
+    showOnTrezor: false,
+  });
+  if (!result.success) throw new Error(result.payload.error);
+  return result.payload.address;
+}
+```
+
+### Sign a Transaction
+
+```ts
+// lib/trezor.ts (continued)
+import { Transaction } from '@stellar/stellar-sdk';
+
+export async function signWithTrezor(tx: Transaction, accountIndex = 0): Promise<string> {
+  // Build a Trezor-compatible representation of the transaction
+  const result = await TrezorConnect.stellarSignTransaction({
+    path:        `m/44'/148'/${accountIndex}'`,
+    networkPassphrase: 'Public Global Stellar Network ; September 2015',
+    transaction: convertToTrezorFormat(tx),
+  });
+  if (!result.success) throw new Error(result.payload.error);
+  return result.payload.signature;
+}
+
+function convertToTrezorFormat(tx: Transaction) {
+  // Map Stellar SDK transaction to Trezor's expected shape
+  // See: https://github.com/trezor/trezor-suite/tree/develop/packages/connect/src/types/api/stellarSignTransaction
+  return {
+    source:     tx.source,
+    fee:        parseInt(tx.fee),
+    sequence:   tx.sequence,
+    timebounds: tx.timeBounds,
+    operations: tx.operations.map(mapOperation),
+  };
+}
+
+function mapOperation(op: any) {
+  // Simplified — handle payment and invokeHostFunction as needed
+  return op;
+}
+```
+
+---
+
+## BIP-44 Derivation Paths
+
+```
+m / purpose' / coin_type' / account' / change / address_index
+
+Stellar: m/44'/148'/0'   → first account
+         m/44'/148'/1'   → second account
+         m/44'/148'/2'   → third account
+```
+
+Expose account switching in your UI:
+
+```tsx
+// components/LedgerAccountPicker.tsx
+export function LedgerAccountPicker({ onSelect }: { onSelect: (pubkey: string) => void }) {
+  const [accounts, setAccounts] = useState<string[]>([]);
+
+  const loadAccounts = async () => {
+    const { str, transport } = await connectLedger();
+    const keys = await Promise.all(
+      [0, 1, 2].map(async (i) => {
+        const { publicKey } = await str.getPublicKey(`44'/148'/${i}'`, false, false);
+        return publicKey;
+      })
+    );
+    await transport.close();
+    setAccounts(keys);
+  };
+
+  return (
+    <div>
+      <button onClick={loadAccounts}>Load Ledger Accounts</button>
+      {accounts.map((key, i) => (
+        <button key={key} onClick={() => onSelect(key)}>
+          Account {i}: {key.slice(0, 8)}…
+        </button>
+      ))}
+    </div>
+  );
+}
+```
+
+---
+
+## Common Errors
+
+| Error | Cause | Fix |
+|---|---|---|
+| `TransportOpenUserCancelled` | User denied WebHID permission | Prompt user to click "Allow" in browser dialog |
+| `Stellar application is not open` | Ledger home screen, not Stellar app | Ask user to open Stellar app on device |
+| `0x6985` (denied on device) | User pressed reject on device | Show "Transaction rejected" message |
+| `Device disconnected` | USB cable issue | Ask user to reconnect; close/reopen transport |
+| Trezor bridge not running | Trezor Suite not installed | Prompt user to install Trezor Suite |
+
+---
+
+## UX Guidance
+
+- Show a "Waiting for device confirmation…" state while the user approves on the hardware wallet screen.
+- Display the transaction summary in your UI — the user should confirm it matches what the device shows.
+- Set a 2-minute timeout; re-prompt if the user doesn't respond.
+- After signing, verify the signature before broadcasting to avoid submitting invalid transactions.
+
+---
+
+## Acceptance Checklist
+
+- [ ] Guide renders without build errors (`pnpm build:content`)
+- [ ] Internal links resolve (`pnpm check:links`)
+- [ ] Ledger integration: connect, get public key, sign transaction
+- [ ] Trezor integration: connect, get public key, sign transaction
+- [ ] BIP-44 derivation paths explained with account picker
+- [ ] Common errors table with fixes

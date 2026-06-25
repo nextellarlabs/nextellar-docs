@@ -1,0 +1,184 @@
+---
+title: Contract Storage Migration Strategy
+description: Migrate Soroban contract storage safely — schema versioning, lazy migration patterns, migration contracts, and rollback strategies.
+date: 2026-06-25
+---
+
+# Contract Storage Migration Strategy
+
+Soroban contracts are immutable once deployed — you cannot change the code. But you can deploy a new contract and migrate data. And when your storage schema evolves, you need a strategy for handling old-format data alongside new code. This guide covers schema versioning, lazy migration, migration contracts, and rollback.
+
+---
+
+## Why Migrations Are Hard on Soroban
+
+- **Contracts are immutable** — you redeploy, not patch.
+- **Storage is persistent** — old data stays at its old keys forever.
+- **No migration hook** — there is no `onUpgrade()` equivalent.
+- **Cost** — reading and rewriting thousands of storage entries costs real fees.
+
+This forces you to think about migrations at design time, not after the fact.
+
+---
+
+## Strategy 1 — Schema Versioning
+
+Store a version number in instance storage. Every read checks the version and upgrades the record on the fly (lazy migration).
+
+```rust
+// contracts/versioned/src/lib.rs
+#![no_std]
+use soroban_sdk::{contract, contractimpl, contracttype, Address, Env};
+
+const CURRENT_VERSION: u32 = 2;
+
+#[contracttype]
+pub enum DataKey {
+    SchemaVersion,
+    UserV1(Address),
+    UserV2(Address),
+}
+
+// Old schema (V1)
+#[contracttype]
+pub struct UserV1 {
+    pub balance: i128,
+}
+
+// New schema (V2)
+#[contracttype]
+pub struct UserV2 {
+    pub balance:     i128,
+    pub created_at:  u64,  // new field
+    pub tier:        u32,  // new field
+}
+
+#[contract]
+pub struct VersionedContract;
+
+#[contractimpl]
+impl VersionedContract {
+    pub fn init(env: Env) {
+        env.storage().instance().set(&DataKey::SchemaVersion, &CURRENT_VERSION);
+    }
+
+    pub fn get_user(env: Env, user: Address) -> UserV2 {
+        // Try V2 first
+        if let Some(u) = env.storage().persistent().get::<_, UserV2>(&DataKey::UserV2(user.clone())) {
+            return u;
+        }
+        // Fall back to V1 and migrate
+        if let Some(v1) = env.storage().persistent().get::<_, UserV1>(&DataKey::UserV1(user.clone())) {
+            let v2 = UserV2 {
+                balance:    v1.balance,
+                created_at: env.ledger().timestamp(),
+                tier:       0,
+            };
+            // Write migrated record
+            env.storage().persistent().set(&DataKey::UserV2(user.clone()), &v2);
+            // Clean up old record
+            env.storage().persistent().remove(&DataKey::UserV1(user));
+            return v2;
+        }
+        panic!("user not found");
+    }
+}
+```
+
+This is **lazy migration** — records are migrated one at a time as they are accessed, not all at once.
+
+---
+
+## Strategy 2 — Migration Contract
+
+For large-scale migrations where you cannot wait for organic access, deploy a dedicated migration contract:
+
+```rust
+// contracts/migrator/src/lib.rs
+// This contract has authority to read old contract storage and write to new contract
+#![no_std]
+use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, Vec};
+
+#[contract]
+pub struct MigratorContract;
+
+#[contractimpl]
+impl MigratorContract {
+    /// Called by admin to batch-migrate a list of user addresses.
+    pub fn migrate_batch(env: Env, admin: Address, users: Vec<Address>) {
+        admin.require_auth();
+        for user in users.iter() {
+            // Read from old contract, write to new contract
+            // (requires cross-contract calls with appropriate auth)
+            Self::migrate_one(&env, user);
+        }
+    }
+
+    fn migrate_one(env: &Env, user: Address) {
+        // Cross-contract: read old data, write new data
+        // old_contract.call("get_user_v1", user) → write to new_contract
+    }
+}
+```
+
+Run the migrator in batches to avoid hitting the per-transaction operation budget.
+
+---
+
+## Strategy 3 — Dual-Write During Transition
+
+When deploying a new contract version that changes storage keys, write to both old and new keys for a transition period:
+
+```rust
+pub fn update_balance(env: Env, user: Address, amount: i128) {
+    user.require_auth();
+    // Write to both old key (for backwards compat) and new key
+    env.storage().persistent().set(&DataKey::UserV1(user.clone()), &UserV1 { balance: amount });
+    env.storage().persistent().set(&DataKey::UserV2(user.clone()), &UserV2 {
+        balance:    amount,
+        created_at: env.ledger().timestamp(),
+        tier:       0,
+    });
+}
+```
+
+Once all clients have migrated to the new key, remove the dual-write.
+
+---
+
+## Rollback Strategy
+
+Soroban contracts are immutable — you cannot revert a deployed contract. However:
+
+1. **Keep the old contract address active** — do not migrate all users at once.
+2. **Feature-flag the new contract** — switch traffic back to old contract via your backend if the new one has a bug.
+3. **Do not delete old storage** — `persistent()` storage deletion is permanent; keep old records until you are confident the migration succeeded.
+
+```ts
+// lib/contract.ts
+const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_V2 ?? process.env.NEXT_PUBLIC_CONTRACT_V1!;
+
+// Can be switched back to V1 via env var if V2 has an issue
+```
+
+---
+
+## Checklist Before Migrating
+
+- [ ] New schema tested against all existing data shapes (including missing optional fields)
+- [ ] Lazy migration function handles V1, V2, and "not found" cases
+- [ ] Batch migration tested on testnet with a snapshot of mainnet data
+- [ ] Old contract kept alive (not decommissioned) until migration verified complete
+- [ ] Monitoring alert: track ratio of V1 vs V2 reads — should approach 0% V1 over time
+- [ ] Frontend / backend updated to use new contract address behind a feature flag
+- [ ] Rollback procedure documented: how to switch back to old contract, how long it remains valid
+
+---
+
+## Acceptance Checklist
+
+- [ ] Guide renders without build errors (`pnpm build:content`)
+- [ ] Internal links resolve (`pnpm check:links`)
+- [ ] All 3 strategies covered: lazy migration, migration contract, dual-write
+- [ ] Rollback strategy section present
+- [ ] Pre-migration checklist included
