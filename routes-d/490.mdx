@@ -1,0 +1,46 @@
+---
+title: Sponsoring Future Reserves
+description: Document the begin_sponsoring_future_reserves operation on Stellar.
+---
+
+# Sponsoring Future Reserves
+
+The `begin_sponsoring_future_reserves` operation allows one account (the sponsor) to pay the base reserve requirements for another account (the sponsored account) for any subsequent operations within the same transaction.
+
+## The Sponsor Flow
+
+Sponsorship always follows a strict pattern involving two distinct operations:
+
+1. **Begin Sponsorship**: The sponsoring account issues a `begin_sponsoring_future_reserves` operation, specifying the account to be sponsored.
+2. **Sponsored Operations**: The sponsored account executes one or more operations (e.g., creating a trustline or offering). The sponsor will cover the base reserve requirement for these actions.
+3. **End Sponsorship**: The sponsored account must issue an `end_sponsoring_future_reserves` operation to conclude the sponsorship block.
+
+Both the start and end operations must occur within the **same transaction**.
+
+## Example
+
+Here is a small example showing the sponsor flow:
+
+```json
+{
+  "operations": [
+    {
+      "source_account": "SponsorAccount",
+      "type": "begin_sponsoring_future_reserves",
+      "sponsored_id": "SponsoredAccount"
+    },
+    {
+      "source_account": "SponsoredAccount",
+      "type": "change_trust",
+      "line": "USDC:IssuerAccount",
+      "limit": "10000"
+    },
+    {
+      "source_account": "SponsoredAccount",
+      "type": "end_sponsoring_future_reserves"
+    }
+  ]
+}
+```
+
+In this transaction, `SponsorAccount` pays the reserve required to establish the USDC trustline for `SponsoredAccount`.

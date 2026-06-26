@@ -1,0 +1,20 @@
+---
+title: Stellar Consensus Rounds
+description: A brief explanation of how consensus rounds work on Stellar.
+---
+
+# Stellar Consensus Rounds
+
+The Stellar Consensus Protocol (SCP) organizes agreement on the network through continuous rounds. In each round, nodes agree on a candidate transaction set to apply to the ledger.
+
+## Round Phases
+
+A typical consensus round consists of several phases:
+
+1. **Nomination**: Nodes propose and exchange candidate transaction sets. The network converges on a single composite set of transactions to apply.
+2. **Ballot Preparation**: Nodes construct a ballot containing the nominated transaction set and attempt to reach an agreement that the ballot is safe to commit.
+3. **Ballot Commit**: Once a ballot is sufficiently prepared, nodes commit the ballot. Applying the transaction set advances the ledger state.
+
+## Typical Duration
+
+A complete consensus round on the Stellar network typically takes around **5 to 7 seconds**. This fast finality is a core feature of SCP, ensuring that transactions are confirmed quickly and cannot be reversed once the round concludes.

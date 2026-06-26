@@ -1,0 +1,35 @@
+---
+title: Bump Sequence Operation
+description: Document the bump sequence operation and its use cases.
+---
+
+# Bump Sequence Operation
+
+The `bump_sequence` operation allows an account to increase its sequence number forward to a specified value. This operation must bump the sequence number to a value strictly greater than the account's current sequence number.
+
+## Use Cases
+
+The primary use cases for the bump sequence operation include:
+
+- **Invalidating Transactions**: By bumping the sequence number past the sequence number of a previously signed, but unsubmitted transaction, you can permanently invalidate that transaction.
+- **Smart Contracts and Pre-Auth**: It is frequently used in complex multi-signature setups or smart contracts where specific sequence numbers are pre-authorized and need to be skipped or consumed without executing an actual transaction.
+
+## Example
+
+Here is a small example of how a `bump_sequence` operation might look in a Stellar transaction:
+
+```json
+{
+  "source_account": "GB7...",
+  "fee": 100,
+  "sequence_number": 10,
+  "operations": [
+    {
+      "type": "bump_sequence",
+      "bump_to": 15
+    }
+  ]
+}
+```
+
+After this transaction is applied, the account's sequence number becomes 15, invalidating any pre-signed transactions that had sequence numbers 11 through 15.

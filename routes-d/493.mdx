@@ -1,0 +1,39 @@
+---
+title: Liquidity Pool Deposit Math
+description: Explain the math behind liquidity pool deposits and shares on Stellar.
+---
+
+# Liquidity Pool Deposit Math
+
+When you deposit assets into a Stellar liquidity pool, you receive pool shares representing your proportional ownership of the pool's assets.
+
+## Share Calculation
+
+The number of shares minted upon deposit is determined by the ratio of the deposited amounts to the pool's total reserves prior to the deposit. If the pool is empty, the initial shares are calculated as the geometric mean of the deposited amounts.
+
+For subsequent deposits, the shares received ($S_{mint}$) are calculated as:
+
+$$
+S_{mint} = S_{total} \times \min\left( \frac{A_{deposit}}{A_{reserve}}, \frac{B_{deposit}}{B_{reserve}} \right)
+$$
+
+Where:
+
+- $S_{total}$ is the total outstanding pool shares.
+- $A_{deposit}, B_{deposit}$ are the amounts of Asset A and Asset B deposited.
+- $A_{reserve}, B_{reserve}$ are the current reserves of Asset A and Asset B in the pool.
+
+## Slippage Considerations
+
+Because the pool reserves can change between the time you submit a deposit transaction and when it executes, the actual amount of shares you receive can vary. You must specify a maximum slippage tolerance (e.g., `min_price` and `max_price` bounds) to prevent your transaction from executing if the pool's ratio shifts unfavorably.
+
+## Example
+
+Suppose a pool contains 100X and 200Y, with 100 total pool shares. You deposit 10X and 20Y.
+
+The ratio is:
+
+- $10 / 100 = 0.1$
+- $20 / 200 = 0.1$
+
+You will receive $100 \times 0.1 = 10$ pool shares. If the pool ratio had shifted to 100X and 210Y right before your transaction, your 20Y deposit would fall short of the required ratio, triggering a potential slippage failure depending on your set bounds.
