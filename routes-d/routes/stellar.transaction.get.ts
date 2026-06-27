@@ -96,13 +96,17 @@ export async function fetchTransaction(
   });
 
   if (res.status === 404) {
-    const err = new Error('Transaction not found') as Error & { status: number };
+    const err = new Error('Transaction not found') as Error & {
+      status: number;
+    };
     err.status = 404;
     throw err;
   }
 
   if (!res.ok) {
-    const err = new Error(`Horizon error: ${res.status} ${res.statusText}`) as Error & {
+    const err = new Error(
+      `Horizon error: ${res.status} ${res.statusText}`
+    ) as Error & {
       status: number;
     };
     err.status = res.status;
@@ -197,7 +201,9 @@ export async function GET(
   } catch (err: unknown) {
     const status = (err as { status?: number }).status ?? 500;
     const message =
-      err instanceof Error ? err.message : 'Unexpected error fetching transaction';
+      err instanceof Error
+        ? err.message
+        : 'Unexpected error fetching transaction';
 
     const body: ErrorResponse = { error: message, status };
     return Response.json(body, { status });

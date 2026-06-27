@@ -39,13 +39,13 @@ The tradeoff is higher complexity and per-invocation fees.
 
 ## Pattern Comparison
 
-| Pattern | Mechanism | Gas cost | Complexity | Best for |
-|---|---|---|---|---|
-| **Multi-sig** | Account signers + thresholds | Minimal | Low | Team treasury, simple 2-of-3 |
-| **Session key** | Short-lived signer + Soroban expiry | Medium | Medium | dApp UX (no re-sign per action) |
-| **Spending limit** | Soroban policy contract | Medium | Medium | Parental controls, budget enforcement |
-| **Social recovery** | Guardian set in contract storage | Medium–High | High | Non-custodial consumer wallets |
-| **Account abstraction (AA)** | Contract-as-account via Soroban auth | High | High | Full EVM-like AA on Stellar |
+| Pattern                      | Mechanism                            | Gas cost    | Complexity | Best for                              |
+| ---------------------------- | ------------------------------------ | ----------- | ---------- | ------------------------------------- |
+| **Multi-sig**                | Account signers + thresholds         | Minimal     | Low        | Team treasury, simple 2-of-3          |
+| **Session key**              | Short-lived signer + Soroban expiry  | Medium      | Medium     | dApp UX (no re-sign per action)       |
+| **Spending limit**           | Soroban policy contract              | Medium      | Medium     | Parental controls, budget enforcement |
+| **Social recovery**          | Guardian set in contract storage     | Medium–High | High       | Non-custodial consumer wallets        |
+| **Account abstraction (AA)** | Contract-as-account via Soroban auth | High        | High       | Full EVM-like AA on Stellar           |
 
 ---
 
@@ -114,14 +114,23 @@ impl SessionWallet {
 
 ```ts
 // lib/session.ts
-import { Keypair, Networks, TransactionBuilder, BASE_FEE, rpc } from '@stellar/stellar-sdk';
+import {
+  Keypair,
+  Networks,
+  TransactionBuilder,
+  BASE_FEE,
+  rpc,
+} from '@stellar/stellar-sdk';
 
 const HORIZON_URL = 'https://horizon-testnet.stellar.org';
-const RPC_URL     = 'https://soroban-testnet.stellar.org';
+const RPC_URL = 'https://soroban-testnet.stellar.org';
 const CONTRACT_ID = process.env.NEXT_PUBLIC_SESSION_CONTRACT!;
 
 /** Generate a session keypair valid for `durationSeconds`. */
-export async function createSession(ownerKeypair: Keypair, durationSeconds = 3600) {
+export async function createSession(
+  ownerKeypair: Keypair,
+  durationSeconds = 3600
+) {
   const sessionKeypair = Keypair.random();
   const expiresAt = Math.floor(Date.now() / 1000) + durationSeconds;
 

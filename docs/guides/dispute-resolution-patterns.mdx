@@ -18,13 +18,13 @@ A smart contract can enforce the terms both parties agreed to at creation time. 
 
 ## Pattern Comparison
 
-| Pattern | Arbitrator | Trust model | Settlement speed | Cost |
-|---|---|---|---|---|
-| **Single arbitrator** | Designated third party | High trust in arbitrator | Fast | Low |
-| **Multi-sig arbitrators** | N-of-M panel | Reduced per-arbitrator trust | Medium | Low |
-| **Decentralised (DAO vote)** | Token holders | Trust the token economics | Slow | Medium |
-| **Time-lock default** | Nobody (automatic) | Trustless | Configurable | None |
-| **Oracle-based** | On-chain data source | Trust the oracle | Fast | Medium |
+| Pattern                      | Arbitrator             | Trust model                  | Settlement speed | Cost   |
+| ---------------------------- | ---------------------- | ---------------------------- | ---------------- | ------ |
+| **Single arbitrator**        | Designated third party | High trust in arbitrator     | Fast             | Low    |
+| **Multi-sig arbitrators**    | N-of-M panel           | Reduced per-arbitrator trust | Medium           | Low    |
+| **Decentralised (DAO vote)** | Token holders          | Trust the token economics    | Slow             | Medium |
+| **Time-lock default**        | Nobody (automatic)     | Trustless                    | Configurable     | None   |
+| **Oracle-based**             | On-chain data source   | Trust the oracle             | Fast             | Medium |
 
 ---
 
@@ -81,6 +81,7 @@ pub fn resolve(env: Env, arbitrator: Address, escrow_id: u64, pay_seller: bool) 
 ```
 
 **Settlement paths**:
+
 - Arbitrator rules for seller → funds released to seller
 - Arbitrator rules for buyer → funds refunded to buyer
 - Partial settlement → split using a percentage parameter

@@ -12,12 +12,12 @@ Token gating restricts access to features, content, or actions based on a user's
 
 ## Types of Token Gates
 
-| Gate type | Check | Example |
-|---|---|---|
-| Native XLM balance | `account.balances` | Premium tier requires ≥ 100 XLM |
-| Custom asset holding | `account.balances` filter by asset | Membership token `PASS:GABC…` |
-| NFT / unique token | Balance = 1 of a limited-supply asset | Whitelist NFT |
-| Soroban contract state | Contract call `is_member(address)` | DAO membership |
+| Gate type              | Check                                 | Example                         |
+| ---------------------- | ------------------------------------- | ------------------------------- |
+| Native XLM balance     | `account.balances`                    | Premium tier requires ≥ 100 XLM |
+| Custom asset holding   | `account.balances` filter by asset    | Membership token `PASS:GABC…`   |
+| NFT / unique token     | Balance = 1 of a limited-supply asset | Whitelist NFT                   |
+| Soroban contract state | Contract call `is_member(address)`    | DAO membership                  |
 
 ---
 
@@ -32,14 +32,14 @@ const server = new Horizon.Server(process.env.NEXT_PUBLIC_HORIZON_URL!);
 export async function getBalance(
   accountId: string,
   assetCode: string,
-  assetIssuer: string,
+  assetIssuer: string
 ): Promise<number> {
   const account = await server.loadAccount(accountId);
   const line = account.balances.find(
     (b) =>
       b.asset_type !== 'native' &&
-      (b as Horizon.HorizonApi.BalanceLineAsset).asset_code   === assetCode &&
-      (b as Horizon.HorizonApi.BalanceLineAsset).asset_issuer === assetIssuer,
+      (b as Horizon.HorizonApi.BalanceLineAsset).asset_code === assetCode &&
+      (b as Horizon.HorizonApi.BalanceLineAsset).asset_issuer === assetIssuer
   );
   return line ? parseFloat(line.balance) : 0;
 }
@@ -59,15 +59,18 @@ export async function getNativeBalance(accountId: string): Promise<number> {
 // lib/token-gate.ts (continued)
 
 export interface GateConfig {
-  type:         'xlm' | 'asset' | 'soroban';
-  minAmount?:   number;
-  assetCode?:   string;
+  type: 'xlm' | 'asset' | 'soroban';
+  minAmount?: number;
+  assetCode?: string;
   assetIssuer?: string;
-  contractId?:  string;
+  contractId?: string;
   contractMethod?: string;
 }
 
-export async function passesGate(accountId: string, gate: GateConfig): Promise<boolean> {
+export async function passesGate(
+  accountId: string,
+  gate: GateConfig
+): Promise<boolean> {
   if (gate.type === 'xlm') {
     const bal = await getNativeBalance(accountId);
     return bal >= (gate.minAmount ?? 0);
@@ -80,10 +83,11 @@ export async function passesGate(accountId: string, gate: GateConfig): Promise<b
 
   if (gate.type === 'soroban') {
     // Query a Soroban contract for membership
-    const { rpc, Contract, scValToNative, Address } = await import('@stellar/stellar-sdk');
+    const { rpc, Contract, scValToNative, Address } =
+      await import('@stellar/stellar-sdk');
     const rpcServer = new rpc.Server(process.env.NEXT_PUBLIC_RPC_URL!);
-    const contract  = new Contract(gate.contractId!);
-    const result    = await rpcServer.simulateTransaction(
+    const contract = new Contract(gate.contractId!);
+    const result = await rpcServer.simulateTransaction(
       // build a read-only tx calling gate.contractMethod
       undefined as any // placeholder — build actual tx in your implementation
     );
@@ -107,17 +111,20 @@ import { useWallet } from '@/hooks/useWallet';
 import { passesGate, GateConfig } from '@/lib/token-gate';
 
 interface TokenGateProps {
-  gate:    GateConfig;
+  gate: GateConfig;
   children: React.ReactNode;
   fallback?: React.ReactNode;
 }
 
 export function TokenGate({ gate, children, fallback }: TokenGateProps) {
   const { address } = useWallet();
-  const [allowed, setAllowed]   = useState<boolean | null>(null);
+  const [allowed, setAllowed] = useState<boolean | null>(null);
 
   useEffect(() => {
-    if (!address) { setAllowed(false); return; }
+    if (!address) {
+      setAllowed(false);
+      return;
+    }
     passesGate(address, gate).then(setAllowed);
   }, [address, gate]);
 
@@ -131,7 +138,12 @@ Usage:
 
 ```tsx
 <TokenGate
-  gate={{ type: 'asset', assetCode: 'PASS', assetIssuer: 'GABC…', minAmount: 1 }}
+  gate={{
+    type: 'asset',
+    assetCode: 'PASS',
+    assetIssuer: 'GABC…',
+    minAmount: 1,
+  }}
   fallback={<p>You need a PASS token to access this feature.</p>}
 >
   <PremiumFeature />
@@ -168,7 +180,11 @@ Set the cookie after a successful gate check on the client, signed with a server
 For NFT-style gating where each token is unique (supply = 1), check that the balance is exactly 1:
 
 ```ts
-export async function holdsNft(accountId: string, nftCode: string, issuer: string): Promise<boolean> {
+export async function holdsNft(
+  accountId: string,
+  nftCode: string,
+  issuer: string
+): Promise<boolean> {
   const bal = await getBalance(accountId, nftCode, issuer);
   return bal === 1;
 }
@@ -183,7 +199,10 @@ Balance checks are real-time but can be throttled. Cache the result for the sess
 ```ts
 const gateCache = new Map<string, { result: boolean; expiresAt: number }>();
 
-export async function cachedGateCheck(accountId: string, gate: GateConfig): Promise<boolean> {
+export async function cachedGateCheck(
+  accountId: string,
+  gate: GateConfig
+): Promise<boolean> {
   const key = `${accountId}:${JSON.stringify(gate)}`;
   const cached = gateCache.get(key);
   if (cached && cached.expiresAt > Date.now()) return cached.result;

@@ -16,7 +16,8 @@ const labelVariants = cva('text-sm font-medium leading-none', {
 });
 
 export interface LabelProps
-  extends React.LabelHTMLAttributes<HTMLLabelElement>,
+  extends
+    React.LabelHTMLAttributes<HTMLLabelElement>,
     VariantProps<typeof labelVariants> {}
 
 export const Label = React.forwardRef<HTMLLabelElement, LabelProps>(

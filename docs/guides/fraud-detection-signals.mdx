@@ -12,14 +12,14 @@ Fraud in Stellar dApps takes many forms: Sybil farming, wash trading, bot-driven
 
 ## Signal Categories
 
-| Category | Examples |
-|---|---|
-| **Velocity** | Too many transactions in a short window |
-| **Account age** | Brand-new account performing high-value actions |
-| **Graph anomalies** | Self-loop payments, circular payment graphs |
-| **Amount patterns** | Round-number amounts, exact duplicates |
-| **Behavioural** | Machine-like timing (sub-second intervals) |
-| **Cross-context** | Same IP, multiple wallets claiming the same reward |
+| Category            | Examples                                           |
+| ------------------- | -------------------------------------------------- |
+| **Velocity**        | Too many transactions in a short window            |
+| **Account age**     | Brand-new account performing high-value actions    |
+| **Graph anomalies** | Self-loop payments, circular payment graphs        |
+| **Amount patterns** | Round-number amounts, exact duplicates             |
+| **Behavioural**     | Machine-like timing (sub-second intervals)         |
+| **Cross-context**   | Same IP, multiple wallets claiming the same reward |
 
 ---
 
@@ -35,18 +35,18 @@ const server = new Horizon.Server(process.env.NEXT_PUBLIC_HORIZON_URL!);
 
 export async function txVelocity(
   accountId: string,
-  windowSeconds: number,
+  windowSeconds: number
 ): Promise<number> {
-  const ops = await server.operations()
+  const ops = await server
+    .operations()
     .forAccount(accountId)
     .limit(200)
     .order('desc')
     .call();
 
   const cutoff = Date.now() - windowSeconds * 1000;
-  return ops.records.filter(
-    (op) => new Date(op.created_at).getTime() > cutoff
-  ).length;
+  return ops.records.filter((op) => new Date(op.created_at).getTime() > cutoff)
+    .length;
 }
 ```
 
@@ -61,7 +61,8 @@ export async function accountAgeLedgers(accountId: string): Promise<number> {
   const account = await server.loadAccount(accountId);
   // sequence encodes ledger at creation in the high 32 bits
   const creationLedger = Number(BigInt(account.sequenceNumber()) >> 32n);
-  const currentLedger  = (await server.ledgers().order('desc').limit(1).call()).records[0].sequence;
+  const currentLedger = (await server.ledgers().order('desc').limit(1).call())
+    .records[0].sequence;
   return currentLedger - creationLedger;
 }
 
@@ -80,9 +81,10 @@ A → B → A (or longer cycles) is a wash-trading pattern. Track payment destin
 ```ts
 export async function detectCircularPayments(
   accountId: string,
-  depth = 2,
+  depth = 2
 ): Promise<boolean> {
-  const payments = await server.payments()
+  const payments = await server
+    .payments()
     .forAccount(accountId)
     .limit(20)
     .order('desc')
@@ -92,10 +94,11 @@ export async function detectCircularPayments(
   for (const p of payments.records) {
     if (p.type !== 'payment') continue;
     const dest = (p as any).to as string;
-    if (dest === accountId) return true;       // direct self-payment
+    if (dest === accountId) return true; // direct self-payment
     if (depth > 1) {
       // Check if the destination recently paid back to us
-      const reverse = await server.payments()
+      const reverse = await server
+        .payments()
         .forAccount(dest)
         .limit(10)
         .order('desc')
@@ -124,7 +127,8 @@ export function isRoundAmount(amount: string): boolean {
 }
 
 export async function roundAmountRatio(accountId: string): Promise<number> {
-  const payments = await server.payments()
+  const payments = await server
+    .payments()
     .forAccount(accountId)
     .limit(50)
     .order('desc')
@@ -133,7 +137,9 @@ export async function roundAmountRatio(accountId: string): Promise<number> {
   const paymentOps = payments.records.filter((p) => p.type === 'payment');
   if (paymentOps.length === 0) return 0;
 
-  const roundCount = paymentOps.filter((p) => isRoundAmount((p as any).amount)).length;
+  const roundCount = paymentOps.filter((p) =>
+    isRoundAmount((p as any).amount)
+  ).length;
   return roundCount / paymentOps.length;
 }
 ```
@@ -146,7 +152,8 @@ Humans don't transact at exactly 1-second intervals. Measure the coefficient of 
 
 ```ts
 export async function timingRegularity(accountId: string): Promise<number> {
-  const ops = await server.operations()
+  const ops = await server
+    .operations()
     .forAccount(accountId)
     .limit(20)
     .order('desc')
@@ -173,7 +180,7 @@ Combine signals into a 0–100 score:
 ```ts
 export async function fraudScore(accountId: string): Promise<number> {
   const [velocity, isNew, circular, roundRatio, timing] = await Promise.all([
-    txVelocity(accountId, 300),      // last 5 minutes
+    txVelocity(accountId, 300), // last 5 minutes
     isNewAccount(accountId),
     detectCircularPayments(accountId),
     roundAmountRatio(accountId),
@@ -181,11 +188,11 @@ export async function fraudScore(accountId: string): Promise<number> {
   ]);
 
   let score = 0;
-  if (velocity > 20)      score += 30;
-  if (isNew)              score += 25;
-  if (circular)           score += 30;
-  if (roundRatio > 0.8)   score += 10;
-  if (timing < 0.1)       score += 20;
+  if (velocity > 20) score += 30;
+  if (isNew) score += 25;
+  if (circular) score += 30;
+  if (roundRatio > 0.8) score += 10;
+  if (timing < 0.1) score += 20;
 
   return Math.min(score, 100);
 }
@@ -195,11 +202,11 @@ export async function fraudScore(accountId: string): Promise<number> {
 
 ## Automated Response Actions
 
-| Score | Action |
-|---|---|
-| 0–29 | Allow — normal |
-| 30–59 | Flag for review; add CAPTCHA on next action |
-| 60–79 | Rate-limit to 1 action/minute; notify ops team |
+| Score  | Action                                                       |
+| ------ | ------------------------------------------------------------ |
+| 0–29   | Allow — normal                                               |
+| 30–59  | Flag for review; add CAPTCHA on next action                  |
+| 60–79  | Rate-limit to 1 action/minute; notify ops team               |
 | 80–100 | Block account from claiming rewards; queue for manual review |
 
 ```ts

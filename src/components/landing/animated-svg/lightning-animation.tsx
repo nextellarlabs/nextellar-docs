@@ -61,10 +61,17 @@ export function LightningAnimation() {
       // Draw background glow
       const gradient = p.drawingContext as CanvasRenderingContext2D;
       const radialGradient = gradient.createRadialGradient(
-        width / 2, height / 2, 0,
-        width / 2, height / 2, 80
+        width / 2,
+        height / 2,
+        0,
+        width / 2,
+        height / 2,
+        80
       );
-      radialGradient.addColorStop(0, `rgba(96, 165, 250, ${glowIntensity * 0.3})`);
+      radialGradient.addColorStop(
+        0,
+        `rgba(96, 165, 250, ${glowIntensity * 0.3})`
+      );
       radialGradient.addColorStop(1, 'rgba(96, 165, 250, 0)');
       gradient.fillStyle = radialGradient;
       gradient.fillRect(0, 0, width, height);
@@ -98,7 +105,10 @@ export function LightningAnimation() {
 
   return (
     <div className="relative w-48 h-50">
-      <div ref={containerRef} className="absolute inset-0 z-10 pointer-events-none" />
+      <div
+        ref={containerRef}
+        className="absolute inset-0 z-10 pointer-events-none"
+      />
 
       <Image
         src="/image/Vector.svg"

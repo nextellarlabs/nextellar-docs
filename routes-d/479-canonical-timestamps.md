@@ -1,5 +1,5 @@
 ---
-title: "Note: Canonical Timestamps in Stellar"
+title: 'Note: Canonical Timestamps in Stellar'
 description: The timestamp format used across Stellar APIs, including timezone expectations and a short example
 ---
 
@@ -11,11 +11,11 @@ Stellar APIs return timestamps as Unix epoch integers — seconds since 1 Januar
 
 ## Format
 
-| Field | Value |
-|-------|-------|
-| Type | Integer (Unix epoch) |
-| Unit | Seconds |
-| Timezone | UTC (always) |
+| Field    | Value                |
+| -------- | -------------------- |
+| Type     | Integer (Unix epoch) |
+| Unit     | Seconds              |
+| Timezone | UTC (always)         |
 
 Horizon surfaces this value on transactions, operations, and ledger records under the `created_at` field, which it returns as an ISO 8601 string for convenience. The underlying ledger stores only the raw integer.
 
@@ -24,10 +24,10 @@ Horizon surfaces this value on transactions, operations, and ledger records unde
 ## Example
 
 ```js
-import { Horizon } from "@stellar/stellar-sdk";
+import { Horizon } from '@stellar/stellar-sdk';
 
-const server = new Horizon.Server("https://horizon-testnet.stellar.org");
-const tx = await server.transactions().transaction("<tx-hash>").call();
+const server = new Horizon.Server('https://horizon-testnet.stellar.org');
+const tx = await server.transactions().transaction('<tx-hash>').call();
 
 // Horizon returns ISO 8601 for created_at
 console.log(tx.created_at); // "2024-06-25T11:18:36Z"

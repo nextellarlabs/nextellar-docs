@@ -11,20 +11,20 @@ Stellar applications typically run against three networks during their lifecycle
 
 ## Network Reference
 
-| Network | Passphrase | Horizon | Soroban RPC | Friendbot |
-|---------|-----------|---------|-------------|-----------|
-| **Mainnet** | `Public Global Stellar Network ; September 2015` | `https://horizon.stellar.org` | `https://mainnet.sorobanrpc.com` | ❌ Not available |
-| **Testnet** | `Test SDF Network ; September 2015` | `https://horizon-testnet.stellar.org` | `https://soroban-testnet.stellar.org` | `https://friendbot.stellar.org` |
-| **Futurenet** | `Test SDF Future Network ; October 2022` | `https://horizon-futurenet.stellar.org` | `https://rpc-futurenet.stellar.org` | `https://friendbot-futurenet.stellar.org` |
+| Network       | Passphrase                                       | Horizon                                 | Soroban RPC                           | Friendbot                                 |
+| ------------- | ------------------------------------------------ | --------------------------------------- | ------------------------------------- | ----------------------------------------- |
+| **Mainnet**   | `Public Global Stellar Network ; September 2015` | `https://horizon.stellar.org`           | `https://mainnet.sorobanrpc.com`      | ❌ Not available                          |
+| **Testnet**   | `Test SDF Network ; September 2015`              | `https://horizon-testnet.stellar.org`   | `https://soroban-testnet.stellar.org` | `https://friendbot.stellar.org`           |
+| **Futurenet** | `Test SDF Future Network ; October 2022`         | `https://horizon-futurenet.stellar.org` | `https://rpc-futurenet.stellar.org`   | `https://friendbot-futurenet.stellar.org` |
 
 The `@stellar/stellar-sdk` exports these as constants:
 
 ```typescript
-import { Networks } from "@stellar/stellar-sdk";
+import { Networks } from '@stellar/stellar-sdk';
 
-Networks.PUBLIC    // Mainnet passphrase
-Networks.TESTNET   // Testnet passphrase
-Networks.FUTURENET // Futurenet passphrase
+Networks.PUBLIC; // Mainnet passphrase
+Networks.TESTNET; // Testnet passphrase
+Networks.FUTURENET; // Futurenet passphrase
 ```
 
 ---
@@ -52,7 +52,7 @@ CONTRACT_ID=CBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBSC4
 Use a network config resolver that reads these at startup:
 
 ```typescript
-import { Networks } from "@stellar/stellar-sdk";
+import { Networks } from '@stellar/stellar-sdk';
 
 export interface NetworkConfig {
   networkPassphrase: string;
@@ -63,39 +63,45 @@ export interface NetworkConfig {
 }
 
 export function resolveNetworkConfig(): NetworkConfig {
-  const network = process.env.STELLAR_NETWORK ?? "testnet";
+  const network = process.env.STELLAR_NETWORK ?? 'testnet';
 
   switch (network) {
-    case "mainnet":
+    case 'mainnet':
       return {
         networkPassphrase: Networks.PUBLIC,
-        horizonUrl: process.env.HORIZON_URL ?? "https://horizon.stellar.org",
-        sorobanRpcUrl: process.env.SOROBAN_RPC_URL ?? "https://mainnet.sorobanrpc.com",
-        contractId: requireEnv("CONTRACT_ID"),
+        horizonUrl: process.env.HORIZON_URL ?? 'https://horizon.stellar.org',
+        sorobanRpcUrl:
+          process.env.SOROBAN_RPC_URL ?? 'https://mainnet.sorobanrpc.com',
+        contractId: requireEnv('CONTRACT_ID'),
       };
-    case "futurenet":
+    case 'futurenet':
       return {
         networkPassphrase: Networks.FUTURENET,
-        horizonUrl: process.env.HORIZON_URL ?? "https://horizon-futurenet.stellar.org",
-        sorobanRpcUrl: process.env.SOROBAN_RPC_URL ?? "https://rpc-futurenet.stellar.org",
-        contractId: requireEnv("CONTRACT_ID"),
-        friendbotUrl: "https://friendbot-futurenet.stellar.org",
+        horizonUrl:
+          process.env.HORIZON_URL ?? 'https://horizon-futurenet.stellar.org',
+        sorobanRpcUrl:
+          process.env.SOROBAN_RPC_URL ?? 'https://rpc-futurenet.stellar.org',
+        contractId: requireEnv('CONTRACT_ID'),
+        friendbotUrl: 'https://friendbot-futurenet.stellar.org',
       };
-    case "testnet":
+    case 'testnet':
     default:
       return {
         networkPassphrase: Networks.TESTNET,
-        horizonUrl: process.env.HORIZON_URL ?? "https://horizon-testnet.stellar.org",
-        sorobanRpcUrl: process.env.SOROBAN_RPC_URL ?? "https://soroban-testnet.stellar.org",
-        contractId: requireEnv("CONTRACT_ID"),
-        friendbotUrl: "https://friendbot.stellar.org",
+        horizonUrl:
+          process.env.HORIZON_URL ?? 'https://horizon-testnet.stellar.org',
+        sorobanRpcUrl:
+          process.env.SOROBAN_RPC_URL ?? 'https://soroban-testnet.stellar.org',
+        contractId: requireEnv('CONTRACT_ID'),
+        friendbotUrl: 'https://friendbot.stellar.org',
       };
   }
 }
 
 function requireEnv(key: string): string {
   const value = process.env[key];
-  if (!value) throw new Error(`Required environment variable ${key} is not set`);
+  if (!value)
+    throw new Error(`Required environment variable ${key} is not set`);
   return value;
 }
 ```
@@ -107,7 +113,7 @@ function requireEnv(key: string): string {
 Pass the resolved config into all SDK clients to avoid any hardcoded network assumptions:
 
 ```typescript
-import { Horizon, SorobanRpc, Networks } from "@stellar/stellar-sdk";
+import { Horizon, SorobanRpc, Networks } from '@stellar/stellar-sdk';
 
 const config = resolveNetworkConfig();
 
@@ -116,18 +122,18 @@ const horizonServer = new Horizon.Server(config.horizonUrl);
 
 // Soroban RPC client
 const sorobanServer = new SorobanRpc.Server(config.sorobanRpcUrl, {
-  allowHttp: config.horizonUrl.startsWith("http://"), // local dev only
+  allowHttp: config.horizonUrl.startsWith('http://'), // local dev only
 });
 ```
 
 Always pass `networkPassphrase` when building or verifying transactions:
 
 ```typescript
-import { TransactionBuilder } from "@stellar/stellar-sdk";
+import { TransactionBuilder } from '@stellar/stellar-sdk';
 
 const account = await horizonServer.loadAccount(publicKey);
 const tx = new TransactionBuilder(account, {
-  fee: "1000",
+  fee: '1000',
   networkPassphrase: config.networkPassphrase, // ← critical
 })
   .addOperation(/* ... */)
@@ -144,8 +150,13 @@ Accounts are **not shared** between networks. A keypair that exists on Testnet h
 ### Testnet / Futurenet Account Funding
 
 ```typescript
-async function fundTestnetAccount(publicKey: string, friendbotUrl: string): Promise<void> {
-  const res = await fetch(`${friendbotUrl}?addr=${encodeURIComponent(publicKey)}`);
+async function fundTestnetAccount(
+  publicKey: string,
+  friendbotUrl: string
+): Promise<void> {
+  const res = await fetch(
+    `${friendbotUrl}?addr=${encodeURIComponent(publicKey)}`
+  );
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`Friendbot failed: ${res.status} ${body}`);
@@ -170,10 +181,10 @@ Contract IDs are **network-specific**. A contract deployed to Testnet has a diff
 
 ```typescript
 // ✅ Correct — from environment
-const contractId = requireEnv("CONTRACT_ID");
+const contractId = requireEnv('CONTRACT_ID');
 
 // ❌ Wrong — hardcoded
-const contractId = "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4";
+const contractId = 'CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4';
 ```
 
 Track deployments per network in a config file:
@@ -227,8 +238,9 @@ A transaction signed with the wrong passphrase will fail signature verification 
 tx.sign(keypair); // signs for whatever the SDK default is
 
 // ✅ Always sign after building with the correct passphrase
-const tx = new TransactionBuilder(account, { networkPassphrase: config.networkPassphrase })
-  .build();
+const tx = new TransactionBuilder(account, {
+  networkPassphrase: config.networkPassphrase,
+}).build();
 tx.sign(keypair);
 ```
 
@@ -257,7 +269,7 @@ Mainnet base fees during congestion can be significantly higher than Testnet. Us
 
 ```typescript
 const tx = new TransactionBuilder(account, {
-  fee: "10000", // 0.001 XLM — sufficient for most operations
+  fee: '10000', // 0.001 XLM — sufficient for most operations
   networkPassphrase: config.networkPassphrase,
 }).build();
 ```
@@ -266,12 +278,12 @@ const tx = new TransactionBuilder(account, {
 
 ## CI/CD Network Strategy
 
-| Environment | Network | Notes |
-|------------|---------|-------|
-| Unit tests | Mocked | No real network calls |
+| Environment       | Network | Notes                      |
+| ----------------- | ------- | -------------------------- |
+| Unit tests        | Mocked  | No real network calls      |
 | Integration tests | Testnet | Funded via Friendbot in CI |
-| Staging | Testnet | Shared Testnet deployment |
-| Production | Mainnet | Real funds, real users |
+| Staging           | Testnet | Shared Testnet deployment  |
+| Production        | Mainnet | Real funds, real users     |
 
 Example GitHub Actions matrix:
 
@@ -298,11 +310,15 @@ Before running operations, optionally verify the chosen network is reachable:
 async function checkNetworkHealth(config: NetworkConfig): Promise<void> {
   const [horizonRes, rpcRes] = await Promise.all([
     fetch(`${config.horizonUrl}/`).then((r) => r.ok),
-    fetch(`${config.sorobanRpcUrl}/`).then((r) => r.ok).catch(() => false),
+    fetch(`${config.sorobanRpcUrl}/`)
+      .then((r) => r.ok)
+      .catch(() => false),
   ]);
 
-  if (!horizonRes) throw new Error(`Horizon at ${config.horizonUrl} is unreachable`);
-  if (!rpcRes) console.warn(`Soroban RPC at ${config.sorobanRpcUrl} may be unreachable`);
+  if (!horizonRes)
+    throw new Error(`Horizon at ${config.horizonUrl} is unreachable`);
+  if (!rpcRes)
+    console.warn(`Soroban RPC at ${config.sorobanRpcUrl} may be unreachable`);
 }
 ```
 

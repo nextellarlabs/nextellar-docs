@@ -25,14 +25,14 @@ Key capabilities an indexer adds:
 
 ## Indexer Comparison
 
-| Indexer | Self-hosted | Hosted tier | Soroban events | SQL query | GraphQL | Notes |
-|---|---|---|---|---|---|---|
-| **Horizon** (SDF) | Yes | Via QuickNode / Nownodes | Partial (event stream only) | No | No | Official; best for single-operation lookups |
-| **Galexie** (SDF) | Yes | No | Yes | No | No | Exports ledger metadata to GCS; build your own query layer |
-| **Subquery** | Yes | Yes | Yes | No | Yes | GraphQL + EVM-style mappings; good for multi-chain teams |
-| **Mercury** (Soroban) | No | Yes | Yes | Yes (via REST) | No | Purpose-built for Soroban contracts; low-latency |
-| **Hubble** (SDF) | Partial (BigQuery) | Yes | No | Yes (BigQuery) | No | Analytics-scale; strong for aggregate queries |
-| **StellarBeat** | No | Yes | No | No | REST | Community tool; good for explorer use cases |
+| Indexer               | Self-hosted        | Hosted tier              | Soroban events              | SQL query      | GraphQL | Notes                                                      |
+| --------------------- | ------------------ | ------------------------ | --------------------------- | -------------- | ------- | ---------------------------------------------------------- |
+| **Horizon** (SDF)     | Yes                | Via QuickNode / Nownodes | Partial (event stream only) | No             | No      | Official; best for single-operation lookups                |
+| **Galexie** (SDF)     | Yes                | No                       | Yes                         | No             | No      | Exports ledger metadata to GCS; build your own query layer |
+| **Subquery**          | Yes                | Yes                      | Yes                         | No             | Yes     | GraphQL + EVM-style mappings; good for multi-chain teams   |
+| **Mercury** (Soroban) | No                 | Yes                      | Yes                         | Yes (via REST) | No      | Purpose-built for Soroban contracts; low-latency           |
+| **Hubble** (SDF)      | Partial (BigQuery) | Yes                      | No                          | Yes (BigQuery) | No      | Analytics-scale; strong for aggregate queries              |
+| **StellarBeat**       | No                 | Yes                      | No                          | No             | REST    | Community tool; good for explorer use cases                |
 
 ### When to Use Each
 
@@ -78,7 +78,10 @@ export interface ClaimEvent {
   payoutAmount: string;
 }
 
-export async function fetchRecentClaims(contractId: string, limit = 50): Promise<ClaimEvent[]> {
+export async function fetchRecentClaims(
+  contractId: string,
+  limit = 50
+): Promise<ClaimEvent[]> {
   const res = await fetch(
     `${MERCURY_BASE}/zephyr/events?contract=${contractId}&event=claim&limit=${limit}`,
     { headers: { Authorization: `Bearer ${process.env.MERCURY_API_KEY}` } }
@@ -86,10 +89,10 @@ export async function fetchRecentClaims(contractId: string, limit = 50): Promise
   if (!res.ok) throw new Error(`Mercury error: ${res.status}`);
   const { data } = await res.json();
   return data.map((e: Record<string, unknown>) => ({
-    ledger:       Number(e.ledger_sequence),
-    timestamp:    Number(e.closed_at),
-    txHash:       String(e.tx_hash),
-    policyId:     String(e.topic_1),
+    ledger: Number(e.ledger_sequence),
+    timestamp: Number(e.closed_at),
+    txHash: String(e.tx_hash),
+    policyId: String(e.topic_1),
     payoutAmount: String(e.value_1),
   }));
 }
@@ -117,7 +120,8 @@ export function ClaimFeed() {
     <ul>
       {claims.map((c) => (
         <li key={c.txHash}>
-          Policy {c.policyId.slice(0, 8)} — {c.payoutAmount} stroops at ledger {c.ledger}
+          Policy {c.policyId.slice(0, 8)} — {c.payoutAmount} stroops at ledger{' '}
+          {c.ledger}
         </li>
       ))}
     </ul>
@@ -145,7 +149,7 @@ import { Storage } from '@google-cloud/storage';
 import { Pool } from 'pg';
 
 const gcs = new Storage();
-const db  = new Pool({ connectionString: process.env.DATABASE_URL });
+const db = new Pool({ connectionString: process.env.DATABASE_URL });
 
 async function processLedger(ledgerSeq: number) {
   const [file] = await gcs
@@ -170,20 +174,21 @@ async function processLedger(ledgerSeq: number) {
 ```
 
 <Note type="info">
-  Galexie is optimised for export throughput, not low latency. Expect 30–90 seconds of indexing lag behind the tip of the ledger.
+  Galexie is optimised for export throughput, not low latency. Expect 30–90
+  seconds of indexing lag behind the tip of the ledger.
 </Note>
 
 ---
 
 ## Choosing a Query Interface
 
-| Need | Recommendation |
-|---|---|
-| Single event lookup by tx hash | Horizon `/transactions/:hash` |
-| Recent N events for a contract | Mercury REST API |
-| Aggregate stats (total volume, DAUs) | Hubble / BigQuery |
+| Need                                     | Recommendation                 |
+| ---------------------------------------- | ------------------------------ |
+| Single event lookup by tx hash           | Horizon `/transactions/:hash`  |
+| Recent N events for a contract           | Mercury REST API               |
+| Aggregate stats (total volume, DAUs)     | Hubble / BigQuery              |
 | Real-time subscriptions from a React app | Subquery GraphQL subscriptions |
-| Full control over schema and joins | Galexie + Postgres |
+| Full control over schema and joins       | Galexie + Postgres             |
 
 ---
 

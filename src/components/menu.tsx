@@ -205,11 +205,11 @@ export const Menu: React.FC<MenuProps> = ({
           if (child.type === PopMenu) {
             return isOpen
               ? React.cloneElement(child as React.ReactElement<any>, {
-                onClose: () => setIsOpen(false),
-                position: position,
-                isPositioning: isPositioning,
-                ref: popupRef,
-              })
+                  onClose: () => setIsOpen(false),
+                  position: position,
+                  isPositioning: isPositioning,
+                  ref: popupRef,
+                })
               : null;
           }
           return child;
@@ -220,8 +220,7 @@ export const Menu: React.FC<MenuProps> = ({
   );
 };
 
-interface MenuTriggerProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+interface MenuTriggerProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   isOpen?: boolean;
 }
 export const MenuTrigger = React.forwardRef<

@@ -19,13 +19,15 @@ The simplest form. A flag value is baked into the build.
 ```ts
 // lib/flags.ts
 export const FLAGS = {
-  ENABLE_SOROBAN_SWAP:   process.env.NEXT_PUBLIC_FLAG_SOROBAN_SWAP   === 'true',
-  ENABLE_LEGACY_ANCHOR:  process.env.NEXT_PUBLIC_FLAG_LEGACY_ANCHOR  === 'true',
-  ENABLE_TESTNET_BANNER: process.env.NEXT_PUBLIC_FLAG_TESTNET_BANNER !== 'false',
+  ENABLE_SOROBAN_SWAP: process.env.NEXT_PUBLIC_FLAG_SOROBAN_SWAP === 'true',
+  ENABLE_LEGACY_ANCHOR: process.env.NEXT_PUBLIC_FLAG_LEGACY_ANCHOR === 'true',
+  ENABLE_TESTNET_BANNER:
+    process.env.NEXT_PUBLIC_FLAG_TESTNET_BANNER !== 'false',
 } as const;
 ```
 
 **Tradeoffs**:
+
 - No runtime overhead; values compile away
 - Changing a flag requires a new deployment
 - Safe for flags that differ between staging and production
@@ -52,6 +54,7 @@ export async function getFlags(): Promise<FlagSet> {
 ```
 
 **Tradeoffs**:
+
 - Adds one API call per page load (mitigated by caching)
 - Enables percentage rollouts and user-segment targeting
 - Introduces a new failure mode: if the flag endpoint is down, gate everything or everything-open
@@ -83,7 +86,11 @@ Read the flag from the frontend before allowing the user to invoke a restricted 
 Assign each account to a bucket using a deterministic hash of the account ID.
 
 ```ts
-export function flagForAccount(accountId: string, flagName: string, pct: number): boolean {
+export function flagForAccount(
+  accountId: string,
+  flagName: string,
+  pct: number
+): boolean {
   // Simple hash: sum char codes mod 100
   const hash = [...accountId].reduce((a, c) => (a + c.charCodeAt(0)) % 100, 0);
   return hash < pct;
@@ -98,10 +105,7 @@ const useNewSwap = flagForAccount(address, 'SOROBAN_SWAP', 10);
 Specific accounts always see the feature regardless of the global rollout percentage.
 
 ```ts
-const INTERNAL_TESTERS = new Set([
-  'GABC...ALICE',
-  'GDEF...BOB',
-]);
+const INTERNAL_TESTERS = new Set(['GABC...ALICE', 'GDEF...BOB']);
 
 export function isFlagEnabled(accountId: string, flag: RemoteFlag): boolean {
   if (INTERNAL_TESTERS.has(accountId)) return true;
@@ -161,10 +165,10 @@ A flag should be treated as temporary debt.
 
 Document each flag in a central register:
 
-| Flag | Owner | Default | Rollout % | Remove by |
-|---|---|---|---|---|
-| `ENABLE_SOROBAN_SWAP` | Platform team | false | 10% | 2026-08-01 |
-| `ENABLE_LEGACY_ANCHOR` | Integrations | true | 100% | deprecated |
+| Flag                   | Owner         | Default | Rollout % | Remove by  |
+| ---------------------- | ------------- | ------- | --------- | ---------- |
+| `ENABLE_SOROBAN_SWAP`  | Platform team | false   | 10%       | 2026-08-01 |
+| `ENABLE_LEGACY_ANCHOR` | Integrations  | true    | 100%      | deprecated |
 
 ---
 

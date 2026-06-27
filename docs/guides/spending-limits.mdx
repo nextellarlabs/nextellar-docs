@@ -13,11 +13,13 @@ Spending limits protect users from runaway session keys, hacked accounts, and ac
 ## Why Spending Limits Matter
 
 Without limits:
+
 - A compromised session key can drain a wallet entirely in one transaction.
 - A bug in contract logic can transfer arbitrary amounts.
 - A phishing transaction submitted by a malicious dApp appears legitimate to the signer.
 
 With limits:
+
 - Damage is bounded even if a key is compromised.
 - Users can set comfortable limits and approve higher amounts explicitly.
 
@@ -30,7 +32,7 @@ The simplest limit: require multisig for transactions above a threshold. Not enf
 ```ts
 // setOptions to require 2-of-2 for payments (medium threshold)
 Operation.setOptions({
-  medThreshold: 2,  // payments require master + session key
+  medThreshold: 2, // payments require master + session key
   signer: { ed25519PublicKey: sessionKey, weight: 1 },
 });
 // Master key weight = 2 → master alone can still pay (for emergency)
@@ -134,8 +136,8 @@ Before submitting any user transaction, validate the amount server-side:
 // server/spending-guard.ts
 
 interface SpendingLimit {
-  perTx:  number; // in stroops or asset units
-  daily:  number;
+  perTx: number; // in stroops or asset units
+  daily: number;
 }
 
 const USER_LIMITS: Record<string, SpendingLimit> = {
@@ -144,16 +146,21 @@ const USER_LIMITS: Record<string, SpendingLimit> = {
 
 const dailySpend = new Map<string, { total: number; date: string }>();
 
-export function checkSpendingLimit(walletAddress: string, amount: number): void {
+export function checkSpendingLimit(
+  walletAddress: string,
+  amount: number
+): void {
   const limit = USER_LIMITS[walletAddress] ?? USER_LIMITS.default;
   const today = new Date().toISOString().slice(0, 10);
 
   if (amount > limit.perTx) {
-    throw new Error(`Amount ${amount} exceeds per-transaction limit of ${limit.perTx}`);
+    throw new Error(
+      `Amount ${amount} exceeds per-transaction limit of ${limit.perTx}`
+    );
   }
 
   const record = dailySpend.get(walletAddress);
-  const spent  = record?.date === today ? record.total : 0;
+  const spent = record?.date === today ? record.total : 0;
 
   if (spent + amount > limit.daily) {
     throw new Error(`Daily spending limit of ${limit.daily} would be exceeded`);
@@ -173,7 +180,11 @@ export function checkSpendingLimit(walletAddress: string, amount: number): void 
 
 import { useEffect, useState } from 'react';
 
-export function SpendingLimitBadge({ walletAddress }: { walletAddress: string }) {
+export function SpendingLimitBadge({
+  walletAddress,
+}: {
+  walletAddress: string;
+}) {
   const [remaining, setRemaining] = useState<number | null>(null);
 
   useEffect(() => {
@@ -186,7 +197,8 @@ export function SpendingLimitBadge({ walletAddress }: { walletAddress: string })
   if (remaining === null) return null;
   return (
     <div className="text-sm text-gray-500">
-      Daily limit remaining: <strong>{(remaining / 10_000_000).toFixed(2)} XLM</strong>
+      Daily limit remaining:{' '}
+      <strong>{(remaining / 10_000_000).toFixed(2)} XLM</strong>
     </div>
   );
 }
@@ -196,12 +208,12 @@ export function SpendingLimitBadge({ walletAddress }: { walletAddress: string })
 
 ## Limit Configuration Reference
 
-| Scenario | Per-tx limit | Daily limit | Enforcement |
-|---|---|---|---|
-| Consumer app (default) | 100 XLM | 500 XLM | Backend + contract |
-| Premium user | 1,000 XLM | 5,000 XLM | Backend + contract |
-| Session key | 50 XLM | 200 XLM | Contract only |
-| Institutional | Custom | Custom | Multisig threshold |
+| Scenario               | Per-tx limit | Daily limit | Enforcement        |
+| ---------------------- | ------------ | ----------- | ------------------ |
+| Consumer app (default) | 100 XLM      | 500 XLM     | Backend + contract |
+| Premium user           | 1,000 XLM    | 5,000 XLM   | Backend + contract |
+| Session key            | 50 XLM       | 200 XLM     | Contract only      |
+| Institutional          | Custom       | Custom      | Multisig threshold |
 
 ---
 

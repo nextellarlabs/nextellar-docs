@@ -54,29 +54,31 @@ import {
 import { Horizon } from '@stellar/stellar-sdk';
 
 const paymasterKeypair = Keypair.fromSecret(process.env.PAYMASTER_SECRET!);
-const horizonServer    = new Horizon.Server(process.env.HORIZON_URL!);
+const horizonServer = new Horizon.Server(process.env.HORIZON_URL!);
 
 interface PaymasterRequest {
   innerXdr: string; // user-signed inner transaction XDR
 }
 
-export async function handlePaymasterRequest({ innerXdr }: PaymasterRequest): Promise<string> {
+export async function handlePaymasterRequest({
+  innerXdr,
+}: PaymasterRequest): Promise<string> {
   const inner = TransactionBuilder.fromXDR(innerXdr, Networks.MAINNET);
 
   // Validate before wrapping — only sponsor allowed operations
   validateInnerTransaction(inner);
 
   // Determine fee: read current fee stats and bid p90
-  const stats      = await horizonServer.feeStats();
-  const feePerOp   = parseInt(stats.fee_charged.p90);
-  const totalOps   = inner.operations.length + 1;
-  const totalFee   = (feePerOp * totalOps).toString();
+  const stats = await horizonServer.feeStats();
+  const feePerOp = parseInt(stats.fee_charged.p90);
+  const totalOps = inner.operations.length + 1;
+  const totalFee = (feePerOp * totalOps).toString();
 
   const feeBumpTx = TransactionBuilder.buildFeeBumpTransaction(
     paymasterKeypair.publicKey(),
     totalFee,
     inner as any,
-    Networks.MAINNET,
+    Networks.MAINNET
   );
   feeBumpTx.sign(paymasterKeypair);
 
@@ -104,7 +106,7 @@ function validateInnerTransaction(tx: any) {
 ```ts
 // app/api/paymaster/route.ts
 import { handlePaymasterRequest } from '@/server/paymaster';
-import { checkRateLimit }         from '@/lib/rate-limit';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 export async function POST(req: Request) {
   const ip = req.headers.get('x-forwarded-for') ?? 'unknown';
@@ -130,23 +132,37 @@ export async function POST(req: Request) {
 For creating new accounts without requiring the user to fund the minimum balance (1 XLM reserve), use sponsored reserves:
 
 ```ts
-import { Operation, Keypair, TransactionBuilder, Networks, BASE_FEE } from '@stellar/stellar-sdk';
+import {
+  Operation,
+  Keypair,
+  TransactionBuilder,
+  Networks,
+  BASE_FEE,
+} from '@stellar/stellar-sdk';
 
 export async function sponsorNewAccount(
   sponsorKeypair: Keypair,
-  newAccountPublicKey: string,
+  newAccountPublicKey: string
 ) {
-  const sponsorAccount = await horizonServer.loadAccount(sponsorKeypair.publicKey());
+  const sponsorAccount = await horizonServer.loadAccount(
+    sponsorKeypair.publicKey()
+  );
 
   const tx = new TransactionBuilder(sponsorAccount, {
     fee: BASE_FEE,
     networkPassphrase: Networks.MAINNET,
   })
-    .addOperation(Operation.beginSponsoringFutureReserves({ sponsoredId: newAccountPublicKey }))
-    .addOperation(Operation.createAccount({
-      destination:     newAccountPublicKey,
-      startingBalance: '0', // zero — sponsor covers the reserve
-    }))
+    .addOperation(
+      Operation.beginSponsoringFutureReserves({
+        sponsoredId: newAccountPublicKey,
+      })
+    )
+    .addOperation(
+      Operation.createAccount({
+        destination: newAccountPublicKey,
+        startingBalance: '0', // zero — sponsor covers the reserve
+      })
+    )
     .addOperation(Operation.endSponsoringFutureReserves())
     .setTimeout(30)
     .build();
@@ -166,9 +182,9 @@ export async function sponsorNewAccount(
 
 export async function submitViaPaymaster(innerTxXdr: string): Promise<string> {
   const res = await fetch('/api/paymaster', {
-    method:  'POST',
+    method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ innerXdr: innerTxXdr }),
+    body: JSON.stringify({ innerXdr: innerTxXdr }),
   });
 
   if (!res.ok) {
@@ -195,12 +211,12 @@ const txHash = await submitViaPaymaster(signedXdr);
 
 ## Cost and Sustainability
 
-| Strategy | Description |
-|---|---|
-| Protocol fee revenue | Deduct paymaster costs from protocol fee income |
-| Per-user allowance | Each user gets N sponsored transactions/month |
-| Token-gate sponsorship | Only PASS holders get fee sponsorship |
-| Whitelist by contract | Only sponsor interactions with your own contracts |
+| Strategy               | Description                                       |
+| ---------------------- | ------------------------------------------------- |
+| Protocol fee revenue   | Deduct paymaster costs from protocol fee income   |
+| Per-user allowance     | Each user gets N sponsored transactions/month     |
+| Token-gate sponsorship | Only PASS holders get fee sponsorship             |
+| Whitelist by contract  | Only sponsor interactions with your own contracts |
 
 ---
 

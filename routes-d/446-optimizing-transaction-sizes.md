@@ -1,9 +1,10 @@
 # Working Draft — Issue #446
+
 ## Add a thorough guide on optimizing transaction sizes
 
 **Status:** Complete  
 **Target file:** `docs/guides/optimizing-transaction-sizes.mdx`  
-**Sidebar entry:** Guides → "Optimizing Transaction Sizes"  
+**Sidebar entry:** Guides → "Optimizing Transaction Sizes"
 
 ### Scope
 
@@ -30,12 +31,12 @@ Documentation-only. No code changes. The guide covers:
 
 ### Internal links used in the guide
 
-| Link text                  | Href                                     | Exists? |
-|----------------------------|------------------------------------------|---------|
-| useStellarPayment          | /docs/hooks/use-stellar-payment          | ✅      |
-| useSorobanContract         | /docs/hooks/use-soroban-contract         | ✅      |
-| Hook Error Handling        | /docs/guides/hook-error-handling         | ✅      |
-| Soroban Integration        | /docs/integrations/soroban               | ✅      |
-| Stellar Horizon            | /docs/integrations/horizon               | ✅      |
-| Glossary                   | /docs/guides/glossary                    | ✅      |
-| Performance Budget Guide   | /docs/guides/performance-budget-guide    | ✅      |
+| Link text                | Href                                  | Exists? |
+| ------------------------ | ------------------------------------- | ------- |
+| useStellarPayment        | /docs/hooks/use-stellar-payment       | ✅      |
+| useSorobanContract       | /docs/hooks/use-soroban-contract      | ✅      |
+| Hook Error Handling      | /docs/guides/hook-error-handling      | ✅      |
+| Soroban Integration      | /docs/integrations/soroban            | ✅      |
+| Stellar Horizon          | /docs/integrations/horizon            | ✅      |
+| Glossary                 | /docs/guides/glossary                 | ✅      |
+| Performance Budget Guide | /docs/guides/performance-budget-guide | ✅      |

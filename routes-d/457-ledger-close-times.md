@@ -12,9 +12,9 @@ Stellar closes a new ledger approximately every **5 seconds** on both Mainnet an
 ## Typical Cadence
 
 | Network | Typical close time |
-|---------|-------------------|
-| Mainnet | ~5 seconds |
-| Testnet | ~5 seconds |
+| ------- | ------------------ |
+| Mainnet | ~5 seconds         |
+| Testnet | ~5 seconds         |
 
 Ledger close is near-instant once consensus is reached; the 5-second figure reflects the time between successive ledger closes, not confirmation latency after submission.
 
@@ -22,12 +22,12 @@ Ledger close is near-instant once consensus is reached; the 5-second figure refl
 
 ## Variability Conditions
 
-| Condition | Effect |
-|-----------|--------|
-| Validator quorum degraded (nodes offline) | Ledger closes slow or stall until enough validators reconnect |
-| Network partition | SCP prioritises safety over liveness — closes halt rather than risk disagreement |
-| Surge pricing / high transaction volume | Individual transactions may wait in the queue across multiple ledgers, but ledger close rate itself is unaffected |
-| Testnet resets | Testnet is periodically reset; during reset preparation, close times may become irregular |
+| Condition                                 | Effect                                                                                                            |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Validator quorum degraded (nodes offline) | Ledger closes slow or stall until enough validators reconnect                                                     |
+| Network partition                         | SCP prioritises safety over liveness — closes halt rather than risk disagreement                                  |
+| Surge pricing / high transaction volume   | Individual transactions may wait in the queue across multiple ledgers, but ledger close rate itself is unaffected |
+| Testnet resets                            | Testnet is periodically reset; during reset preparation, close times may become irregular                         |
 
 ---
 

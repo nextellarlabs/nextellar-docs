@@ -1,4 +1,5 @@
 # Working Draft — Issue #440
+
 ## Add a comprehensive guide on transaction batching
 
 **Status:** Complete  
@@ -20,15 +21,15 @@ Documentation-only. No code changes. The guide covers:
 
 ### Internal links used
 
-| Link text                  | Href                                     | Exists? |
-|----------------------------|------------------------------------------|---------|
-| useStellarPayment          | /docs/hooks/use-stellar-payment          | ✅      |
-| useSorobanContract         | /docs/hooks/use-soroban-contract         | ✅      |
-| Hook Error Handling        | /docs/guides/hook-error-handling         | ✅      |
-| Soroban Integration        | /docs/integrations/soroban               | ✅      |
-| Stellar Horizon            | /docs/integrations/horizon               | ✅      |
-| Glossary                   | /docs/guides/glossary                    | ✅      |
-| Optimizing Transaction Sizes | /docs/guides/optimizing-transaction-sizes | ✅    |
+| Link text                    | Href                                      | Exists? |
+| ---------------------------- | ----------------------------------------- | ------- |
+| useStellarPayment            | /docs/hooks/use-stellar-payment           | ✅      |
+| useSorobanContract           | /docs/hooks/use-soroban-contract          | ✅      |
+| Hook Error Handling          | /docs/guides/hook-error-handling          | ✅      |
+| Soroban Integration          | /docs/integrations/soroban                | ✅      |
+| Stellar Horizon              | /docs/integrations/horizon                | ✅      |
+| Glossary                     | /docs/guides/glossary                     | ✅      |
+| Optimizing Transaction Sizes | /docs/guides/optimizing-transaction-sizes | ✅      |
 
 ### Acceptance criteria checklist
 

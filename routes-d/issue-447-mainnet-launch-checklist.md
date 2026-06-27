@@ -17,8 +17,8 @@ This checklist covers the critical steps before going live on Stellar mainnet. W
   ```js
   // Verify multi-sig setup before launch
   const account = await server.loadAccount(issuerPublicKey);
-  console.log("Thresholds:", account.thresholds);
-  console.log("Signers:", account.signers);
+  console.log('Thresholds:', account.thresholds);
+  console.log('Signers:', account.signers);
   ```
 - [ ] **Test signing rehearsal complete.** Build and submit a zero-value test transaction signed by the full multi-sig quorum. Confirm it succeeds on testnet and that you understand the UX for each signer.
 - [ ] **Emergency key rotation plan documented.** You have a written procedure for revoking and replacing a compromised signer key, including who has authority to trigger it.
@@ -37,6 +37,7 @@ minimum balance = (2 + number_of_subentries) × base_reserve
 Current base reserve is **0.5 XLM** (subject to validator vote). Each trustline, offer, data entry, and signer adds one subentry (0.5 XLM).
 
 - [ ] **All accounts pre-loaded with reserves.** Calculate the expected number of subentries for each account and fund accordingly, with a buffer:
+
   ```js
   // Calculate reserve for an account with N subentries
   function minimumBalance(subentries, baseReserve = 0.5) {
@@ -44,9 +45,10 @@ Current base reserve is **0.5 XLM** (subject to validator vote). Each trustline,
   }
 
   // Example: issuer with 10 data entries, distributor with 1 trustline
-  console.log("Issuer reserve:", minimumBalance(10)); // 6 XLM
-  console.log("Distributor reserve:", minimumBalance(1)); // 1.5 XLM
+  console.log('Issuer reserve:', minimumBalance(10)); // 6 XLM
+  console.log('Distributor reserve:', minimumBalance(1)); // 1.5 XLM
   ```
+
 - [ ] **Reserve buffer added.** Fund each account with at least 2× the minimum reserve to tolerate future subentry additions without emergencies.
 - [ ] **Fee reserves accounted for.** Estimate daily transaction volume and reserve sufficient XLM for fees. At 100 stroops per operation, 10,000 ops/day costs 1 XLM/day.
 
@@ -58,9 +60,9 @@ Current base reserve is **0.5 XLM** (subject to validator vote). Each trustline,
 - [ ] **Redundancy in place.** Configure at least two Horizon endpoints. Your client falls over to the backup if the primary returns errors for more than N seconds.
 - [ ] **Soroban RPC endpoint configured** (if using smart contracts). Verify `getLatestLedger` returns a recent sequence on mainnet:
   ```js
-  const server = new SorobanRpc.Server("https://soroban-rpc.stellar.org");
+  const server = new SorobanRpc.Server('https://soroban-rpc.stellar.org');
   const ledger = await server.getLatestLedger();
-  console.log("Latest mainnet ledger:", ledger.sequence);
+  console.log('Latest mainnet ledger:', ledger.sequence);
   ```
 - [ ] **Connection pool / retry logic implemented.** All Horizon and RPC calls have exponential backoff and a maximum retry count. Transient 429 and 503 responses do not crash the application.
 - [ ] **TLS and authentication.** If self-hosting, TLS certificates are valid and auto-renewing. API keys or IP allowlists are configured where applicable.
@@ -72,12 +74,13 @@ Current base reserve is **0.5 XLM** (subject to validator vote). Each trustline,
 - [ ] **Fee percentile monitoring enabled.** Fetch `https://horizon.stellar.org/fee_stats` to understand current network fee pressure before launch and during operations:
   ```js
   const feeStats = await server.feeStats();
-  console.log("P90 fee:", feeStats.fee_charged.p90);
+  console.log('P90 fee:', feeStats.fee_charged.p90);
   ```
 - [ ] **Dynamic fee logic implemented.** Your transaction builder reads the P90 or P99 fee and sets the transaction fee accordingly, rather than using a hard-coded `BASE_FEE`.
 - [ ] **Fee bump transactions implemented** for critical paths. If a time-sensitive transaction risks being dropped due to surge pricing, you can re-submit it with a fee bump without changing the inner transaction:
+
   ```js
-  import { TransactionBuilder } from "@stellar/stellar-sdk";
+  import { TransactionBuilder } from '@stellar/stellar-sdk';
 
   const feeBump = TransactionBuilder.buildFeeBumpTransaction(
     feeSourceKeypair,
@@ -88,6 +91,7 @@ Current base reserve is **0.5 XLM** (subject to validator vote). Each trustline,
   feeBump.sign(feeSourceKeypair);
   await server.submitTransaction(feeBump);
   ```
+
 - [ ] **Fee account funded separately.** The account paying fees on behalf of users has a dedicated XLM balance distinct from the reserve and operational accounts.
 
 ---
@@ -97,10 +101,12 @@ Current base reserve is **0.5 XLM** (subject to validator vote). Each trustline,
 - [ ] **Ledger close time monitored.** Alert if the ledger sequence stops advancing for more than 30 seconds. Normal close time is approximately 5 seconds.
   ```js
   async function checkLedgerAdvancing(server, stallThresholdMs = 30_000) {
-    let lastSeq = (await server.ledgers().order("desc").limit(1).call()).records[0].sequence;
+    let lastSeq = (await server.ledgers().order('desc').limit(1).call())
+      .records[0].sequence;
     setInterval(async () => {
-      const seq = (await server.ledgers().order("desc").limit(1).call()).records[0].sequence;
-      if (seq === lastSeq) console.error("Ledger stalled!");
+      const seq = (await server.ledgers().order('desc').limit(1).call())
+        .records[0].sequence;
+      if (seq === lastSeq) console.error('Ledger stalled!');
       lastSeq = seq;
     }, stallThresholdMs);
   }

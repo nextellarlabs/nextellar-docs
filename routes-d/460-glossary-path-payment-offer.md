@@ -1,5 +1,5 @@
 ---
-title: "Glossary: Path Payment and Offer"
+title: 'Glossary: Path Payment and Offer'
 description: Short definitions for Path Payment and Offer as used in the Stellar DEX and Nextellar docs
 ---
 

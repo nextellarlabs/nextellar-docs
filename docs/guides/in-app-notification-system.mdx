@@ -24,7 +24,10 @@ import { Horizon } from '@stellar/stellar-sdk';
 
 const server = new Horizon.Server('https://horizon-testnet.stellar.org');
 
-export function streamPayments(accountId: string, onPayment: (record: unknown) => void) {
+export function streamPayments(
+  accountId: string,
+  onPayment: (record: unknown) => void
+) {
   return server
     .payments()
     .forAccount(accountId)
@@ -44,7 +47,10 @@ import { rpc } from '@stellar/stellar-sdk';
 
 const server = new rpc.Server('https://soroban-testnet.stellar.org');
 
-export async function fetchContractEvents(contractId: string, startLedger: number) {
+export async function fetchContractEvents(
+  contractId: string,
+  startLedger: number
+) {
   const result = await server.getEvents({
     startLedger,
     filters: [
@@ -169,8 +175,13 @@ CREATE TABLE notification_preferences (
 Expose a preferences API and a settings UI. Gate each notification type behind the user's preference:
 
 ```ts
-async function shouldNotify(accountId: string, type: 'payment' | 'claim'): Promise<boolean> {
-  const prefs = await db.notificationPreferences.findUnique({ where: { accountId } });
+async function shouldNotify(
+  accountId: string,
+  type: 'payment' | 'claim'
+): Promise<boolean> {
+  const prefs = await db.notificationPreferences.findUnique({
+    where: { accountId },
+  });
   if (!prefs) return true; // default: notify
   return type === 'payment' ? prefs.paymentPush : prefs.claimPush;
 }

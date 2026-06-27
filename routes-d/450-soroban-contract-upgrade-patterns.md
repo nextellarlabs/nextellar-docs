@@ -11,11 +11,11 @@ Soroban supports on-chain contract upgrades through a built-in `update_current_c
 
 ## Approaches Compared
 
-| Approach | How it works | Migration safety | Best for |
-|----------|-------------|-----------------|---------|
-| **In-place Wasm upgrade** | Replace bytecode via `update_current_contract_wasm`; same contract ID, same storage | Storage layout must remain compatible; no automatic migration | Non-breaking changes: bug fixes, new read-only functions |
-| **Proxy / Router pattern** | A stable router contract delegates calls to an upgradeable implementation contract | Implementation can change freely; router handles versioning | Contracts with complex upgrade logic or rollback requirements |
-| **New deployment + migration** | Deploy a new contract, migrate state off-chain or via a migration script | Cleanest isolation, but changes the contract ID | Major breaking changes or state restructuring |
+| Approach                       | How it works                                                                        | Migration safety                                              | Best for                                                      |
+| ------------------------------ | ----------------------------------------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------- |
+| **In-place Wasm upgrade**      | Replace bytecode via `update_current_contract_wasm`; same contract ID, same storage | Storage layout must remain compatible; no automatic migration | Non-breaking changes: bug fixes, new read-only functions      |
+| **Proxy / Router pattern**     | A stable router contract delegates calls to an upgradeable implementation contract  | Implementation can change freely; router handles versioning   | Contracts with complex upgrade logic or rollback requirements |
+| **New deployment + migration** | Deploy a new contract, migrate state off-chain or via a migration script            | Cleanest isolation, but changes the contract ID               | Major breaking changes or state restructuring                 |
 
 ---
 
@@ -44,13 +44,16 @@ impl UpgradeableContract {
 Off-chain, upload the new Wasm and get its hash:
 
 ```js
-import { SorobanRpc, Operation } from "@stellar/stellar-sdk";
+import { SorobanRpc, Operation } from '@stellar/stellar-sdk';
 
-const server = new SorobanRpc.Server("https://soroban-testnet.stellar.org");
+const server = new SorobanRpc.Server('https://soroban-testnet.stellar.org');
 
 async function uploadWasm(adminKeypair, wasmBuffer) {
   const account = await server.getAccount(adminKeypair.publicKey());
-  const tx = new TransactionBuilder(account, { fee: BASE_FEE, networkPassphrase: Networks.TESTNET })
+  const tx = new TransactionBuilder(account, {
+    fee: BASE_FEE,
+    networkPassphrase: Networks.TESTNET,
+  })
     .addOperation(Operation.uploadContractWasm({ wasm: wasmBuffer }))
     .setTimeout(30)
     .build();

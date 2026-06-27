@@ -27,9 +27,7 @@ export function FeatureCard({
       )}
     >
       {/* SVG Illustration Area */}
-      <div className="flex-1 flex items-center justify-center">
-        {children}
-      </div>
+      <div className="flex-1 flex items-center justify-center">{children}</div>
 
       {/* Text Content */}
       <div className="w-full px-4 md:px-6 lg:px-8 pb-8 md:pb-12 lg:pb-16 flex flex-col items-center gap-3 md:gap-4">

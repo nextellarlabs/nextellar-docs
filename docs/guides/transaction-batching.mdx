@@ -12,12 +12,12 @@ A single Stellar transaction can carry up to 100 operations. Batching groups log
 
 ## Why batch?
 
-| Benefit | Detail |
-|---|---|
-| **Atomicity** | All operations in an envelope are applied together. If any one fails, the entire transaction is rolled back. |
-| **Fee savings** | One base fee (100 stroops) covers all operations instead of paying a separate fee per transaction. |
-| **Throughput** | One sequence number covers the whole batch. Fewer round-trips to Horizon means faster end-to-end execution. |
-| **Consistency** | State changes visible on-chain reflect the complete operation set, never a partial update. |
+| Benefit         | Detail                                                                                                       |
+| --------------- | ------------------------------------------------------------------------------------------------------------ |
+| **Atomicity**   | All operations in an envelope are applied together. If any one fails, the entire transaction is rolled back. |
+| **Fee savings** | One base fee (100 stroops) covers all operations instead of paying a separate fee per transaction.           |
+| **Throughput**  | One sequence number covers the whole batch. Fewer round-trips to Horizon means faster end-to-end execution.  |
+| **Consistency** | State changes visible on-chain reflect the complete operation set, never a partial update.                   |
 
 ---
 
@@ -55,14 +55,14 @@ Chain a `pathPaymentStrictSend` or `pathPaymentStrictReceive` with a `payment` t
 
 ## Limits
 
-| Limit | Value | Notes |
-|---|---|---|
-| Operations per transaction | 100 | Hard limit enforced by validators |
-| Base fee per operation | 100 stroops | Total fee = 100 × operation count (minimum) |
-| XDR envelope size | ~71 KB | Keep well under this; most real batches are a few KB |
-| Signatures | One per required signer | Each adds ~64 bytes; minimize co-signers |
-| Sequence number | 1 per transaction | Parallel batch submissions need separate source accounts |
-| Timeout | Configurable (seconds) | Set `setTimeout` to avoid stuck pending transactions |
+| Limit                      | Value                   | Notes                                                    |
+| -------------------------- | ----------------------- | -------------------------------------------------------- |
+| Operations per transaction | 100                     | Hard limit enforced by validators                        |
+| Base fee per operation     | 100 stroops             | Total fee = 100 × operation count (minimum)              |
+| XDR envelope size          | ~71 KB                  | Keep well under this; most real batches are a few KB     |
+| Signatures                 | One per required signer | Each adds ~64 bytes; minimize co-signers                 |
+| Sequence number            | 1 per transaction       | Parallel batch submissions need separate source accounts |
+| Timeout                    | Configurable (seconds)  | Set `setTimeout` to avoid stuck pending transactions     |
 
 > If any single operation in the batch fails validation or execution, **the entire transaction is rejected**. Validate all inputs before building the envelope.
 
@@ -94,13 +94,13 @@ Chain `.addOperation()` calls — each call appends one operation to the envelop
 
 ```typescript
 const tx = new TransactionBuilder(sourceAccount, {
-  fee: '200',                        // stroops per operation
+  fee: '200', // stroops per operation
   networkPassphrase: Networks.TESTNET,
 })
   .addOperation(
     Operation.changeTrust({
       asset: new Asset('USDC', USDC_ISSUER),
-      source: recipientPublicKey,    // recipient opens their own trustline
+      source: recipientPublicKey, // recipient opens their own trustline
     })
   )
   .addOperation(
@@ -198,7 +198,7 @@ async function onboardWithAsset(
   const sourceAccount = await loadAccount(sender.publicKey());
 
   const tx = new TransactionBuilder(sourceAccount, {
-    fee: '200',                         // 200 stroops × 2 ops = 400 stroops total
+    fee: '200', // 200 stroops × 2 ops = 400 stroops total
     networkPassphrase: Networks.TESTNET,
   })
     // Op 1: recipient opens a USDC trustline
@@ -260,12 +260,12 @@ try {
 
 Common per-operation error codes in batches:
 
-| Code | Cause | Fix |
-|---|---|---|
-| `op_underfunded` | Sender balance too low for one of the payments | Verify balances before building |
-| `op_no_trust` | Trustline not yet open when payment runs | Reorder ops: `changeTrust` before `payment` |
-| `op_bad_auth` | Missing signature for an operation | Ensure all required signers call `.sign()` |
-| `tx_bad_seq` | Sequence number already used | Reload the source account and rebuild |
+| Code             | Cause                                          | Fix                                         |
+| ---------------- | ---------------------------------------------- | ------------------------------------------- |
+| `op_underfunded` | Sender balance too low for one of the payments | Verify balances before building             |
+| `op_no_trust`    | Trustline not yet open when payment runs       | Reorder ops: `changeTrust` before `payment` |
+| `op_bad_auth`    | Missing signature for an operation             | Ensure all required signers call `.sign()`  |
+| `tx_bad_seq`     | Sequence number already used                   | Reload the source account and rebuild       |
 
 For broader hook-level recovery patterns see [Hook Error Handling](/docs/guides/hook-error-handling).
 
@@ -273,13 +273,13 @@ For broader hook-level recovery patterns see [Hook Error Handling](/docs/guides/
 
 ## Quick reference
 
-| Pattern | Operations in envelope |
-|---|---|
-| Account onboarding | `createAccount` + `changeTrust` × n + `setOptions` |
-| Token airdrop (up to 100 recipients) | `payment` × n |
-| Trustline + first deposit | `changeTrust` + `payment` |
-| DEX swap + transfer | `pathPaymentStrictSend` + `payment` |
-| Soroban batch | single `invokeHostFunction` with batch entry point |
+| Pattern                              | Operations in envelope                             |
+| ------------------------------------ | -------------------------------------------------- |
+| Account onboarding                   | `createAccount` + `changeTrust` × n + `setOptions` |
+| Token airdrop (up to 100 recipients) | `payment` × n                                      |
+| Trustline + first deposit            | `changeTrust` + `payment`                          |
+| DEX swap + transfer                  | `pathPaymentStrictSend` + `payment`                |
+| Soroban batch                        | single `invokeHostFunction` with batch entry point |
 
 ---
 

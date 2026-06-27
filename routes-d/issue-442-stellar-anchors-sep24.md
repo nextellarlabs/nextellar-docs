@@ -11,7 +11,7 @@ An **Anchor** is a licensed business that bridges fiat currency and Stellar-base
 
 ## Overview of SEP-24
 
-SEP-24 (*Stellar Ecosystem Proposal 24: Hosted Deposit and Withdrawal*) handles cases where the Anchor needs a web-based form — identity verification, bank details, amount selection — before processing a transaction. The Anchor serves an interactive URL; the wallet opens it in a popup or iframe and listens for completion events.
+SEP-24 (_Stellar Ecosystem Proposal 24: Hosted Deposit and Withdrawal_) handles cases where the Anchor needs a web-based form — identity verification, bank details, amount selection — before processing a transaction. The Anchor serves an interactive URL; the wallet opens it in a popup or iframe and listens for completion events.
 
 The full flow is:
 
@@ -28,7 +28,7 @@ The full flow is:
 Every Anchor publishes a TOML file at `/.well-known/stellar.toml` on their home domain. Fetch it to find the SEP-24 endpoint:
 
 ```js
-import { StellarToml } from "@stellar/stellar-sdk";
+import { StellarToml } from '@stellar/stellar-sdk';
 
 async function discoverAnchor(homeDomain) {
   const toml = await StellarToml.Resolver.resolve(homeDomain);
@@ -53,9 +53,14 @@ async function discoverAnchor(homeDomain) {
 SEP-24 requires a JWT issued by the Anchor's SEP-10 web auth service. The challenge-response flow works as follows:
 
 ```js
-import { WebAuth, Networks } from "@stellar/stellar-sdk";
+import { WebAuth, Networks } from '@stellar/stellar-sdk';
 
-async function getAnchorJwt(webAuthEndpoint, signingKey, userKeypair, networkPassphrase) {
+async function getAnchorJwt(
+  webAuthEndpoint,
+  signingKey,
+  userKeypair,
+  networkPassphrase
+) {
   // 1. Fetch the challenge transaction from the Anchor
   const challengeRes = await fetch(
     `${webAuthEndpoint}?account=${userKeypair.publicKey()}`
@@ -76,9 +81,9 @@ async function getAnchorJwt(webAuthEndpoint, signingKey, userKeypair, networkPas
 
   // 4. Submit the signed challenge to receive a JWT
   const tokenRes = await fetch(webAuthEndpoint, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ transaction: tx.toEnvelope().toXDR("base64") }),
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ transaction: tx.toEnvelope().toXDR('base64') }),
   });
   const { token } = await tokenRes.json();
   return token;
@@ -98,14 +103,17 @@ async function startDeposit(transferServer, jwt, assetCode, userPublicKey) {
     account: userPublicKey,
   });
 
-  const res = await fetch(`${transferServer}/transactions/deposit/interactive`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${jwt}`,
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body,
-  });
+  const res = await fetch(
+    `${transferServer}/transactions/deposit/interactive`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${jwt}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body,
+    }
+  );
 
   if (!res.ok) {
     const err = await res.json();
@@ -113,7 +121,7 @@ async function startDeposit(transferServer, jwt, assetCode, userPublicKey) {
   }
 
   const { type, url, id } = await res.json();
-  if (type !== "interactive_customer_info_needed") {
+  if (type !== 'interactive_customer_info_needed') {
     throw new Error(`Unexpected response type: ${type}`);
   }
 
@@ -132,9 +140,11 @@ Open the interactive URL in a popup and listen for the `stellar_wc` postMessage 
 ```js
 function openAnchorPopup(url) {
   return new Promise((resolve, reject) => {
-    const popup = window.open(url, "anchorFlow", "width=600,height=800");
+    const popup = window.open(url, 'anchorFlow', 'width=600,height=800');
     if (!popup) {
-      reject(new Error("Popup blocked. Ask the user to allow popups for this site."));
+      reject(
+        new Error('Popup blocked. Ask the user to allow popups for this site.')
+      );
       return;
     }
 
@@ -145,20 +155,20 @@ function openAnchorPopup(url) {
 
       const { transaction_id } = event.data;
       if (transaction_id) {
-        window.removeEventListener("message", onMessage);
+        window.removeEventListener('message', onMessage);
         popup.close();
         resolve(transaction_id);
       }
     }
 
-    window.addEventListener("message", onMessage);
+    window.addEventListener('message', onMessage);
 
     // Detect if the user closes the popup manually
     const closedCheck = setInterval(() => {
       if (popup.closed) {
         clearInterval(closedCheck);
-        window.removeEventListener("message", onMessage);
-        reject(new Error("User closed the Anchor window before completing."));
+        window.removeEventListener('message', onMessage);
+        reject(new Error('User closed the Anchor window before completing.'));
       }
     }, 500);
   });
@@ -172,14 +182,25 @@ function openAnchorPopup(url) {
 After the popup closes, poll `GET /transaction?id=<id>` until the status resolves:
 
 ```js
-const TERMINAL_STATES = new Set(["completed", "error", "expired", "no_market", "too_small", "too_large", "refunded"]);
+const TERMINAL_STATES = new Set([
+  'completed',
+  'error',
+  'expired',
+  'no_market',
+  'too_small',
+  'too_large',
+  'refunded',
+]);
 const POLL_INTERVAL_MS = 5_000;
 
 async function pollTransaction(transferServer, jwt, transactionId) {
   while (true) {
-    const res = await fetch(`${transferServer}/transaction?id=${transactionId}`, {
-      headers: { Authorization: `Bearer ${jwt}` },
-    });
+    const res = await fetch(
+      `${transferServer}/transaction?id=${transactionId}`,
+      {
+        headers: { Authorization: `Bearer ${jwt}` },
+      }
+    );
     const { transaction } = await res.json();
 
     console.log(`Status: ${transaction.status}`);
@@ -189,8 +210,11 @@ async function pollTransaction(transferServer, jwt, transactionId) {
     }
 
     // For statuses like "pending_user_transfer_start", instruct the user to send funds
-    if (transaction.status === "pending_user_transfer_start") {
-      console.log("Waiting for user to send funds to:", transaction.withdraw_anchor_account);
+    if (transaction.status === 'pending_user_transfer_start') {
+      console.log(
+        'Waiting for user to send funds to:',
+        transaction.withdraw_anchor_account
+      );
     }
 
     await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
@@ -220,16 +244,27 @@ Common non-terminal statuses: `pending_user_transfer_start`, `pending_anchor`, `
 
 ```js
 async function sep24Deposit(homeDomain, assetCode, userKeypair) {
-  const { transferServer, webAuthEndpoint, signingKey } = await discoverAnchor(homeDomain);
-  const jwt = await getAnchorJwt(webAuthEndpoint, signingKey, userKeypair, Networks.TESTNET);
-  const { url, transactionId } = await startDeposit(transferServer, jwt, assetCode, userKeypair.publicKey());
+  const { transferServer, webAuthEndpoint, signingKey } =
+    await discoverAnchor(homeDomain);
+  const jwt = await getAnchorJwt(
+    webAuthEndpoint,
+    signingKey,
+    userKeypair,
+    Networks.TESTNET
+  );
+  const { url, transactionId } = await startDeposit(
+    transferServer,
+    jwt,
+    assetCode,
+    userKeypair.publicKey()
+  );
 
   // Open interactive window; wait for user to complete the form
   await openAnchorPopup(url);
 
   // Poll until settled
   const finalTx = await pollTransaction(transferServer, jwt, transactionId);
-  console.log("Deposit settled:", finalTx.status, finalTx.amount_in);
+  console.log('Deposit settled:', finalTx.status, finalTx.amount_in);
   return finalTx;
 }
 ```

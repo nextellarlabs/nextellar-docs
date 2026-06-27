@@ -21,11 +21,11 @@ import {
   Asset,
   Networks,
   BASE_FEE,
-} from "@stellar/stellar-sdk";
+} from '@stellar/stellar-sdk';
 
-const server = new Horizon.Server("https://horizon.stellar.org");
-const USDC_ISSUER = "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN";
-const usdcAsset = new Asset("USDC", USDC_ISSUER);
+const server = new Horizon.Server('https://horizon.stellar.org');
+const USDC_ISSUER = 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN';
+const usdcAsset = new Asset('USDC', USDC_ISSUER);
 
 async function createTrustline(keypair) {
   const account = await server.loadAccount(keypair.publicKey());
@@ -100,12 +100,12 @@ Redemption (converting stablecoins back to fiat) is also handled via the issuer'
 
 ## Compliance Signals
 
-| Signal | Meaning |
-|--------|---------|
-| `AUTH_REQUIRED` flag on asset | Issuer must approve each trustline before the account can receive the asset |
-| `AUTH_REVOCABLE` flag | Issuer can freeze balances; ensure your flow handles frozen accounts gracefully |
-| `CLAWBACK_ENABLED` flag | Issuer can reclaim tokens; relevant for regulated markets |
-| Memo requirements | Some issuers require a specific memo type/value on all deposits |
+| Signal                        | Meaning                                                                         |
+| ----------------------------- | ------------------------------------------------------------------------------- |
+| `AUTH_REQUIRED` flag on asset | Issuer must approve each trustline before the account can receive the asset     |
+| `AUTH_REVOCABLE` flag         | Issuer can freeze balances; ensure your flow handles frozen accounts gracefully |
+| `CLAWBACK_ENABLED` flag       | Issuer can reclaim tokens; relevant for regulated markets                       |
+| Memo requirements             | Some issuers require a specific memo type/value on all deposits                 |
 
 Always check the issuer's `stellar.toml` for compliance flags and memo requirements before going to production.
 

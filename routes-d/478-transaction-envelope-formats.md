@@ -47,12 +47,12 @@ FeeBumpTransactionEnvelope
 
 ## Version Differences
 
-| Property | V0 | V1 | Fee Bump |
-|----------|----|----|----------|
-| Protocol introduced | Pre-13 | 13 | 13 |
-| Can be fee-bumped | No | Yes | — |
-| `ext` field for future extensions | No | Yes | Yes |
-| XDR discriminant | `ENVELOPE_TYPE_TX_V0` | `ENVELOPE_TYPE_TX` | `ENVELOPE_TYPE_TX_FEE_BUMP` |
+| Property                          | V0                    | V1                 | Fee Bump                    |
+| --------------------------------- | --------------------- | ------------------ | --------------------------- |
+| Protocol introduced               | Pre-13                | 13                 | 13                          |
+| Can be fee-bumped                 | No                    | Yes                | —                           |
+| `ext` field for future extensions | No                    | Yes                | Yes                         |
+| XDR discriminant                  | `ENVELOPE_TYPE_TX_V0` | `ENVELOPE_TYPE_TX` | `ENVELOPE_TYPE_TX_FEE_BUMP` |
 
 The Stellar SDK always builds `TransactionV1Envelope` by default. You only encounter V0 envelopes when reading historical transactions predating Protocol 13.
 
@@ -61,19 +61,19 @@ The Stellar SDK always builds `TransactionV1Envelope` by default. You only encou
 ## Working with Envelopes
 
 ```js
-import { TransactionBuilder, xdr } from "@stellar/stellar-sdk";
+import { TransactionBuilder, xdr } from '@stellar/stellar-sdk';
 
 // Build a transaction — returns a V1 envelope by default
-const tx = new TransactionBuilder(account, { fee: "100", networkPassphrase })
+const tx = new TransactionBuilder(account, { fee: '100', networkPassphrase })
   .addOperation(/* ... */)
   .setTimeout(30)
   .build();
 
 // Serialize to base64 XDR for signing or storage
-const envelopeXdr = tx.toEnvelope().toXDR("base64");
+const envelopeXdr = tx.toEnvelope().toXDR('base64');
 
 // Deserialize back
-const decoded = xdr.TransactionEnvelope.fromXDR(envelopeXdr, "base64");
+const decoded = xdr.TransactionEnvelope.fromXDR(envelopeXdr, 'base64');
 const type = decoded.switch().name;
 // "envelopeTypeTx" for V1, "envelopeTypeTxV0" for V0, "envelopeTypeTxFeeBump" for fee-bump
 ```

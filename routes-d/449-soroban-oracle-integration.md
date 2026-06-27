@@ -68,10 +68,15 @@ impl OracleConsumer {
 **Off-chain submitter** (Node.js) pushes an XLM/USD price every 60 seconds:
 
 ```js
-import { Contract, TransactionBuilder, Networks, BASE_FEE } from "@stellar/stellar-sdk";
-import { SorobanRpc } from "@stellar/stellar-sdk";
+import {
+  Contract,
+  TransactionBuilder,
+  Networks,
+  BASE_FEE,
+} from '@stellar/stellar-sdk';
+import { SorobanRpc } from '@stellar/stellar-sdk';
 
-const server = new SorobanRpc.Server("https://soroban-testnet.stellar.org");
+const server = new SorobanRpc.Server('https://soroban-testnet.stellar.org');
 const contract = new Contract(ORACLE_CONTRACT_ID);
 
 async function pushPrice(adminKeypair, priceUsd) {
@@ -80,11 +85,14 @@ async function pushPrice(adminKeypair, priceUsd) {
     fee: BASE_FEE,
     networkPassphrase: Networks.TESTNET,
   })
-    .addOperation(contract.call("update_price",
-      adminKeypair.publicKey(),
-      "XLM_USD",
-      BigInt(Math.round(priceUsd * 1e7)) // 7 decimal precision
-    ))
+    .addOperation(
+      contract.call(
+        'update_price',
+        adminKeypair.publicKey(),
+        'XLM_USD',
+        BigInt(Math.round(priceUsd * 1e7)) // 7 decimal precision
+      )
+    )
     .setTimeout(30)
     .build();
 

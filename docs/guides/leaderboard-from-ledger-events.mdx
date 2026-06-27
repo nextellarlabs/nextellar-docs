@@ -22,7 +22,9 @@ import { Horizon } from '@stellar/stellar-sdk';
 
 const server = new Horizon.Server('https://horizon-testnet.stellar.org');
 
-export async function getAccountPaymentTotal(accountId: string): Promise<bigint> {
+export async function getAccountPaymentTotal(
+  accountId: string
+): Promise<bigint> {
   let total = 0n;
   let page = await server.payments().forAccount(accountId).limit(200).call();
 
@@ -57,13 +59,15 @@ let lastLedger = 0;
 export async function indexEvents() {
   const result = await server.getEvents({
     startLedger: lastLedger || undefined,
-    filters: [{ type: 'contract', contractIds: [CONTRACT_ID], topics: [['*']] }],
+    filters: [
+      { type: 'contract', contractIds: [CONTRACT_ID], topics: [['*']] },
+    ],
     limit: 200,
   });
 
   for (const event of result.events) {
-    const accountId  = event.topic[0].toString();
-    const eventType  = event.topic[1]?.toString();
+    const accountId = event.topic[0].toString();
+    const eventType = event.topic[1]?.toString();
     const pointValue = getPointValue(eventType);
 
     await db.$executeRaw`
@@ -78,10 +82,14 @@ export async function indexEvents() {
 
 function getPointValue(eventType: string | undefined): number {
   switch (eventType) {
-    case 'check_in':  return 10;
-    case 'claim':     return 50;
-    case 'referral':  return 25;
-    default:          return 1;
+    case 'check_in':
+      return 10;
+    case 'claim':
+      return 50;
+    case 'referral':
+      return 25;
+    default:
+      return 1;
   }
 }
 
@@ -169,8 +177,8 @@ ORDER BY total_points DESC;
 import { useEffect, useState } from 'react';
 
 interface LeaderboardEntry {
-  rank:        number;
-  accountId:   string;
+  rank: number;
+  accountId: string;
   totalPoints: number;
 }
 
@@ -200,8 +208,12 @@ export function Leaderboard() {
         {entries.map((e) => (
           <tr key={e.accountId} className="border-t border-white/5">
             <td className="py-3 font-mono text-gray-400">#{e.rank}</td>
-            <td className="py-3 font-mono text-xs">{e.accountId.slice(0, 8)}…</td>
-            <td className="py-3 text-right font-semibold text-teal-400">{e.totalPoints.toLocaleString()}</td>
+            <td className="py-3 font-mono text-xs">
+              {e.accountId.slice(0, 8)}…
+            </td>
+            <td className="py-3 text-right font-semibold text-teal-400">
+              {e.totalPoints.toLocaleString()}
+            </td>
           </tr>
         ))}
       </tbody>
@@ -218,9 +230,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
 export async function GET(req: NextRequest) {
-  const limit = Math.min(Number(req.nextUrl.searchParams.get('limit') ?? 20), 100);
+  const limit = Math.min(
+    Number(req.nextUrl.searchParams.get('limit') ?? 20),
+    100
+  );
 
-  const rows = await db.$queryRaw<{ account_id: string; total_points: bigint }[]>`
+  const rows = await db.$queryRaw<
+    { account_id: string; total_points: bigint }[]
+  >`
     SELECT account_id, SUM(points)::bigint AS total_points
     FROM leaderboard_events
     GROUP BY account_id
@@ -229,13 +246,15 @@ export async function GET(req: NextRequest) {
   `;
 
   const entries = rows.map((r, i) => ({
-    rank:        i + 1,
-    accountId:   r.account_id,
+    rank: i + 1,
+    accountId: r.account_id,
     totalPoints: Number(r.total_points),
   }));
 
   return NextResponse.json(entries, {
-    headers: { 'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60' },
+    headers: {
+      'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60',
+    },
   });
 }
 ```

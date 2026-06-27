@@ -34,7 +34,10 @@ const Toc: React.FC<TocProps> = ({ doc }) => {
   return (
     <aside className="fixed right-0 hidden xl:block w-64 p-6 top-16 border-l border-[var(--color-border)] h-[calc(100vh-4rem)] overflow-y-auto">
       <div className="top-0 pb-2">
-        <h2 className="flex flex-1 gap-2 item-center font-semibold text-[var(--color)]"><AlignLeft size={19} />On this page</h2>
+        <h2 className="flex flex-1 gap-2 item-center font-semibold text-[var(--color)]">
+          <AlignLeft size={19} />
+          On this page
+        </h2>
       </div>
       <nav className="mt-4">
         <ul className="space-y-3">
@@ -45,10 +48,11 @@ const Toc: React.FC<TocProps> = ({ doc }) => {
               <li key={index} className="group">
                 <Link
                   href={item.href}
-                  className={`transition-colors flex items-center ${isActive
-                    ? 'text-primary font-bold'
-                    : 'text-gray-700 dark:text-white font-normal'
-                    }`}
+                  className={`transition-colors flex items-center ${
+                    isActive
+                      ? 'text-primary font-bold'
+                      : 'text-gray-700 dark:text-white font-normal'
+                  }`}
                 >
                   {item.title}
                 </Link>
@@ -62,10 +66,11 @@ const Toc: React.FC<TocProps> = ({ doc }) => {
                         <li key={subIndex} className="text-sm">
                           <Link
                             href={subItem.href}
-                            className={`transition-colors block py-1 ${isSubActive
-                              ? 'text-primary font-bold'
-                              : 'text-gray-600 dark:text-gray-200 font-regular'
-                              }`}
+                            className={`transition-colors block py-1 ${
+                              isSubActive
+                                ? 'text-primary font-bold'
+                                : 'text-gray-600 dark:text-gray-200 font-regular'
+                            }`}
                           >
                             {subItem.title}
                           </Link>

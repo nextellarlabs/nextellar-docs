@@ -1,4 +1,5 @@
 # Working Draft — Issue #438
+
 ## Add a thorough guide on rate limiting Horizon requests
 
 **Status:** Complete  
@@ -18,20 +19,20 @@ Documentation-only. No code changes. The guide covers:
 
 ### Internal links used
 
-| Link text                    | Href                                       | Exists? |
-|------------------------------|--------------------------------------------|---------|
-| useStellarBalances           | /docs/hooks/use-stellar-balances           | ✅      |
-| useTransactionHistory        | /docs/hooks/use-transaction-history        | ✅      |
-| Stellar Horizon              | /docs/integrations/horizon                 | ✅      |
-| Hook Error Handling          | /docs/guides/hook-error-handling           | ✅      |
-| Transaction Batching         | /docs/guides/transaction-batching          | ✅      |
-| Glossary                     | /docs/guides/glossary                      | ✅      |
+| Link text             | Href                                | Exists? |
+| --------------------- | ----------------------------------- | ------- |
+| useStellarBalances    | /docs/hooks/use-stellar-balances    | ✅      |
+| useTransactionHistory | /docs/hooks/use-transaction-history | ✅      |
+| Stellar Horizon       | /docs/integrations/horizon          | ✅      |
+| Hook Error Handling   | /docs/guides/hook-error-handling    | ✅      |
+| Transaction Batching  | /docs/guides/transaction-batching   | ✅      |
+| Glossary              | /docs/guides/glossary               | ✅      |
 
 ### Acceptance criteria checklist
 
 - [x] Frontmatter matches schema: title (required), description (optional), date (optional)
 - [x] All internal links verified against existing MDX files
-- [x] No /docs/components/* links
+- [x] No /docs/components/\* links
 - [x] Sidebar entry added to both Guides sections in config/sidebar.tsx
 - [x] pnpm check:links — only tests component sidebar links, unaffected
-- [x] pnpm validate:sidebar — only checks /docs/components/*, unaffected
+- [x] pnpm validate:sidebar — only checks /docs/components/\*, unaffected

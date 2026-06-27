@@ -40,31 +40,31 @@ Replace `{hash}` with the hex-encoded SHA-256 transaction hash (64 characters).
 
 Key fields:
 
-| Field | Description |
-|-------|-------------|
-| `hash` | Unique transaction identifier |
-| `ledger` | Ledger sequence number that included this transaction |
-| `successful` | `true` if all operations in the transaction succeeded |
-| `envelope_xdr` | Base64 XDR of the full signed transaction envelope |
-| `result_xdr` | Base64 XDR of the per-operation results |
-| `fee_charged` | Actual fee deducted in stroops |
+| Field          | Description                                           |
+| -------------- | ----------------------------------------------------- |
+| `hash`         | Unique transaction identifier                         |
+| `ledger`       | Ledger sequence number that included this transaction |
+| `successful`   | `true` if all operations in the transaction succeeded |
+| `envelope_xdr` | Base64 XDR of the full signed transaction envelope    |
+| `result_xdr`   | Base64 XDR of the per-operation results               |
+| `fee_charged`  | Actual fee deducted in stroops                        |
 
 ---
 
 ## Example
 
 ```js
-import { Horizon } from "@stellar/stellar-sdk";
+import { Horizon } from '@stellar/stellar-sdk';
 
-const server = new Horizon.Server("https://horizon.stellar.org");
+const server = new Horizon.Server('https://horizon.stellar.org');
 
 async function getTransactionByHash(hash) {
   const tx = await server.transactions().transaction(hash).call();
 
-  console.log("Successful:", tx.successful);
-  console.log("Ledger:", tx.ledger);
-  console.log("Operations:", tx.operation_count);
-  console.log("Fee charged:", tx.fee_charged, "stroops");
+  console.log('Successful:', tx.successful);
+  console.log('Ledger:', tx.ledger);
+  console.log('Operations:', tx.operation_count);
+  console.log('Fee charged:', tx.fee_charged, 'stroops');
 
   return tx;
 }
@@ -76,10 +76,10 @@ For testnet, replace the server URL with `https://horizon-testnet.stellar.org`.
 
 ## Common Errors
 
-| Error | Cause | Fix |
-|-------|-------|-----|
-| `404 Not Found` | Hash not on the network yet or was never submitted | Confirm submission succeeded; wait a few seconds and retry |
-| `400 Bad Request` | Malformed hash (wrong length or non-hex characters) | Verify the hash is exactly 64 hex characters |
-| `403 Forbidden` | Horizon node has restricted access to this endpoint | Use the public Horizon endpoint or your own node |
+| Error             | Cause                                               | Fix                                                        |
+| ----------------- | --------------------------------------------------- | ---------------------------------------------------------- |
+| `404 Not Found`   | Hash not on the network yet or was never submitted  | Confirm submission succeeded; wait a few seconds and retry |
+| `400 Bad Request` | Malformed hash (wrong length or non-hex characters) | Verify the hash is exactly 64 hex characters               |
+| `403 Forbidden`   | Horizon node has restricted access to this endpoint | Use the public Horizon endpoint or your own node           |
 
 **Related:** [XDR Encoding and Decoding](/routes-d/482-xdr-encoding-decoding), [Transaction Results Shape](/routes-d/496-transaction-results-shape)

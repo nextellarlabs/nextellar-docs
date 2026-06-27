@@ -45,7 +45,10 @@ export function useP5Canvas(sketch: P5Sketch) {
       import('p5').then((p5Module) => {
         if (containerRef.current) {
           const P5 = p5Module.default;
-          p5InstanceRef.current = new P5(sketchRef.current, containerRef.current);
+          p5InstanceRef.current = new P5(
+            sketchRef.current,
+            containerRef.current
+          );
         }
       });
     }

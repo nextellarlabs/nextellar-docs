@@ -75,7 +75,10 @@ export const Popover = ({
   useEffect(() => {
     if (!isOpen || !closeOnOutsideClick) return;
     const handleClick = (e: MouseEvent) => {
-      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+      if (
+        popoverRef.current &&
+        !popoverRef.current.contains(e.target as Node)
+      ) {
         close();
       }
     };

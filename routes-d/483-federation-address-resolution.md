@@ -17,7 +17,7 @@ A Stellar federation address (e.g. `alice*example.com`) maps to a full public ke
 4. Parse the `account_id` from the JSON response.
 
 ```js
-import { Federation, StellarToml } from "@stellar/stellar-sdk";
+import { Federation, StellarToml } from '@stellar/stellar-sdk';
 
 async function resolveAddress(federatedAddress) {
   // The SDK handles the full two-step lookup
@@ -26,7 +26,7 @@ async function resolveAddress(federatedAddress) {
 }
 
 // Usage
-const publicKey = await resolveAddress("alice*example.com");
+const publicKey = await resolveAddress('alice*example.com');
 ```
 
 The Stellar SDK's `Federation.Server.resolve` performs both steps automatically.

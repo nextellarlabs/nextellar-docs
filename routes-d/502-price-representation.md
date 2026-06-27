@@ -34,7 +34,9 @@ To represent `0.0001234567` exactly you need `n` and `d` to share no common fact
 
 ```js
 // Simple fraction reduction (GCD)
-function gcd(a, b) { return b === 0 ? a : gcd(b, a % b); }
+function gcd(a, b) {
+  return b === 0 ? a : gcd(b, a % b);
+}
 
 function toFraction(decimal, maxDenominator = 10_000_000) {
   const d = Math.min(maxDenominator, Math.round(1 / (decimal % 1 || decimal)));
@@ -48,11 +50,11 @@ function toFraction(decimal, maxDenominator = 10_000_000) {
 
 ## Rounding Behaviors
 
-| Context | Behavior |
-|---------|---------|
-| Offer price | Rounded to fit within 32-bit numerator/denominator; slight price shift is possible |
-| Path payment | Rounded in favor of the network — you may receive slightly less than the exact calculated amount |
-| `amount` fields | Always 7 decimal places (stroops); truncated, not rounded |
+| Context         | Behavior                                                                                         |
+| --------------- | ------------------------------------------------------------------------------------------------ |
+| Offer price     | Rounded to fit within 32-bit numerator/denominator; slight price shift is possible               |
+| Path payment    | Rounded in favor of the network — you may receive slightly less than the exact calculated amount |
+| `amount` fields | Always 7 decimal places (stroops); truncated, not rounded                                        |
 
 A practical consequence: if you calculate `0.1 / 3 ≈ 0.03333…`, Stellar will store `1/30` (or the nearest representable fraction), not `0.0333333`.
 
@@ -61,13 +63,13 @@ A practical consequence: if you calculate `0.1 / 3 ≈ 0.03333…`, Stellar will
 ## Example
 
 ```js
-import { Operation, Asset } from "@stellar/stellar-sdk";
+import { Operation, Asset } from '@stellar/stellar-sdk';
 
 // Sell 100 USDC for XLM at price 0.1 XLM per USDC (n=1, d=10)
 const offer = Operation.manageSellOffer({
   selling: usdcAsset,
   buying: Asset.native(),
-  amount: "100",
+  amount: '100',
   price: { n: 1, d: 10 },
 });
 ```

@@ -156,7 +156,8 @@ Soroban contracts are immutable — you cannot revert a deployed contract. Howev
 
 ```ts
 // lib/contract.ts
-const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_V2 ?? process.env.NEXT_PUBLIC_CONTRACT_V1!;
+const CONTRACT_ADDRESS =
+  process.env.NEXT_PUBLIC_CONTRACT_V2 ?? process.env.NEXT_PUBLIC_CONTRACT_V1!;
 
 // Can be switched back to V1 via env var if V2 has an issue
 ```

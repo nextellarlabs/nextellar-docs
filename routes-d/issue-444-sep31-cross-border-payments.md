@@ -11,14 +11,14 @@ SEP-31 (Cross-Border Payments API) is the Stellar Ecosystem Proposal for direct 
 
 ## Roles
 
-| Role | Description |
-|------|-------------|
-| **Sending Anchor** | Receives fiat from the sender, converts to Stellar assets, and calls the receiving anchor's SEP-31 API |
-| **Receiving Anchor** | Receives Stellar assets, performs KYC/compliance checks, and disburses fiat to the recipient |
-| **Sender** | Individual or business initiating the payment (interacts only with the sending anchor) |
-| **Recipient** | Individual or business receiving funds (interacts only with the receiving anchor) |
+| Role                 | Description                                                                                            |
+| -------------------- | ------------------------------------------------------------------------------------------------------ |
+| **Sending Anchor**   | Receives fiat from the sender, converts to Stellar assets, and calls the receiving anchor's SEP-31 API |
+| **Receiving Anchor** | Receives Stellar assets, performs KYC/compliance checks, and disburses fiat to the recipient           |
+| **Sender**           | Individual or business initiating the payment (interacts only with the sending anchor)                 |
+| **Recipient**        | Individual or business receiving funds (interacts only with the receiving anchor)                      |
 
-The sending anchor acts as the SEP-31 *client*; the receiving anchor acts as the SEP-31 *server*.
+The sending anchor acts as the SEP-31 _client_; the receiving anchor acts as the SEP-31 _server_.
 
 ---
 
@@ -129,7 +129,10 @@ Response:
 Before creating transactions, the sending anchor must authenticate using SEP-10:
 
 ```typescript
-async function authenticate(receivingAnchorUrl: string, sendingAnchorKeypair: Keypair): Promise<string> {
+async function authenticate(
+  receivingAnchorUrl: string,
+  sendingAnchorKeypair: Keypair
+): Promise<string> {
   const { transaction, network_passphrase } = await fetch(
     `${receivingAnchorUrl}/auth?account=${sendingAnchorKeypair.publicKey()}`
   ).then((r) => r.json());
@@ -138,9 +141,9 @@ async function authenticate(receivingAnchorUrl: string, sendingAnchorKeypair: Ke
   tx.sign(sendingAnchorKeypair);
 
   const { token } = await fetch(`${receivingAnchorUrl}/auth`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ transaction: tx.toEnvelope().toXDR("base64") }),
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ transaction: tx.toEnvelope().toXDR('base64') }),
   }).then((r) => r.json());
 
   return token;
@@ -161,13 +164,13 @@ async function submitKyc(
   fields: Record<string, string>
 ): Promise<string> {
   const body = new FormData();
-  body.append("id", customerId);
+  body.append('id', customerId);
   for (const [key, value] of Object.entries(fields)) {
     body.append(key, value);
   }
 
   const res = await fetch(`${sep12Url}/customer`, {
-    method: "PUT",
+    method: 'PUT',
     headers: { Authorization: `Bearer ${token}` },
     body,
   });
@@ -179,16 +182,16 @@ async function submitKyc(
 
 Common sender fields:
 
-| Field | Description |
-|-------|-------------|
-| `first_name` | Legal first name |
-| `last_name` | Legal last name |
-| `email_address` | Contact email |
-| `address` | Full street address |
-| `date_of_birth` | ISO 8601 date |
-| `id_type` | Document type (passport, drivers_license) |
-| `id_number` | Document number |
-| `id_country_code` | ISO 3166-1 alpha-3 country code |
+| Field             | Description                               |
+| ----------------- | ----------------------------------------- |
+| `first_name`      | Legal first name                          |
+| `last_name`       | Legal last name                           |
+| `email_address`   | Contact email                             |
+| `address`         | Full street address                       |
+| `date_of_birth`   | ISO 8601 date                             |
+| `id_type`         | Document type (passport, drivers_license) |
+| `id_number`       | Document number                           |
+| `id_country_code` | ISO 3166-1 alpha-3 country code           |
 
 ---
 
@@ -237,30 +240,36 @@ Successful response (`201 Created`):
 The sending anchor submits a Stellar path payment or simple payment to the `stellar_account_id` with the specified memo:
 
 ```typescript
-import { Asset, Memo, Networks, Operation, TransactionBuilder } from "@stellar/stellar-sdk";
+import {
+  Asset,
+  Memo,
+  Networks,
+  Operation,
+  TransactionBuilder,
+} from '@stellar/stellar-sdk';
 
 async function sendPayment(
   senderKeypair: Keypair,
   destinationAccount: string,
   memo: string,
-  memoType: "hash" | "text" | "id",
+  memoType: 'hash' | 'text' | 'id',
   amount: string,
   assetCode: string,
   assetIssuer: string
 ) {
-  const server = new Horizon.Server("https://horizon.stellar.org");
+  const server = new Horizon.Server('https://horizon.stellar.org');
   const account = await server.loadAccount(senderKeypair.publicKey());
   const asset = new Asset(assetCode, assetIssuer);
 
   const memoObj =
-    memoType === "hash"
-      ? Memo.hash(Buffer.from(memo, "base64"))
-      : memoType === "text"
-      ? Memo.text(memo)
-      : Memo.id(memo);
+    memoType === 'hash'
+      ? Memo.hash(Buffer.from(memo, 'base64'))
+      : memoType === 'text'
+        ? Memo.text(memo)
+        : Memo.id(memo);
 
   const tx = new TransactionBuilder(account, {
-    fee: "1000",
+    fee: '1000',
     networkPassphrase: Networks.PUBLIC,
   })
     .addOperation(
@@ -287,20 +296,20 @@ Poll until the transaction reaches a terminal state:
 
 ```typescript
 type Sep31Status =
-  | "pending_sender"
-  | "pending_stellar"
-  | "pending_customer_info_update"
-  | "pending_receiver"
-  | "pending_external"
-  | "completed"
-  | "error";
+  | 'pending_sender'
+  | 'pending_stellar'
+  | 'pending_customer_info_update'
+  | 'pending_receiver'
+  | 'pending_external'
+  | 'completed'
+  | 'error';
 
 async function pollTransaction(
   sep31Url: string,
   token: string,
   transactionId: string
 ): Promise<void> {
-  const terminalStates: Sep31Status[] = ["completed", "error"];
+  const terminalStates: Sep31Status[] = ['completed', 'error'];
 
   while (true) {
     const res = await fetch(`${sep31Url}/transactions/${transactionId}`, {
@@ -311,7 +320,7 @@ async function pollTransaction(
     console.log(`Status: ${transaction.status}`);
 
     if (terminalStates.includes(transaction.status)) {
-      if (transaction.status === "error") {
+      if (transaction.status === 'error') {
         throw new Error(`Transaction failed: ${transaction.message}`);
       }
       break;
@@ -326,15 +335,15 @@ async function pollTransaction(
 
 ## Transaction Status Reference
 
-| Status | Meaning | Next Action |
-|--------|---------|-------------|
-| `pending_sender` | Waiting for sending anchor to send Stellar payment | Submit payment |
-| `pending_stellar` | Stellar payment submitted, awaiting confirmation | Wait |
-| `pending_customer_info_update` | Receiver needs more KYC info | Submit updated SEP-12 fields |
-| `pending_receiver` | Receiving anchor is processing the disbursement | Wait |
-| `pending_external` | Waiting for external payout (bank transfer) | Wait |
-| `completed` | Funds delivered to recipient | Done |
-| `error` | Unrecoverable error | Check `message` field |
+| Status                         | Meaning                                            | Next Action                  |
+| ------------------------------ | -------------------------------------------------- | ---------------------------- |
+| `pending_sender`               | Waiting for sending anchor to send Stellar payment | Submit payment               |
+| `pending_stellar`              | Stellar payment submitted, awaiting confirmation   | Wait                         |
+| `pending_customer_info_update` | Receiver needs more KYC info                       | Submit updated SEP-12 fields |
+| `pending_receiver`             | Receiving anchor is processing the disbursement    | Wait                         |
+| `pending_external`             | Waiting for external payout (bank transfer)        | Wait                         |
+| `completed`                    | Funds delivered to recipient                       | Done                         |
+| `error`                        | Unrecoverable error                                | Check `message` field        |
 
 ---
 
@@ -348,7 +357,7 @@ async function handleKycUpdate(
   token: string,
   transaction: any
 ): Promise<void> {
-  if (transaction.status !== "pending_customer_info_update") return;
+  if (transaction.status !== 'pending_customer_info_update') return;
 
   // Fetch which fields are now required
   const receiver = await fetch(
@@ -360,7 +369,7 @@ async function handleKycUpdate(
     .filter(([, v]) => v.optional === false && !v.status)
     .map(([k]) => k);
 
-  console.log("Missing KYC fields:", missingFields);
+  console.log('Missing KYC fields:', missingFields);
   // Collect and submit the missing fields via SEP-12 PUT /customer
 }
 ```
@@ -369,13 +378,13 @@ async function handleKycUpdate(
 
 ## Error Handling
 
-| HTTP Status | Meaning |
-|-------------|---------|
-| `400` | Invalid request (missing fields, amount out of range) |
-| `401` | JWT missing or expired — re-authenticate |
-| `403` | Sending anchor not permitted (check `stellar.toml` restrictions) |
-| `404` | Transaction ID not found |
-| `429` | Rate limited — back off and retry |
+| HTTP Status | Meaning                                                          |
+| ----------- | ---------------------------------------------------------------- |
+| `400`       | Invalid request (missing fields, amount out of range)            |
+| `401`       | JWT missing or expired — re-authenticate                         |
+| `403`       | Sending anchor not permitted (check `stellar.toml` restrictions) |
+| `404`       | Transaction ID not found                                         |
+| `429`       | Rate limited — back off and retry                                |
 
 On `400`, the response body contains a `error` string and optional `fields` map indicating which request parameters were invalid.
 

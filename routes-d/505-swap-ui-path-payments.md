@@ -14,9 +14,9 @@ Stellar's path payment operations let users swap one asset for another in a sing
 Before submitting, find the best available path using Horizon's strict-send or strict-receive endpoint:
 
 ```js
-import { Horizon, Asset } from "@stellar/stellar-sdk";
+import { Horizon, Asset } from '@stellar/stellar-sdk';
 
-const server = new Horizon.Server("https://horizon.stellar.org");
+const server = new Horizon.Server('https://horizon.stellar.org');
 
 async function findSwapPaths(sourceAsset, destAsset, sourceAmount) {
   const paths = await server
@@ -28,12 +28,15 @@ async function findSwapPaths(sourceAsset, destAsset, sourceAmount) {
 }
 
 // Example: find paths from USDC to XLM for 10 USDC
-const USDC = new Asset("USDC", "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN");
+const USDC = new Asset(
+  'USDC',
+  'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN'
+);
 const XLM = Asset.native();
 
-const paths = await findSwapPaths(USDC, XLM, "10");
+const paths = await findSwapPaths(USDC, XLM, '10');
 const bestPath = paths[0];
-console.log("Expected to receive:", bestPath.destination_amount, "XLM");
+console.log('Expected to receive:', bestPath.destination_amount, 'XLM');
 ```
 
 ---
@@ -48,9 +51,15 @@ import {
   Operation,
   Networks,
   BASE_FEE,
-} from "@stellar/stellar-sdk";
+} from '@stellar/stellar-sdk';
 
-async function executeSwap(keypair, sourceAsset, sourceAmount, destAsset, bestPath) {
+async function executeSwap(
+  keypair,
+  sourceAsset,
+  sourceAmount,
+  destAsset,
+  bestPath
+) {
   const account = await server.loadAccount(keypair.publicKey());
 
   // Accept up to 1% slippage
@@ -69,9 +78,7 @@ async function executeSwap(keypair, sourceAsset, sourceAmount, destAsset, bestPa
         destination: keypair.publicKey(), // swap to self
         destAsset,
         destMin: minDestAmount,
-        path: bestPath.path.map(
-          (p) => new Asset(p.asset_code, p.asset_issuer)
-        ),
+        path: bestPath.path.map((p) => new Asset(p.asset_code, p.asset_issuer)),
       })
     )
     .setTimeout(30)
@@ -87,12 +94,12 @@ async function executeSwap(keypair, sourceAsset, sourceAmount, destAsset, bestPa
 ## Minimal Swap UI Sample
 
 ```jsx
-import { useState } from "react";
+import { useState } from 'react';
 
 export function SwapWidget({ keypair }) {
-  const [sendAmount, setSendAmount] = useState("");
+  const [sendAmount, setSendAmount] = useState('');
   const [preview, setPreview] = useState(null);
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState('');
 
   async function handlePreview() {
     const paths = await findSwapPaths(USDC, XLM, sendAmount);
@@ -101,10 +108,10 @@ export function SwapWidget({ keypair }) {
 
   async function handleSwap() {
     if (!preview) return;
-    setStatus("Submitting…");
+    setStatus('Submitting…');
     try {
       await executeSwap(keypair, USDC, sendAmount, XLM, preview);
-      setStatus("Swap complete!");
+      setStatus('Swap complete!');
     } catch (err) {
       setStatus(`Error: ${err.message}`);
     }
@@ -120,7 +127,10 @@ export function SwapWidget({ keypair }) {
       />
       <button onClick={handlePreview}>Preview</button>
       {preview && (
-        <p>You will receive ≥ {(parseFloat(preview.destination_amount) * 0.99).toFixed(7)} XLM</p>
+        <p>
+          You will receive ≥{' '}
+          {(parseFloat(preview.destination_amount) * 0.99).toFixed(7)} XLM
+        </p>
       )}
       <button onClick={handleSwap} disabled={!preview}>
         Swap

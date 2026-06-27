@@ -33,6 +33,7 @@ An operator controls a wallet on each chain. To move asset X from Chain A to Ste
 **Custody risk**: the operator can steal locked funds. Mitigate with multi-sig on the custody wallet and a transparent reserve proof.
 
 **Message flow**:
+
 ```
 User ──lock──► Chain A custody wallet
 Operator       ──observe──► Stellar mint tx
@@ -56,6 +57,7 @@ Both sides use a hash time-locked contract (HTLC). The swap is atomic: either bo
 A decentralised relayer network (Wormhole, Axelar) observes finality on the source chain and posts a signed attestation on the destination chain. A smart contract on the destination verifies the attestation before minting.
 
 **Message flow**:
+
 ```
 Chain A tx ──finality──► Guardian network (19-of-19 multi-sig attestation)
                                      │
@@ -70,11 +72,11 @@ Chain A tx ──finality──► Guardian network (19-of-19 multi-sig attestat
 
 ## Risk Comparison
 
-| Approach | Custody risk | Smart contract risk | Liveness risk | Complexity |
-|---|---|---|---|---|
-| Custodial bridge | High (operator) | Low | Medium | Low |
-| HTLC atomic swap | Low | Low | Low (self-custodied) | Medium |
-| Trust-minimised (Wormhole) | Low (guardian set) | High (two contracts) | Low | High |
+| Approach                   | Custody risk       | Smart contract risk  | Liveness risk        | Complexity |
+| -------------------------- | ------------------ | -------------------- | -------------------- | ---------- |
+| Custodial bridge           | High (operator)    | Low                  | Medium               | Low        |
+| HTLC atomic swap           | Low                | Low                  | Low (self-custodied) | Medium     |
+| Trust-minimised (Wormhole) | Low (guardian set) | High (two contracts) | Low                  | High       |
 
 ---
 
@@ -154,9 +156,13 @@ impl StellarBridge {
 import { ethers } from 'ethers';
 import { rpc, Contract, Networks, Keypair } from '@stellar/stellar-sdk';
 
-const provider       = new ethers.JsonRpcProvider(process.env.ETH_RPC_URL);
-const bridgeEth      = new ethers.Contract(process.env.ETH_BRIDGE_ADDRESS!, BRIDGE_ABI, provider);
-const stellarServer  = new rpc.Server(process.env.STELLAR_RPC_URL!);
+const provider = new ethers.JsonRpcProvider(process.env.ETH_RPC_URL);
+const bridgeEth = new ethers.Contract(
+  process.env.ETH_BRIDGE_ADDRESS!,
+  BRIDGE_ABI,
+  provider
+);
+const stellarServer = new rpc.Server(process.env.STELLAR_RPC_URL!);
 const relayerKeypair = Keypair.fromSecret(process.env.RELAYER_SECRET!);
 
 bridgeEth.on('Deposit', async (recipient, amount, ethTxHash) => {

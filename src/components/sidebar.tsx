@@ -367,9 +367,10 @@ export function SidebarMenuItem({
           href={href}
           className={`
             flex items-center justify-between w-full p-2 rounded-md
-            ${isActive
-              ? 'bg-accent text-accent-foreground'
-              : 'hover:bg-accent text-gray-700 dark:text-gray-300'
+            ${
+              isActive
+                ? 'bg-accent text-accent-foreground'
+                : 'hover:bg-accent text-gray-700 dark:text-gray-300'
             }
             ${!isOpen ? 'justify-center' : ''}
           `}
@@ -381,9 +382,10 @@ export function SidebarMenuItem({
         <button
           className={`
             flex items-center justify-between w-full p-2 rounded-md
-            ${isActive
-              ? 'bg-sidebar text-blue-500'
-              : 'hover:bg-accent text-gray-700 dark:text-gray-300'
+            ${
+              isActive
+                ? 'bg-sidebar text-blue-500'
+                : 'hover:bg-accent text-gray-700 dark:text-gray-300'
             }
             ${!isOpen ? 'justify-center' : ''}
           `}
@@ -430,9 +432,10 @@ export function NestedLink({
       href={href}
       className={`
         block py-1.5 px-2 rounded-md text-sm transition-all
-        ${isActive
-          ? 'bg-black/10 dark:bg-white/10 text-black dark:text-white font-medium border-l-2 border-black dark:border-white -ml-[2px]'
-          : 'hover:bg-accent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+        ${
+          isActive
+            ? 'bg-black/10 dark:bg-white/10 text-black dark:text-white font-medium border-l-2 border-black dark:border-white -ml-[2px]'
+            : 'hover:bg-accent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
         }
       `}
       onClick={handleClick}

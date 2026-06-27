@@ -18,7 +18,7 @@ The `useStellarBalances` hook provides real-time balance tracking for Stellar ac
 
 ## Basic Usage
 
-````tsx
+`````tsx
 import { useStellarBalances } from '@/hooks/useStellarBalances';
 
 export default function BalanceDisplay({ publicKey }: { publicKey: string }) {
@@ -89,7 +89,7 @@ interface Balance {
   balance: string;
   limit?: string;
 }
-````
+`````
 
 ## Examples
 
@@ -164,7 +164,7 @@ function MyComponent() {
   const { balances } = useStellarBalances(publicKey);
   // Uses mainnet automatically!
 }
-````
+```
 
 ## Error Handling
 

@@ -16,12 +16,12 @@ At minimum, each entry needs:
 
 ```ts
 interface AddressBookEntry {
-  id:        string;   // local UUID
-  label:     string;   // user-provided name ("Alice", "Treasury")
-  address:   string;   // Stellar public key (G...)
-  memo?:     string;   // optional default memo for payments to this address
-  tags?:     string[]; // e.g. ["team", "vendor"]
-  createdAt: number;   // unix timestamp
+  id: string; // local UUID
+  label: string; // user-provided name ("Alice", "Treasury")
+  address: string; // Stellar public key (G...)
+  memo?: string; // optional default memo for payments to this address
+  tags?: string[]; // e.g. ["team", "vendor"]
+  createdAt: number; // unix timestamp
   updatedAt: number;
 }
 ```
@@ -44,10 +44,17 @@ export function getEntries(): AddressBookEntry[] {
   }
 }
 
-export function saveEntry(entry: Omit<AddressBookEntry, 'id' | 'createdAt' | 'updatedAt'>): AddressBookEntry {
+export function saveEntry(
+  entry: Omit<AddressBookEntry, 'id' | 'createdAt' | 'updatedAt'>
+): AddressBookEntry {
   const entries = getEntries();
   const now = Date.now();
-  const newEntry: AddressBookEntry = { ...entry, id: crypto.randomUUID(), createdAt: now, updatedAt: now };
+  const newEntry: AddressBookEntry = {
+    ...entry,
+    id: crypto.randomUUID(),
+    createdAt: now,
+    updatedAt: now,
+  };
   localStorage.setItem(KEY, JSON.stringify([...entries, newEntry]));
   return newEntry;
 }
@@ -163,11 +170,17 @@ import { useState } from 'react';
 import { getEntries } from '@/lib/address-book';
 import { resolveAddress } from '@/lib/federation';
 
-export function AddressInput({ onChange }: { onChange: (addr: string) => void }) {
+export function AddressInput({
+  onChange,
+}: {
+  onChange: (addr: string) => void;
+}) {
   const [query, setQuery] = useState('');
   const entries = getEntries();
   const matches = entries.filter(
-    (e) => e.label.toLowerCase().includes(query.toLowerCase()) || e.address.includes(query)
+    (e) =>
+      e.label.toLowerCase().includes(query.toLowerCase()) ||
+      e.address.includes(query)
   );
 
   const handleSelect = (address: string) => {
@@ -201,7 +214,9 @@ export function AddressInput({ onChange }: { onChange: (addr: string) => void })
               onClick={() => handleSelect(e.address)}
             >
               <span className="font-medium">{e.label}</span>
-              <span className="text-xs text-gray-400 ml-2">{e.address.slice(0, 8)}…</span>
+              <span className="text-xs text-gray-400 ml-2">
+                {e.address.slice(0, 8)}…
+              </span>
             </li>
           ))}
         </ul>
@@ -237,9 +252,10 @@ export function importBook(json: string) {
   const entries: AddressBookEntry[] = JSON.parse(json);
   // Validate and merge with existing
   const existing = getEntries();
-  const merged = [...existing, ...entries.filter(
-    (e) => !existing.find((x) => x.address === e.address)
-  )];
+  const merged = [
+    ...existing,
+    ...entries.filter((e) => !existing.find((x) => x.address === e.address)),
+  ];
   localStorage.setItem('nextellar:address_book', JSON.stringify(merged));
 }
 ```

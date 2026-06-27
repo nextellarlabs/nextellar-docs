@@ -2,7 +2,12 @@
 
 import type React from 'react';
 import { createContext, useContext, useState } from 'react';
-import { ChevronRight, ChevronDown, FileText, Folder as FolderIcon } from 'lucide-react';
+import {
+  ChevronRight,
+  ChevronDown,
+  FileText,
+  Folder as FolderIcon,
+} from 'lucide-react';
 
 // Utility function
 const cn = (...classes: any[]) => classes.filter(Boolean).join(' ');
@@ -98,7 +103,9 @@ function FolderLabel({
     >
       <ChevronIcon isOpen={isOpen} />
       <FolderIconComponent />
-      <span className="text-sm text-black dark:text-white font-medium">{name}</span>
+      <span className="text-sm text-black dark:text-white font-medium">
+        {name}
+      </span>
     </div>
   );
 }
@@ -108,7 +115,9 @@ function FileLabel({ children }: { children: React.ReactNode }) {
     <div className="flex items-center gap-2 py-1.5 px-2 transition-colors hover:bg-gray-50 dark:hover:bg-gray-900">
       <div className="w-4 h-4" /> {/* Spacer for alignment */}
       <FileIconComponent />
-      <span className="text-sm text-gray-600 dark:text-gray-400">{children}</span>
+      <span className="text-sm text-gray-600 dark:text-gray-400">
+        {children}
+      </span>
     </div>
   );
 }

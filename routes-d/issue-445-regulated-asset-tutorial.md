@@ -11,11 +11,11 @@ A **regulated asset** on Stellar is one whose issuer retains ongoing control ove
 
 ## The Three Auth Flags
 
-| Flag | Constant | Effect |
-|------|----------|--------|
-| `AUTHORIZATION_REQUIRED` | `AuthFlag.AuthRequired` | New trustlines start unauthorized; the issuer must explicitly allow each holder before they can receive or send the asset. |
-| `AUTHORIZATION_REVOCABLE` | `AuthFlag.AuthRevocable` | The issuer can freeze any existing authorized trustline, blocking all transfers while preserving the balance. |
-| `AUTHORIZATION_CLAWBACK_ENABLED` | `AuthFlag.AuthClawbackEnabled` | The issuer can reclaim tokens from any holder without consent. Requires `AUTH_REVOCABLE` to be set first. |
+| Flag                             | Constant                       | Effect                                                                                                                     |
+| -------------------------------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| `AUTHORIZATION_REQUIRED`         | `AuthFlag.AuthRequired`        | New trustlines start unauthorized; the issuer must explicitly allow each holder before they can receive or send the asset. |
+| `AUTHORIZATION_REVOCABLE`        | `AuthFlag.AuthRevocable`       | The issuer can freeze any existing authorized trustline, blocking all transfers while preserving the balance.              |
+| `AUTHORIZATION_CLAWBACK_ENABLED` | `AuthFlag.AuthClawbackEnabled` | The issuer can reclaim tokens from any holder without consent. Requires `AUTH_REVOCABLE` to be set first.                  |
 
 Set flags you genuinely need. `AUTH_REQUIRED` alone is the minimum for most securities. `CLAWBACK_ENABLED` creates significant holder risk and should only be used when legally mandated.
 
@@ -33,10 +33,10 @@ import {
   Networks,
   BASE_FEE,
   AuthFlag,
-} from "@stellar/stellar-sdk";
-import { Horizon } from "@stellar/stellar-sdk";
+} from '@stellar/stellar-sdk';
+import { Horizon } from '@stellar/stellar-sdk';
 
-const server = new Horizon.Server("https://horizon-testnet.stellar.org");
+const server = new Horizon.Server('https://horizon-testnet.stellar.org');
 
 // Generate and fund issuer (on testnet: use Friendbot)
 const issuerKeypair = Keypair.random();
@@ -62,7 +62,7 @@ const flagsTx = new TransactionBuilder(issuerAccount, {
 
 flagsTx.sign(issuerKeypair);
 await server.submitTransaction(flagsTx);
-console.log("Issuer flags set:", issuerKeypair.publicKey());
+console.log('Issuer flags set:', issuerKeypair.publicKey());
 ```
 
 ---
@@ -79,13 +79,17 @@ Direct issuance from the issuer account to end users is a bad practice because i
 
 ```js
 const distributorKeypair = Keypair.random();
-await fetch(`https://friendbot.stellar.org?addr=${distributorKeypair.publicKey()}`);
+await fetch(
+  `https://friendbot.stellar.org?addr=${distributorKeypair.publicKey()}`
+);
 
-const { Asset } = await import("@stellar/stellar-sdk");
-const regulatedAsset = new Asset("RSEC", issuerKeypair.publicKey());
+const { Asset } = await import('@stellar/stellar-sdk');
+const regulatedAsset = new Asset('RSEC', issuerKeypair.publicKey());
 
 // Distributor creates a trustline
-const distributorAccount = await server.loadAccount(distributorKeypair.publicKey());
+const distributorAccount = await server.loadAccount(
+  distributorKeypair.publicKey()
+);
 const trustlineTx = new TransactionBuilder(distributorAccount, {
   fee: BASE_FEE,
   networkPassphrase: Networks.TESTNET,
@@ -93,7 +97,7 @@ const trustlineTx = new TransactionBuilder(distributorAccount, {
   .addOperation(
     Operation.changeTrust({
       asset: regulatedAsset,
-      limit: "1000000", // maximum tokens the distributor can hold
+      limit: '1000000', // maximum tokens the distributor can hold
     })
   )
   .setTimeout(30)
@@ -146,7 +150,7 @@ const mintTx = new TransactionBuilder(mintAccount, {
     Operation.payment({
       destination: distributorKeypair.publicKey(),
       asset: regulatedAsset,
-      amount: "500000",
+      amount: '500000',
     })
   )
   .setTimeout(30)

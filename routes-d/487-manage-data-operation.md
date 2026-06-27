@@ -11,10 +11,10 @@ The `ManageData` operation lets you attach arbitrary key-value string pairs to a
 
 ## Storage Size Limits
 
-| Property | Limit |
-|----------|-------|
-| Key length | 1 – 64 bytes (UTF-8) |
-| Value length | 0 – 64 bytes (arbitrary binary) |
+| Property            | Limit                                                                                   |
+| ------------------- | --------------------------------------------------------------------------------------- |
+| Key length          | 1 – 64 bytes (UTF-8)                                                                    |
+| Value length        | 0 – 64 bytes (arbitrary binary)                                                         |
 | Entries per account | Up to the account's available subentry capacity (each entry costs 0.5 XLM base reserve) |
 
 Setting a value of `null` or an empty buffer removes the entry and releases its reserve.
@@ -30,22 +30,22 @@ import {
   TransactionBuilder,
   Operation,
   Networks,
-} from "@stellar/stellar-sdk";
+} from '@stellar/stellar-sdk';
 
-const server = new Horizon.Server("https://horizon-testnet.stellar.org");
-const keypair = Keypair.fromSecret("S...");
+const server = new Horizon.Server('https://horizon-testnet.stellar.org');
+const keypair = Keypair.fromSecret('S...');
 
 async function setDataEntry(key, value) {
   const account = await server.loadAccount(keypair.publicKey());
 
   const tx = new TransactionBuilder(account, {
-    fee: "100",
+    fee: '100',
     networkPassphrase: Networks.TESTNET,
   })
     .addOperation(
       Operation.manageData({
-        name: key,           // up to 64 bytes
-        value: Buffer.from(value, "utf8"), // up to 64 bytes; null to delete
+        name: key, // up to 64 bytes
+        value: Buffer.from(value, 'utf8'), // up to 64 bytes; null to delete
       })
     )
     .setTimeout(30)
@@ -53,7 +53,7 @@ async function setDataEntry(key, value) {
 
   tx.sign(keypair);
   const result = await server.submitTransaction(tx);
-  console.log("Data entry set. Tx hash:", result.hash);
+  console.log('Data entry set. Tx hash:', result.hash);
 }
 ```
 
@@ -68,7 +68,7 @@ async function removeDataEntry(key) {
   const account = await server.loadAccount(keypair.publicKey());
 
   const tx = new TransactionBuilder(account, {
-    fee: "100",
+    fee: '100',
     networkPassphrase: Networks.TESTNET,
   })
     .addOperation(
@@ -82,7 +82,7 @@ async function removeDataEntry(key) {
 
   tx.sign(keypair);
   await server.submitTransaction(tx);
-  console.log("Data entry removed:", key);
+  console.log('Data entry removed:', key);
 }
 ```
 
@@ -97,7 +97,7 @@ async function readDataEntries(publicKey) {
   const account = await server.loadAccount(publicKey);
 
   for (const [key, b64Value] of Object.entries(account.data_attr)) {
-    const value = Buffer.from(b64Value, "base64").toString("utf8");
+    const value = Buffer.from(b64Value, 'base64').toString('utf8');
     console.log(`${key} = ${value}`);
   }
 }
@@ -109,16 +109,16 @@ async function readDataEntries(publicKey) {
 
 ```js
 // Store a DID document reference on the account
-await setDataEntry("did", "did:stellar:GAAZI4TCR...");
+await setDataEntry('did', 'did:stellar:GAAZI4TCR...');
 
 // Read it back
 const account = await server.loadAccount(keypair.publicKey());
-const raw = account.data_attr["did"];
-console.log(Buffer.from(raw, "base64").toString("utf8"));
+const raw = account.data_attr['did'];
+console.log(Buffer.from(raw, 'base64').toString('utf8'));
 // → did:stellar:GAAZI4TCR...
 
 // Remove it when no longer needed
-await removeDataEntry("did");
+await removeDataEntry('did');
 ```
 
 **Related:** [Reading Account Flags](/routes-d/485-reading-account-flags), [Horizon Integration](/docs/integrations/horizon)

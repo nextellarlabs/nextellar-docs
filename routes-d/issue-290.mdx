@@ -1,0 +1,34 @@
+---
+title: Prettier Configuration
+description: Overview of code formatting tokens and style enforcement setups in nextellar-docs.
+---
+
+# Prettier Configuration
+
+To maintain consistency across our documentation source tracks and code blocks, this repository leverages Prettier for automated style enforcement.
+
+## Active Settings
+
+The style rules are configured within the `.prettierrc` configuration file located at the repository root. The project runs on **Prettier v3.8.1** with the following explicit tokens:
+
+| Setting Key     | Active Value | Description                                                                     |
+| :-------------- | :----------- | :------------------------------------------------------------------------------ |
+| `singleQuote`   | `true`       | Enforces the use of single quotes for strings instead of double quotes.         |
+| `trailingComma` | `"es5"`      | Appends trailing commas wherever valid under ES5 rules (objects, arrays, etc.). |
+| `tabWidth`      | `2`          | Configures the number of spaces per indentation level to two.                   |
+
+Ignored directories, build assets, and auto-generated content paths are tracked inside the `.prettierignore` file.
+
+---
+
+## How to Run Prettier
+
+You can trigger style verification and automated formatting directly from the terminal using the workspace package runner scripts:
+
+### 1. Auto-Format Files
+
+To format all supported codebase structures, components, and Markdown/MDX content layers in place, run:
+
+```bash
+pnpm format
+```

@@ -132,8 +132,8 @@ import { useSearchParams } from 'next/navigation';
 import { useWallet } from '@/hooks/useWallet';
 
 export default function SignupPage() {
-  const params   = useSearchParams();
-  const referrer = params.get('ref');  // full Stellar address of referrer
+  const params = useSearchParams();
+  const referrer = params.get('ref'); // full Stellar address of referrer
   const { address, connect } = useWallet();
 
   const handleSignup = async () => {
@@ -152,9 +152,16 @@ export default function SignupPage() {
 
 ```ts
 // lib/referral.ts (continued)
-import { rpc, Contract, TransactionBuilder, Networks, BASE_FEE, Keypair } from '@stellar/stellar-sdk';
+import {
+  rpc,
+  Contract,
+  TransactionBuilder,
+  Networks,
+  BASE_FEE,
+  Keypair,
+} from '@stellar/stellar-sdk';
 
-const server   = new rpc.Server(process.env.NEXT_PUBLIC_RPC_URL!);
+const server = new rpc.Server(process.env.NEXT_PUBLIC_RPC_URL!);
 const contract = new Contract(process.env.NEXT_PUBLIC_REFERRAL_CONTRACT!);
 
 export async function registerReferral(newUser: string, referrer: string) {
@@ -164,7 +171,7 @@ export async function registerReferral(newUser: string, referrer: string) {
     fee: BASE_FEE,
     networkPassphrase: Networks.TESTNET,
   })
-    .addOperation(contract.call('register', /* newUser, referrer args */))
+    .addOperation(contract.call('register' /* newUser, referrer args */))
     .setTimeout(30)
     .build();
   // sign and submit via wallet kit
@@ -226,12 +233,12 @@ DataKey::ReferrerCount(Address)
 
 ## Reward Distribution Options
 
-| Reward type | Mechanism | Notes |
-|---|---|---|
-| XLM | Native payment in contract | Simplest; no trustline needed |
-| USDC / stablecoin | Token transfer via `token::Client` | Requires referrer to have trustline |
-| Points (off-chain) | Backend DB; periodic on-chain settlement | Flexible; no per-referral tx fee |
-| NFT badge | Soroban NFT mint | Non-fungible; good for tiered rewards |
+| Reward type        | Mechanism                                | Notes                                 |
+| ------------------ | ---------------------------------------- | ------------------------------------- |
+| XLM                | Native payment in contract               | Simplest; no trustline needed         |
+| USDC / stablecoin  | Token transfer via `token::Client`       | Requires referrer to have trustline   |
+| Points (off-chain) | Backend DB; periodic on-chain settlement | Flexible; no per-referral tx fee      |
+| NFT badge          | Soroban NFT mint                         | Non-fungible; good for tiered rewards |
 
 ---
 

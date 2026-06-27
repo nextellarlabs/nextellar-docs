@@ -14,12 +14,12 @@ Accessibility is not an afterthought — it is a requirement for reaching all us
 
 The Web Content Accessibility Guidelines define four principles:
 
-| Principle | Key requirement for dApps |
-|---|---|
-| **Perceivable** | All non-text content (icons, QR codes) has text alternatives |
-| **Operable** | All interactions work via keyboard; no 3-second+ flashing |
-| **Understandable** | Error messages explain what went wrong and how to fix it |
-| **Robust** | Works with current assistive technologies (NVDA, JAWS, VoiceOver) |
+| Principle          | Key requirement for dApps                                         |
+| ------------------ | ----------------------------------------------------------------- |
+| **Perceivable**    | All non-text content (icons, QR codes) has text alternatives      |
+| **Operable**       | All interactions work via keyboard; no 3-second+ flashing         |
+| **Understandable** | Error messages explain what went wrong and how to fix it          |
+| **Robust**         | Works with current assistive technologies (NVDA, JAWS, VoiceOver) |
 
 Target: **AA** compliance minimum. AAA for high-stakes flows (payments, key management).
 
@@ -37,7 +37,9 @@ interface PublicKeyProps {
 }
 
 export function PublicKey({ address, showFull = false }: PublicKeyProps) {
-  const display = showFull ? address : `${address.slice(0, 6)}…${address.slice(-4)}`;
+  const display = showFull
+    ? address
+    : `${address.slice(0, 6)}…${address.slice(-4)}`;
 
   return (
     <span
@@ -120,11 +122,11 @@ Transaction confirmation steps are high-stakes and must clearly convey state to 
 type TxState = 'idle' | 'signing' | 'pending' | 'success' | 'error';
 
 const STATE_LABELS: Record<TxState, string> = {
-  idle:    '',
+  idle: '',
   signing: 'Waiting for wallet signature…',
   pending: 'Transaction submitted. Waiting for ledger confirmation…',
   success: 'Transaction confirmed successfully.',
-  error:   'Transaction failed. Please try again.',
+  error: 'Transaction failed. Please try again.',
 };
 
 export function TxStatus({ state, error }: { state: TxState; error?: string }) {
@@ -174,12 +176,12 @@ export function PaymentForm() {
 
 Good error messages for Stellar-specific failures:
 
-| Raw error | User-facing message |
-|---|---|
-| `op_underfunded` | "Your balance is too low. You need at least X XLM." |
-| `op_no_trust` | "The recipient hasn't set up a trustline for this asset." |
-| `tx_insufficient_fee` | "Network is busy. Please try again with a higher fee." |
-| `tx_bad_seq` | "Your account sequence is out of date. Please refresh and retry." |
+| Raw error             | User-facing message                                               |
+| --------------------- | ----------------------------------------------------------------- |
+| `op_underfunded`      | "Your balance is too low. You need at least X XLM."               |
+| `op_no_trust`         | "The recipient hasn't set up a trustline for this asset."         |
+| `tx_insufficient_fee` | "Network is busy. Please try again with a higher fee."            |
+| `tx_bad_seq`          | "Your account sequence is out of date. Please refresh and retry." |
 
 ---
 
@@ -189,9 +191,15 @@ Use sufficient contrast for all text — especially status indicators:
 
 ```css
 /* Minimum 4.5:1 contrast for normal text, 3:1 for large text */
-.status-success { color: #1a7a1a; } /* dark green on white: 7.2:1 ✓ */
-.status-error   { color: #b91c1c; } /* dark red on white:   5.1:1 ✓ */
-.status-pending { color: #92400e; } /* dark amber on white: 5.8:1 ✓ */
+.status-success {
+  color: #1a7a1a;
+} /* dark green on white: 7.2:1 ✓ */
+.status-error {
+  color: #b91c1c;
+} /* dark red on white:   5.1:1 ✓ */
+.status-pending {
+  color: #92400e;
+} /* dark amber on white: 5.8:1 ✓ */
 ```
 
 Never rely on colour alone to convey status — pair with an icon and text:
@@ -221,12 +229,12 @@ Never rely on colour alone to convey status — pair with an icon and text:
 
 ## Testing with Assistive Technology
 
-| Tool | Platform | How to use |
-|---|---|---|
-| NVDA | Windows | Free screen reader; test with Chrome or Firefox |
-| VoiceOver | macOS / iOS | Built-in; toggle with Cmd+F5 |
-| axe DevTools | Browser extension | Automated audit; catches ~40% of issues |
-| Lighthouse | Chrome DevTools | Accessibility score in Audits tab |
+| Tool         | Platform          | How to use                                      |
+| ------------ | ----------------- | ----------------------------------------------- |
+| NVDA         | Windows           | Free screen reader; test with Chrome or Firefox |
+| VoiceOver    | macOS / iOS       | Built-in; toggle with Cmd+F5                    |
+| axe DevTools | Browser extension | Automated audit; catches ~40% of issues         |
+| Lighthouse   | Chrome DevTools   | Accessibility score in Audits tab               |
 
 Run axe on every PR that changes UI:
 

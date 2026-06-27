@@ -11,26 +11,26 @@ All Horizon collection endpoints (transactions, operations, payments, effects, e
 
 ## Parameters
 
-| Parameter | Values | Default | Description |
-|-----------|--------|---------|-------------|
-| `cursor` | record paging token or `now` | none (start) | Resume from this position; `now` on streaming endpoints means start from the current tip |
-| `order` | `asc` or `desc` | `asc` | Sort direction — `asc` returns oldest first, `desc` returns newest first |
-| `limit` | 1–200 | 10 | Number of records per page |
+| Parameter | Values                       | Default      | Description                                                                              |
+| --------- | ---------------------------- | ------------ | ---------------------------------------------------------------------------------------- |
+| `cursor`  | record paging token or `now` | none (start) | Resume from this position; `now` on streaming endpoints means start from the current tip |
+| `order`   | `asc` or `desc`              | `asc`        | Sort direction — `asc` returns oldest first, `desc` returns newest first                 |
+| `limit`   | 1–200                        | 10           | Number of records per page                                                               |
 
 ---
 
 ## Examples
 
 ```js
-import { Horizon } from "@stellar/stellar-sdk";
+import { Horizon } from '@stellar/stellar-sdk';
 
-const server = new Horizon.Server("https://horizon.stellar.org");
+const server = new Horizon.Server('https://horizon.stellar.org');
 
 // Most recent 20 transactions for an account
 const recent = await server
   .transactions()
   .forAccount(publicKey)
-  .order("desc")
+  .order('desc')
   .limit(20)
   .call();
 
@@ -38,7 +38,7 @@ const recent = await server
 const page2 = await server
   .transactions()
   .forAccount(publicKey)
-  .order("asc")
+  .order('asc')
   .cursor(recent.records[recent.records.length - 1].paging_token)
   .limit(20)
   .call();
@@ -47,7 +47,12 @@ const page2 = await server
 The SDK also exposes `.next()` and `.prev()` on each page result for convenience:
 
 ```js
-let page = await server.transactions().forAccount(publicKey).order("asc").limit(20).call();
+let page = await server
+  .transactions()
+  .forAccount(publicKey)
+  .order('asc')
+  .limit(20)
+  .call();
 while (page.records.length > 0) {
   // process page.records ...
   page = await page.next();
@@ -58,13 +63,13 @@ while (page.records.length > 0) {
 
 ## Pagination Edge Cases
 
-| Edge case | Behaviour |
-|-----------|-----------|
-| `cursor` points to a deleted or non-existent record | Horizon returns the next record after that position — no error |
-| `limit` exceeds 200 | Horizon caps at 200 and returns at most 200 records |
-| Empty page | `records` is an empty array; `next()` will also return empty — use this as the stop condition |
-| `order=desc` with a `cursor` from an `asc` page | The cursor is directional — mixing directions causes unexpected results; always use a cursor from the same order direction |
-| Streaming with `cursor=now` | Skips all historical records; only future events are delivered |
+| Edge case                                           | Behaviour                                                                                                                  |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `cursor` points to a deleted or non-existent record | Horizon returns the next record after that position — no error                                                             |
+| `limit` exceeds 200                                 | Horizon caps at 200 and returns at most 200 records                                                                        |
+| Empty page                                          | `records` is an empty array; `next()` will also return empty — use this as the stop condition                              |
+| `order=desc` with a `cursor` from an `asc` page     | The cursor is directional — mixing directions causes unexpected results; always use a cursor from the same order direction |
+| Streaming with `cursor=now`                         | Skips all historical records; only future events are delivered                                                             |
 
 ---
 

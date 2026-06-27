@@ -13,11 +13,11 @@ This guide covers backup strategies, secure storage, signer rotation, multi-sig 
 
 ## Key Types and What They Control
 
-| Key Type | Controls | Loss Consequence |
-|----------|---------|-----------------|
-| **Master key** (secret key `S...`) | All account operations by default | Full account loss if no other signers |
-| **Additional signers** | Specific thresholds (low/medium/high) | Partial loss depending on threshold weights |
-| **Soroban contract admin key** | Contract upgrades and admin operations | Permanent loss of upgrade ability |
+| Key Type                           | Controls                               | Loss Consequence                            |
+| ---------------------------------- | -------------------------------------- | ------------------------------------------- |
+| **Master key** (secret key `S...`) | All account operations by default      | Full account loss if no other signers       |
+| **Additional signers**             | Specific thresholds (low/medium/high)  | Partial loss depending on threshold weights |
+| **Soroban contract admin key**     | Contract upgrades and admin operations | Permanent loss of upgrade ability           |
 
 ---
 
@@ -28,20 +28,22 @@ This guide covers backup strategies, secure storage, signer rotation, multi-sig 
 Generate keys in an air-gapped environment and write the secret key on paper. Store copies in geographically separate locations (e.g., home safe + bank deposit box).
 
 ```typescript
-import { Keypair } from "@stellar/stellar-sdk";
+import { Keypair } from '@stellar/stellar-sdk';
 
 // Generate offline — never expose secret key to networked systems
 const keypair = Keypair.random();
-console.log("Public key:", keypair.publicKey());
-console.log("SECRET KEY — STORE OFFLINE:", keypair.secret());
+console.log('Public key:', keypair.publicKey());
+console.log('SECRET KEY — STORE OFFLINE:', keypair.secret());
 ```
 
 **Do:**
+
 - Use acid-free paper and a permanent marker
 - Laminate the backup
 - Store in a fireproof, waterproof container
 
 **Do not:**
+
 - Screenshot or photograph the key
 - Store in cloud storage (iCloud, Google Drive, Dropbox)
 - Email the key to yourself
@@ -70,15 +72,15 @@ Store the encrypted file in cold storage (USB drive, offline disk) and keep the 
 For high-value accounts, split the secret key into N shares where any M shares (M < N) can reconstruct the original:
 
 ```typescript
-import { split, combine } from "shamir-secret-sharing";
+import { split, combine } from 'shamir-secret-sharing';
 
-const key = Buffer.from(keypair.secret(), "utf8");
+const key = Buffer.from(keypair.secret(), 'utf8');
 const shares = split(key, { shares: 5, threshold: 3 });
 
 // Distribute shares to 5 trusted custodians
 // Any 3 can reconstruct the key
 const recovered = combine(shares.slice(0, 3));
-const secret = recovered.toString("utf8");
+const secret = recovered.toString('utf8');
 ```
 
 ---
@@ -90,11 +92,11 @@ Multi-sig is the most resilient structure for high-value Stellar accounts. Set u
 ### Recommended Threshold Configuration
 
 ```typescript
-import { Operation, TransactionBuilder } from "@stellar/stellar-sdk";
+import { Operation, TransactionBuilder } from '@stellar/stellar-sdk';
 
 // Set thresholds and add recovery signers
 const tx = new TransactionBuilder(account, {
-  fee: "1000",
+  fee: '1000',
   networkPassphrase: Networks.PUBLIC,
 })
   .addOperation(
@@ -102,9 +104,9 @@ const tx = new TransactionBuilder(account, {
       // Master key weight — reduce to 1 so it cannot act alone on high-threshold ops
       masterWeight: 1,
       // Thresholds
-      lowThreshold: 1,    // balance query ops
-      medThreshold: 2,    // payments, trust ops
-      highThreshold: 3,   // signer changes, account merge
+      lowThreshold: 1, // balance query ops
+      medThreshold: 2, // payments, trust ops
+      highThreshold: 3, // signer changes, account merge
       // Primary signer
       signer: { ed25519PublicKey: primarySignerPublicKey, weight: 2 },
     })
@@ -120,6 +122,7 @@ const tx = new TransactionBuilder(account, {
 ```
 
 With this setup:
+
 - Normal operations require the primary signer (weight 2, meets medThreshold)
 - High-threshold operations require primary + recovery signer (total weight 4, meets highThreshold 3)
 - Recovery is possible with just the recovery signer for most operations
@@ -129,6 +132,7 @@ With this setup:
 ## Signer Rotation
 
 Rotate signers when:
+
 - A signer key may be compromised
 - An employee with signer access departs
 - Scheduled key rotation policy triggers
@@ -144,7 +148,7 @@ async function rotateSigner(
   networkPassphrase: string
 ): Promise<void> {
   const tx = new TransactionBuilder(account, {
-    fee: "1000",
+    fee: '1000',
     networkPassphrase,
   })
     // Add new signer with same weight as old
@@ -167,7 +171,7 @@ async function rotateSigner(
     tx.sign(keypair);
   }
 
-  const server = new Horizon.Server("https://horizon.stellar.org");
+  const server = new Horizon.Server('https://horizon.stellar.org');
   await server.submitTransaction(tx);
 }
 ```
@@ -183,6 +187,7 @@ If you suspect a key has been compromised, act immediately — Stellar transacti
 ### Incident Response Checklist
 
 1. **Assess exposure** — check Horizon for recent transactions from the account
+
    ```bash
    curl "https://horizon.stellar.org/accounts/<PUBLIC_KEY>/transactions?order=desc&limit=10"
    ```
@@ -190,14 +195,20 @@ If you suspect a key has been compromised, act immediately — Stellar transacti
 2. **Freeze operations** (if possible) — set account home domain to a page indicating the account is under review, and remove the compromised key
 
 3. **Add new signer first** — use your recovery signer to add a new clean keypair
+
    ```typescript
    // Use recovery keypair (not the compromised one) to sign this
-   Operation.setOptions({ signer: { ed25519PublicKey: newKeypair.publicKey(), weight: 2 } })
+   Operation.setOptions({
+     signer: { ed25519PublicKey: newKeypair.publicKey(), weight: 2 },
+   });
    ```
 
 4. **Remove compromised key** — only after the new key is confirmed on-chain
+
    ```typescript
-   Operation.setOptions({ signer: { ed25519PublicKey: compromisedPublicKey, weight: 0 } })
+   Operation.setOptions({
+     signer: { ed25519PublicKey: compromisedPublicKey, weight: 0 },
+   });
    ```
 
 5. **Sweep funds** — if the account was a hot wallet, move funds to a clean account before or during the rotation
@@ -276,16 +287,16 @@ Run a lightweight CI job that proves the backup workflow is intact without expos
 
 ```typescript
 // test/recovery-drill.test.ts (Testnet only)
-it("can reconstruct account from backup keypair and sign a transaction", async () => {
+it('can reconstruct account from backup keypair and sign a transaction', async () => {
   const backupSecret = process.env.TESTNET_BACKUP_KEY!;
   const keypair = Keypair.fromSecret(backupSecret);
 
-  const server = new Horizon.Server("https://horizon-testnet.stellar.org");
+  const server = new Horizon.Server('https://horizon-testnet.stellar.org');
   const account = await server.loadAccount(keypair.publicKey());
 
   // Build a no-op transaction (set_options with no changes) to verify signing works
   const tx = new TransactionBuilder(account, {
-    fee: "100",
+    fee: '100',
     networkPassphrase: Networks.TESTNET,
   })
     .addOperation(Operation.setOptions({}))
@@ -302,12 +313,12 @@ it("can reconstruct account from backup keypair and sign a transaction", async (
 
 ## Key Storage Security Tiers
 
-| Tier | Storage | Use Case | Risk |
-|------|---------|----------|------|
-| Hot | In-memory / env var | Automated payments, APIs | High — exposed if server compromised |
-| Warm | Encrypted file on disk | Signing service with HSM | Medium |
-| Cold | Hardware wallet | High-value signers | Low |
-| Frozen | Paper / offline | Emergency recovery only | Very low |
+| Tier   | Storage                | Use Case                 | Risk                                 |
+| ------ | ---------------------- | ------------------------ | ------------------------------------ |
+| Hot    | In-memory / env var    | Automated payments, APIs | High — exposed if server compromised |
+| Warm   | Encrypted file on disk | Signing service with HSM | Medium                               |
+| Cold   | Hardware wallet        | High-value signers       | Low                                  |
+| Frozen | Paper / offline        | Emergency recovery only  | Very low                             |
 
 Keep the minimum key weight needed for daily operations in the hot tier. Recovery and high-threshold keys should never touch an internet-connected system during normal operations.
 

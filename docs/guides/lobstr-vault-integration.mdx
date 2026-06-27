@@ -39,9 +39,11 @@ const server = new Horizon.Server(process.env.NEXT_PUBLIC_HORIZON_URL!);
 export async function isVaultProtected(accountId: string): Promise<boolean> {
   const account = await server.loadAccount(accountId);
   // Vault signer domain is vault.lobstr.co
-  return account.signers.some(
-    (s) => s.weight > 0 && s.key !== accountId // has at least one non-master signer
-  ) && (account.thresholds.high_threshold ?? 0) > 1;
+  return (
+    account.signers.some(
+      (s) => s.weight > 0 && s.key !== accountId // has at least one non-master signer
+    ) && (account.thresholds.high_threshold ?? 0) > 1
+  );
 }
 ```
 
@@ -53,11 +55,16 @@ When a user wants to perform an action that requires multisig approval, your dAp
 
 ```ts
 // lib/vault.ts (continued)
-import { Transaction, TransactionBuilder, Networks, BASE_FEE } from '@stellar/stellar-sdk';
+import {
+  Transaction,
+  TransactionBuilder,
+  Networks,
+  BASE_FEE,
+} from '@stellar/stellar-sdk';
 
 export async function buildForVaultSigning(
   sourceAccountId: string,
-  operations: xdr.Operation[],
+  operations: xdr.Operation[]
 ): Promise<string> {
   const account = await server.loadAccount(sourceAccountId);
   const txBuilder = new TransactionBuilder(account, {
@@ -85,7 +92,9 @@ Lobstr Vault exposes a signing service. After the user signs with their connecte
 // lib/vault.ts (continued)
 const VAULT_API = 'https://vault.lobstr.co/api/transactions/';
 
-export async function submitToVault(signedXdr: string): Promise<{ id: string }> {
+export async function submitToVault(
+  signedXdr: string
+): Promise<{ id: string }> {
   const res = await fetch(VAULT_API, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -107,14 +116,15 @@ Vault signers approve the transaction on their mobile device. Your dApp must pol
 export async function waitForVaultApproval(
   vaultTxId: string,
   pollIntervalMs = 3000,
-  timeoutMs = 300_000,
+  timeoutMs = 300_000
 ): Promise<string> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const res  = await fetch(`${VAULT_API}${vaultTxId}/`);
+    const res = await fetch(`${VAULT_API}${vaultTxId}/`);
     const data = await res.json();
     if (data.status === 'ready') return data.xdr; // fully signed XDR
-    if (data.status === 'rejected') throw new Error('Vault signer rejected the transaction');
+    if (data.status === 'rejected')
+      throw new Error('Vault signer rejected the transaction');
     await new Promise((r) => setTimeout(r, pollIntervalMs));
   }
   throw new Error('Vault approval timed out');
@@ -181,23 +191,23 @@ export function VaultApprovalModal({ onClose }: { onClose: () => void }) {
 
 ## Threshold Configuration Reference
 
-| Use case | Low | Med | High | Signers |
-|---|---|---|---|---|
-| Basic 2-of-2 | 2 | 2 | 2 | master(1) + vault(1) |
-| 2-of-3 recovery | 2 | 2 | 2 | master(1) + vault(1) + recovery(1) |
-| High-value ops only | 1 | 1 | 2 | master(1) + vault(1) |
-| Board approval | 3 | 3 | 3 | 3 signers each weight 1 |
+| Use case            | Low | Med | High | Signers                            |
+| ------------------- | --- | --- | ---- | ---------------------------------- |
+| Basic 2-of-2        | 2   | 2   | 2    | master(1) + vault(1)               |
+| 2-of-3 recovery     | 2   | 2   | 2    | master(1) + vault(1) + recovery(1) |
+| High-value ops only | 1   | 1   | 2    | master(1) + vault(1)               |
+| Board approval      | 3   | 3   | 3    | 3 signers each weight 1            |
 
 ---
 
 ## Common Errors
 
-| Error | Cause | Fix |
-|---|---|---|
-| `op_bad_auth` | Submitted before Vault signed | Wait for `status === 'ready'` before submitting |
-| `tx_bad_auth` | Master key not included or wrong threshold | Verify account thresholds match signature weights |
-| Vault returns 404 | XDR not yet indexed by Vault | Retry after 2 seconds |
-| Timeout on Vault poll | User never approved on mobile | Show timeout UI; offer to resubmit |
+| Error                 | Cause                                      | Fix                                               |
+| --------------------- | ------------------------------------------ | ------------------------------------------------- |
+| `op_bad_auth`         | Submitted before Vault signed              | Wait for `status === 'ready'` before submitting   |
+| `tx_bad_auth`         | Master key not included or wrong threshold | Verify account thresholds match signature weights |
+| Vault returns 404     | XDR not yet indexed by Vault               | Retry after 2 seconds                             |
+| Timeout on Vault poll | User never approved on mobile              | Show timeout UI; offer to resubmit                |
 
 ---
 

@@ -60,7 +60,12 @@ The user signs a `setOptions` transaction with their master key (hardware wallet
 
 ```ts
 // lib/session-key.ts (continued)
-import { Operation, TransactionBuilder, Networks, BASE_FEE } from '@stellar/stellar-sdk';
+import {
+  Operation,
+  TransactionBuilder,
+  Networks,
+  BASE_FEE,
+} from '@stellar/stellar-sdk';
 import { Horizon } from '@stellar/stellar-sdk';
 
 const server = new Horizon.Server(process.env.NEXT_PUBLIC_HORIZON_URL!);
@@ -68,7 +73,7 @@ const server = new Horizon.Server(process.env.NEXT_PUBLIC_HORIZON_URL!);
 export async function addSessionSigner(
   userAddress: string,
   sessionPublicKey: string,
-  expirationLedger: number, // unused by setOptions directly; enforce in your contract
+  expirationLedger: number // unused by setOptions directly; enforce in your contract
 ) {
   const account = await server.loadAccount(userAddress);
   const tx = new TransactionBuilder(account, {
@@ -81,7 +86,7 @@ export async function addSessionSigner(
           ed25519PublicKey: sessionPublicKey,
           weight: 1,
         },
-      }),
+      })
     )
     .setTimeout(30)
     .build();
@@ -186,7 +191,10 @@ impl SessionScopeContract {
 When the user logs out or the session expires, remove the session signer:
 
 ```ts
-export async function revokeSessionKey(userAddress: string, sessionPublicKey: string) {
+export async function revokeSessionKey(
+  userAddress: string,
+  sessionPublicKey: string
+) {
   const account = await server.loadAccount(userAddress);
   const tx = new TransactionBuilder(account, {
     fee: BASE_FEE,
@@ -198,7 +206,7 @@ export async function revokeSessionKey(userAddress: string, sessionPublicKey: st
           ed25519PublicKey: sessionPublicKey,
           weight: 0, // weight 0 removes the signer
         },
-      }),
+      })
     )
     .setTimeout(30)
     .build();
@@ -215,14 +223,14 @@ export function clearSessionKey() {
 
 ## Session Lifecycle Summary
 
-| Event | Action |
-|---|---|
-| User logs in | Generate keypair → store secret in sessionStorage |
-| User approves session | `setOptions` adds session key (master key signs once) |
-| dApp actions | Session key signs transactions silently |
-| Tab closes | `sessionStorage` cleared → session key forgotten client-side |
-| User logs out | `setOptions` removes session key (master key signs) |
-| Session limit exceeded | Contract rejects the invocation |
+| Event                  | Action                                                       |
+| ---------------------- | ------------------------------------------------------------ |
+| User logs in           | Generate keypair → store secret in sessionStorage            |
+| User approves session  | `setOptions` adds session key (master key signs once)        |
+| dApp actions           | Session key signs transactions silently                      |
+| Tab closes             | `sessionStorage` cleared → session key forgotten client-side |
+| User logs out          | `setOptions` removes session key (master key signs)          |
+| Session limit exceeded | Contract rejects the invocation                              |
 
 ---
 

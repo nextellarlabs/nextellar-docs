@@ -50,16 +50,17 @@ Gate expensive contract actions behind a minimum XLM or token balance check to r
 ```ts
 // lib/rate-limit.ts
 import { Ratelimit } from '@upstash/ratelimit';
-import { Redis }     from '@upstash/redis';
+import { Redis } from '@upstash/redis';
 
 const ratelimit = new Ratelimit({
-  redis:     Redis.fromEnv(),
-  limiter:   Ratelimit.slidingWindow(20, '10 s'), // 20 req / 10 seconds
+  redis: Redis.fromEnv(),
+  limiter: Ratelimit.slidingWindow(20, '10 s'), // 20 req / 10 seconds
   analytics: true,
 });
 
 export async function checkRateLimit(identifier: string) {
-  const { success, limit, remaining, reset } = await ratelimit.limit(identifier);
+  const { success, limit, remaining, reset } =
+    await ratelimit.limit(identifier);
   return { success, limit, remaining, reset };
 }
 ```
@@ -101,13 +102,13 @@ When Horizon is slow or erroring, stop hammering it and fail fast:
 type State = 'closed' | 'open' | 'half-open';
 
 export class CircuitBreaker {
-  private state:        State  = 'closed';
-  private failures:     number = 0;
+  private state: State = 'closed';
+  private failures: number = 0;
   private lastFailedAt: number = 0;
 
   constructor(
-    private threshold:  number = 5,
-    private timeoutMs:  number = 30_000,
+    private threshold: number = 5,
+    private timeoutMs: number = 30_000
   ) {}
 
   async call<T>(fn: () => Promise<T>): Promise<T> {
@@ -130,7 +131,7 @@ export class CircuitBreaker {
 
   private onSuccess() {
     this.failures = 0;
-    this.state    = 'closed';
+    this.state = 'closed';
   }
 
   private onFailure() {
@@ -156,6 +157,7 @@ const result = await horizonBreaker.call(() => server.submitTransaction(tx));
 ### Cloudflare / CDN Rules
 
 Configure your CDN to:
+
 - Block requests from known Tor exit nodes and data-centre IP ranges for wallet-sensitive endpoints.
 - Apply bot challenge (CAPTCHA or JS challenge) on `/api/*` after 50 requests/minute from a single IP.
 - Cache static assets aggressively (`Cache-Control: public, max-age=31536000`) to reduce origin load.
@@ -165,10 +167,13 @@ Configure your CDN to:
 ```ts
 // next.config.js
 const securityHeaders = [
-  { key: 'X-Content-Type-Options',   value: 'nosniff' },
-  { key: 'X-Frame-Options',          value: 'DENY' },
-  { key: 'Referrer-Policy',          value: 'strict-origin-when-cross-origin' },
-  { key: 'Permissions-Policy',       value: 'camera=(), microphone=(), geolocation=()' },
+  { key: 'X-Content-Type-Options', value: 'nosniff' },
+  { key: 'X-Frame-Options', value: 'DENY' },
+  { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+  {
+    key: 'Permissions-Policy',
+    value: 'camera=(), microphone=(), geolocation=()',
+  },
 ];
 ```
 
@@ -190,12 +195,12 @@ export async function POST(req: Request) {
 
 ## Layer 5 — Monitoring and Auto-Response
 
-| Signal | Threshold | Auto-response |
-|---|---|---|
-| 429 rate from any IP | > 100/min | Add to temporary blocklist (1 hour) |
-| API error rate | > 20% over 2 min | Activate circuit breaker |
-| Horizon latency p99 | > 5s for 5 min | Switch to backup Horizon |
-| Contract invocation spike | > 10× baseline | Alert on-call; consider pausing contract |
+| Signal                    | Threshold        | Auto-response                            |
+| ------------------------- | ---------------- | ---------------------------------------- |
+| 429 rate from any IP      | > 100/min        | Add to temporary blocklist (1 hour)      |
+| API error rate            | > 20% over 2 min | Activate circuit breaker                 |
+| Horizon latency p99       | > 5s for 5 min   | Switch to backup Horizon                 |
+| Contract invocation spike | > 10× baseline   | Alert on-call; consider pausing contract |
 
 ---
 

@@ -20,16 +20,16 @@ import {
   TransactionBuilder,
   Operation,
   Networks,
-} from "@stellar/stellar-sdk";
+} from '@stellar/stellar-sdk';
 
-const server = new Horizon.Server("https://horizon-testnet.stellar.org");
-const keypair = Keypair.fromSecret("S...");
+const server = new Horizon.Server('https://horizon-testnet.stellar.org');
+const keypair = Keypair.fromSecret('S...');
 
 async function setHomeDomain(domain) {
   const account = await server.loadAccount(keypair.publicKey());
 
   const tx = new TransactionBuilder(account, {
-    fee: "100",
+    fee: '100',
     networkPassphrase: Networks.TESTNET,
   })
     .addOperation(
@@ -42,11 +42,12 @@ async function setHomeDomain(domain) {
 
   tx.sign(keypair);
   await server.submitTransaction(tx);
-  console.log("home_domain set to:", domain);
+  console.log('home_domain set to:', domain);
 }
 ```
 
 Constraints:
+
 - Maximum 32 characters.
 - No `https://` scheme — just the bare domain.
 - No trailing slash.
@@ -85,7 +86,7 @@ async function fetchToml(publicKey) {
   const domain = account.home_domain;
 
   if (!domain) {
-    throw new Error("Account has no home_domain set");
+    throw new Error('Account has no home_domain set');
   }
 
   const res = await fetch(`https://${domain}/.well-known/stellar.toml`);
@@ -98,7 +99,7 @@ async function fetchToml(publicKey) {
 ## Example: Resolving an Asset's Metadata
 
 ```js
-import { StellarToml } from "@stellar/stellar-sdk";
+import { StellarToml } from '@stellar/stellar-sdk';
 
 async function getAssetInfo(issuerPublicKey) {
   const account = await server.loadAccount(issuerPublicKey);

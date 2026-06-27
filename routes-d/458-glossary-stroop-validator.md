@@ -1,5 +1,5 @@
 ---
-title: "Glossary: Stroop and Validator"
+title: 'Glossary: Stroop and Validator'
 description: Short definitions for Stroop and Validator as used in the Stellar network and Nextellar docs
 ---
 

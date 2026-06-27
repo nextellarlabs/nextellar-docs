@@ -14,13 +14,13 @@ Stellar transactions are compact by design, but it is still easy to hit size lim
 
 ### Classic Stellar transactions
 
-| Limit | Value | Notes |
-|---|---|---|
-| Maximum operations per transaction | 100 | Each operation adds ~100–300 bytes to the XDR envelope |
-| Maximum transaction XDR size | ~64 KB | Enforced by validators; in practice keep envelopes well under 10 KB |
-| Memo field | 28 bytes (text), 32 bytes (hash/return) | Longer memos must use hash or return memo types |
-| Base fee per operation | 100 stroops (0.0001 XLM) | Fee scales linearly with operation count; use fee bumps for priority |
-| Sequence number | 64-bit integer | One transaction per sequence slot; parallel submissions require managed accounts |
+| Limit                              | Value                                   | Notes                                                                            |
+| ---------------------------------- | --------------------------------------- | -------------------------------------------------------------------------------- |
+| Maximum operations per transaction | 100                                     | Each operation adds ~100–300 bytes to the XDR envelope                           |
+| Maximum transaction XDR size       | ~64 KB                                  | Enforced by validators; in practice keep envelopes well under 10 KB              |
+| Memo field                         | 28 bytes (text), 32 bytes (hash/return) | Longer memos must use hash or return memo types                                  |
+| Base fee per operation             | 100 stroops (0.0001 XLM)                | Fee scales linearly with operation count; use fee bumps for priority             |
+| Sequence number                    | 64-bit integer                          | One transaction per sequence slot; parallel submissions require managed accounts |
 
 The encoded XDR grows with every operation, signer, and data field you include. Signing alone adds ~64 bytes per signature. A transaction with 10 operations and 2 signers is already several hundred bytes larger than a single-operation envelope.
 
@@ -28,14 +28,14 @@ The encoded XDR grows with every operation, signer, and data field you include. 
 
 Soroban transactions carry a **resource footprint** that is metered separately from the XDR size:
 
-| Resource | Testnet default limit | What it covers |
-|---|---|---|
-| Instructions | 100 million / tx | WASM CPU instructions executed |
-| Read bytes | 200 KB / tx | Ledger entries read during simulation |
-| Write bytes | 66 KB / tx | Ledger entries written during simulation |
-| Read-only ledger entries | 40 / tx | Unique keys accessed as read-only |
-| Read-write ledger entries | 25 / tx | Unique keys written |
-| Transaction size (XDR) | 71 KB / tx | Entire envelope including WASM arguments |
+| Resource                  | Testnet default limit | What it covers                           |
+| ------------------------- | --------------------- | ---------------------------------------- |
+| Instructions              | 100 million / tx      | WASM CPU instructions executed           |
+| Read bytes                | 200 KB / tx           | Ledger entries read during simulation    |
+| Write bytes               | 66 KB / tx            | Ledger entries written during simulation |
+| Read-only ledger entries  | 40 / tx               | Unique keys accessed as read-only        |
+| Read-write ledger entries | 25 / tx               | Unique keys written                      |
+| Transaction size (XDR)    | 71 KB / tx            | Entire envelope including WASM arguments |
 
 These limits are network-configured and can change between protocol versions. Always simulate first and inspect the returned `SorobanTransactionData` to confirm your transaction stays within the current fee and footprint budget before submitting.
 
@@ -50,11 +50,13 @@ These limits are network-configured and can change between protocol versions. Al
 A single Stellar transaction can carry up to 100 operations. Grouping logically related operations reduces the per-transaction overhead (base fee, sequence number, signature bytes) compared to submitting them separately.
 
 **When to batch:**
+
 - Creating a trustline and sending an asset in the same envelope
 - Establishing multiple trustlines at account creation
 - Distributing tokens to several recipients in one submission
 
 **When not to batch:**
+
 - Operations that depend on the success of a preceding transaction (use sequential submissions)
 - Operations that need different source accounts without a fee-bump envelope
 
@@ -152,10 +154,13 @@ async function trustlineAndSend(
 
   // Step 1 — build the raw transaction with two operations
   const baseFee = '200'; // stroops per operation; 2 ops = 400 stroops total
-  const tx = new TransactionBuilder(await loadAccount(senderKeypair.publicKey()), {
-    fee: baseFee,
-    networkPassphrase: Networks.TESTNET,
-  })
+  const tx = new TransactionBuilder(
+    await loadAccount(senderKeypair.publicKey()),
+    {
+      fee: baseFee,
+      networkPassphrase: Networks.TESTNET,
+    }
+  )
     // Operation 1: recipient establishes trustline
     .addOperation(
       Operation.changeTrust({
@@ -195,15 +200,15 @@ This pattern keeps the fee proportional to the actual work (2 × 200 stroops = 4
 
 ## Quick reference
 
-| Tactic | Savings |
-|---|---|
-| Batch operations into one envelope | One fee + sequence slot per batch |
-| Use path payments instead of multi-step flows | Removes 2 intermediate operations |
-| Use claimable balances for distribution | One creation per recipient instead of one tx per recipient |
-| Omit optional memo | ~30–60 bytes per transaction |
-| Minimize multisig signers | ~64 bytes per removed signature |
-| Simulate Soroban calls before submitting | Avoids fee loss on oversized footprints |
-| Combine storage keys in Soroban | Reduces ledger entry footprint |
+| Tactic                                        | Savings                                                    |
+| --------------------------------------------- | ---------------------------------------------------------- |
+| Batch operations into one envelope            | One fee + sequence slot per batch                          |
+| Use path payments instead of multi-step flows | Removes 2 intermediate operations                          |
+| Use claimable balances for distribution       | One creation per recipient instead of one tx per recipient |
+| Omit optional memo                            | ~30–60 bytes per transaction                               |
+| Minimize multisig signers                     | ~64 bytes per removed signature                            |
+| Simulate Soroban calls before submitting      | Avoids fee loss on oversized footprints                    |
+| Combine storage keys in Soroban               | Reduces ledger entry footprint                             |
 
 ---
 

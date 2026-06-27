@@ -6,7 +6,11 @@ import type p5 from 'p5';
 import { useP5Canvas } from '@/hooks/use-p5-canvas';
 
 export function TypeScriptAnimation() {
-  const [transform, setTransform] = useState({ rotateY: 0, rotateX: 0, scale: 1 });
+  const [transform, setTransform] = useState({
+    rotateY: 0,
+    rotateX: 0,
+    scale: 1,
+  });
   const [shinePosition, setShinePosition] = useState(-100);
 
   const sketch = useCallback((p: p5) => {
@@ -50,11 +54,11 @@ export function TypeScriptAnimation() {
   const { containerRef } = useP5Canvas(sketch);
 
   return (
-    <div
-      className="relative w-43.25 h-57.5"
-      style={{ perspective: '500px' }}
-    >
-      <div ref={containerRef} className="absolute inset-0 z-0 pointer-events-none opacity-30 blur-sm" />
+    <div className="relative w-43.25 h-57.5" style={{ perspective: '500px' }}>
+      <div
+        ref={containerRef}
+        className="absolute inset-0 z-0 pointer-events-none opacity-30 blur-sm"
+      />
 
       {/* Main SVG with 3D rotation */}
       <div

@@ -1,5 +1,5 @@
 ---
-title: "Glossary: Reserve"
+title: 'Glossary: Reserve'
 description: Short definition of the Stellar reserve requirement and its impact on minimum account balance
 ---
 
@@ -13,9 +13,9 @@ A fixed amount of XLM that every Stellar account must hold for each ledger entry
 
 The network defines two values:
 
-| Value | Description |
-|-------|-------------|
-| `base_reserve` | Currently 0.5 XLM |
+| Value             | Description                                 |
+| ----------------- | ------------------------------------------- |
+| `base_reserve`    | Currently 0.5 XLM                           |
 | `minimum balance` | `(2 + number of subentries) × base_reserve` |
 
 Every account starts with 2 base reserves (1 XLM) simply for existing. Each additional subentry — trustline, offer, signer, data entry, claimable balance sponsorship — adds one more base reserve requirement.
@@ -33,7 +33,9 @@ Attempting to make a payment that would drop the account's XLM balance below its
 const account = await server.loadAccount(publicKey);
 const subentries = account.subentry_count;
 const minBalance = (2 + subentries) * 0.5;
-const available = parseFloat(account.balances.find(b => b.asset_type === "native").balance) - minBalance;
+const available =
+  parseFloat(account.balances.find((b) => b.asset_type === 'native').balance) -
+  minBalance;
 ```
 
 ---

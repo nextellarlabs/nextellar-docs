@@ -74,6 +74,7 @@ The `feeStats()` response contains:
 ```
 
 Key fields:
+
 - `ledger_capacity_usage` — `0.0` to `1.0`; above `0.5` means moderate congestion, above `0.9` means surge pricing is likely active.
 - `fee_charged.p90` — the 90th percentile of fees actually charged in the last ledger. A safe bid for most transactions.
 - `max_fee.p50` — median of the max fees submitted (what competitors were willing to pay). Use this to gauge competition.
@@ -87,12 +88,14 @@ Key fields:
 
 export type FeeUrgency = 'low' | 'normal' | 'high' | 'critical';
 
-export async function recommendedFee(urgency: FeeUrgency = 'normal'): Promise<number> {
+export async function recommendedFee(
+  urgency: FeeUrgency = 'normal'
+): Promise<number> {
   const stats = await getFeeStats();
   const usage = parseFloat(stats.ledger_capacity_usage);
-  const p50   = parseInt(stats.fee_charged.p50);
-  const p90   = parseInt(stats.fee_charged.p90);
-  const p99   = parseInt(stats.fee_charged.p99);
+  const p50 = parseInt(stats.fee_charged.p50);
+  const p90 = parseInt(stats.fee_charged.p90);
+  const p99 = parseInt(stats.fee_charged.p99);
 
   // Congestion tier
   if (usage < 0.5) {
@@ -132,16 +135,24 @@ const tx = new TransactionBuilder(account, {
 If a transaction was submitted with too low a fee and rejected, you can wrap it in a **fee-bump transaction** without re-signing the inner transaction:
 
 ```ts
-import { FeeBumpTransaction, TransactionBuilder, Keypair } from '@stellar/stellar-sdk';
+import {
+  FeeBumpTransaction,
+  TransactionBuilder,
+  Keypair,
+} from '@stellar/stellar-sdk';
 
-async function feeBump(innerTxXdr: string, feeAccount: Keypair, newFeePerOp: number) {
+async function feeBump(
+  innerTxXdr: string,
+  feeAccount: Keypair,
+  newFeePerOp: number
+) {
   const inner = TransactionBuilder.fromXDR(innerTxXdr, Networks.MAINNET);
   const totalOps = inner.operations.length + 1; // +1 for the fee bump op itself
   const feeBumpTx = TransactionBuilder.buildFeeBumpTransaction(
     feeAccount.publicKey(),
     (newFeePerOp * totalOps).toString(),
     inner,
-    Networks.MAINNET,
+    Networks.MAINNET
   );
   feeBumpTx.sign(feeAccount);
   return server.submitTransaction(feeBumpTx);
@@ -149,6 +160,7 @@ async function feeBump(innerTxXdr: string, feeAccount: Keypair, newFeePerOp: num
 ```
 
 Fee bumps are useful when:
+
 - An automated batch job submitted transactions during a congestion spike.
 - A user's hardware wallet already signed a transaction with `BASE_FEE` and you cannot ask them to re-sign.
 
@@ -160,12 +172,13 @@ Fee bumps are useful when:
 // lib/submit.ts
 export async function submitWithRetry(
   buildTx: (fee: string) => Transaction,
-  maxRetries = 3,
+  maxRetries = 3
 ) {
   for (let attempt = 0; attempt < maxRetries; attempt++) {
-    const urgency: FeeUrgency = attempt === 0 ? 'normal' : attempt === 1 ? 'high' : 'critical';
+    const urgency: FeeUrgency =
+      attempt === 0 ? 'normal' : attempt === 1 ? 'high' : 'critical';
     const fee = await recommendedFee(urgency);
-    const tx  = buildTx(fee.toString());
+    const tx = buildTx(fee.toString());
     try {
       return await server.submitTransaction(tx);
     } catch (err: unknown) {
@@ -183,11 +196,11 @@ export async function submitWithRetry(
 
 ## Monitoring & Alerting
 
-| Signal | Threshold | Action |
-|---|---|---|
-| `ledger_capacity_usage` | > 0.85 | Switch to `high` urgency by default |
+| Signal                           | Threshold            | Action                                    |
+| -------------------------------- | -------------------- | ----------------------------------------- |
+| `ledger_capacity_usage`          | > 0.85               | Switch to `high` urgency by default       |
 | `fee_charged.p99` > 5000 stroops | Sustained 5+ ledgers | Alert ops; pause non-critical submissions |
-| `tx_insufficient_fee` rate | > 5% of submissions | Increase fee multiplier |
+| `tx_insufficient_fee` rate       | > 5% of submissions  | Increase fee multiplier                   |
 
 ---
 

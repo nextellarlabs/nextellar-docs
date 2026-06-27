@@ -12,14 +12,14 @@ A fiat onramp lets users deposit local currency and receive a Stellar-anchored a
 
 ## Relevant SEPs
 
-| SEP | Purpose | Required for onramp |
-|---|---|---|
-| **SEP-0001** | `stellar.toml` metadata file — anchors publish their capabilities here | Yes (discover anchor) |
-| **SEP-0006** | Deposit and withdrawal API (REST, synchronous) | Yes (classic anchors) |
-| **SEP-0010** | Stellar Web Authentication — wallet-signed challenge token | Yes (anchor auth) |
-| **SEP-0012** | KYC API — collect and upload user identity data | Often required |
-| **SEP-0024** | Hosted deposit and withdrawal (iframe/popup flow) | Yes (modern anchors, e.g., MoneyGram) |
-| **SEP-0038** | Quote API — get a fixed exchange rate before deposit | Recommended |
+| SEP          | Purpose                                                                | Required for onramp                   |
+| ------------ | ---------------------------------------------------------------------- | ------------------------------------- |
+| **SEP-0001** | `stellar.toml` metadata file — anchors publish their capabilities here | Yes (discover anchor)                 |
+| **SEP-0006** | Deposit and withdrawal API (REST, synchronous)                         | Yes (classic anchors)                 |
+| **SEP-0010** | Stellar Web Authentication — wallet-signed challenge token             | Yes (anchor auth)                     |
+| **SEP-0012** | KYC API — collect and upload user identity data                        | Often required                        |
+| **SEP-0024** | Hosted deposit and withdrawal (iframe/popup flow)                      | Yes (modern anchors, e.g., MoneyGram) |
+| **SEP-0038** | Quote API — get a fixed exchange rate before deposit                   | Recommended                           |
 
 Most production anchors implement **SEP-0024 + SEP-0010 + SEP-0012**. SEP-0006 is the older alternative and is increasingly deprecated.
 
@@ -76,7 +76,7 @@ import StellarSdk from '@stellar/stellar-sdk';
 export async function getSep10Token(
   anchorAuthServer: string,
   accountId: string,
-  signTx: (xdr: string) => Promise<string>  // wallet sign callback
+  signTx: (xdr: string) => Promise<string> // wallet sign callback
 ): Promise<string> {
   // Get challenge
   const challengeRes = await fetch(
@@ -107,14 +107,17 @@ export async function initiateDeposit(
   assetCode: string,
   accountId: string
 ): Promise<{ url: string; id: string }> {
-  const res = await fetch(`${transferServer}/transactions/deposit/interactive`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${jwt}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ asset_code: assetCode, account: accountId }),
-  });
+  const res = await fetch(
+    `${transferServer}/transactions/deposit/interactive`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${jwt}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ asset_code: assetCode, account: accountId }),
+    }
+  );
   const data = await res.json();
   return { url: data.url, id: data.id };
 }
@@ -128,10 +131,14 @@ export async function initiateDeposit(
 
 import { useState } from 'react';
 import { useWallet } from '@/hooks/useWallet';
-import { fetchAnchorConfig, getSep10Token, initiateDeposit } from '@/lib/onramp';
+import {
+  fetchAnchorConfig,
+  getSep10Token,
+  initiateDeposit,
+} from '@/lib/onramp';
 
 const ANCHOR_DOMAIN = process.env.NEXT_PUBLIC_ANCHOR_DOMAIN!;
-const ASSET_CODE    = 'USDC';
+const ASSET_CODE = 'USDC';
 
 export function OnrampButton() {
   const { address, signTransaction } = useWallet();
@@ -142,8 +149,17 @@ export function OnrampButton() {
     setLoading(true);
     try {
       const config = await fetchAnchorConfig(ANCHOR_DOMAIN);
-      const jwt    = await getSep10Token(config.WEB_AUTH_ENDPOINT, address, signTransaction);
-      const { url } = await initiateDeposit(config.TRANSFER_SERVER_SEP0024, jwt, ASSET_CODE, address);
+      const jwt = await getSep10Token(
+        config.WEB_AUTH_ENDPOINT,
+        address,
+        signTransaction
+      );
+      const { url } = await initiateDeposit(
+        config.TRANSFER_SERVER_SEP0024,
+        jwt,
+        ASSET_CODE,
+        address
+      );
       // Open anchor's hosted KYC + deposit flow
       window.open(url, 'stellar-onramp', 'width=500,height=700');
     } finally {
@@ -169,7 +185,7 @@ export async function pollDeposit(
   onComplete: () => void
 ) {
   const poll = setInterval(async () => {
-    const res  = await fetch(`${transferServer}/transaction?id=${id}`, {
+    const res = await fetch(`${transferServer}/transaction?id=${id}`, {
       headers: { Authorization: `Bearer ${jwt}` },
     });
     const { transaction } = await res.json();
@@ -203,6 +219,7 @@ Not all anchors support all countries. Check the anchor's `stellar.toml` `[[CURR
 ### Record-Keeping
 
 Your application should log:
+
 - The SEP-24 transaction `id` and `stellar_transaction_id` once completed
 - The amount and asset code
 - The timestamp of completion

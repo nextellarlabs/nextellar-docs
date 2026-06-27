@@ -17,7 +17,7 @@ A Soroban contract emits an event by calling `env.events().publish(topics, data)
 - **Data** — an arbitrary `Val` payload, also XDR-encoded as a base64 string.
 - **Metadata** — the emitting `contract_id`, `ledger_sequence`, `transaction_hash`, and an in-transaction `event_index`.
 
-Events are only persisted for a configurable number of ledgers (the *event retention window*). Index them promptly; you cannot fetch events that have aged out.
+Events are only persisted for a configurable number of ledgers (the _event retention window_). Index them promptly; you cannot fetch events that have aged out.
 
 ---
 
@@ -26,9 +26,9 @@ Events are only persisted for a configurable number of ledgers (the *event reten
 The Soroban RPC exposes a `getEvents` method. Use cursor-based pagination to fetch all events without gaps.
 
 ```js
-import { SorobanRpc } from "@stellar/stellar-sdk";
+import { SorobanRpc } from '@stellar/stellar-sdk';
 
-const server = new SorobanRpc.Server("https://soroban-testnet.stellar.org");
+const server = new SorobanRpc.Server('https://soroban-testnet.stellar.org');
 
 /**
  * Fetch all events for a contract starting from a given cursor.
@@ -36,10 +36,10 @@ const server = new SorobanRpc.Server("https://soroban-testnet.stellar.org");
  */
 async function fetchEvents(contractId, startCursor, limit = 200) {
   const response = await server.getEvents({
-    startLedger: startCursor,   // ledger sequence number (number) or paging token (string)
+    startLedger: startCursor, // ledger sequence number (number) or paging token (string)
     filters: [
       {
-        type: "contract",
+        type: 'contract',
         contractIds: [contractId],
       },
     ],
@@ -138,8 +138,8 @@ async function upsertEvent(db, event) {
       event.ledger,
       event.eventIndex,
       event.txHash,
-      event.topic.map((t) => t.toXDR("base64")),
-      event.value.toXDR("base64"),
+      event.topic.map((t) => t.toXDR('base64')),
+      event.value.toXDR('base64'),
     ]
   );
 }
@@ -162,18 +162,18 @@ Because upserts are idempotent, partial replays are safe. If only a subset of co
 ## Reference Example: Minimal Node.js Indexer
 
 ```js
-import { SorobanRpc, xdr } from "@stellar/stellar-sdk";
-import pg from "pg";
+import { SorobanRpc, xdr } from '@stellar/stellar-sdk';
+import pg from 'pg';
 
-const server = new SorobanRpc.Server("https://soroban-testnet.stellar.org");
+const server = new SorobanRpc.Server('https://soroban-testnet.stellar.org');
 const db = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 
-const CONTRACT_ID = "CXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
+const CONTRACT_ID = 'CXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX';
 const POLL_INTERVAL_MS = 6_000; // ~1 ledger close on testnet
 
 async function getLastLedger() {
   const { rows } = await db.query(
-    "SELECT last_ledger FROM indexer_cursors WHERE contract_id = $1",
+    'SELECT last_ledger FROM indexer_cursors WHERE contract_id = $1',
     [CONTRACT_ID]
   );
   // Default: start from 5 ledgers ago as a safe bootstrap margin
@@ -215,7 +215,7 @@ async function runOnce() {
     try {
       await runOnce();
     } catch (err) {
-      console.error("Indexer error:", err.message);
+      console.error('Indexer error:', err.message);
     }
     await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
   }

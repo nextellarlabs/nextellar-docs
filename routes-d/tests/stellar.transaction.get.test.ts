@@ -117,7 +117,11 @@ describe('fetchTransaction', () => {
       new Response(JSON.stringify(HORIZON_RECORD), { status: 200 })
     );
 
-    const tx = await fetchTransaction(VALID_HASH, 'testnet', 'http://horizon-mock');
+    const tx = await fetchTransaction(
+      VALID_HASH,
+      'testnet',
+      'http://horizon-mock'
+    );
 
     expect(tx).toEqual(EXPECTED_TX);
     expect(fetch).toHaveBeenCalledWith(
@@ -152,7 +156,11 @@ describe('fetchTransaction', () => {
       new Response(JSON.stringify(recordNoMemo), { status: 200 })
     );
 
-    const tx = await fetchTransaction(VALID_HASH, 'testnet', 'http://horizon-mock');
+    const tx = await fetchTransaction(
+      VALID_HASH,
+      'testnet',
+      'http://horizon-mock'
+    );
     expect(tx.memo).toBeNull();
   });
 });
@@ -176,7 +184,10 @@ describe('GET /stellar/transaction/:hash', () => {
       new Response(JSON.stringify(HORIZON_RECORD), { status: 200 })
     );
 
-    const response = await GET(makeRequest(VALID_HASH), makeContext(VALID_HASH));
+    const response = await GET(
+      makeRequest(VALID_HASH),
+      makeContext(VALID_HASH)
+    );
     const body: StellarTransaction = await response.json();
 
     expect(response.status).toBe(200);
@@ -196,7 +207,10 @@ describe('GET /stellar/transaction/:hash', () => {
       new Response('{"type":"not_found"}', { status: 404 })
     );
 
-    const response = await GET(makeRequest(VALID_HASH), makeContext(VALID_HASH));
+    const response = await GET(
+      makeRequest(VALID_HASH),
+      makeContext(VALID_HASH)
+    );
     const body: ErrorResponse = await response.json();
 
     expect(response.status).toBe(404);
@@ -263,7 +277,10 @@ describe('GET /stellar/transaction/:hash', () => {
       new Response('{}', { status: 503, statusText: 'Service Unavailable' })
     );
 
-    const response = await GET(makeRequest(VALID_HASH), makeContext(VALID_HASH));
+    const response = await GET(
+      makeRequest(VALID_HASH),
+      makeContext(VALID_HASH)
+    );
     expect(response.status).toBe(503);
   });
 });

@@ -3,9 +3,14 @@ import { FlatCompat } from '@eslint/eslintrc';
 import Module from 'module';
 
 const origRequire = Module.prototype.require;
-Module.prototype.require = function(id) {
+Module.prototype.require = function (id) {
   const exports = origRequire.apply(this, arguments);
-  if (id === 'eslint-plugin-react' && exports && exports.configs && exports.configs.flat) {
+  if (
+    id === 'eslint-plugin-react' &&
+    exports &&
+    exports.configs &&
+    exports.configs.flat
+  ) {
     delete exports.configs.flat;
   }
   return exports;

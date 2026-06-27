@@ -1,5 +1,5 @@
 ---
-title: "Glossary: Horizon and Soroban"
+title: 'Glossary: Horizon and Soroban'
 description: Short definitions for Horizon and Soroban as used in the Stellar ecosystem and Nextellar docs
 ---
 

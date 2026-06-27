@@ -197,13 +197,13 @@ let balance: i128 = client.balance(&account);
 
 Each host function call has a cost. Exceeding the budget aborts the transaction.
 
-| Operation | Rough CPU cost |
-|---|---|
-| Storage get/set | ~400–800 units |
-| SHA-256 per 64 bytes | ~250 units |
-| Ed25519 verify | ~2,500 units |
-| Cross-contract call | ~1,000 + callee cost |
-| Event publish | ~200 units |
+| Operation            | Rough CPU cost       |
+| -------------------- | -------------------- |
+| Storage get/set      | ~400–800 units       |
+| SHA-256 per 64 bytes | ~250 units           |
+| Ed25519 verify       | ~2,500 units         |
+| Cross-contract call  | ~1,000 + callee cost |
+| Event publish        | ~200 units           |
 
 Check remaining budget in tests:
 

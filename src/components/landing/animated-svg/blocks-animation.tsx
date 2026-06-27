@@ -31,7 +31,7 @@ export function BlocksAnimation() {
       // Rotation on hover
       const targetRotate = hovered ? 5 : 0;
 
-      setTransform(prev => ({
+      setTransform((prev) => ({
         y: floatY,
         rotate: p.lerp(prev.rotate, targetRotate, 0.08),
         scale: breatheScale,
@@ -75,14 +75,19 @@ export function BlocksAnimation() {
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
-      <div ref={containerRef} className="absolute inset-0 z-0 pointer-events-none" />
+      <div
+        ref={containerRef}
+        className="absolute inset-0 z-0 pointer-events-none"
+      />
 
       {/* Animated SVG */}
       <div
         className="absolute inset-0 flex items-center justify-center transition-shadow duration-300"
         style={{
           transform: `translateY(${transform.y}px) rotate(${transform.rotate}deg) scale(${transform.scale})`,
-          filter: isHovered ? 'drop-shadow(0 8px 16px rgba(0,0,0,0.15))' : 'none',
+          filter: isHovered
+            ? 'drop-shadow(0 8px 16px rgba(0,0,0,0.15))'
+            : 'none',
         }}
       >
         <Image

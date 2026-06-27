@@ -212,14 +212,14 @@ retry: {
 
 Nextellar retries on these error classes:
 
-| Error Code | Description | Retried |
-| --- | --- | --- |
-| `tx_bad_seq` | Sequence number mismatch | Yes — re-fetches sequence |
-| `op_underfunded` | Insufficient balance at submission time | Yes |
-| `tx_insufficient_fee` | Base fee spike | Yes — bumps fee |
-| `timeout` | Horizon did not respond | Yes |
-| `op_no_trust` | Destination lacks trustline | No — requires manual fix |
-| `op_no_destination` | Destination account does not exist | No — requires manual fix |
+| Error Code            | Description                             | Retried                   |
+| --------------------- | --------------------------------------- | ------------------------- |
+| `tx_bad_seq`          | Sequence number mismatch                | Yes — re-fetches sequence |
+| `op_underfunded`      | Insufficient balance at submission time | Yes                       |
+| `tx_insufficient_fee` | Base fee spike                          | Yes — bumps fee           |
+| `timeout`             | Horizon did not respond                 | Yes                       |
+| `op_no_trust`         | Destination lacks trustline             | No — requires manual fix  |
+| `op_no_destination`   | Destination account does not exist      | No — requires manual fix  |
 
 ### Inspecting Failure Logs
 
@@ -301,11 +301,11 @@ The scheduler uses the local system clock. If the machine clock drifts significa
 
 Nextellar supports four memo types. Choose carefully — memos cannot be changed after submission:
 
-| Type | Max size | Use case |
-| --- | --- | --- |
-| `text` | 28 bytes | Human-readable labels |
-| `id` | uint64 | Internal reference IDs |
-| `hash` | 32 bytes | Content or order hashes |
+| Type     | Max size | Use case                 |
+| -------- | -------- | ------------------------ |
+| `text`   | 28 bytes | Human-readable labels    |
+| `id`     | uint64   | Internal reference IDs   |
+| `hash`   | 32 bytes | Content or order hashes  |
 | `return` | 32 bytes | Return-payment reference |
 
 ---

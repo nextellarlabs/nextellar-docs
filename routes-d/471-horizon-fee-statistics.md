@@ -51,30 +51,29 @@ No parameters required.
 }
 ```
 
-| Field | Description |
-|-------|-------------|
-| `last_ledger_base_fee` | Minimum fee in stroops per operation for the last ledger |
+| Field                   | Description                                                           |
+| ----------------------- | --------------------------------------------------------------------- |
+| `last_ledger_base_fee`  | Minimum fee in stroops per operation for the last ledger              |
 | `ledger_capacity_usage` | 0–1 fill ratio; values above ~0.5 indicate surge pricing may activate |
-| `fee_charged` | Distribution of fees actually charged on recently closed ledgers |
-| `max_fee` | Distribution of fees that submitters offered (bids) |
+| `fee_charged`           | Distribution of fees actually charged on recently closed ledgers      |
+| `max_fee`               | Distribution of fees that submitters offered (bids)                   |
 
 ---
 
 ## How to Inform Fee Choice
 
 ```js
-import { Horizon } from "@stellar/stellar-sdk";
+import { Horizon } from '@stellar/stellar-sdk';
 
-const server = new Horizon.Server("https://horizon.stellar.org");
+const server = new Horizon.Server('https://horizon.stellar.org');
 
 async function getRecommendedFee() {
   const stats = await server.feeStats();
   const usage = parseFloat(stats.ledger_capacity_usage);
 
   // Under normal load use p50 of what was charged; under surge use p95
-  const feeStroops = usage > 0.5
-    ? stats.fee_charged.p95
-    : stats.fee_charged.p50;
+  const feeStroops =
+    usage > 0.5 ? stats.fee_charged.p95 : stats.fee_charged.p50;
 
   return feeStroops; // pass as `fee` to TransactionBuilder
 }

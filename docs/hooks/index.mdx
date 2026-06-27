@@ -91,7 +91,7 @@ Nextellar's hooks are designed to stay out of your way and let you build fast. E
 
 All hooks automatically consume configuration from `WalletProvider` when available:
 
-````tsx
+`````tsx
 // Provider sets global config
 <WalletProvider horizonUrl="https://horizon.stellar.org">
   <App />
@@ -139,7 +139,7 @@ const { data, loading, error, refresh } = useSomeHook();
 if (loading) return <Spinner />;
 if (error) return <button onClick={refresh}>Retry</button>;
 return <DisplayData data={data} />;
-````
+`````
 
 ### XDR Building Pattern
 

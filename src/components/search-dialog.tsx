@@ -176,7 +176,10 @@ const SearchDialog = forwardRef<SearchDialogHandle, SearchDialogProps>(
     }, [debouncedQuery, performSearch]);
 
     return (
-      <Dialog open={open} setOpen={setOpen as React.Dispatch<React.SetStateAction<boolean>>}>
+      <Dialog
+        open={open}
+        setOpen={setOpen as React.Dispatch<React.SetStateAction<boolean>>}
+      >
         <DialogTrigger className="hidden sm:block">
           <SearchButton size="sm" placeholder="Search documentation.." />
         </DialogTrigger>
@@ -197,7 +200,9 @@ const SearchDialog = forwardRef<SearchDialogHandle, SearchDialogProps>(
             {loading ? (
               <div className="p-4 text-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-                <p className="mt-2 text-sm text-muted-foreground">Searching...</p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Searching...
+                </p>
               </div>
             ) : filteredDocs && filteredDocs.length > 0 ? (
               <ul className="list-none p-0">
@@ -212,7 +217,8 @@ const SearchDialog = forwardRef<SearchDialogHandle, SearchDialogProps>(
                     >
                       <div className="flex flex-col gap-3">
                         <div className="flex gap-2 font-bold">
-                          <Text /> <div>{highlightText(doc.title, debouncedQuery)}</div>
+                          <Text />{' '}
+                          <div>{highlightText(doc.title, debouncedQuery)}</div>
                         </div>
                         <div className="text-sm">
                           {getSnippet(

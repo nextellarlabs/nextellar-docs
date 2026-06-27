@@ -28,14 +28,14 @@ A motivated observer can correlate these data points. If your backend also logs 
 
 Before storing any data about a user, ask: "Do we need this to deliver the service?"
 
-| Data | Needed? | Action |
-|---|---|---|
-| Stellar public key | Yes — to query their policies | Store |
-| Full name | Only for KYC-required features | Store encrypted, access-controlled |
-| Email address | Only if you send transactional email | Store; offer deletion |
-| IP address | Rarely needed post-login | Do not log; do not store |
-| Browser fingerprint | Almost never needed | Do not collect |
-| Transaction history | Already public; do not duplicate | Query Horizon live |
+| Data                | Needed?                              | Action                             |
+| ------------------- | ------------------------------------ | ---------------------------------- |
+| Stellar public key  | Yes — to query their policies        | Store                              |
+| Full name           | Only for KYC-required features       | Store encrypted, access-controlled |
+| Email address       | Only if you send transactional email | Store; offer deletion              |
+| IP address          | Rarely needed post-login             | Do not log; do not store           |
+| Browser fingerprint | Almost never needed                  | Do not collect                     |
+| Transaction history | Already public; do not duplicate     | Query Horizon live                 |
 
 ### Prefer ephemeral storage
 
@@ -46,8 +46,8 @@ Use session storage (cleared on tab close) over `localStorage` (persists indefin
 // Session storage clears when the tab closes — safer for wallet addresses
 export const walletStore = {
   set: (address: string) => sessionStorage.setItem('wallet_address', address),
-  get: ()                => sessionStorage.getItem('wallet_address'),
-  clear: ()              => sessionStorage.removeItem('wallet_address'),
+  get: () => sessionStorage.getItem('wallet_address'),
+  clear: () => sessionStorage.removeItem('wallet_address'),
 };
 ```
 
@@ -78,6 +78,7 @@ If a user interacts with your dApp using the same wallet they use elsewhere, any
 The most serious risk: storing `wallet_address → email` in your database links the user's full on-chain history to their real-world identity.
 
 **Mitigations**:
+
 - Store the wallet address separately from the email with no direct foreign key.
 - Use a one-way hash of the wallet address as the database key for analytics.
 - Never log both fields in the same log line.
@@ -88,7 +89,10 @@ import { createHash } from 'crypto';
 
 // Use a hashed wallet address for analytics — cannot be reversed to the original
 export function anonymiseWallet(address: string): string {
-  return createHash('sha256').update(address + process.env.ANALYTICS_SALT).digest('hex').slice(0, 16);
+  return createHash('sha256')
+    .update(address + process.env.ANALYTICS_SALT)
+    .digest('hex')
+    .slice(0, 16);
 }
 ```
 
@@ -121,6 +125,7 @@ async function submitWithDelay(tx: Transaction) {
 If you serve EU residents, the GDPR applies to personal data you store. Public keys alone are not personal data under most interpretations, but a wallet address linked to a name or email is.
 
 Key obligations:
+
 - **Right to erasure**: if a user requests deletion, delete their email and any off-chain profile. You cannot delete their on-chain history (it is public and immutable), but you can delete your copies of it.
 - **Data processing agreements**: if you use a third-party KYC provider, you need a DPA with them.
 - **Privacy policy**: disclose what you collect and why.
@@ -133,15 +138,15 @@ Similar to GDPR for California residents. Key addition: users can opt out of hav
 
 ## Mitigation Summary
 
-| Risk | Mitigation |
-|---|---|
-| Wallet address logged with PII | Separate storage; truncated logs |
-| Memo contains PII | Use opaque IDs only |
-| Analytics links wallet to user | Hash wallet address with salt |
-| Payment graph analysis | Recommend fresh wallets for sensitive actions |
-| Timing correlation | Random submission delay |
-| GDPR erasure request | Delete off-chain profile; cannot delete on-chain |
-| Third-party KYC exposure | Signed DPA; minimal data sharing |
+| Risk                           | Mitigation                                       |
+| ------------------------------ | ------------------------------------------------ |
+| Wallet address logged with PII | Separate storage; truncated logs                 |
+| Memo contains PII              | Use opaque IDs only                              |
+| Analytics links wallet to user | Hash wallet address with salt                    |
+| Payment graph analysis         | Recommend fresh wallets for sensitive actions    |
+| Timing correlation             | Random submission delay                          |
+| GDPR erasure request           | Delete off-chain profile; cannot delete on-chain |
+| Third-party KYC exposure       | Signed DPA; minimal data sharing                 |
 
 ---
 

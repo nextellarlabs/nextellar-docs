@@ -151,6 +151,10 @@ export function StepContent({
   className,
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('prose prose-gray dark:prose-invert max-w-none', className)} {...props} />;
+  return (
+    <div
+      className={cn('prose prose-gray dark:prose-invert max-w-none', className)}
+      {...props}
+    />
+  );
 }
-

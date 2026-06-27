@@ -1,5 +1,5 @@
 ---
-title: "Hint: Discovering CLI Commands via the Help Flag"
+title: 'Hint: Discovering CLI Commands via the Help Flag'
 description: How to use the --help flag to explore Nextellar CLI commands and subcommand options
 ---
 

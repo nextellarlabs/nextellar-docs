@@ -12,12 +12,12 @@ Hardware wallets keep private keys on a dedicated secure chip — they never tou
 
 ## Why Hardware Wallets
 
-| Property | Software wallet | Hardware wallet |
-|---|---|---|
-| Key storage | Browser memory / extension storage | Secure element chip |
-| Signing | In-browser | On-device |
+| Property            | Software wallet                     | Hardware wallet                       |
+| ------------------- | ----------------------------------- | ------------------------------------- |
+| Key storage         | Browser memory / extension storage  | Secure element chip                   |
+| Signing             | In-browser                          | On-device                             |
 | Phishing resistance | Low — malicious sites can intercept | High — user confirms on device screen |
-| Recovery | Seed phrase in software | Seed phrase offline |
+| Recovery            | Seed phrase in software             | Seed phrase offline                   |
 
 ---
 
@@ -36,13 +36,13 @@ pnpm add @ledgerhq/hw-transport-webhid @ledgerhq/hw-app-str
 ```ts
 // lib/ledger.ts
 import TransportWebHID from '@ledgerhq/hw-transport-webhid';
-import Str             from '@ledgerhq/hw-app-str';
+import Str from '@ledgerhq/hw-app-str';
 
 const STELLAR_PATH = "44'/148'/0'"; // BIP-44: coin_type=148 for Stellar
 
 export async function connectLedger() {
   const transport = await TransportWebHID.create();
-  const str       = new Str(transport);
+  const str = new Str(transport);
   return { transport, str };
 }
 
@@ -78,8 +78,8 @@ export async function signWithLedger(tx: Transaction): Promise<Transaction> {
     const decoratedSig = kp.signatureHint();
     tx.signatures.push(
       xdr.DecoratedSignature.fromXDR(
-        Buffer.concat([decoratedSig, Buffer.from(signature, 'hex')]),
-      ),
+        Buffer.concat([decoratedSig, Buffer.from(signature, 'hex')])
+      )
     );
     return tx;
   } finally {
@@ -107,13 +107,16 @@ pnpm add @trezor/connect-web
 import TrezorConnect from '@trezor/connect-web';
 
 TrezorConnect.init({
-  lazyLoad:  true,
-  manifest: { email: 'your@email.com', appUrl: process.env.NEXT_PUBLIC_APP_URL! },
+  lazyLoad: true,
+  manifest: {
+    email: 'your@email.com',
+    appUrl: process.env.NEXT_PUBLIC_APP_URL!,
+  },
 });
 
 export async function getTrezorPublicKey(): Promise<string> {
   const result = await TrezorConnect.stellarGetAddress({
-    path:    "m/44'/148'/0'",
+    path: "m/44'/148'/0'",
     showOnTrezor: false,
   });
   if (!result.success) throw new Error(result.payload.error);
@@ -127,10 +130,13 @@ export async function getTrezorPublicKey(): Promise<string> {
 // lib/trezor.ts (continued)
 import { Transaction } from '@stellar/stellar-sdk';
 
-export async function signWithTrezor(tx: Transaction, accountIndex = 0): Promise<string> {
+export async function signWithTrezor(
+  tx: Transaction,
+  accountIndex = 0
+): Promise<string> {
   // Build a Trezor-compatible representation of the transaction
   const result = await TrezorConnect.stellarSignTransaction({
-    path:        `m/44'/148'/${accountIndex}'`,
+    path: `m/44'/148'/${accountIndex}'`,
     networkPassphrase: 'Public Global Stellar Network ; September 2015',
     transaction: convertToTrezorFormat(tx),
   });
@@ -142,9 +148,9 @@ function convertToTrezorFormat(tx: Transaction) {
   // Map Stellar SDK transaction to Trezor's expected shape
   // See: https://github.com/trezor/trezor-suite/tree/develop/packages/connect/src/types/api/stellarSignTransaction
   return {
-    source:     tx.source,
-    fee:        parseInt(tx.fee),
-    sequence:   tx.sequence,
+    source: tx.source,
+    fee: parseInt(tx.fee),
+    sequence: tx.sequence,
     timebounds: tx.timeBounds,
     operations: tx.operations.map(mapOperation),
   };
@@ -172,14 +178,22 @@ Expose account switching in your UI:
 
 ```tsx
 // components/LedgerAccountPicker.tsx
-export function LedgerAccountPicker({ onSelect }: { onSelect: (pubkey: string) => void }) {
+export function LedgerAccountPicker({
+  onSelect,
+}: {
+  onSelect: (pubkey: string) => void;
+}) {
   const [accounts, setAccounts] = useState<string[]>([]);
 
   const loadAccounts = async () => {
     const { str, transport } = await connectLedger();
     const keys = await Promise.all(
       [0, 1, 2].map(async (i) => {
-        const { publicKey } = await str.getPublicKey(`44'/148'/${i}'`, false, false);
+        const { publicKey } = await str.getPublicKey(
+          `44'/148'/${i}'`,
+          false,
+          false
+        );
         return publicKey;
       })
     );
@@ -204,13 +218,13 @@ export function LedgerAccountPicker({ onSelect }: { onSelect: (pubkey: string) =
 
 ## Common Errors
 
-| Error | Cause | Fix |
-|---|---|---|
-| `TransportOpenUserCancelled` | User denied WebHID permission | Prompt user to click "Allow" in browser dialog |
-| `Stellar application is not open` | Ledger home screen, not Stellar app | Ask user to open Stellar app on device |
-| `0x6985` (denied on device) | User pressed reject on device | Show "Transaction rejected" message |
-| `Device disconnected` | USB cable issue | Ask user to reconnect; close/reopen transport |
-| Trezor bridge not running | Trezor Suite not installed | Prompt user to install Trezor Suite |
+| Error                             | Cause                               | Fix                                            |
+| --------------------------------- | ----------------------------------- | ---------------------------------------------- |
+| `TransportOpenUserCancelled`      | User denied WebHID permission       | Prompt user to click "Allow" in browser dialog |
+| `Stellar application is not open` | Ledger home screen, not Stellar app | Ask user to open Stellar app on device         |
+| `0x6985` (denied on device)       | User pressed reject on device       | Show "Transaction rejected" message            |
+| `Device disconnected`             | USB cable issue                     | Ask user to reconnect; close/reopen transport  |
+| Trezor bridge not running         | Trezor Suite not installed          | Prompt user to install Trezor Suite            |
 
 ---
 

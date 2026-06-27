@@ -17,7 +17,7 @@ The `useOfferBook` hook queries Stellar's decentralized exchange (DEX) order boo
 
 ## Basic Usage
 
-````tsx
+`````tsx
 import { useOfferBook } from '@/hooks/useOfferBook';
 
 export default function OrderBook() {
@@ -80,7 +80,7 @@ interface OfferBookState {
   error: Error | null;
   refresh: () => Promise<void>;
 }
-````
+`````
 
 ## Examples
 
@@ -116,7 +116,7 @@ const totalAskVolume = asks.reduce(
 
 console.log('Buy pressure:', totalBidVolume);
 console.log('Sell pressure:', totalAskVolume);
-````
+```
 
 ### Auto-Refresh Order Book
 

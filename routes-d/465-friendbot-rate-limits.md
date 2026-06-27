@@ -20,10 +20,10 @@ Friendbot does not publish an exact rate limit, but in practice you should expec
 
 ## Common Error Responses
 
-| Status | Meaning |
-|--------|---------|
-| `400 Bad Request` | The account already exists on testnet. |
-| `429 Too Many Requests` | You have hit the rate limit. Wait before retrying. |
+| Status                      | Meaning                                               |
+| --------------------------- | ----------------------------------------------------- |
+| `400 Bad Request`           | The account already exists on testnet.                |
+| `429 Too Many Requests`     | You have hit the rate limit. Wait before retrying.    |
 | `500 Internal Server Error` | Transient Friendbot issue. Retry after a short delay. |
 
 ---
@@ -35,14 +35,12 @@ Use exponential backoff when automating Friendbot calls in test scripts:
 ```js
 async function fundAccount(publicKey, retries = 3) {
   for (let i = 0; i < retries; i++) {
-    const res = await fetch(
-      `https://friendbot.stellar.org?addr=${publicKey}`
-    );
+    const res = await fetch(`https://friendbot.stellar.org?addr=${publicKey}`);
     if (res.ok) return await res.json();
     if (res.status === 400) break; // account already exists, no point retrying
     await new Promise((r) => setTimeout(r, 1000 * 2 ** i));
   }
-  throw new Error("Friendbot funding failed");
+  throw new Error('Friendbot funding failed');
 }
 ```
 

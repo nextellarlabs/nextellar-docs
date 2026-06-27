@@ -27,6 +27,7 @@ Signers:
 ```
 
 With this setup:
+
 - Any payment (medium threshold) requires CFO + devops or CFO + escrow.
 - Account changes (high threshold) require all three.
 
@@ -36,10 +37,10 @@ With this setup:
 import { Operation, Keypair } from '@stellar/stellar-sdk';
 
 const setThresholds = Operation.setOptions({
-  lowThreshold:  2,
-  medThreshold:  2,
+  lowThreshold: 2,
+  medThreshold: 2,
   highThreshold: 3,
-  signer: { ed25519PublicKey: cfoKey,    weight: 1 },
+  signer: { ed25519PublicKey: cfoKey, weight: 1 },
 });
 
 // Submit signed by current master key (weight=3 initially)
@@ -124,11 +125,11 @@ Treasuries should maintain minimum reserves for operational continuity.
 
 ### Reserve Tiers
 
-| Tier | Size | Purpose | Liquidity |
-|---|---|---|---|
+| Tier              | Size                 | Purpose                               | Liquidity              |
+| ----------------- | -------------------- | ------------------------------------- | ---------------------- |
 | Operating reserve | 3 months of expenses | Pay ongoing costs without fundraising | High — liquid XLM/USDC |
-| Insurance reserve | 10% of TVL | Cover exploit losses | Medium — stable assets |
-| Strategic reserve | Remaining | Long-term grants, runway | Low — can be illiquid |
+| Insurance reserve | 10% of TVL           | Cover exploit losses                  | Medium — stable assets |
+| Strategic reserve | Remaining            | Long-term grants, runway              | Low — can be illiquid  |
 
 ### On-Chain Reserve Enforcement
 
@@ -199,15 +200,16 @@ Index these events with Mercury or your own Horizon SSE consumer:
 const server = new Horizon.Server(process.env.HORIZON_URL!);
 
 export async function getTreasuryHistory(contractId: string) {
-  const ops = await server.operations()
+  const ops = await server
+    .operations()
     .forAccount(contractId)
     .limit(200)
     .order('desc')
     .call();
   return ops.records.map((op) => ({
-    type:      op.type,
-    amount:    (op as any).amount,
-    to:        (op as any).to,
+    type: op.type,
+    amount: (op as any).amount,
+    to: (op as any).to,
     createdAt: op.created_at,
   }));
 }
@@ -217,15 +219,15 @@ export async function getTreasuryHistory(contractId: string) {
 
 ## Governance Checklist
 
-| Control | Implementation |
-|---|---|
-| Multisig on treasury account | `setOptions` with thresholds ≥ 2 |
-| Daily spending cap | Soroban contract with ledger-based reset |
-| Minimum reserve floor | Contract assertion before every withdrawal |
-| Time-locked disbursements | `unlock_ledger` check in claim function |
-| Audit trail | Soroban events + Horizon indexer |
-| Emergency pause | Admin `set_paused` flag in contract |
-| Key rotation schedule | Calendar reminder; 90-day max key age |
+| Control                      | Implementation                             |
+| ---------------------------- | ------------------------------------------ |
+| Multisig on treasury account | `setOptions` with thresholds ≥ 2           |
+| Daily spending cap           | Soroban contract with ledger-based reset   |
+| Minimum reserve floor        | Contract assertion before every withdrawal |
+| Time-locked disbursements    | `unlock_ledger` check in claim function    |
+| Audit trail                  | Soroban events + Horizon indexer           |
+| Emergency pause              | Admin `set_paused` flag in contract        |
+| Key rotation schedule        | Calendar reminder; 90-day max key age      |
 
 ---
 

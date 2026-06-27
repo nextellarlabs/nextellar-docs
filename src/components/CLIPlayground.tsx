@@ -56,7 +56,8 @@ export function CLIPlayground() {
 
     const defaultWallets = ['freighter', 'albedo', 'lobstr'];
     const walletsChanged =
-      JSON.stringify([...values.wallets].sort()) !== JSON.stringify(defaultWallets.sort());
+      JSON.stringify([...values.wallets].sort()) !==
+      JSON.stringify(defaultWallets.sort());
 
     if (walletsChanged && values.wallets.length > 0) {
       cmd += ` --wallets ${values.wallets.join(',')}`;
@@ -118,10 +119,11 @@ export function CLIPlayground() {
               <button
                 key={pm}
                 onClick={() => setFieldValue('packageManager', pm)}
-                className={`px-4 py-2 border rounded-md text-sm font-medium transition-colors ${values.packageManager === pm
-                  ? 'bg-primary text-primary-foreground border-primary'
-                  : 'hover:bg-muted'
-                  }`}
+                className={`px-4 py-2 border rounded-md text-sm font-medium transition-colors ${
+                  values.packageManager === pm
+                    ? 'bg-primary text-primary-foreground border-primary'
+                    : 'hover:bg-muted'
+                }`}
               >
                 {pm}
               </button>
@@ -174,10 +176,11 @@ export function CLIPlayground() {
               <button
                 key={wallet.id}
                 onClick={() => toggleWallet(wallet.id)}
-                className={`px-3 py-2 border rounded-md text-sm transition-colors ${values.wallets.includes(wallet.id)
-                  ? 'bg-primary text-primary-foreground border-primary'
-                  : 'hover:bg-muted'
-                  }`}
+                className={`px-3 py-2 border rounded-md text-sm transition-colors ${
+                  values.wallets.includes(wallet.id)
+                    ? 'bg-primary text-primary-foreground border-primary'
+                    : 'hover:bg-muted'
+                }`}
               >
                 {wallet.name}
               </button>

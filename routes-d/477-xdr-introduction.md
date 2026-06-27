@@ -1,5 +1,5 @@
 ---
-title: "Note: XDR on Stellar"
+title: 'Note: XDR on Stellar'
 description: A brief introduction to XDR — what it is, where it appears, and where to learn more
 ---
 
@@ -13,22 +13,22 @@ XDR (External Data Representation) is the binary serialization format Stellar us
 
 You will encounter XDR in several places:
 
-| Context | How it shows up |
-|---------|----------------|
-| Horizon responses | `envelope_xdr`, `result_xdr`, `result_meta_xdr` fields (base64-encoded) |
-| Transaction signing | `TransactionBuilder.build()` returns an XDR envelope |
-| Soroban RPC | `simulateTransaction`, `sendTransaction`, and `getTransaction` all use XDR |
-| Stellar Laboratory | The "XDR Viewer" tab decodes raw XDR blobs manually |
+| Context             | How it shows up                                                            |
+| ------------------- | -------------------------------------------------------------------------- |
+| Horizon responses   | `envelope_xdr`, `result_xdr`, `result_meta_xdr` fields (base64-encoded)    |
+| Transaction signing | `TransactionBuilder.build()` returns an XDR envelope                       |
+| Soroban RPC         | `simulateTransaction`, `sendTransaction`, and `getTransaction` all use XDR |
+| Stellar Laboratory  | The "XDR Viewer" tab decodes raw XDR blobs manually                        |
 
 ---
 
 ## Quick Example
 
 ```js
-import { xdr, TransactionEnvelope } from "@stellar/stellar-sdk";
+import { xdr, TransactionEnvelope } from '@stellar/stellar-sdk';
 
 // Decode a transaction envelope returned by Horizon
-const envelope = xdr.TransactionEnvelope.fromXDR(envelopeXdrBase64, "base64");
+const envelope = xdr.TransactionEnvelope.fromXDR(envelopeXdrBase64, 'base64');
 ```
 
 ---

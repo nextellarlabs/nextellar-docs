@@ -1,8 +1,7 @@
 import React, { useState, useId } from 'react';
 import { Check } from 'lucide-react';
 
-export interface CheckboxProps
-  extends React.InputHTMLAttributes<HTMLInputElement> {}
+export interface CheckboxProps extends React.InputHTMLAttributes<HTMLInputElement> {}
 
 export const Checkbox = React.forwardRef<HTMLInputElement, CheckboxProps>(
   ({ className, id, ...props }, ref) => {

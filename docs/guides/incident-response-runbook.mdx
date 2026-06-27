@@ -12,18 +12,19 @@ This runbook defines the actions to take when something goes wrong in a producti
 
 ## Severity Levels
 
-| Level | Description | Response time |
-|---|---|---|
+| Level         | Description                                        | Response time       |
+| ------------- | -------------------------------------------------- | ------------------- |
 | P0 — Critical | Funds at risk, contract exploited, key compromised | Immediate (< 5 min) |
-| P1 — High | Core user flows broken, Horizon unreachable | < 30 min |
-| P2 — Medium | Degraded performance, non-critical feature broken | < 2 hours |
-| P3 — Low | Cosmetic issues, non-user-facing errors | Next business day |
+| P1 — High     | Core user flows broken, Horizon unreachable        | < 30 min            |
+| P2 — Medium   | Degraded performance, non-critical feature broken  | < 2 hours           |
+| P3 — Low      | Cosmetic issues, non-user-facing errors            | Next business day   |
 
 ---
 
 ## Incident Type 1 — Smart Contract Exploit
 
 ### Detect
+
 - Unusual spikes in contract invocations from unknown accounts
 - `stellar_tx_failed_total` counter flat while `stellar_tx_submitted_total` spikes (attacker draining without triggering your error paths)
 - On-chain balance of contract drops unexpectedly
@@ -35,6 +36,7 @@ curl "https://horizon.stellar.org/operations?limit=20&order=desc" | \
 ```
 
 ### Contain
+
 1. **Pause the contract** — if your contract has an admin pause function, call it immediately:
    ```ts
    contract.call('set_paused', true); // or equivalent
@@ -42,17 +44,21 @@ curl "https://horizon.stellar.org/operations?limit=20&order=desc" | \
 2. **Revoke the compromised signer** — if attacker gained a signing key:
    ```ts
    // setOptions to remove signer or raise thresholds
-   Operation.setOptions({ signer: { ed25519PublicKey: attackerKey, weight: 0 } })
+   Operation.setOptions({
+     signer: { ed25519PublicKey: attackerKey, weight: 0 },
+   });
    ```
 3. **Alert your team** — post to incident channel with tx hashes and affected accounts.
 4. **Do not delete logs** — preserve everything for post-mortem.
 
 ### Recover
+
 1. Deploy a patched contract (new contract address — Soroban contracts are immutable).
 2. Migrate remaining user balances to the new contract via admin migration function.
 3. Notify affected users with exact loss amounts and recovery plan.
 
 ### Review
+
 - Root cause analysis within 48 hours.
 - Add invariant tests for the exploited code path.
 - Consider a security audit before redeployment.
@@ -62,6 +68,7 @@ curl "https://horizon.stellar.org/operations?limit=20&order=desc" | \
 ## Incident Type 2 — Transaction Submission Failures
 
 ### Detect
+
 - `stellar_tx_failed_total{result_code="tx_insufficient_fee"}` spikes
 - `stellar_tx_failed_total{result_code="tx_bad_seq"}` spikes (sequence number race)
 - User reports of "transaction failed" without clear reason
@@ -90,10 +97,12 @@ export function enqueueSubmit(tx: Transaction) {
 ```
 
 ### Recover
+
 - Replay any transactions that failed during the incident window.
 - Notify users whose operations were dropped.
 
 ### Review
+
 - Check if surge pricing was triggered by a specific event (airdrop, NFT mint).
 - Add fee-market monitoring alert: `fee_charged.p99 > 2000 stroops` for 3+ ledgers.
 
@@ -102,6 +111,7 @@ export function enqueueSubmit(tx: Transaction) {
 ## Incident Type 3 — Horizon / Soroban RPC Outage
 
 ### Detect
+
 - `stellar_horizon_latency_ms` p99 > 10,000 ms
 - HTTP 503 responses from Horizon
 - `stellar_horizon_rate_limit_total` counter spiking
@@ -145,11 +155,13 @@ export async function submitWithFallback(tx: Transaction) {
 ```
 
 ### Recover
+
 - Monitor SDF status page: https://status.stellar.org
 - Re-enable primary Horizon once latency normalises.
 - Replay any submissions that returned 503 (check if already processed before replaying to avoid duplicate operations).
 
 ### Review
+
 - Add Horizon health check to your uptime monitor.
 - Document the RPC backup list in your runbook.
 
@@ -158,10 +170,12 @@ export async function submitWithFallback(tx: Transaction) {
 ## Incident Type 4 — Key Compromise
 
 ### Detect
+
 - Unexpected transactions from your service account
 - Alert on `source_account == <your_service_key>` with unexpected operation types
 
 ### Contain — Immediate (< 5 minutes)
+
 1. Rotate to a new keypair:
    ```ts
    const newKeypair = Keypair.random();
@@ -174,10 +188,12 @@ export async function submitWithFallback(tx: Transaction) {
 4. Change all environment variables referencing the old key.
 
 ### Recover
+
 - Audit the last 72 hours of transactions from the compromised key.
 - Identify and reimburse any fraudulent transfers.
 
 ### Review
+
 - Move service keys to a secrets manager (Vault, AWS Secrets Manager).
 - Add key rotation schedule (every 90 days).
 - Add anomaly alert: flag any operation type from the service account that it has never performed before.
@@ -187,6 +203,7 @@ export async function submitWithFallback(tx: Transaction) {
 ## Communication Templates
 
 ### Internal Alert (P0)
+
 ```
 🚨 P0 INCIDENT — [dApp Name] [Date/Time UTC]
 Type: [Exploit / Outage / Key Compromise]
@@ -197,6 +214,7 @@ Comms channel: #incident-[date]
 ```
 
 ### User-Facing Status Update
+
 ```
 We are aware of an issue affecting [feature]. Our team is actively investigating.
 Transactions submitted during this window may be delayed.
@@ -207,14 +225,14 @@ We will provide an update in [X] minutes.
 
 ## Post-Incident Review Template
 
-| Section | Content |
-|---|---|
-| Timeline | Minute-by-minute from detection to resolution |
-| Root cause | What failed and why |
-| Impact | Users affected, funds at risk, downtime duration |
-| What went well | Detection speed, containment actions |
-| What went wrong | Gaps in monitoring, slow response steps |
-| Action items | Specific tasks with owners and deadlines |
+| Section         | Content                                          |
+| --------------- | ------------------------------------------------ |
+| Timeline        | Minute-by-minute from detection to resolution    |
+| Root cause      | What failed and why                              |
+| Impact          | Users affected, funds at risk, downtime duration |
+| What went well  | Detection speed, containment actions             |
+| What went wrong | Gaps in monitoring, slow response steps          |
+| Action items    | Specific tasks with owners and deadlines         |
 
 ---
 

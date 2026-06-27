@@ -1,5 +1,5 @@
 ---
-title: "Glossary: Federation and Sequence Number"
+title: 'Glossary: Federation and Sequence Number'
 description: Short definitions for Federation and Sequence Number as used in the Stellar network and Nextellar docs
 ---
 

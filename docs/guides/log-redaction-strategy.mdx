@@ -12,16 +12,16 @@ Logs are your primary debugging tool, but they can also become a liability. A si
 
 ## Sensitive Fields in Stellar dApps
 
-| Field | Why sensitive | Redaction target |
-|---|---|---|
-| **Secret key** (`S...`) | Full account compromise | Remove entirely — never log |
-| **Full public key** (`G...`) | Links on-chain activity to a server-side identity | Truncate to first 8 chars |
-| **JWT / SEP-10 token** | Session hijack | Remove entirely |
-| **KYC data** (name, DOB, ID number) | PII / GDPR scope | Remove entirely |
-| **IP address** | Links wallet to physical location | Hash or remove |
-| **Transaction memo** | May contain PII or payment references | Truncate or remove |
-| **Webhook payload** | May contain full user profile | Redact nested PII fields |
-| **API keys / PATs** | Service account compromise | Remove entirely |
+| Field                               | Why sensitive                                     | Redaction target            |
+| ----------------------------------- | ------------------------------------------------- | --------------------------- |
+| **Secret key** (`S...`)             | Full account compromise                           | Remove entirely — never log |
+| **Full public key** (`G...`)        | Links on-chain activity to a server-side identity | Truncate to first 8 chars   |
+| **JWT / SEP-10 token**              | Session hijack                                    | Remove entirely             |
+| **KYC data** (name, DOB, ID number) | PII / GDPR scope                                  | Remove entirely             |
+| **IP address**                      | Links wallet to physical location                 | Hash or remove              |
+| **Transaction memo**                | May contain PII or payment references             | Truncate or remove          |
+| **Webhook payload**                 | May contain full user profile                     | Redact nested PII fields    |
+| **API keys / PATs**                 | Service account compromise                        | Remove entirely             |
 
 ---
 
@@ -36,8 +36,19 @@ Intercept every log call and strip known sensitive keys before writing to the tr
 import pino from 'pino';
 
 const SENSITIVE_KEYS = new Set([
-  'secret', 'secretKey', 'privateKey', 'jwt', 'token', 'authorization',
-  'password', 'apiKey', 'api_key', 'memo', 'dob', 'ssn', 'idNumber',
+  'secret',
+  'secretKey',
+  'privateKey',
+  'jwt',
+  'token',
+  'authorization',
+  'password',
+  'apiKey',
+  'api_key',
+  'memo',
+  'dob',
+  'ssn',
+  'idNumber',
 ]);
 
 function redact(obj: unknown, depth = 0): unknown {
@@ -57,16 +68,22 @@ function redact(obj: unknown, depth = 0): unknown {
   return result;
 }
 
-function isStellarSecret(s: string)    { return /^S[A-Z2-7]{55}$/.test(s); }
-function isStellarPublicKey(s: string) { return /^G[A-Z2-7]{55}$/.test(s); }
-function truncatePublicKey(key: string) { return `${key.slice(0, 8)}…`; }
+function isStellarSecret(s: string) {
+  return /^S[A-Z2-7]{55}$/.test(s);
+}
+function isStellarPublicKey(s: string) {
+  return /^G[A-Z2-7]{55}$/.test(s);
+}
+function truncatePublicKey(key: string) {
+  return `${key.slice(0, 8)}…`;
+}
 
 export const logger = pino({
   serializers: {
     // pino calls this on every log object
-    req:  (req) => redact(req),
-    res:  (res) => redact(res),
-    err:  (err) => redact(err),
+    req: (req) => redact(req),
+    res: (res) => redact(res),
+    err: (err) => redact(err),
   },
 });
 ```
@@ -79,10 +96,10 @@ Instead of redacting a blocklist, only log fields you have explicitly approved. 
 // Only log these fields from a Stellar transaction object
 function safeTransactionLog(tx: StellarTransaction) {
   return {
-    txHash:       tx.hash,
-    ledger:       tx.ledger,
+    txHash: tx.hash,
+    ledger: tx.ledger,
     operationType: tx.operations[0]?.type,
-    feePaid:      tx.fee_charged,
+    feePaid: tx.fee_charged,
     // NOT: source_account, memo, operations[].destination (if it's a user address)
   };
 }
@@ -96,7 +113,13 @@ Log more in development, log less in production.
 export const logger = pino({
   level: process.env.NODE_ENV === 'production' ? 'warn' : 'debug',
   redact: {
-    paths: ['*.secret', '*.token', '*.jwt', '*.authorization', 'req.headers.authorization'],
+    paths: [
+      '*.secret',
+      '*.token',
+      '*.jwt',
+      '*.authorization',
+      'req.headers.authorization',
+    ],
     censor: '[REDACTED]',
   },
 });
@@ -117,7 +140,10 @@ import { logger } from '@/lib/logger';
 export async function POST(req: Request) {
   const body = await req.json();
   // Log the action, not the payload
-  logger.info({ action: 'deposit.initiated', accountId: body.accountId?.slice(0, 8) });
+  logger.info({
+    action: 'deposit.initiated',
+    accountId: body.accountId?.slice(0, 8),
+  });
   // NOT: logger.info(body) — body may contain jwt, amount, memo
 }
 ```
@@ -130,7 +156,10 @@ The Stellar SDK does not log by default, but custom wrappers often do:
 // lib/stellar.ts
 export async function submitTransaction(tx: Transaction, keypair: Keypair) {
   // NEVER: logger.info({ tx: tx.toXDR(), keypair: keypair.secret() })
-  logger.info({ action: 'tx.submit', txHash: tx.hash('testnet').toString('hex') });
+  logger.info({
+    action: 'tx.submit',
+    txHash: tx.hash('testnet').toString('hex'),
+  });
   return server.submitTransaction(tx);
 }
 ```
@@ -200,18 +229,18 @@ transport: {
 
 ## Quick Reference — Redact or Keep?
 
-| Data | Action |
-|---|---|
-| `G...` public key (alone) | Truncate to 8 chars |
-| `G...` public key + PII in same log line | Remove public key entirely |
-| `S...` secret key | Remove — never log under any circumstance |
-| Transaction hash | Keep — it's public |
-| Ledger sequence number | Keep |
-| Fee amount | Keep |
-| Operation type | Keep |
-| Memo text | Remove or truncate to 4 chars |
-| JWT / Bearer token | Remove |
-| IP address | Hash with SHA-256 or remove |
+| Data                                     | Action                                    |
+| ---------------------------------------- | ----------------------------------------- |
+| `G...` public key (alone)                | Truncate to 8 chars                       |
+| `G...` public key + PII in same log line | Remove public key entirely                |
+| `S...` secret key                        | Remove — never log under any circumstance |
+| Transaction hash                         | Keep — it's public                        |
+| Ledger sequence number                   | Keep                                      |
+| Fee amount                               | Keep                                      |
+| Operation type                           | Keep                                      |
+| Memo text                                | Remove or truncate to 4 chars             |
+| JWT / Bearer token                       | Remove                                    |
+| IP address                               | Hash with SHA-256 or remove               |
 
 ---
 

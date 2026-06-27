@@ -1,5 +1,5 @@
 ---
-title: "Glossary: SEP"
+title: 'Glossary: SEP'
 description: Short definition of SEP (Stellar Ecosystem Proposal) and where to find the published standards
 ---
 
@@ -13,12 +13,12 @@ description: Short definition of SEP (Stellar Ecosystem Proposal) and where to f
 
 SEPs describe protocols that multiple parties must implement consistently to work together. Common examples include:
 
-| SEP | Topic |
-|-----|-------|
-| SEP-1 | `stellar.toml` — machine-readable metadata for Stellar accounts and assets |
-| SEP-10 | Stellar Web Authentication — wallet-based sign-in |
-| SEP-24 | Hosted Deposit and Withdrawal — anchor interactive flows |
-| SEP-31 | Cross-Border Payments — direct payment API for sending parties |
+| SEP    | Topic                                                                      |
+| ------ | -------------------------------------------------------------------------- |
+| SEP-1  | `stellar.toml` — machine-readable metadata for Stellar accounts and assets |
+| SEP-10 | Stellar Web Authentication — wallet-based sign-in                          |
+| SEP-24 | Hosted Deposit and Withdrawal — anchor interactive flows                   |
+| SEP-31 | Cross-Border Payments — direct payment API for sending parties             |
 
 ---
 

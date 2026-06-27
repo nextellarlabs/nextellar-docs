@@ -60,17 +60,17 @@ sequenceDiagram
   participant Anchor as Anchor Server
   participant Stellar as Stellar Network
 
-  User->>App: Start deposit
-  App->>Anchor: GET /info (SEP-6)
-  Anchor-->>App: Supported assets + KYC fields required
-  App->>Anchor: POST /customer (SEP-12) — submit KYC
-  Anchor-->>App: customer_id + status (NEEDS_INFO | ACCEPTED)
-  App->>Anchor: GET /deposit?asset_code=USDC (SEP-6)
-  Anchor-->>App: how_to_deposit instructions + transaction_id
-  User->>Anchor: Send fiat (bank transfer)
-  Anchor->>Stellar: Issue USDC to user's Stellar address
-  Stellar-->>App: Transaction confirmed
-  App-->>User: USDC credited to wallet
+User->>App: Start deposit
+App->>Anchor: GET /info (SEP-6)
+Anchor-->>App: Supported assets + KYC fields required
+App->>Anchor: POST /customer (SEP-12) — submit KYC
+Anchor-->>App: customer_id + status (NEEDS_INFO | ACCEPTED)
+App->>Anchor: GET /deposit?asset_code=USDC (SEP-6)
+Anchor-->>App: how_to_deposit instructions + transaction_id
+User->>Anchor: Send fiat (bank transfer)
+Anchor->>Stellar: Issue USDC to user's Stellar address
+Stellar-->>App: Transaction confirmed
+App-->>User: USDC credited to wallet
 `} />
 
 The same flow applies to withdrawals in reverse — the user sends Stellar tokens to the Anchor and receives fiat on their bank account.
@@ -190,12 +190,12 @@ Once accepted:
 
 Possible statuses and what they mean:
 
-| Status | Description | Action required |
-| --- | --- | --- |
+| Status       | Description              | Action required                   |
+| ------------ | ------------------------ | --------------------------------- |
 | `NEEDS_INFO` | Anchor needs more fields | Run `kyc put` with missing fields |
-| `PROCESSING` | Under manual review | Wait and poll again |
-| `ACCEPTED` | KYC approved | Proceed to deposit/withdraw |
-| `REJECTED` | KYC denied | Contact Anchor support |
+| `PROCESSING` | Under manual review      | Wait and poll again               |
+| `ACCEPTED`   | KYC approved             | Proceed to deposit/withdraw       |
+| `REJECTED`   | KYC denied               | Contact Anchor support            |
 
 ---
 

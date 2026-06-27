@@ -31,8 +31,8 @@ When a disconnect is detected, clear all session-derived state:
 ## Example
 
 ```js
-import { WalletConnect } from "@walletconnect/web3wallet";
-import { useState, useEffect } from "react";
+import { WalletConnect } from '@walletconnect/web3wallet';
+import { useState, useEffect } from 'react';
 
 export function useWalletSession(walletConnectClient) {
   const [publicKey, setPublicKey] = useState(null);
@@ -42,14 +42,14 @@ export function useWalletSession(walletConnectClient) {
     if (!walletConnectClient) return;
 
     // Listen for wallet-initiated or relay-initiated disconnects
-    walletConnectClient.on("session_delete", ({ topic }) => {
+    walletConnectClient.on('session_delete', ({ topic }) => {
       if (topic === sessionTopic) {
         clearSession();
       }
     });
 
     return () => {
-      walletConnectClient.off("session_delete");
+      walletConnectClient.off('session_delete');
     };
   }, [walletConnectClient, sessionTopic]);
 
@@ -57,8 +57,8 @@ export function useWalletSession(walletConnectClient) {
     setPublicKey(null);
     setSessionTopic(null);
     // Clear any localStorage/sessionStorage entries
-    sessionStorage.removeItem("wc_session_topic");
-    sessionStorage.removeItem("stellar_public_key");
+    sessionStorage.removeItem('wc_session_topic');
+    sessionStorage.removeItem('stellar_public_key');
   }
 
   async function disconnect() {
@@ -66,7 +66,7 @@ export function useWalletSession(walletConnectClient) {
     try {
       await walletConnectClient.disconnectSession({
         topic: sessionTopic,
-        reason: { code: 6000, message: "User disconnected" },
+        reason: { code: 6000, message: 'User disconnected' },
       });
     } finally {
       // Always clear local state even if the remote call fails

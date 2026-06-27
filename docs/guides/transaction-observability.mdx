@@ -12,11 +12,11 @@ Knowing that your dApp submitted a transaction is not the same as knowing the tr
 
 ## The Three Pillars
 
-| Pillar | What it answers | Stellar-specific examples |
-|---|---|---|
-| **Metrics** | Is the system healthy right now? | Submission rate, success rate, fee percentile, Horizon latency |
-| **Logs** | What happened in this specific transaction? | Ledger number, tx hash, operation type, error code |
-| **Traces** | Where did time go across services? | Time in fee-bump construction, time waiting for Horizon, time polling for finality |
+| Pillar      | What it answers                             | Stellar-specific examples                                                          |
+| ----------- | ------------------------------------------- | ---------------------------------------------------------------------------------- |
+| **Metrics** | Is the system healthy right now?            | Submission rate, success rate, fee percentile, Horizon latency                     |
+| **Logs**    | What happened in this specific transaction? | Ledger number, tx hash, operation type, error code                                 |
+| **Traces**  | Where did time go across services?          | Time in fee-bump construction, time waiting for Horizon, time polling for finality |
 
 ---
 
@@ -75,9 +75,19 @@ export const horizonLatency = new Histogram({
 
 ```ts
 // lib/stellar.ts
-import { txSubmitted, txSuccess, txFailed, feeStroops, horizonLatency } from './metrics';
+import {
+  txSubmitted,
+  txSuccess,
+  txFailed,
+  feeStroops,
+  horizonLatency,
+} from './metrics';
 
-export async function submitTransaction(tx: Transaction, network: string, opType: string) {
+export async function submitTransaction(
+  tx: Transaction,
+  network: string,
+  opType: string
+) {
   txSubmitted.inc({ network, operation_type: opType });
   const start = Date.now();
 
@@ -97,7 +107,13 @@ export async function submitTransaction(tx: Transaction, network: string, opType
 
 function extractResultCode(err: unknown): string | null {
   if (err && typeof err === 'object' && 'response' in err) {
-    const body = (err as { response?: { data?: { extras?: { result_codes?: { transaction?: string } } } } }).response?.data;
+    const body = (
+      err as {
+        response?: {
+          data?: { extras?: { result_codes?: { transaction?: string } } };
+        };
+      }
+    ).response?.data;
     return body?.extras?.result_codes?.transaction ?? null;
   }
   return null;
@@ -113,11 +129,11 @@ Every transaction event should be logged as a structured object — not a string
 ```ts
 // lib/logger.ts (extend from your existing logger)
 export function logTxEvent(event: {
-  action:    'submit' | 'confirmed' | 'failed' | 'fee_bump';
-  txHash?:   string;
-  ledger?:   number;
-  opType?:   string;
-  fee?:      number;
+  action: 'submit' | 'confirmed' | 'failed' | 'fee_bump';
+  txHash?: string;
+  ledger?: number;
+  opType?: string;
+  fee?: number;
   resultCode?: string;
   durationMs?: number;
 }) {
@@ -130,12 +146,18 @@ Usage:
 ```ts
 logTxEvent({ action: 'submit', opType: 'payment', fee: 100 });
 // On success:
-logTxEvent({ action: 'confirmed', txHash: result.hash, ledger: result.ledger, durationMs: 340 });
+logTxEvent({
+  action: 'confirmed',
+  txHash: result.hash,
+  ledger: result.ledger,
+  durationMs: 340,
+});
 // On failure:
 logTxEvent({ action: 'failed', resultCode: 'tx_bad_seq', durationMs: 120 });
 ```
 
 Sample log line (JSON):
+
 ```json
 {
   "level": "info",
@@ -196,22 +218,22 @@ export async function tracedSubmit(tx: Transaction, opType: string) {
 
 ### Dashboard 1 — Transaction Health
 
-| Panel | Query (PromQL) |
-|---|---|
-| Submission rate | `rate(stellar_tx_submitted_total[5m])` |
-| Success rate | `rate(stellar_tx_success_total[5m]) / rate(stellar_tx_submitted_total[5m])` |
-| Error breakdown | `sum by (result_code)(rate(stellar_tx_failed_total[5m]))` |
-| p95 fee | `histogram_quantile(0.95, stellar_tx_fee_stroops)` |
+| Panel           | Query (PromQL)                                                              |
+| --------------- | --------------------------------------------------------------------------- |
+| Submission rate | `rate(stellar_tx_submitted_total[5m])`                                      |
+| Success rate    | `rate(stellar_tx_success_total[5m]) / rate(stellar_tx_submitted_total[5m])` |
+| Error breakdown | `sum by (result_code)(rate(stellar_tx_failed_total[5m]))`                   |
+| p95 fee         | `histogram_quantile(0.95, stellar_tx_fee_stroops)`                          |
 
 Alert: success rate < 95% for 5 minutes → page on-call.
 
 ### Dashboard 2 — Horizon Latency
 
-| Panel | Query |
-|---|---|
-| p50 latency | `histogram_quantile(0.50, stellar_horizon_latency_ms)` |
-| p99 latency | `histogram_quantile(0.99, stellar_horizon_latency_ms)` |
-| Rate-limit events | `rate(stellar_horizon_rate_limit_total[5m])` |
+| Panel             | Query                                                  |
+| ----------------- | ------------------------------------------------------ |
+| p50 latency       | `histogram_quantile(0.50, stellar_horizon_latency_ms)` |
+| p99 latency       | `histogram_quantile(0.99, stellar_horizon_latency_ms)` |
+| Rate-limit events | `rate(stellar_horizon_rate_limit_total[5m])`           |
 
 Alert: p99 > 3000 ms for 10 minutes → investigate Horizon or switch to backup.
 
@@ -219,8 +241,8 @@ Alert: p99 > 3000 ms for 10 minutes → investigate Horizon or switch to backup.
 
 Track how long transactions take to close after submission. A spike here indicates ledger congestion.
 
-| Panel | Query |
-|---|---|
+| Panel             | Query                                                   |
+| ----------------- | ------------------------------------------------------- |
 | p95 finality wait | `histogram_quantile(0.95, stellar_tx_finality_wait_ms)` |
 
 ---

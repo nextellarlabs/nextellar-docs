@@ -39,7 +39,7 @@ Always cache the signed envelope and re-submit it on retry. Only rebuild with a 
 
 ```js
 async function submitWithRetry(server, signedTx, maxAttempts = 5) {
-  const txHash = signedTx.hash().toString("hex");
+  const txHash = signedTx.hash().toString('hex');
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
@@ -49,10 +49,16 @@ async function submitWithRetry(server, signedTx, maxAttempts = 5) {
       const status = err?.response?.status;
 
       // Already applied — fetch and return the existing result
-      if (status === 400 && err?.response?.data?.extras?.result_codes?.transaction === "tx_bad_seq") {
+      if (
+        status === 400 &&
+        err?.response?.data?.extras?.result_codes?.transaction === 'tx_bad_seq'
+      ) {
         // Sequence was consumed — check if OUR tx landed
         try {
-          const existing = await server.transactions().transaction(txHash).call();
+          const existing = await server
+            .transactions()
+            .transaction(txHash)
+            .call();
           return existing;
         } catch {
           throw err; // sequence consumed by a different transaction — must rebuild
@@ -62,7 +68,7 @@ async function submitWithRetry(server, signedTx, maxAttempts = 5) {
       // Timeout or 5xx — safe to retry the same envelope
       if (!status || status >= 500) {
         const delay = 1000 * 2 ** (attempt - 1);
-        await new Promise(r => setTimeout(r, delay));
+        await new Promise((r) => setTimeout(r, delay));
         continue;
       }
 

@@ -14,19 +14,19 @@ Horizon exposes a server-sent events (SSE) endpoint that pushes a message every 
 Call the `/ledgers` endpoint with `cursor=now` to receive only ledgers that close after you connect:
 
 ```js
-import { Horizon } from "@stellar/stellar-sdk";
+import { Horizon } from '@stellar/stellar-sdk';
 
-const server = new Horizon.Server("https://horizon-testnet.stellar.org");
+const server = new Horizon.Server('https://horizon-testnet.stellar.org');
 
 const close = server
   .ledgers()
-  .cursor("now")
+  .cursor('now')
   .stream({
     onmessage: (ledger) => {
-      console.log("New ledger:", ledger.sequence, ledger.closed_at);
+      console.log('New ledger:', ledger.sequence, ledger.closed_at);
     },
     onerror: (err) => {
-      console.error("Stream error:", err);
+      console.error('Stream error:', err);
     },
   });
 
@@ -40,7 +40,7 @@ const close = server
 The Stellar SDK automatically reconnects when the SSE connection drops. On reconnect it resumes from the last received ledger sequence, so no ledgers are skipped. If you manage the connection manually, store the last `sequence` value and pass it as the new cursor:
 
 ```js
-let lastSequence = "now";
+let lastSequence = 'now';
 
 function startStream() {
   return server

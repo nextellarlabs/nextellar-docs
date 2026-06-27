@@ -45,12 +45,12 @@ GET /auth?account=GBHYD4QJHXGS46GVNXWDL3M3MKKQ5P7RBXHQKZ7E5FXBFQZFVNWUSVP
 
 **Optional parameters:**
 
-| Parameter | Description |
-|-----------|-------------|
-| `account` | G… public key of the account to authenticate (required) |
-| `memo` | 64-bit integer memo for muxed accounts |
-| `home_domain` | Service domain, used when multiple domains share one auth endpoint |
-| `client_domain` | Domain of the client application (for client domain verification) |
+| Parameter       | Description                                                        |
+| --------------- | ------------------------------------------------------------------ |
+| `account`       | G… public key of the account to authenticate (required)            |
+| `memo`          | 64-bit integer memo for muxed accounts                             |
+| `home_domain`   | Service domain, used when multiple domains share one auth endpoint |
+| `client_domain` | Domain of the client application (for client domain verification)  |
 
 The server responds with a Stellar transaction in XDR envelope format:
 
@@ -74,14 +74,23 @@ The server constructs a challenge transaction with these properties:
 - Additional `manageData` operations for `web_auth_domain`, client domain verification, and memo if applicable
 
 ```typescript
-import { TransactionBuilder, Networks, Operation, Keypair } from "@stellar/stellar-sdk";
+import {
+  TransactionBuilder,
+  Networks,
+  Operation,
+  Keypair,
+} from '@stellar/stellar-sdk';
 
-function buildChallenge(serverKeypair: Keypair, clientPublicKey: string, homeDomain: string) {
-  const account = new StellarSdk.Account(serverKeypair.publicKey(), "-1");
+function buildChallenge(
+  serverKeypair: Keypair,
+  clientPublicKey: string,
+  homeDomain: string
+) {
+  const account = new StellarSdk.Account(serverKeypair.publicKey(), '-1');
   const now = Math.floor(Date.now() / 1000);
 
   const tx = new TransactionBuilder(account, {
-    fee: "100",
+    fee: '100',
     networkPassphrase: Networks.PUBLIC,
   })
     .addOperation(
@@ -94,7 +103,7 @@ function buildChallenge(serverKeypair: Keypair, clientPublicKey: string, homeDom
     .addOperation(
       Operation.manageData({
         source: serverKeypair.publicKey(),
-        name: "web_auth_domain",
+        name: 'web_auth_domain',
         value: homeDomain,
       })
     )
@@ -102,7 +111,7 @@ function buildChallenge(serverKeypair: Keypair, clientPublicKey: string, homeDom
     .build();
 
   tx.sign(serverKeypair);
-  return tx.toEnvelope().toXDR("base64");
+  return tx.toEnvelope().toXDR('base64');
 }
 ```
 
@@ -113,11 +122,7 @@ function buildChallenge(serverKeypair: Keypair, clientPublicKey: string, homeDom
 The client decodes the XDR, verifies its contents, signs it with their keypair, and re-encodes it.
 
 ```typescript
-import {
-  TransactionBuilder,
-  Networks,
-  Keypair,
-} from "@stellar/stellar-sdk";
+import { TransactionBuilder, Networks, Keypair } from '@stellar/stellar-sdk';
 
 async function signChallenge(
   xdr: string,
@@ -130,7 +135,7 @@ async function signChallenge(
   validateChallenge(tx);
 
   tx.sign(clientKeypair);
-  return tx.toEnvelope().toXDR("base64");
+  return tx.toEnvelope().toXDR('base64');
 }
 ```
 
@@ -147,18 +152,22 @@ Before signing, the client **must** verify:
 
 ```typescript
 function validateChallenge(tx: Transaction) {
-  if (tx.sequence !== "0") {
-    throw new Error("Challenge sequence number must be 0");
+  if (tx.sequence !== '0') {
+    throw new Error('Challenge sequence number must be 0');
   }
   const now = Math.floor(Date.now() / 1000);
-  if (!tx.timeBounds || now < Number(tx.timeBounds.minTime) || now > Number(tx.timeBounds.maxTime)) {
-    throw new Error("Challenge time bounds are invalid or expired");
+  if (
+    !tx.timeBounds ||
+    now < Number(tx.timeBounds.minTime) ||
+    now > Number(tx.timeBounds.maxTime)
+  ) {
+    throw new Error('Challenge time bounds are invalid or expired');
   }
   const firstOp = tx.operations[0];
-  if (firstOp.type !== "manageData") {
-    throw new Error("First operation must be manageData");
+  if (firstOp.type !== 'manageData') {
+    throw new Error('First operation must be manageData');
   }
-  if (!firstOp.name.endsWith(" auth")) {
+  if (!firstOp.name.endsWith(' auth')) {
     throw new Error("Challenge operation key does not end with ' auth'");
   }
 }
@@ -194,8 +203,8 @@ The server verifies the submitted transaction:
 7. Issue a JWT
 
 ```typescript
-import { TransactionBuilder, Networks } from "@stellar/stellar-sdk";
-import jwt from "jsonwebtoken";
+import { TransactionBuilder, Networks } from '@stellar/stellar-sdk';
+import jwt from 'jsonwebtoken';
 
 async function verifyAndIssueToken(
   signedXdr: string,
@@ -205,17 +214,18 @@ async function verifyAndIssueToken(
   const tx = TransactionBuilder.fromXDR(signedXdr, Networks.PUBLIC);
 
   // 1. Sequence must be 0
-  if (tx.sequence !== "0") throw new Error("Invalid sequence");
+  if (tx.sequence !== '0') throw new Error('Invalid sequence');
 
   // 2. Time bounds
   const now = Math.floor(Date.now() / 1000);
-  if (now > Number(tx.timeBounds?.maxTime)) throw new Error("Challenge expired");
+  if (now > Number(tx.timeBounds?.maxTime))
+    throw new Error('Challenge expired');
 
   // 3. Server signature
   const serverSigned = tx.signatures.some((sig) =>
     Keypair.fromPublicKey(serverPublicKey).verify(tx.hash(), sig.signature())
   );
-  if (!serverSigned) throw new Error("Missing server signature");
+  if (!serverSigned) throw new Error('Missing server signature');
 
   // 4. Client account and signature
   const firstOp = tx.operations[0] as ManageDataOperation;
@@ -223,13 +233,13 @@ async function verifyAndIssueToken(
   const clientSigned = tx.signatures.some((sig) =>
     Keypair.fromPublicKey(clientPublicKey).verify(tx.hash(), sig.signature())
   );
-  if (!clientSigned) throw new Error("Missing client signature");
+  if (!clientSigned) throw new Error('Missing client signature');
 
   // 5. Issue JWT (sub = client account, exp = now + 24h)
   return jwt.sign(
-    { sub: clientPublicKey, iss: "https://example-anchor.com" },
+    { sub: clientPublicKey, iss: 'https://example-anchor.com' },
     jwtSecret,
-    { expiresIn: "24h" }
+    { expiresIn: '24h' }
   );
 }
 ```
@@ -258,7 +268,7 @@ class AuthTokenStore {
   set(token: string) {
     this.token = token;
     // Decode expiry from JWT payload without verification
-    const payload = JSON.parse(atob(token.split(".")[1]));
+    const payload = JSON.parse(atob(token.split('.')[1]));
     this.expiresAt = payload.exp * 1000;
   }
 
@@ -285,10 +295,15 @@ class AuthTokenStore {
 Re-authenticate before the token expires to avoid interrupting user flows:
 
 ```typescript
-async function getValidToken(store: AuthTokenStore, keypair: Keypair): Promise<string> {
+async function getValidToken(
+  store: AuthTokenStore,
+  keypair: Keypair
+): Promise<string> {
   if (store.isValid()) return store.get()!;
 
-  const { transaction, network_passphrase } = await fetchChallenge(keypair.publicKey());
+  const { transaction, network_passphrase } = await fetchChallenge(
+    keypair.publicKey()
+  );
   const signed = await signChallenge(transaction, keypair, network_passphrase);
   const { token } = await submitChallenge(signed);
   store.set(token);
@@ -303,14 +318,21 @@ async function getValidToken(store: AuthTokenStore, keypair: Keypair): Promise<s
 For accounts with multiple signers, all required signers must sign the challenge transaction before submission. Collect signatures out-of-band and merge them before posting to `/auth`.
 
 ```typescript
-function mergeSignatures(baseXdr: string, additionalXdr: string, networkPassphrase: string): string {
+function mergeSignatures(
+  baseXdr: string,
+  additionalXdr: string,
+  networkPassphrase: string
+): string {
   const baseTx = TransactionBuilder.fromXDR(baseXdr, networkPassphrase);
-  const additionalTx = TransactionBuilder.fromXDR(additionalXdr, networkPassphrase);
+  const additionalTx = TransactionBuilder.fromXDR(
+    additionalXdr,
+    networkPassphrase
+  );
 
   for (const sig of additionalTx.signatures) {
     baseTx.signatures.push(sig);
   }
-  return baseTx.toEnvelope().toXDR("base64");
+  return baseTx.toEnvelope().toXDR('base64');
 }
 ```
 
@@ -320,14 +342,14 @@ The server checks that the combined weight of present signers meets the account'
 
 ## Edge Cases and Error Handling
 
-| Scenario | Server Response | Client Action |
-|----------|----------------|---------------|
-| Challenge expired (time bounds passed) | `400 Bad Request` | Request a new challenge |
-| Missing client signature | `400 Bad Request` | Re-sign and resubmit |
-| Replay attack (nonce reuse) | `400 Bad Request` | Request a new challenge |
-| Account does not exist on ledger | `400 Bad Request` | Fund the account first |
-| JWT expired on subsequent requests | `401 Unauthorized` | Re-authenticate |
-| Clock skew > 5 minutes | `400 Bad Request` | Sync client clock |
+| Scenario                               | Server Response    | Client Action           |
+| -------------------------------------- | ------------------ | ----------------------- |
+| Challenge expired (time bounds passed) | `400 Bad Request`  | Request a new challenge |
+| Missing client signature               | `400 Bad Request`  | Re-sign and resubmit    |
+| Replay attack (nonce reuse)            | `400 Bad Request`  | Request a new challenge |
+| Account does not exist on ledger       | `400 Bad Request`  | Fund the account first  |
+| JWT expired on subsequent requests     | `401 Unauthorized` | Re-authenticate         |
+| Clock skew > 5 minutes                 | `400 Bad Request`  | Sync client clock       |
 
 ---
 
