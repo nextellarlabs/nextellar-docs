@@ -1,0 +1,79 @@
+---
+title: Pull Request Template
+description: A guide to the pull request template used in this repo, what each section means, and what reviewers check.
+---
+
+# Pull Request Template
+
+Every pull request in this repo uses a shared template. This page explains what each section is for and what reviewers will look for when they read your PR.
+
+## Sections
+
+### Description
+
+A short summary of what changed and why. One or two sentences is usually enough. Reviewers use this to understand the intent before looking at the diff.
+
+### Type of change
+
+A checklist that categorises the PR:
+
+- **Bug fix** — corrects something that was broken
+- **New feature** — adds something that didn't exist
+- **Documentation** — content-only changes, no code
+- **Refactor** — restructures existing code without changing behaviour
+- **Other** — anything that doesn't fit the above
+
+Tick whichever applies. More than one can apply.
+
+### Changes made
+
+A bullet list of the specific files or areas touched. Keep it factual.
+
+```
+- Added `docs/guides/pull-request-template.mdx`
+- Updated `config/sidebar.tsx` to include new guide
+```
+
+### Checklist
+
+The pre-merge checklist. Reviewers will verify these before approving:
+
+- `pnpm build:content` passes with no errors
+- `pnpm check:links` passes with no broken internal links
+- `pnpm lint` passes with no new warnings
+- New MDX files have valid frontmatter (`title` and `description`)
+- Internal links use absolute paths like `/docs/...`
+
+### Related issues
+
+Link any GitHub issue this PR closes or is related to. Use the `Closes #<number>` syntax so the issue closes automatically on merge.
+
+## Example
+
+Here is a minimal PR for a documentation change:
+
+**Title:** `docs: document pull request template`
+
+**Description:**
+Adds a guide explaining the PR template sections and what reviewers check for.
+
+**Type of change:**
+- [x] Documentation
+
+**Changes made:**
+- Added `docs/guides/pull-request-template.mdx`
+- Added entry to `config/sidebar.tsx` under Guides
+
+**Checklist:**
+- [x] `pnpm build:content` passes
+- [x] `pnpm check:links` passes
+- [x] Frontmatter includes `title` and `description`
+
+**Related issues:**
+Closes #521
+
+## Related
+
+- [Contributing to Documentation](/docs/guides/contributing)
+- [Documentation Contributing Checklist](/docs/guides/contributing-checklist)
+- [Docs Style Guide](/docs/guides/style-guide)

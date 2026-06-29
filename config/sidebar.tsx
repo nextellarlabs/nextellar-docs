@@ -67,6 +67,7 @@ export const sidebarNav: SidebarSection[] = [
     defaultOpen: false,
     pages: [
       { title: 'Contributing', href: '/docs/guides/contributing' },
+      { title: 'Pull Request Template', href: '/docs/guides/pull-request-template' },
       { title: 'Docs Style Guide', href: '/docs/guides/style-guide' },
       {
         title: 'PostCSS Configuration',
@@ -209,6 +210,7 @@ export const sidebarNav: SidebarSection[] = [
     defaultOpen: false,
     pages: [
       { title: 'Contributing', href: '/docs/guides/contributing' },
+      { title: 'Pull Request Template', href: '/docs/guides/pull-request-template' },
       { title: 'Docs Style Guide', href: '/docs/guides/style-guide' },
       {
         title: 'Versioned Docs Strategy',
