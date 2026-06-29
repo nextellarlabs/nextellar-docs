@@ -1,0 +1,103 @@
+---
+title: Issue Templates
+description: A reference for every issue template available in this repository, when to choose each one, and how to open a new issue using them.
+---
+
+# Issue Templates
+
+The `issues/` directory contains numbered Markdown templates for every category of contribution this repository accepts. Picking the right template keeps reviews focused and helps maintainers triage work faster.
+
+## Template Categories
+
+There are three types of issue template.
+
+### Documentation Cleanup
+
+Use a cleanup template when existing content needs to be removed or trimmed — dead sidebar links, stale page references, or outdated navigation entries. No new content is written; existing content is corrected or deleted.
+
+**When to choose it:**
+
+- A sidebar entry points to a page that does not exist.
+- A docs page references another page that has been removed or renamed.
+- Navigation items are out of date with the current site structure.
+
+**Available cleanup templates:**
+
+- [`01-remove-unavailable-component-links-from-sidebar.md`](https://github.com/nextellarlabs/nextellar-docs/blob/main/issues/01-remove-unavailable-component-links-from-sidebar.md) — Remove sidebar entries for component pages that do not yet exist.
+- [`02-clean-up-stale-component-page-references.md`](https://github.com/nextellarlabs/nextellar-docs/blob/main/issues/02-clean-up-stale-component-page-references.md) — Remove in-page references to component docs that no longer exist.
+
+---
+
+### Documentation Bug Fix
+
+Use a bug fix template when existing content is wrong rather than missing — encoding corruption, output that does not match the real CLI, or docs that describe a command incorrectly.
+
+**When to choose it:**
+
+- A page contains garbled or corrupted characters.
+- A CLI example does not match what the real command produces.
+- A template or scaffold flag shown in the docs no longer exists.
+- The interactive prompting behaviour shown in the docs is out of date.
+
+**Available bug fix templates:**
+
+- [`03-fix-encoding-corruption-in-readme.md`](https://github.com/nextellarlabs/nextellar-docs/blob/main/issues/03-fix-encoding-corruption-in-readme.md) — Fix encoding corruption in `README.md`.
+- [`04-fix-encoding-corruption-in-hooks-docs.md`](https://github.com/nextellarlabs/nextellar-docs/blob/main/issues/04-fix-encoding-corruption-in-hooks-docs.md) — Fix encoding corruption across hooks documentation pages.
+- [`05-fix-encoding-corruption-in-integrations-docs.md`](https://github.com/nextellarlabs/nextellar-docs/blob/main/issues/05-fix-encoding-corruption-in-integrations-docs.md) — Fix encoding corruption across integrations documentation pages.
+- [`06-fix-encoding-corruption-in-components-docs.md`](https://github.com/nextellarlabs/nextellar-docs/blob/main/issues/06-fix-encoding-corruption-in-components-docs.md) — Fix encoding corruption across components documentation pages.
+- [`07-fix-encoding-corruption-in-getting-started-and-index-pages.md`](https://github.com/nextellarlabs/nextellar-docs/blob/main/issues/07-fix-encoding-corruption-in-getting-started-and-index-pages.md) — Fix encoding corruption in getting started and index pages.
+- [`14-rewrite-template-docs-for-current-cli-support.md`](https://github.com/nextellarlabs/nextellar-docs/blob/main/issues/14-rewrite-template-docs-for-current-cli-support.md) — Rewrite template docs to match what the current CLI actually supports.
+- [`16-update-cli-docs-for-interactive-prompting.md`](https://github.com/nextellarlabs/nextellar-docs/blob/main/issues/16-update-cli-docs-for-interactive-prompting.md) — Update CLI docs to reflect the current interactive prompting behaviour.
+
+---
+
+### Documentation Feature
+
+Use a feature template when a command, option, or workflow exists in the CLI but has no documentation on the site yet. You are adding net-new content, not correcting existing content.
+
+**When to choose it:**
+
+- A CLI command is shipped but not yet documented.
+- A command flag or option is missing from the reference page.
+- A feature catalog entry exists in the CLI but has no corresponding guide.
+
+**Available feature templates:**
+
+- [`08-document-doctor-command.md`](https://github.com/nextellarlabs/nextellar-docs/blob/main/issues/08-document-doctor-command.md) — Document `nextellar doctor` and its `--json` flag.
+- [`09-document-add-command.md`](https://github.com/nextellarlabs/nextellar-docs/blob/main/issues/09-document-add-command.md) — Document `nextellar add [feature]` and its options.
+- [`10-document-add-feature-catalog.md`](https://github.com/nextellarlabs/nextellar-docs/blob/main/issues/10-document-add-feature-catalog.md) — Document the full catalog of features available via `nextellar add`.
+- [`11-document-telemetry-command-and-flags.md`](https://github.com/nextellarlabs/nextellar-docs/blob/main/issues/11-document-telemetry-command-and-flags.md) — Document `nextellar telemetry` and its opt-in/opt-out flags.
+- [`12-document-upgrade-command.md`](https://github.com/nextellarlabs/nextellar-docs/blob/main/issues/12-document-upgrade-command.md) — Document `nextellar upgrade`.
+- [`13-document-deploy-command.md`](https://github.com/nextellarlabs/nextellar-docs/blob/main/issues/13-document-deploy-command.md) — Document `nextellar deploy`.
+- [`15-document-current-scaffold-flags.md`](https://github.com/nextellarlabs/nextellar-docs/blob/main/issues/15-document-current-scaffold-flags.md) — Document the current flags available on the scaffold command.
+
+---
+
+## Complexity Labels
+
+Each template carries a complexity label that indicates the expected effort and point value.
+
+| Label | Points | Typical scope |
+|---|---|---|
+| `difficulty:easy` | 100–150 | Single file, straightforward edit |
+| `difficulty:medium` | 200 | Multiple files or new content section |
+
+---
+
+## Opening a New Issue
+
+1. Browse the templates in the [`issues/`](https://github.com/nextellarlabs/nextellar-docs/tree/main/issues) directory.
+2. Pick the template that matches your contribution type using the categories above.
+3. Open a new GitHub issue and paste the template content into the body.
+4. Fill in the **Context** and **What Needs to Happen** sections with your specific details.
+5. Apply the labels listed at the top of the template.
+
+If no existing template fits your contribution, open a blank issue with a clear title, type label (`docs`, `bug`, or `feature`), and a short description of what needs to change.
+
+---
+
+## Related
+
+- [Contributing to Documentation](/docs/guides/contributing) — full development workflow and pre-submission checklist.
+- [Documentation Contributing Checklist](/docs/guides/contributing-checklist) — quick checklist before opening a pull request.
+- [Docs Style Guide](/docs/guides/style-guide) — tone, structure, and formatting conventions.
