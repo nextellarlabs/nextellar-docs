@@ -90,6 +90,10 @@ export const sidebarNav: SidebarSection[] = [
         title: 'Hook Error Handling',
         href: '/docs/guides/hook-error-handling',
       },
+      {
+        title: 'Custom Hook Authoring',
+        href: '/docs/guides/custom-hook-authoring-playbook',
+      },
       { title: 'Editor Setup', href: '/docs/guides/editor-setup' },
       { title: 'Add a Docs Page', href: '/docs/guides/add-docs-page' },
       {
@@ -140,6 +144,10 @@ export const sidebarNav: SidebarSection[] = [
       {
         title: 'Rate Limiting Horizon Requests',
         href: '/docs/guides/rate-limiting-horizon-requests',
+      },
+      {
+        title: 'Analytics Integration',
+        href: '/docs/guides/analytics-integration-guide',
       },
     ],
   },
@@ -219,6 +227,10 @@ export const sidebarNav: SidebarSection[] = [
         title: 'Hook Error Handling',
         href: '/docs/guides/hook-error-handling',
       },
+      {
+        title: 'Custom Hook Authoring',
+        href: '/docs/guides/custom-hook-authoring-playbook',
+      },
       { title: 'Editor Setup', href: '/docs/guides/editor-setup' },
       { title: 'Testing (Vitest)', href: '/docs/guides/testing' },
       {
@@ -243,6 +255,10 @@ export const sidebarNav: SidebarSection[] = [
       {
         title: 'Rate Limiting Horizon Requests',
         href: '/docs/guides/rate-limiting-horizon-requests',
+      },
+      {
+        title: 'Analytics Integration',
+        href: '/docs/guides/analytics-integration-guide',
       },
     ],
   },
