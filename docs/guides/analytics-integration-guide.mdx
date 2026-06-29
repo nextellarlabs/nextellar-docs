@@ -1,0 +1,638 @@
+---
+title: Analytics Integration for Stellar dApps
+description: A comprehensive guide to adding privacy-conscious analytics to Stellar dApps built with Nextellar, including event tracking, wallet analytics, and on-chain metrics.
+---
+
+# Analytics Integration for Stellar dApps
+
+This guide covers how to add analytics to a Stellar dApp built with Nextellar. It includes recommended events to track, privacy considerations, and a complete integration example using a privacy-first approach.
+
+---
+
+## Table of Contents
+
+1. [Why Analytics Matter for dApps](#why-analytics-matter-for-dapps)
+2. [Events Worth Tracking](#events-worth-tracking)
+3. [Privacy-First Architecture](#privacy-first-architecture)
+4. [Integration Example](#integration-example)
+5. [On-Chain Metrics](#on-chain-metrics)
+6. [Wallet Analytics](#wallet-analytics)
+7. [Testing Your Analytics](#testing-your-analytics)
+8. [Related Resources](#related-resources)
+
+---
+
+## Why Analytics Matter for dApps
+
+Traditional web analytics fall short for blockchain applications. dApp analytics must bridge two worlds: off-chain user interactions (clicks, page views) and on-chain activity (transactions, contract calls). Without both, you are flying blind on user behavior and product health.
+
+### What dApp Analytics Reveal
+
+| Insight | Off-Chain Source | On-Chain Source |
+|---------|-----------------|-----------------|
+| User acquisition | Referrer, UTM params | First wallet connection |
+| Feature adoption | Button clicks | Contract invocation frequency |
+| Drop-off points | Form abandonment | Failed transaction patterns |
+| Revenue | — | Payment volume, asset flow |
+| Retention | Return visits | Recurring wallet interactions |
+
+### What Makes dApp Analytics Different
+
+- **No cookies**: Wallet addresses replace user IDs, but they are pseudonymous, not anonymous.
+- **Irreversible actions**: A failed transaction costs real fees — understanding why matters more than a failed form submission.
+- **Cross-platform**: Users may interact via web, mobile wallet browsers, or CLI tools.
+- **Regulatory sensitivity**: Financial activity tracking triggers stricter privacy laws.
+
+---
+
+## Events Worth Tracking
+
+Organize events into four categories: user lifecycle, wallet interactions, transaction flow, and contract engagement.
+
+### User Lifecycle Events
+
+| Event | Trigger | Properties |
+|-------|---------|------------|
+| `page_view` | Route change | `path`, `referrer`, `utm_source` |
+| `dapp_initialized` | App mount | `wallet_provider`, `network`, `stellar_sdk_version` |
+| `feature_discovered` | First interaction with a feature | `feature_id`, `discovery_source` |
+| `help_opened` | FAQ or docs link clicked | `topic`, `source_page` |
+
+### Wallet Interaction Events
+
+| Event | Trigger | Properties |
+|-------|---------|------------|
+| `wallet_connect_initiated` | User clicks "Connect Wallet" | `wallet_type`, `network` |
+| `wallet_connected` | Successful connection | `wallet_type`, `public_key_truncated`, `network` |
+| `wallet_connect_failed` | Connection error | `wallet_type`, `error_code`, `error_message` |
+| `wallet_disconnected` | User disconnects | `wallet_type`, `session_duration_seconds` |
+| `network_switched` | User changes network | `from_network`, `to_network` |
+
+**Privacy note**: Never log full public keys. Truncate to the first 6 and last 4 characters (`GABC...WXYZ`) or hash them.
+
+### Transaction Flow Events
+
+| Event | Trigger | Properties |
+|-------|---------|------------|
+| `transaction_initiated` | User confirms send | `operation_type`, `asset_code`, `amount` |
+| `transaction_signed` | Wallet returns signed XDR | `wallet_type`, `signing_duration_ms` |
+| `transaction_submitted` | Horizon accepts transaction | `hash_truncated`, `fee_paid` |
+| `transaction_confirmed` | Ledger inclusion | `hash_truncated`, `ledger_sequence`, `confirmation_time_ms` |
+| `transaction_failed` | Horizon rejects or timeout | `hash_truncated`, `error_code`, `error_message` |
+
+**Privacy note**: Log asset codes and amounts in buckets (`<1`, `1-10`, `10-100`, `100+`) rather than exact values for high-value transactions.
+
+### Contract Engagement Events
+
+| Event | Trigger | Properties |
+|-------|---------|------------|
+| `contract_interaction_initiated` | User opens contract UI | `contract_id_truncated`, `function_name` |
+| `contract_simulated` | Simulation completes | `contract_id_truncated`, `function_name`, `success` |
+| `contract_invoked` | Invocation transaction submitted | `contract_id_truncated`, `function_name`, `hash_truncated` |
+| `contract_event_received` | Event subscription fires | `contract_id_truncated`, `event_topic`, `ledger_sequence` |
+
+---
+
+## Privacy-First Architecture
+
+### Principles
+
+1. **No PII**: Never collect emails, IPs, or device fingerprints.
+2. **Pseudonymity**: Wallet addresses are hashed or truncated before logging.
+3. **Consent-first**: Ask before tracking. Provide a clear opt-out.
+4. **Data minimization**: Track only what you need. Delete old data.
+5. **Transparency**: Publish what you track and why.
+
+### Regulatory Checklist
+
+| Regulation | Requirement | Implementation |
+|------------|-------------|----------------|
+| GDPR (EU) | Consent, right to deletion | Cookie-less, hash wallet addresses, provide deletion endpoint |
+| CCPA (California) | Opt-out, data portability | Analytics settings page, exportable logs |
+| MiCA (EU) | Transaction data handling | Bucket amounts, no exact value logging |
+
+### Recommended Tools
+
+| Tool | Approach | Best For |
+|------|----------|----------|
+| **Plausible** | Cookie-less, EU-hosted | Page views, funnels, privacy compliance |
+| **PostHog** | Self-hostable, event-based | Product analytics, feature flags, session replay |
+| **Mixpanel** | Event-based, cohort analysis | User journeys, retention, A/B testing |
+| **Custom** | Direct to your database | Full control, on-chain correlation |
+
+For this guide, we use a **hybrid approach**: Plausible for page views (privacy-first, zero config) and a lightweight custom event tracker for dApp-specific events.
+
+---
+
+## Integration Example
+
+This example adds analytics to a Nextellar dApp using Plausible for page views and a custom `useAnalytics` hook for dApp events.
+
+### Step 1: Install Plausible
+
+```bash
+npm install next-plausible
+```
+
+### Step 2: Configure Plausible in Layout
+
+```tsx
+// src/app/layout.tsx
+import PlausibleProvider from 'next-plausible';
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <head>
+        <PlausibleProvider
+          domain="your-dapp.com"
+          trackOutboundLinks
+          trackFileDownloads
+          enabled={process.env.NODE_ENV === 'production'}
+        />
+      </head>
+      <body>{children}</body>
+    </html>
+  );
+}
+```
+
+### Step 3: Create the useAnalytics Hook
+
+```tsx
+// src/hooks/useAnalytics.ts
+import { useCallback, useRef } from 'react';
+
+interface AnalyticsEvent {
+  event: string;
+  properties?: Record<string, unknown>;
+  timestamp: string;
+}
+
+interface AnalyticsConfig {
+  endpoint?: string;
+  enabled?: boolean;
+  debug?: boolean;
+}
+
+const DEFAULT_ENDPOINT = '/api/analytics';
+
+function truncatePublicKey(key: string): string {
+  if (!key || key.length < 12) return 'unknown';
+  return `${key.slice(0, 6)}...${key.slice(-4)}`;
+}
+
+function bucketAmount(amount: string): string {
+  const num = parseFloat(amount);
+  if (isNaN(num) || num <= 0) return '0';
+  if (num < 1) return '<1';
+  if (num < 10) return '1-10';
+  if (num < 100) return '10-100';
+  if (num < 1000) return '100-1K';
+  if (num < 10000) return '1K-10K';
+  return '10K+';
+}
+
+export function useAnalytics(config: AnalyticsConfig = {}) {
+  const { endpoint = DEFAULT_ENDPOINT, enabled = true, debug = false } = config;
+  const queueRef = useRef<AnalyticsEvent[]>([]);
+
+  const track = useCallback(
+    (event: string, properties?: Record<string, unknown>) => {
+      if (!enabled) return;
+
+      const payload: AnalyticsEvent = {
+        event,
+        properties: properties || {},
+        timestamp: new Date().toISOString(),
+      };
+
+      if (debug) {
+        console.log('[Analytics]', payload);
+      }
+
+      // Send immediately if possible, queue otherwise
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon(endpoint, JSON.stringify(payload));
+      } else {
+        queueRef.current.push(payload);
+        // Flush on next tick
+        setTimeout(() => flush(), 0);
+      }
+    },
+    [enabled, endpoint, debug]
+  );
+
+  const flush = useCallback(async () => {
+    if (queueRef.current.length === 0) return;
+
+    const batch = queueRef.current.splice(0, queueRef.current.length);
+
+    try {
+      await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(batch),
+        keepalive: true,
+      });
+    } catch (err) {
+      // Silently fail — analytics must not break the app
+      if (debug) console.error('[Analytics] Flush failed:', err);
+    }
+  }, [endpoint, debug]);
+
+  const trackWalletConnect = useCallback(
+    (walletType: string, publicKey: string, network: string) => {
+      track('wallet_connected', {
+        wallet_type: walletType,
+        public_key_truncated: truncatePublicKey(publicKey),
+        network,
+      });
+    },
+    [track]
+  );
+
+  const trackTransaction = useCallback(
+    (
+      status: 'initiated' | 'signed' | 'submitted' | 'confirmed' | 'failed',
+      details: {
+        operationType: string;
+        assetCode?: string;
+        amount?: string;
+        hash?: string;
+        errorMessage?: string;
+      }
+    ) => {
+      track(`transaction_${status}`, {
+        operation_type: details.operationType,
+        asset_code: details.assetCode,
+        amount_bucket: details.amount ? bucketAmount(details.amount) : undefined,
+        hash_truncated: details.hash ? `${details.hash.slice(0, 8)}...` : undefined,
+        error_message: details.errorMessage,
+      });
+    },
+    [track]
+  );
+
+  const trackContractInteraction = useCallback(
+    (
+      status: 'initiated' | 'simulated' | 'invoked' | 'event_received',
+      contractId: string,
+      functionName: string,
+      hash?: string
+    ) => {
+      track(`contract_${status}`, {
+        contract_id_truncated: `${contractId.slice(0, 8)}...`,
+        function_name: functionName,
+        hash_truncated: hash ? `${hash.slice(0, 8)}...` : undefined,
+      });
+    },
+    [track]
+  );
+
+  return {
+    track,
+    trackWalletConnect,
+    trackTransaction,
+    trackContractInteraction,
+    flush,
+  };
+}
+```
+
+### Step 4: Use in Components
+
+```tsx
+// src/components/PaymentForm.tsx
+import { useAnalytics } from '@/hooks/useAnalytics';
+import { useStellarWallet } from '@/hooks/useStellarWallet';
+import { useStellarPayment } from '@/hooks/useStellarPayment';
+
+export function PaymentForm() {
+  const { publicKey, walletName } = useStellarWallet();
+  const { sendPayment } = useStellarPayment();
+  const { trackTransaction } = useAnalytics();
+
+  const handleSubmit = async (to: string, amount: string, assetCode: string) => {
+    trackTransaction('initiated', {
+      operationType: 'payment',
+      assetCode,
+      amount,
+    });
+
+    try {
+      const result = await sendPayment({ to, amount, assetCode });
+
+      trackTransaction('confirmed', {
+        operationType: 'payment',
+        assetCode,
+        amount,
+        hash: result.hash,
+      });
+    } catch (err) {
+      trackTransaction('failed', {
+        operationType: 'payment',
+        assetCode,
+        amount,
+        errorMessage: err instanceof Error ? err.message : 'Unknown error',
+      });
+    }
+  };
+
+  // ... render form
+}
+```
+
+### Step 5: Server-Side Endpoint
+
+```tsx
+// src/app/api/analytics/route.ts
+import { NextRequest } from 'next/server';
+
+export const runtime = 'edge';
+
+interface AnalyticsPayload {
+  event: string;
+  properties?: Record<string, unknown>;
+  timestamp: string;
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = (await request.json()) as AnalyticsPayload | AnalyticsPayload[];
+    const events = Array.isArray(body) ? body : [body];
+
+    // Validate and sanitize
+    const sanitized = events.map((e) => ({
+      event: String(e.event).slice(0, 64),
+      properties: e.properties || {},
+      timestamp: new Date(e.timestamp).toISOString(),
+      user_agent: request.headers.get('user-agent')?.slice(0, 256),
+      country: request.geo?.country,
+    }));
+
+    // Store in your database or forward to analytics service
+    // Example: await db.analytics.insertMany(sanitized);
+    // Example: await forwardToMixpanel(sanitized);
+
+    console.log('[Analytics]', sanitized);
+
+    return Response.json({ received: sanitized.length });
+  } catch {
+    return Response.json({ error: 'Invalid payload' }, { status: 400 });
+  }
+}
+```
+
+### Step 6: Privacy Settings UI
+
+```tsx
+// src/components/AnalyticsSettings.tsx
+import { useState, useEffect } from 'react';
+
+export function AnalyticsSettings() {
+  const [enabled, setEnabled] = useState(true);
+
+  useEffect(() => {
+    const stored = localStorage.getItem('analytics_enabled');
+    if (stored !== null) setEnabled(stored === 'true');
+  }, []);
+
+  const toggle = (value: boolean) => {
+    setEnabled(value);
+    localStorage.setItem('analytics_enabled', String(value));
+    // Reload to apply Plausible script changes
+    window.location.reload();
+  };
+
+  return (
+    <div className="space-y-4">
+      <h3 className="font-semibold">Analytics Preferences</h3>
+      <label className="flex items-center gap-3">
+        <input
+          type="checkbox"
+          checked={enabled}
+          onChange={(e) => toggle(e.target.checked)}
+          className="h-4 w-4"
+        />
+        <span>Help improve this dApp by sharing anonymous usage data</span>
+      </label>
+      <p className="text-sm text-gray-500">
+        We never collect wallet addresses, transaction amounts, or personal data.
+        All metrics are aggregated and pseudonymized.
+      </p>
+    </div>
+  );
+}
+```
+
+---
+
+## On-Chain Metrics
+
+Some metrics are best derived directly from the ledger rather than client-side events.
+
+### Metrics to Query from Horizon
+
+| Metric | Horizon Endpoint | Use Case |
+|--------|-----------------|----------|
+| Active users (30d) | `/accounts` with filtering | Growth tracking |
+| Transaction volume | `/ledgers` aggregation | Revenue analysis |
+| Average fee paid | `/transactions` | UX optimization |
+| Asset distribution | `/assets` | Market analysis |
+| Contract invocations | `/soroban/events` | Product adoption |
+
+### Example: Daily Active Wallets
+
+```ts
+// scripts/analytics/daily-active-wallets.ts
+import { Horizon } from '@stellar/stellar-sdk';
+
+const server = new Horizon.Server('https://horizon.stellar.org');
+
+async function getDailyActiveWallets(date: Date): Promise<number> {
+  const start = new Date(date);
+  start.setUTCHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 1);
+
+  const cursor = await server
+    .ledgers()
+    .cursor('now')
+    .limit(200)
+    .call();
+
+  const ledgers = cursor.records.filter(
+    (l) =>
+      new Date(l.closed_at) >= start && new Date(l.closed_at) < end
+  );
+
+  const uniqueWallets = new Set<string>();
+
+  for (const ledger of ledgers) {
+    const txs = await server
+      .transactions()
+      .forLedger(ledger.sequence)
+      .call();
+
+    txs.records.forEach((tx) => uniqueWallets.add(tx.source_account));
+  }
+
+  return uniqueWallets.size;
+}
+```
+
+**Note**: Run this server-side or in a cron job, not in the browser. Horizon rate limits apply.
+
+---
+
+## Wallet Analytics
+
+Wallet providers often expose their own analytics. Correlate them with your dApp data for a complete picture.
+
+| Wallet | Analytics Available | Integration |
+|--------|---------------------|-------------|
+| **Freighter** | Connection events via API | Listen to `freighter-api` events |
+| **Lobstr** | In-app analytics | Not externally accessible |
+| **WalletConnect** | Session analytics | Web3Inbox dashboard |
+| **xBull** | Connection metadata | Available via extension API |
+
+### Freighter Event Tracking
+
+```tsx
+import { isConnected, getPublicKey } from '@stellar/freighter-api';
+
+async function trackFreighterEngagement() {
+  const connected = await isConnected();
+  if (!connected) return;
+
+  const publicKey = await getPublicKey();
+
+  // Track only engagement, never the key itself
+  track('wallet_provider_engaged', {
+    provider: 'freighter',
+    has_public_key: !!publicKey,
+  });
+}
+```
+
+---
+
+## Testing Your Analytics
+
+### Unit Tests
+
+```tsx
+// tests/hooks/useAnalytics.test.ts
+import { renderHook, act } from '@testing-library/react';
+import { useAnalytics } from '@/hooks/useAnalytics';
+
+describe('useAnalytics', () => {
+  beforeEach(() => {
+    global.navigator.sendBeacon = jest.fn(() => true);
+  });
+
+  it('does not track when disabled', () => {
+    const { result } = renderHook(() => useAnalytics({ enabled: false }));
+
+    act(() => {
+      result.current.track('test_event');
+    });
+
+    expect(navigator.sendBeacon).not.toHaveBeenCalled();
+  });
+
+  it('truncates public keys', () => {
+    const { result } = renderHook(() => useAnalytics({ debug: true }));
+    const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+
+    act(() => {
+      result.current.trackWalletConnect('freighter', 'GABC123DEF456GHI789JKL012MNO345PQR678STU', 'testnet');
+    });
+
+    expect(consoleSpy).toHaveBeenCalledWith(
+      '[Analytics]',
+      expect.objectContaining({
+        properties: expect.objectContaining({
+          public_key_truncated: 'GABC...6STU',
+        }),
+      })
+    );
+
+    consoleSpy.mockRestore();
+  });
+
+  it('buckets amounts correctly', () => {
+    const { result } = renderHook(() => useAnalytics());
+
+    act(() => {
+      result.current.trackTransaction('initiated', {
+        operationType: 'payment',
+        amount: '50',
+      });
+    });
+
+    expect(navigator.sendBeacon).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.stringContaining('"amount_bucket":"10-100"')
+    );
+  });
+});
+```
+
+### Integration Tests
+
+```tsx
+// tests/analytics-endpoint.test.ts
+import { POST } from '@/app/api/analytics/route';
+
+describe('/api/analytics', () => {
+  it('accepts valid events', async () => {
+    const request = new Request('http://localhost/api/analytics', {
+      method: 'POST',
+      body: JSON.stringify({
+        event: 'wallet_connected',
+        properties: { wallet_type: 'freighter' },
+        timestamp: new Date().toISOString(),
+      }),
+    });
+
+    const response = await POST(request as any);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.received).toBe(1);
+  });
+
+  it('rejects invalid payloads', async () => {
+    const request = new Request('http://localhost/api/analytics', {
+      method: 'POST',
+      body: 'not json',
+    });
+
+    const response = await POST(request as any);
+    expect(response.status).toBe(400);
+  });
+});
+```
+
+### Manual Verification Checklist
+
+- [ ] Events fire on wallet connect, transaction submit, and contract interaction.
+- [ ] No full public keys appear in network requests or logs.
+- [ ] Amounts are bucketed, not exact.
+- [ ] Analytics toggle in settings disables all tracking.
+- [ ] Failed analytics requests do not break the dApp.
+- [ ] `navigator.sendBeacon` is used for unload events.
+
+---
+
+## Related Resources
+
+- [Hook Error Handling](/docs/guides/hook-error-handling) — Error patterns for analytics hooks
+- [useStellarWallet](/docs/hooks/use-stellar-wallet) — Wallet connection events to track
+- [useStellarPayment](/docs/hooks/use-stellar-payment) — Payment flow events
+- [useSorobanContract](/docs/hooks/use-soroban-contract) — Contract interaction events
+- [Privacy Considerations](/docs/guides/privacy-considerations) — Broader privacy guide for dApps
+- [Testing](/docs/guides/testing) — Repository test setup with Vitest
+- [Contributing](/docs/guides/contributing) — PR workflow and conventions

@@ -145,6 +145,10 @@ export const sidebarNav: SidebarSection[] = [
         title: 'Rate Limiting Horizon Requests',
         href: '/docs/guides/rate-limiting-horizon-requests',
       },
+      {
+        title: 'Analytics Integration',
+        href: '/docs/guides/analytics-integration-guide',
+      },
     ],
   },
   {
@@ -251,6 +255,10 @@ export const sidebarNav: SidebarSection[] = [
       {
         title: 'Rate Limiting Horizon Requests',
         href: '/docs/guides/rate-limiting-horizon-requests',
+      },
+      {
+        title: 'Analytics Integration',
+        href: '/docs/guides/analytics-integration-guide',
       },
     ],
   },
