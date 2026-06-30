@@ -1,0 +1,27 @@
+---
+title: Stellar Quorum Sets
+description: A short note on what a quorum set is and why it matters in the Stellar network.
+---
+
+# Stellar Quorum Sets
+
+A quorum set is a fundamental concept in the Stellar Consensus Protocol (SCP).
+
+## What is a Quorum Set?
+
+A **quorum set** is a list of nodes that a specific node trusts to help it reach consensus. Each node on the Stellar network chooses its own quorum set. For a node to agree to a transaction, it must see that a sufficient number of nodes in its quorum set also agree.
+
+## Why it Matters
+
+Quorum sets allow the network to reach consensus without relying on a central authority. Since each node defines its own trusted set of validators, the network remains decentralized and resilient against malicious actors.
+
+## Where it Appears
+
+You will typically encounter quorum sets when:
+- Configuring a Stellar Core node.
+- Analyzing the health and decentralization of the network.
+- Querying node information from the Horizon API.
+
+## Deeper Reading
+
+For more detailed information, read the [Stellar Consensus Protocol documentation](https://developers.stellar.org/docs/fundamentals-and-concepts/stellar-consensus-protocol).
