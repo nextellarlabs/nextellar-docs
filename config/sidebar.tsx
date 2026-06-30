@@ -90,6 +90,10 @@ export const sidebarNav: SidebarSection[] = [
         title: 'Hook Error Handling',
         href: '/docs/guides/hook-error-handling',
       },
+      {
+        title: 'Wallet UX Patterns',
+        href: '/docs/guides/wallet-ux-patterns',
+      },
       { title: 'Editor Setup', href: '/docs/guides/editor-setup' },
       { title: 'Add a Docs Page', href: '/docs/guides/add-docs-page' },
       {
@@ -222,6 +226,10 @@ export const sidebarNav: SidebarSection[] = [
       {
         title: 'Hook Error Handling',
         href: '/docs/guides/hook-error-handling',
+      },
+      {
+        title: 'Wallet UX Patterns',
+        href: '/docs/guides/wallet-ux-patterns',
       },
       { title: 'Editor Setup', href: '/docs/guides/editor-setup' },
       { title: 'Testing (Vitest)', href: '/docs/guides/testing' },
