@@ -1,0 +1,82 @@
+---
+title: Husky Pre-commit Hooks
+description: Learn which Husky pre-commit hooks run in this repository, how to bypass them when necessary, and how to resolve common failures.
+---
+
+# Husky Pre-commit Hooks
+
+This repository uses Husky to run lightweight checks before a commit is created. The current setup is intentionally simple and focuses on formatting staged files before they are committed.
+
+## What runs on commit
+
+The pre-commit hook is defined in the repository's Husky configuration and runs the following command:
+
+```bash
+pnpm lint-staged
+```
+
+The hook is configured in the root package manifest and applies formatting rules through lint-staged. For the current repository setup, that means:
+
+- staged files matching `*.js`, `*.jsx`, `*.ts`, `*.tsx`, `*.json`, `*.css`, `*.md`, and `*.mdx` are formatted with Prettier
+- the formatting step is applied only to files that are staged for commit
+- the hook helps keep documentation, config files, and source files consistent before they are pushed
+
+## When the hook runs
+
+The hook runs automatically whenever you execute a normal commit such as:
+
+```bash
+git commit -m "Update docs"
+```
+
+If the formatting step changes a file, review the updated diff, stage the formatted changes, and retry the commit.
+
+## How to skip the hook when needed
+
+Use the skip flag only for exceptional cases, such as when you need to commit a temporary change without running the usual checks:
+
+```bash
+git commit --no-verify -m "Temporary workaround"
+```
+
+This bypasses the Husky pre-commit hook for that specific commit. If you use this approach, make sure to run formatting and validation manually before you push your changes.
+
+## Common failures and fixes
+
+### Prettier reformats a file
+
+This is expected if a staged file does not match the repository formatting rules. The hook will rewrite the file and stop the commit until the changes are re-staged.
+
+Fix:
+
+```bash
+pnpm format
+```
+
+Then review the diff, stage the updated file, and run the commit again.
+
+### The hook does not run
+
+If Husky does not seem to be executing, confirm that dependencies are installed and the Git hooks were initialized:
+
+```bash
+pnpm install
+pnpm prepare
+```
+
+If the hook still does not appear, verify that the repository is using a normal Git working tree and that the `.husky` directory is present.
+
+### The commit is blocked by a formatting error
+
+This usually means one or more staged files need to be reformatted before the commit can proceed. Re-run the formatter, stage the corrected files, and retry the commit.
+
+## Recommended workflow
+
+For day-to-day work, the recommended flow is:
+
+1. make your changes
+2. stage the relevant files
+3. commit normally and let the hook format anything that needs it
+4. review the resulting diff and push once the commit succeeds
+
+This keeps the repository consistent without introducing extra manual steps for routine contributions.

@@ -1,0 +1,55 @@
+---
+title: Latest Ledger Query Endpoint
+description: A short note about the Horizon endpoint for the latest ledger.
+---
+
+# Latest Ledger Query Endpoint
+
+The Horizon API provides an endpoint to query the latest ledger on the Stellar network.
+
+## Endpoint Shape
+
+To fetch the latest ledgers (ordered descending by sequence), use the `/ledgers` endpoint with the `order` parameter:
+
+```
+GET /ledgers?order=desc&limit=1
+```
+
+## Response Fields of Interest
+
+When you query this endpoint, the response includes several important fields for the latest ledger:
+
+- `sequence`: The sequence number of the ledger.
+- `successful_transaction_count`: The number of successful transactions included in this ledger.
+- `closed_at`: The timestamp when the ledger was closed.
+- `fee_pool`: The total amount of fees collected.
+
+## Example
+
+```json
+{
+  "_embedded": {
+    "records": [
+      {
+        "id": "278e384c3116fc0d421ffbe0092c6cc2620a23dc58bcf70b7936a282f6eefc46",
+        "paging_token": "219503487042560",
+        "hash": "278e384c3116fc0d421ffbe0092c6cc2620a23dc58bcf70b7936a282f6eefc46",
+        "prev_hash": "4df021b3df6248b11eb11ce510eab52a0a2df37b4e9b922d057777174db1ba2c",
+        "sequence": 51105,
+        "successful_transaction_count": 0,
+        "failed_transaction_count": 0,
+        "operation_count": 0,
+        "tx_set_operation_count": 0,
+        "closed_at": "2023-01-01T00:00:00Z",
+        "total_coins": "100000000000.0000000",
+        "fee_pool": "0.0000000",
+        "base_fee_in_stroops": 100,
+        "base_reserve_in_stroops": 5000000,
+        "max_tx_set_size": 1000,
+        "protocol_version": 19,
+        "header_xdr": "..."
+      }
+    ]
+  }
+}
+```
