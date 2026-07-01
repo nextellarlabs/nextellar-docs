@@ -1,0 +1,169 @@
+---
+title: Changelog Automation Guide
+description: Learn how to automate changelog generation for Nextellar, from source entries through CI publishing and maintainer review.
+date: 2026-06-29
+---
+
+# Changelog Automation Guide
+
+This guide describes a complete approach to automating the Nextellar docs changelog — from sourcing entries to publishing and review. Following this process ensures the changelog stays accurate, consistently formatted, and reproducible across contributors.
+
+## Source of Changelog Entries
+
+Changelog entries originate from two places:
+
+1. **Pull request titles and labels** — Every merged PR that targets `main` is a candidate for a changelog entry. The PR title becomes the entry text; a label (`feat`, `fix`, `docs`, `breaking`, `deps`) determines the category.
+2. **Conventional commits** — If the repo follows [Conventional Commits](https://www.conventionalcommits.org/), commit messages prefixed with `feat:`, `fix:`, `docs:`, `chore:`, or `BREAKING CHANGE:` are parsed directly. This is the fallback when a PR has no label.
+
+Only changes that affect the published documentation or the CLI toolkit are included. Infrastructure-only changes (CI config tweaks, dependency bumps with no user-visible effect) are omitted unless they affect installation or setup steps.
+
+## Automation Steps
+
+### 1. Label Pull Requests
+
+Before merging, apply at least one of the following labels:
+
+| Label       | Changelog category   |
+| :---------- | :------------------- |
+| `feat`      | Features             |
+| `fix`       | Bug Fixes            |
+| `docs`      | Documentation        |
+| `breaking`  | Breaking Changes     |
+| `deps`      | Dependencies         |
+| `skip-changelog` | Excluded from changelog |
+
+PRs with the `skip-changelog` label are ignored by the generator.
+
+### 2. Generate the Changelog
+
+The project uses [**`conventional-changelog-cli`**](https://github.com/conventional-changelog/conventional-changelog) to produce a structured `CHANGELOG.md` from Git history and PR labels.
+
+Run the generator locally or in CI:
+
+```bash
+# Install once (project devDependency)
+pnpm add -D conventional-changelog-cli
+
+# Generate or update CHANGELOG.md
+pnpm run changelog
+```
+
+The `changelog` script in `package.json` wraps the CLI call:
+
+```json
+{
+  "scripts": {
+    "changelog": "conventional-changelog -p angular -i CHANGELOG.md -s -r 0"
+  }
+}
+```
+
+- `-p angular` — Uses the Angular preset (matches `feat:`, `fix:`, `docs:` prefixes).
+- `-i CHANGELOG.md` — Reads and writes the same file (in-place update).
+- `-s` — Writes output to the same file used as input.
+- `-r 0` — Regenerates all releases, not just the most recent.
+
+### 3. CI Automation with GitHub Actions
+
+Add the following workflow to auto-generate the changelog on every merge to `main`:
+
+```yaml
+# .github/workflows/changelog.yml
+name: Changelog
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  changelog:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history required for changelog generation
+
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Generate changelog
+        run: pnpm run changelog
+
+      - name: Commit updated changelog
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: update CHANGELOG.md [skip ci]"
+          file_pattern: CHANGELOG.md
+```
+
+The `[skip ci]` suffix prevents the commit from re-triggering the workflow.
+
+### 4. Validate the Build
+
+After the changelog is updated, confirm the docs still build cleanly:
+
+```bash
+# Rebuild content layer
+pnpm build:content
+
+# Check internal links
+pnpm check:links
+```
+
+Both commands must exit with status `0` before the changelog update is considered complete.
+
+## Review and Publishing Flow
+
+### Maintainer Review
+
+Changelog updates follow the standard PR workflow:
+
+1. The CI job opens an automated PR (or commits directly to a release branch, depending on your branching strategy) with the updated `CHANGELOG.md`.
+2. A maintainer reviews the generated entries for accuracy and completeness.
+3. If an entry is missing or incorrectly categorized, the maintainer edits `CHANGELOG.md` directly in the PR before approving.
+4. The PR is approved and merged by a maintainer — automated tooling alone cannot merge changelog PRs.
+
+### Publishing to the Documentation Site
+
+Once the changelog PR is merged:
+
+1. Open `/docs/guides/release-notes.mdx` (or a dedicated changelog page if one exists).
+2. Copy the new version block from `CHANGELOG.md` into the top of the archive section.
+3. Add a link to the matching GitHub release tag.
+4. Run `pnpm build:content` and `pnpm check:links` to confirm no regressions.
+5. Open a docs PR, get maintainer approval, and merge.
+
+### Rollback
+
+If a published changelog entry is incorrect:
+
+- Fix the entry in `CHANGELOG.md` and the docs archive page in the same PR.
+- Re-run `pnpm build:content` and `pnpm check:links` before merging the fix.
+- Do **not** regenerate the entire changelog from scratch; edit only the affected entry to preserve Git history.
+
+## Reproducibility Checklist
+
+Use this checklist to verify the process works end-to-end in a clean environment:
+
+- [ ] Clone the repository and run `pnpm install`.
+- [ ] Run `pnpm run changelog` — `CHANGELOG.md` is created or updated without errors.
+- [ ] Run `pnpm build:content` — exits with status `0`.
+- [ ] Run `pnpm check:links` — exits with status `0`, no broken internal links.
+- [ ] Open a PR against `main` with the updated files — CI passes.
+- [ ] A maintainer reviews and approves before merge.
+
+## Related Resources
+
+- [Release Notes Workflow](/docs/guides/release-notes-workflow) — How release notes are written and published
+- [Contributing Guide](/docs/guides/contributing) — Documentation contribution process
+- [Link Validation](/docs/guides/link-validation) — How internal link checks work
+- [Conventional Commits](https://www.conventionalcommits.org/) — Commit message specification
+- [conventional-changelog-cli](https://github.com/conventional-changelog/conventional-changelog) — CLI tool reference
