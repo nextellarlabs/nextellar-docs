@@ -1,0 +1,631 @@
+---
+title: Custom Hook Authoring Playbook
+description: A complete guide to designing, testing, and publishing custom React hooks for Stellar dApps in Nextellar.
+---
+
+# Custom Hook Authoring Playbook
+
+This playbook covers the full lifecycle of authoring a production-ready Stellar hook for Nextellar — from design through testing to publishing considerations. Follow it to ensure your hooks are consistent with the existing codebase, well-tested, and ready for community use.
+
+---
+
+## Table of Contents
+
+1. [Design Principles](#design-principles)
+2. [Hook Structure](#hook-structure)
+3. [Worked Example: useStellarAssetPrice](#worked-example-usestellarassetprice)
+4. [Testing Strategy](#testing-strategy)
+5. [Error Handling Patterns](#error-handling-patterns)
+6. [Publishing Considerations](#publishing-considerations)
+7. [Checklist](#checklist)
+8. [Related Resources](#related-resources)
+
+---
+
+## Design Principles
+
+Every Nextellar hook follows five core principles. Internalize these before writing code.
+
+### 1. Auto-Consume Provider Config
+
+Hooks must read global configuration from `WalletProvider` when available, while allowing per-call overrides.
+
+```tsx
+// Good: falls back to provider, allows override
+function useStellarAssetPrice(
+  assetCode: string,
+  opts?: { horizonUrl?: string; pollingInterval?: number }
+) {
+  const { horizonUrl: providerUrl } = useWalletContext();
+  const horizonUrl = opts?.horizonUrl ?? providerUrl ?? DEFAULT_HORIZON_URL;
+  // ...
+}
+```
+
+### 2. Consistent Return Shape
+
+All hooks return the same four-field pattern so UI code never branches on hook-specific shapes.
+
+```typescript
+interface HookResult<T> {
+  data: T | undefined;
+  loading: boolean;
+  error: Error | undefined;
+  refresh: () => Promise<void>;
+}
+```
+
+### 3. Loading and Error States Are First-Class
+
+Never return `null` for loading or throw uncaught errors. Consumers must be able to render `<Spinner />` and `<RetryButton />` without guards.
+
+```tsx
+// Good
+const { data, loading, error, refresh } = useStellarAssetPrice('USDC');
+if (loading) return <Spinner />;
+if (error) return <button onClick={refresh}>Retry</button>;
+return <PriceDisplay price={data} />;
+```
+
+### 4. Cleanup on Unmount
+
+Abort in-flight requests when the component unmounts. Use `AbortController` for fetch and clear intervals/timeouts.
+
+```tsx
+useEffect(() => {
+  const controller = new AbortController();
+  fetchPrice(controller.signal);
+  return () => controller.abort();
+}, [dependency]);
+```
+
+### 5. Minimal API Surface
+
+Expose only what consumers need. Prefer composition over configuration. If a feature is used by fewer than 20% of consumers, leave it out or export a separate utility.
+
+---
+
+## Hook Structure
+
+A well-structured Nextellar hook has four sections in this order:
+
+```
+1. Types & Interfaces
+2. Constants & Defaults
+3. The Hook Function
+4. Helper Utilities (exported if reusable)
+```
+
+### File Template
+
+```tsx
+// src/hooks/useStellarAssetPrice.ts
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useWalletContext } from '@/context/WalletContext';
+
+// ─── Types ───────────────────────────────────────────────────────
+
+export interface AssetPrice {
+  assetCode: string;
+  price: number;
+  lastUpdated: Date;
+  source: string;
+}
+
+export interface UseStellarAssetPriceOptions {
+  horizonUrl?: string;
+  pollingInterval?: number;
+  enabled?: boolean;
+}
+
+export interface UseStellarAssetPriceResult {
+  data: AssetPrice | undefined;
+  loading: boolean;
+  error: Error | undefined;
+  refresh: () => Promise<void>;
+}
+
+// ─── Constants ───────────────────────────────────────────────────
+
+const DEFAULT_POLLING_INTERVAL = 30000; // 30s
+const DEFAULT_HORIZON_URL = 'https://horizon.stellar.org';
+
+// ─── Hook ────────────────────────────────────────────────────────
+
+export function useStellarAssetPrice(
+  assetCode: string,
+  options: UseStellarAssetPriceOptions = {}
+): UseStellarAssetPriceResult {
+  const { horizonUrl: providerUrl } = useWalletContext();
+  const horizonUrl = options.horizonUrl ?? providerUrl ?? DEFAULT_HORIZON_URL;
+  const pollingInterval = options.pollingInterval ?? DEFAULT_POLLING_INTERVAL;
+  const enabled = options.enabled ?? true;
+
+  const [data, setData] = useState<AssetPrice | undefined>();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | undefined>();
+  const abortRef = useRef<AbortController | null>(null);
+
+  const fetchPrice = useCallback(
+    async (signal?: AbortSignal) => {
+      setLoading(true);
+      setError(undefined);
+
+      try {
+        const response = await fetch(
+          `${horizonUrl}/assets?asset_code=${assetCode}`,
+          { signal }
+        );
+
+        if (!response.ok) {
+          throw new Error(`Horizon returned ${response.status}`);
+        }
+
+        const json = await response.json();
+        const record = json._embedded?.records?.[0];
+
+        if (!record) {
+          throw new Error(`Asset ${assetCode} not found`);
+        }
+
+        setData({
+          assetCode,
+          price: Number(record.amount) / Number(record.num_accounts),
+          lastUpdated: new Date(),
+          source: horizonUrl,
+        });
+      } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') return;
+        setError(err instanceof Error ? err : new Error(String(err)));
+      } finally {
+        setLoading(false);
+      }
+    },
+    [assetCode, horizonUrl]
+  );
+
+  const refresh = useCallback(async () => {
+    abortRef.current?.abort();
+    abortRef.current = new AbortController();
+    await fetchPrice(abortRef.current.signal);
+  }, [fetchPrice]);
+
+  useEffect(() => {
+    if (!enabled) return;
+
+    refresh();
+
+    if (pollingInterval > 0) {
+      const id = setInterval(refresh, pollingInterval);
+      return () => {
+        clearInterval(id);
+        abortRef.current?.abort();
+      };
+    }
+
+    return () => abortRef.current?.abort();
+  }, [enabled, refresh, pollingInterval]);
+
+  return { data, loading, error, refresh };
+}
+```
+
+---
+
+## Worked Example: useStellarAssetPrice
+
+This section walks through building `useStellarAssetPrice` from scratch — the same hook shown in the template above.
+
+### Step 1: Define the Problem
+
+Consumers need the current price of a Stellar asset (e.g., `USDC`, `yXLM`). The Horizon API exposes asset data but requires pagination handling, error recovery, and polling for live updates.
+
+### Step 2: Design the API
+
+| Decision | Rationale |
+|----------|-----------|
+| `assetCode: string` as first arg | Most common use case; required |
+| `options` object as second arg | Optional overrides without positional bloat |
+| `enabled?: boolean` | Allows conditional fetching without conditional hook calls |
+| `pollingInterval?: number` | Live price updates; `0` disables polling |
+| Return `{ data, loading, error, refresh }` | Matches all existing Nextellar hooks |
+
+### Step 3: Implement Fetch Logic
+
+```tsx
+const fetchPrice = useCallback(async (signal?: AbortSignal) => {
+  setLoading(true);
+  setError(undefined);
+
+  try {
+    const res = await fetch(
+      `${horizonUrl}/assets?asset_code=${assetCode}&order=desc&limit=1`,
+      { signal }
+    );
+    // ...parse and setData
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') return;
+    setError(err instanceof Error ? err : new Error(String(err)));
+  } finally {
+    setLoading(false);
+  }
+}, [assetCode, horizonUrl]);
+```
+
+Key details:
+- Always clear `error` before a new fetch so stale errors do not persist.
+- Swallow `AbortError` silently; it is not a user-facing failure.
+- Normalize non-Error throws with `new Error(String(err))`.
+
+### Step 4: Add Polling with Cleanup
+
+```tsx
+useEffect(() => {
+  if (!enabled) return;
+
+  refresh();
+
+  if (pollingInterval > 0) {
+    const id = setInterval(refresh, pollingInterval);
+    return () => {
+      clearInterval(id);
+      abortRef.current?.abort();
+    };
+  }
+
+  return () => abortRef.current?.abort();
+}, [enabled, refresh, pollingInterval]);
+```
+
+Key details:
+- `enabled = false` skips the fetch entirely.
+- `pollingInterval = 0` fetches once and stops.
+- The cleanup function aborts the in-flight request and clears the interval.
+
+### Step 5: Usage in a Component
+
+```tsx
+import { useStellarAssetPrice } from '@/hooks/useStellarAssetPrice';
+
+export function PriceTicker({ assetCode }: { assetCode: string }) {
+  const { data, loading, error, refresh } = useStellarAssetPrice(assetCode, {
+    pollingInterval: 15000, // 15s
+  });
+
+  if (loading && !data) return <div>Loading {assetCode}...</div>;
+  if (error) return <button onClick={refresh}>Retry {assetCode}</button>;
+  if (!data) return null;
+
+  return (
+    <div>
+      <span>{assetCode}: ${data.price.toFixed(4)}</span>
+      <span className="text-xs text-gray-500">
+        Updated {data.lastUpdated.toLocaleTimeString()}
+      </span>
+    </div>
+  );
+}
+```
+
+---
+
+## Testing Strategy
+
+Test hooks at three levels: unit (hook logic), integration (with provider), and contract (API shape).
+
+### Unit Tests with React Testing Library
+
+```tsx
+// tests/hooks/useStellarAssetPrice.test.tsx
+import { renderHook, waitFor } from '@testing-library/react';
+import { useStellarAssetPrice } from '@/hooks/useStellarAssetPrice';
+
+describe('useStellarAssetPrice', () => {
+  beforeEach(() => {
+    global.fetch = jest.fn();
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('returns loading state initially', () => {
+    (fetch as jest.Mock).mockReturnValue(new Promise(() => {}));
+
+    const { result } = renderHook(() => useStellarAssetPrice('USDC'));
+
+    expect(result.current.loading).toBe(true);
+    expect(result.current.data).toBeUndefined();
+    expect(result.current.error).toBeUndefined();
+  });
+
+  it('returns price data on success', async () => {
+    (fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        _embedded: {
+          records: [{ amount: '1000000', num_accounts: '5000' }],
+        },
+      }),
+    });
+
+    const { result } = renderHook(() => useStellarAssetPrice('USDC'));
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.data).toMatchObject({
+      assetCode: 'USDC',
+      price: 200,
+      source: expect.any(String),
+    });
+    expect(result.current.error).toBeUndefined();
+  });
+
+  it('returns error on failed fetch', async () => {
+    (fetch as jest.Mock).mockResolvedValue({
+      ok: false,
+      status: 404,
+    });
+
+    const { result } = renderHook(() => useStellarAssetPrice('FAKE'));
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.error).toBeDefined();
+    expect(result.current.data).toBeUndefined();
+  });
+
+  it('refetch works via refresh()', async () => {
+    (fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        _embedded: { records: [{ amount: '1000', num_accounts: '10' }] },
+      }),
+    });
+
+    const { result } = renderHook(() => useStellarAssetPrice('USDC'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    (fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        _embedded: { records: [{ amount: '2000', num_accounts: '10' }] },
+      }),
+    });
+
+    await result.current.refresh();
+
+    expect(result.current.data?.price).toBe(200);
+  });
+
+  it('does not fetch when enabled is false', () => {
+    renderHook(() => useStellarAssetPrice('USDC', { enabled: false }));
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('aborts on unmount', () => {
+    const abortSpy = jest.spyOn(AbortController.prototype, 'abort');
+    const { unmount } = renderHook(() => useStellarAssetPrice('USDC'));
+
+    unmount();
+
+    expect(abortSpy).toHaveBeenCalled();
+    abortSpy.mockRestore();
+  });
+});
+```
+
+### Integration Tests with WalletProvider
+
+```tsx
+// tests/hooks/useStellarAssetPrice.integration.test.tsx
+import { renderHook, waitFor } from '@testing-library/react';
+import { WalletProvider } from '@/context/WalletContext';
+import { useStellarAssetPrice } from '@/hooks/useStellarAssetPrice';
+
+function wrapper({ children }: { children: React.ReactNode }) {
+  return (
+    <WalletProvider horizonUrl="https://horizon-testnet.stellar.org">
+      {children}
+    </WalletProvider>
+  );
+}
+
+describe('useStellarAssetPrice integration', () => {
+  it('uses provider horizonUrl when no override given', async () => {
+    (fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        _embedded: { records: [{ amount: '100', num_accounts: '1' }] },
+      }),
+    });
+
+    const { result } = renderHook(() => useStellarAssetPrice('USDC'), {
+      wrapper,
+    });
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining('horizon-testnet.stellar.org'),
+      expect.any(Object)
+    );
+  });
+
+  it('prefers explicit horizonUrl over provider', async () => {
+    (fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        _embedded: { records: [{ amount: '100', num_accounts: '1' }] },
+      }),
+    });
+
+    const { result } = renderHook(
+      () =>
+        useStellarAssetPrice('USDC', {
+          horizonUrl: 'https://horizon.stellar.org',
+        }),
+      { wrapper }
+    );
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining('horizon.stellar.org'),
+      expect.any(Object)
+    );
+  });
+});
+```
+
+### Contract Tests (API Shape)
+
+```tsx
+// tests/hooks/useStellarAssetPrice.contract.test.tsx
+import { renderHook } from '@testing-library/react';
+import { useStellarAssetPrice } from '@/hooks/useStellarAssetPrice';
+
+describe('useStellarAssetPrice contract', () => {
+  it('always returns the expected shape', () => {
+    const { result } = renderHook(() => useStellarAssetPrice('XLM'));
+
+    expect(result.current).toHaveProperty('data');
+    expect(result.current).toHaveProperty('loading');
+    expect(result.current).toHaveProperty('error');
+    expect(result.current).toHaveProperty('refresh');
+    expect(typeof result.current.refresh).toBe('function');
+  });
+});
+```
+
+---
+
+## Error Handling Patterns
+
+### Horizon Errors
+
+| Status | Meaning | Hook Response |
+|--------|---------|---------------|
+| `404` | Asset not found | `error = new Error('Asset X not found')` |
+| `429` | Rate limited | `error = new Error('Rate limited. Retry after delay.')` |
+| `5xx` | Server error | `error = new Error('Horizon unavailable')` |
+| Network | `fetch` threw | Pass through as `new Error(String(err))` |
+
+### Abort Handling
+
+Always swallow `AbortError`. It is not a user-facing error.
+
+```tsx
+try {
+  const res = await fetch(url, { signal });
+} catch (err) {
+  if (err instanceof Error && err.name === 'AbortError') return;
+  setError(err instanceof Error ? err : new Error(String(err)));
+}
+```
+
+### Retry Patterns
+
+Do not implement automatic retry inside hooks. Expose `refresh` and let the UI decide when to retry. This keeps hooks predictable and avoids thundering-herd problems.
+
+---
+
+## Publishing Considerations
+
+### For Internal Projects
+
+Place the hook in `src/hooks/` and import it via path alias:
+
+```tsx
+import { useStellarAssetPrice } from '@/hooks/useStellarAssetPrice';
+```
+
+### For npm Packages
+
+If publishing as a standalone package:
+
+1. **Export from index**: Re-export from `src/index.ts` or `src/hooks/index.ts`.
+2. **Type declarations**: Generate `.d.ts` files via `tsc --declaration`.
+3. **Peer dependencies**: Declare `react` and `@stellar/stellar-sdk` as `peerDependencies`.
+4. **ESM + CJS**: Build both formats with `tsup` or `rollup`.
+5. **Tree-shaking**: Mark the package as side-effect-free in `package.json`:
+
+```json
+{
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs",
+      "types": "./dist/index.d.ts"
+    }
+  }
+}
+```
+
+### Versioning
+
+Follow SemVer:
+- **Patch**: Bug fixes, internal refactoring.
+- **Minor**: New hooks, new options on existing hooks (backward-compatible).
+- **Major**: Removed hooks, changed return shape, renamed options.
+
+### Documentation
+
+Every published hook must have:
+- MDX reference page in `docs/hooks/`
+- Live code example in the MDX
+- JSDoc on all exported types and the hook function
+- At least one usage example in the PR description
+
+---
+
+## Checklist
+
+Before submitting a hook PR, verify every item:
+
+### Design
+- [ ] Follows the `{ data, loading, error, refresh }` return shape
+- [ ] Auto-consumes `WalletProvider` config with override support
+- [ ] Accepts `enabled?: boolean` for conditional fetching
+- [ ] Cleans up on unmount (abort, intervals, timeouts)
+- [ ] Minimal API surface — no rarely-used options in the main hook
+
+### Implementation
+- [ ] Written in TypeScript with exported interfaces
+- [ ] Uses `useCallback` for stable function references
+- [ ] Uses `useRef` for abort controllers
+- [ ] Normalizes all errors to `Error` instances
+- [ ] Swallows `AbortError` silently
+
+### Testing
+- [ ] Unit tests for loading, success, error, refresh, enabled=false, unmount
+- [ ] Integration tests with `WalletProvider`
+- [ ] Contract tests verifying return shape
+- [ ] All tests pass: `pnpm test`
+- [ ] Coverage > 80% for new hook code
+
+### Documentation
+- [ ] MDX reference page in `docs/hooks/`
+- [ ] JSDoc on exported types and hook
+- [ ] Usage example in the MDX
+- [ ] Added to `config/sidebar.tsx` in both Hooks sections
+- [ ] Internal links verified: `pnpm check:links`
+
+### Publishing (if applicable)
+- [ ] Exported from package index
+- [ ] Peer dependencies declared
+- [ ] ESM + CJS builds configured
+- [ ] `sideEffects: false` in `package.json`
+- [ ] SemVer-compliant version bump
+
+---
+
+## Related Resources
+
+- [Hook Error Handling](/docs/guides/hook-error-handling) — Common failure modes and recovery patterns
+- [useStellarWallet](/docs/hooks/use-stellar-wallet) — Reference implementation of a complex hook
+- [useStellarBalances](/docs/hooks/use-stellar-balances) — Reference implementation with polling
+- [Testing](/docs/guides/testing) — Repository test setup with Vitest
+- [Contributing](/docs/guides/contributing) — PR workflow and conventions
+- [Docs Style Guide](/docs/guides/style-guide) — MDX formatting conventions
