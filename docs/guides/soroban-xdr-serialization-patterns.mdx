@@ -1,0 +1,353 @@
+---
+title: Soroban XDR Serialization Patterns
+description: A thorough guide to XDR serialization in Soroban — encoding and decoding contract values on the client, how the host handles serialization transparently, and a complete round-trip example.
+date: 2026-06-25
+---
+
+# Soroban XDR Serialization Patterns
+
+Soroban smart contracts exchange data with the outside world through XDR (External Data Representation). Every argument you pass to a contract call and every value the contract returns is serialized as a Stellar Contract Value (`ScVal`) — a typed XDR union defined in the Stellar XDR schema.
+
+Understanding when and how to serialize and deserialize these values is essential for building reliable Soroban integrations.
+
+---
+
+## How XDR Fits Into Soroban
+
+```
+Client (JavaScript)            Soroban Host (Rust / stellar-core)
+─────────────────────          ──────────────────────────────────
+JS value                       Rust type (e.g. i128, Address)
+   │                                   │
+   │  nativeToScVal() / xdr.ScVal      │  IntoVal / TryFromVal
+   ▼                                   ▼
+ScVal (XDR)  ──── base64 XDR ────▶  ScVal (XDR)
+   ▲                                   │
+   │  scValToNative() / fromXDR        │  host deserializes
+   │                                   ▼
+JS value                       contract fn argument
+```
+
+The client is responsible for encoding arguments before sending and decoding return values after receiving. The host environment inside `stellar-core` handles the boundary between XDR bytes and native Rust values through the `soroban-sdk` traits — contract code never calls `fromXDR` or `toXDR` directly.
+
+---
+
+## Client-Side Patterns
+
+### Encoding: `nativeToScVal`
+
+The `@stellar/stellar-sdk` helper `nativeToScVal` converts common JavaScript types into their `ScVal` equivalents. It covers strings, numbers, booleans, `BigInt`, arrays, and plain objects.
+
+```js
+import { nativeToScVal, xdr } from '@stellar/stellar-sdk';
+
+// Primitive types
+const amount = nativeToScVal(1_000_000n, { type: 'i128' });   // ScVal i128
+const flag   = nativeToScVal(true);                            // ScVal bool
+const symbol = nativeToScVal('transfer', { type: 'symbol' });  // ScVal symbol
+
+// Structs (maps) — keys become symbols, values encode recursively
+const transferArgs = nativeToScVal(
+  { from: 'GABC...', to: 'GXYZ...', amount: 500_000n },
+  { type: 'map' }
+);
+```
+
+### Encoding: `xdr.ScVal` directly
+
+For precise control — when you need a specific `ScVal` variant that `nativeToScVal` does not infer — construct the XDR object manually:
+
+```js
+import { xdr } from '@stellar/stellar-sdk';
+
+// i128 from two 64-bit halves (hi, lo)
+const amount = xdr.ScVal.scvI128(
+  new xdr.Int128Parts({ hi: xdr.Int64.fromString('0'), lo: xdr.Uint64.fromString('5000000') })
+);
+
+// Address scalar
+const address = xdr.ScVal.scvAddress(
+  xdr.ScAddress.scAddressTypeAccount(
+    xdr.AccountId.publicKeyTypeEd25519(
+      Buffer.from(StrKey.decodeEd25519PublicKey('GABC...'))
+    )
+  )
+);
+```
+
+Prefer `nativeToScVal` for day-to-day work. Use `xdr.ScVal` directly when you need to match a contract's exact argument type that inference gets wrong.
+
+### Decoding: `scValToNative`
+
+`scValToNative` is the inverse of `nativeToScVal`. It converts a returned `ScVal` into the most natural JavaScript type.
+
+```js
+import { scValToNative, xdr } from '@stellar/stellar-sdk';
+
+// A raw base64 XDR string from simulateTransaction or getTransaction
+const rawXdr = 'AAAAAQAAAA...';
+const scVal  = xdr.ScVal.fromXDR(rawXdr, 'base64');
+const native = scValToNative(scVal);
+
+console.log(native); // e.g. 5000000n for an i128, or a plain JS object for a map
+```
+
+### Decoding simulation results
+
+`simulateTransaction` returns a simulation response. The return value from the contract is inside `results[0].retval`:
+
+```js
+import { rpc, nativeToScVal, xdr, scValToNative } from '@stellar/stellar-sdk';
+
+const server = new rpc.Server('https://soroban-testnet.stellar.org');
+
+async function callAndDecode(tx) {
+  const simulation = await server.simulateTransaction(tx);
+
+  if (!rpc.Api.isSimulationSuccess(simulation)) {
+    throw new Error(`Simulation failed: ${simulation.error}`);
+  }
+
+  // The contract's return value as an ScVal
+  const retvalXdr = simulation.results[0].retval;
+  return scValToNative(retvalXdr);
+}
+```
+
+---
+
+## Host-Side Patterns (Rust / soroban-sdk)
+
+Contract code does not call XDR methods directly. The `soroban-sdk` bridges native Rust types to XDR through two traits: `IntoVal` and `TryFromVal`. The compiler generates the glue automatically for primitive types and for any struct or enum you mark with `#[contracttype]`.
+
+### Primitive type mapping
+
+| Rust type         | XDR ScVal variant | JS `nativeToScVal` type hint |
+| ----------------- | ----------------- | ---------------------------- |
+| `bool`            | `ScvBool`         | `'bool'`                     |
+| `u32`             | `ScvU32`          | `'u32'`                      |
+| `i32`             | `ScvI32`          | `'i32'`                      |
+| `u64`             | `ScvU64`          | `'u64'`                      |
+| `i64`             | `ScvI64`          | `'i64'`                      |
+| `u128`            | `ScvU128`         | `'u128'`                     |
+| `i128`            | `ScvI128`         | `'i128'`                     |
+| `Address`         | `ScvAddress`      | `'address'`                  |
+| `Symbol`          | `ScvSymbol`       | `'symbol'`                   |
+| `Bytes`           | `ScvBytes`        | `'bytes'`                    |
+| `String`          | `ScvString`       | `'string'`                   |
+| `Vec<T>`          | `ScvVec`          | `'vec'`                      |
+| `Map<K, V>`       | `ScvMap`          | `'map'`                      |
+
+### Custom types with `#[contracttype]`
+
+Annotate a struct or enum with `#[contracttype]` and the SDK generates `IntoVal` / `TryFromVal` implementations automatically. The type is serialized as an XDR map (struct) or union (enum) when it crosses the host boundary.
+
+```rust
+use soroban_sdk::{contracttype, Address, Env};
+
+#[contracttype]
+pub struct TransferRecord {
+    pub from:      Address,
+    pub to:        Address,
+    pub amount:    i128,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+pub enum Status {
+    Pending,
+    Confirmed,
+    Rejected,
+}
+```
+
+Functions that accept or return these types work without any manual serialization:
+
+```rust
+#[contractimpl]
+impl MyContract {
+    pub fn record_transfer(env: Env, record: TransferRecord) -> Status {
+        env.storage().persistent().set(&record.from, &record);
+        Status::Pending
+    }
+}
+```
+
+### Reading and writing serialized values from storage
+
+Storage calls (`get`, `set`) serialize and deserialize automatically through the same traits:
+
+```rust
+// Write: TransferRecord is serialized to XDR before being stored
+env.storage().persistent().set(&DataKey::Record(id), &record);
+
+// Read: XDR bytes are deserialized back into TransferRecord
+let record: TransferRecord = env.storage().persistent()
+    .get(&DataKey::Record(id))
+    .unwrap();
+```
+
+---
+
+## Client vs Host Differences
+
+| Aspect                    | Client (JavaScript)                                       | Host (Rust / soroban-sdk)                                    |
+| ------------------------- | --------------------------------------------------------- | ------------------------------------------------------------ |
+| Serialization API         | `nativeToScVal`, `xdr.ScVal`, `scValToNative`             | `IntoVal`, `TryFromVal` (auto-derived via `#[contracttype]`) |
+| XDR format awareness      | Explicit — you choose the `ScVal` variant                 | Implicit — the SDK chooses the variant from the Rust type    |
+| Error on type mismatch    | Runtime error when decoding (e.g. `scValToNative` throws) | Compile-time or runtime panic if deserialization fails       |
+| Base64 handling           | Pass `'base64'` flag to `fromXDR` / `toXDR`               | Not applicable — host never sees base64                      |
+| Struct serialization      | Manual: build an `ScvMap` with key/value pairs            | Automatic via `#[contracttype]`                              |
+| Number representation     | `BigInt` for 64-bit and larger integers                   | Native `u64`, `i128`, etc.                                   |
+
+The most common mismatch is number types. A Soroban contract using `i128` must be called with `nativeToScVal(value, { type: 'i128' })` on the client — passing a plain `number` will encode as `i32` or `i64` and the contract will reject the argument.
+
+---
+
+## Complete Round-Trip Example
+
+The following example invokes a contract's `get_balance` function, decodes the `i128` return value, then calls `transfer` with encoded arguments.
+
+**Contract (Rust)**
+
+```rust
+#![no_std]
+use soroban_sdk::{contract, contractimpl, Address, Env};
+
+#[contract]
+pub struct TokenVault;
+
+#[contractimpl]
+impl TokenVault {
+    pub fn get_balance(env: Env, owner: Address) -> i128 {
+        env.storage()
+            .persistent()
+            .get(&owner)
+            .unwrap_or(0)
+    }
+
+    pub fn transfer(env: Env, from: Address, to: Address, amount: i128) {
+        from.require_auth();
+
+        let from_balance: i128 = env.storage().persistent().get(&from).unwrap_or(0);
+        assert!(from_balance >= amount, "insufficient balance");
+
+        env.storage().persistent().set(&from, &(from_balance - amount));
+
+        let to_balance: i128 = env.storage().persistent().get(&to).unwrap_or(0);
+        env.storage().persistent().set(&to, &(to_balance + amount));
+    }
+}
+```
+
+**Client (JavaScript)**
+
+```js
+import {
+  Contract,
+  TransactionBuilder,
+  Networks,
+  BASE_FEE,
+  Keypair,
+  nativeToScVal,
+  scValToNative,
+  xdr,
+  rpc,
+} from '@stellar/stellar-sdk';
+
+const server   = new rpc.Server('https://soroban-testnet.stellar.org');
+const contract = new Contract('CCONTRACT_ID_HERE');
+
+// ── 1. Read balance (no signature required) ──────────────────────────────────
+
+async function getBalance(ownerAddress) {
+  const account = await server.getAccount(ownerAddress);
+
+  const tx = new TransactionBuilder(account, {
+    fee: BASE_FEE,
+    networkPassphrase: Networks.TESTNET,
+  })
+    .addOperation(
+      contract.call(
+        'get_balance',
+        nativeToScVal(ownerAddress, { type: 'address' }) // encode Address
+      )
+    )
+    .setTimeout(30)
+    .build();
+
+  const simulation = await server.simulateTransaction(tx);
+
+  if (!rpc.Api.isSimulationSuccess(simulation)) {
+    throw new Error(`Simulation failed: ${simulation.error}`);
+  }
+
+  // Decode the i128 return value — comes back as BigInt
+  return scValToNative(simulation.results[0].retval);
+}
+
+// ── 2. Transfer (signature required) ─────────────────────────────────────────
+
+async function transfer(senderKeypair, toAddress, amount) {
+  const account = await server.getAccount(senderKeypair.publicKey());
+
+  const tx = new TransactionBuilder(account, {
+    fee: BASE_FEE,
+    networkPassphrase: Networks.TESTNET,
+  })
+    .addOperation(
+      contract.call(
+        'transfer',
+        nativeToScVal(senderKeypair.publicKey(), { type: 'address' }),
+        nativeToScVal(toAddress, { type: 'address' }),
+        nativeToScVal(amount, { type: 'i128' })  // BigInt → i128 ScVal
+      )
+    )
+    .setTimeout(30)
+    .build();
+
+  // Simulate first to obtain the resource footprint
+  const simulation = await server.simulateTransaction(tx);
+
+  if (!rpc.Api.isSimulationSuccess(simulation)) {
+    throw new Error(`Simulation failed: ${simulation.error}`);
+  }
+
+  // Inject resource limits and sign
+  const prepared = rpc.assembleTransaction(tx, simulation).build();
+  prepared.sign(senderKeypair);
+
+  const response = await server.sendTransaction(prepared);
+  return response;
+}
+
+// ── Usage ─────────────────────────────────────────────────────────────────────
+
+const senderKeypair = Keypair.fromSecret(process.env.SENDER_SECRET);
+
+const balance = await getBalance(senderKeypair.publicKey());
+console.log('Balance:', balance); // e.g. 5000000n
+
+await transfer(senderKeypair, 'GRECIPIENT_ADDRESS', 100_000n);
+```
+
+---
+
+## Common Pitfalls
+
+| Pitfall                                  | Cause                                                           | Fix                                                                            |
+| ---------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Contract rejects argument with type error | JS number encoded as wrong `ScVal` variant                      | Always pass a `type` hint to `nativeToScVal`: `{ type: 'i128' }` for `i128`   |
+| `scValToNative` returns `undefined`       | `ScVal` variant is `ScvVoid` (void return) or deserialization failed | Check `simulation.results[0].retval.switch().name` to inspect the variant    |
+| `fromXDR` throws `UnknownError`           | Decoding with the wrong XDR class                               | Use `xdr.ScVal` for contract values; `xdr.TransactionResult` for tx results   |
+| `BigInt` arithmetic overflows             | Mixing `number` and `BigInt` in JavaScript                      | Use `BigInt` literals (`100n`) consistently for all 64-bit and larger amounts |
+| Struct field order wrong                  | Building `ScvMap` manually with wrong key order                 | Let `nativeToScVal` handle structs, or match the order in the Rust `#[contracttype]` |
+
+---
+
+## Further Reading
+
+- [Soroban Integration](/docs/integrations/soroban) — Nextellar hooks and helpers for invoking Soroban contracts
+- [Soroban Host Functions](/docs/guides/soroban-host-functions) — host function categories and budget awareness
+- [Transaction Batching](/docs/guides/transaction-batching) — reduce submission round-trips with batched operations
+- [Stellar XDR definitions on GitHub](https://github.com/stellar/stellar-xdr) — canonical `.x` schema files
