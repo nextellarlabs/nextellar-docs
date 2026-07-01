@@ -379,4 +379,24 @@ export const TocData: TocData = {
     { title: 'Typography', href: '/docs/theme#typography' },
   ],
   search: [{ title: 'Search', href: '/docs/search#overview' }],
+
+  // Roadmap
+  'guides/roadmap': [
+    {
+      title: 'Q2 2026 — Foundations',
+      href: '/docs/guides/roadmap#q2-2026--foundations',
+    },
+    {
+      title: 'Q3 2026 — Integrations & Examples',
+      href: '/docs/guides/roadmap#q3-2026--integrations--examples',
+    },
+    {
+      title: 'Q4 2026 — Advanced Topics',
+      href: '/docs/guides/roadmap#q4-2026--advanced-topics',
+    },
+    {
+      title: 'Suggesting Changes',
+      href: '/docs/guides/roadmap#suggesting-changes',
+    },
+  ],
 };

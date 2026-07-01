@@ -143,6 +143,8 @@ export const sidebarNav: SidebarSection[] = [
         href: '/docs/guides/rate-limiting-horizon-requests',
       },
       {
+        title: 'Documentation Roadmap',
+        href: '/docs/guides/roadmap',
         title: 'Security Policy',
         href: '/docs/guides/security-policy',
       },
