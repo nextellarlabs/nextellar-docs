@@ -1,0 +1,91 @@
+---
+title: Stellar Memo Best Practices
+description: Choose the right Stellar memo type, respect size limits, and avoid exposing sensitive information in on-chain payment references.
+date: 2026-07-26
+---
+
+# Stellar Memo Best Practices
+
+The Stellar memo field is a small but important part of every payment. It is public, permanently visible on the ledger, and it can be the difference between a clean integration and a support-heavy one. Use it deliberately, keep it compact, and prefer opaque references over human-readable details.
+
+---
+
+## Choose the right memo type
+
+Stellar supports four memo types, and each one fits a different use case:
+
+| Memo type | Best for | Size limit | Notes |
+| --- | --- | --- | --- |
+| `MEMO_TEXT` | Human-readable notes such as "rent-2026-07" | 28 bytes | Good for short labels; UTF-8 text consumes more bytes than ASCII |
+| `MEMO_ID` | Numeric identifiers such as invoice numbers or order IDs | 64-bit integer | Best when the recipient expects a stable integer |
+| `MEMO_HASH` | Opaque references or hashes of off-chain data | 32 bytes | Use when the payload is sensitive or too long for text |
+| `MEMO_RETURN` | Return-path or callback references | 32 bytes | Often used by exchanges and payment processors |
+
+A simple rule of thumb is:
+
+- use `MEMO_TEXT` for short, human-readable labels;
+- use `MEMO_ID` for numeric IDs;
+- use `MEMO_HASH` or `MEMO_RETURN` for anything that should not be exposed directly.
+
+> Avoid putting personal data or secrets in a memo. The field is visible to anyone who can inspect the transaction.
+
+---
+
+## Respect the size limits
+
+The memo field is constrained by its type:
+
+- Text memos must stay within 28 bytes after UTF-8 encoding.
+- ID memos are limited to a 64-bit unsigned integer.
+- Hash and return memos are fixed at 32 bytes.
+
+If you need to include a longer reference, do not stuff it into a text memo. Instead, hash the value server-side and store the mapping in your own database.
+
+---
+
+## Use memos sparingly
+
+A memo is useful when a recipient needs to route or reconcile a payment, but it adds little value for self-custodial wallet transfers. If the receiver is just a user wallet and not an exchange or payment processor, omit the memo unless the product explicitly requires it.
+
+---
+
+## Small example
+
+```ts
+import { Memo, TransactionBuilder, Networks, Operation, Asset } from '@stellar/stellar-sdk';
+
+const tx = new TransactionBuilder(account, {
+  fee: '100',
+  networkPassphrase: Networks.TESTNET,
+})
+  .addOperation(
+    Operation.payment({
+      destination: recipient,
+      asset: Asset.native(),
+      amount: '1.5',
+    })
+  )
+  .addMemo(Memo.text('invoice-42'))
+  .setTimeout(30)
+  .build();
+```
+
+In this example, a short text memo works well because the value is human-readable and fits the 28-byte limit. If the reference were longer or more sensitive, switch to a hash memo and keep the lookup table off-chain.
+
+---
+
+## Recommended pattern
+
+1. Keep the memo short and deterministic.
+2. Prefer opaque references over user-facing text.
+3. Use the smallest type that fits the need.
+4. Store the real-world meaning in your own backend, not in the ledger.
+5. Never place PII, passwords, or secrets in the memo.
+
+---
+
+## Related docs
+
+- [Privacy Considerations for Stellar dApps](/docs/guides/privacy-considerations)
+- [Optimizing Transaction Sizes](/docs/guides/optimizing-transaction-sizes)
+- [useStellarPayment](/docs/hooks/use-stellar-payment)

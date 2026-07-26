@@ -1,0 +1,37 @@
+---
+title: Stellar Memo Field Best Practices
+description: Draft guidance for choosing the right Stellar memo type and keeping on-chain payment references safe and compact.
+date: 2026-07-26
+---
+
+# Stellar Memo Field Best Practices
+
+This draft captures the core guidance for using Stellar memos effectively in dApp payments and account workflows.
+
+## Summary
+
+- Compare the four memo types and choose the smallest one that fits the need.
+- Keep memo values short and avoid personal or sensitive data.
+- Prefer opaque references over free-form text when the memo is used for reconciliation.
+- Use hash or return memos for longer or sensitive references.
+
+## Example
+
+```ts
+import { Memo, TransactionBuilder, Networks, Operation, Asset } from '@stellar/stellar-sdk';
+
+const tx = new TransactionBuilder(account, {
+  fee: '100',
+  networkPassphrase: Networks.TESTNET,
+})
+  .addOperation(
+    Operation.payment({
+      destination: recipient,
+      asset: Asset.native(),
+      amount: '1.5',
+    })
+  )
+  .addMemo(Memo.text('invoice-42'))
+  .setTimeout(30)
+  .build();
+```
