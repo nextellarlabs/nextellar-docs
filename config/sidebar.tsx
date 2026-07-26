@@ -139,6 +139,10 @@ export const sidebarNav: SidebarSection[] = [
         href: '/docs/guides/optimizing-transaction-sizes',
       },
       {
+        title: 'Stellar Memo Best Practices',
+        href: '/docs/guides/stellar-memo-best-practices',
+      },
+      {
         title: 'Transaction Batching',
         href: '/docs/guides/transaction-batching',
       },
@@ -248,6 +252,10 @@ export const sidebarNav: SidebarSection[] = [
         href: '/docs/guides/mdx-custom-components',
       },
       { title: 'Link Validation', href: '/docs/guides/link-validation' },
+      {
+        title: 'Stellar Memo Best Practices',
+        href: '/docs/guides/stellar-memo-best-practices',
+      },
       {
         title: 'Optimizing Transaction Sizes',
         href: '/docs/guides/optimizing-transaction-sizes',
