@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Official documentation for Nextellar — a production-ready CLI for scaffolding Next.js + Stellar blockchain dApps with TypeScript, wallet integration, and smart contract support.",
+  "description": "Official documentation for Nextellar \u2014 a production-ready CLI for scaffolding Next.js + Stellar blockchain dApps with TypeScript, wallet integration, and smart contract support.",
   "author": "Nextellar Labs <team@nextellar.dev>",
   "license": "MIT",
   "repository": {
@@ -18,9 +18,9 @@
     "node": ">=18"
   },
   "scripts": {
-    "dev": "next dev",
-    "build": "contentlayer2 build && next build",
-    "start": "next start",
+    "dev": "node api.js && next dev",
+    "build": "node api.js && contentlayer2 build && next build",
+    "start": "node api.js && next start",
     "lint": "next lint",
     "build:content": "contentlayer2 build",
     "format": "prettier --write .",
