@@ -166,8 +166,6 @@ export const sidebarNav: SidebarSection[] = [
       {
         title: 'Documentation Roadmap',
         href: '/docs/guides/roadmap',
-        title: 'Security Policy',
-        href: '/docs/guides/security-policy',
       },
       { title: 'Security Policy', href: '/docs/guides/security-policy' },
       { title: 'Glossary', href: '/docs/guides/glossary' },
@@ -330,6 +328,8 @@ export const sidebarNav: SidebarSection[] = [
       {
         title: 'Security Policy',
         href: '/docs/guides/security-policy',
+      },
+      {
         title: 'Internationalization',
         href: '/docs/guides/internationalization',
       },
@@ -345,8 +345,8 @@ export const sidebarNav: SidebarSection[] = [
     defaultOpen: false,
     pages: [
       {
-        title: 'ConnectWalletButton',
-        href: '/docs/components/connect-wallet-button',
+        title: 'WalletConnectButton',
+        href: '/docs/components/wallet-connect-button',
       },
       { title: 'useWindowSize', href: '/docs/components/use-window-size' },
     ],

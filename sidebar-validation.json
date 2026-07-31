@@ -2,7 +2,6 @@
   "valid": [
     "button",
     "checkbox",
-    "connect-wallet-button",
     "dialog",
     "folder-tree",
     "input",
@@ -17,16 +16,17 @@
     "steps",
     "syntax-highlighter",
     "tabs",
-    "use-window-size"
+    "use-window-size",
+    "wallet-connect-button"
   ],
   "sidebar": {
     "broken": [],
-    "claimed": ["connect-wallet-button", "use-window-size"],
+    "claimed": ["use-window-size", "wallet-connect-button"],
     "total": 2
   },
   "toc": {
     "broken": [],
-    "claimed": ["connect-wallet-button"],
+    "claimed": ["wallet-connect-button"],
     "total": 1
   },
   "totalBroken": 0

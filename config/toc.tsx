@@ -361,14 +361,14 @@ export const TocData: TocData = {
   ],
 
   // Components
-  'components/connect-wallet-button': [
+  'components/wallet-connect-button': [
     {
       title: 'Preview & Usage',
-      href: '/docs/components/connect-wallet-button#preview-and-usage',
+      href: '/docs/components/wallet-connect-button#preview-and-usage',
     },
     {
       title: 'Props',
-      href: '/docs/components/connect-wallet-button#props',
+      href: '/docs/components/wallet-connect-button#props',
     },
   ],
 
