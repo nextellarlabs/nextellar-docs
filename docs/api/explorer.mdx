@@ -35,15 +35,15 @@ Use this explorer to scan the Nextellar API surface by workflow. Each section ex
     | --- | --- | --- |
     | `WalletProvider` | Provider | Configure network, Horizon, and wallet state for the app |
     | `useStellarWallet` | Hook | Connect, disconnect, and read the active public key |
-    | `ConnectWalletButton` | Component | Render the default wallet connection control |
+    | `WalletConnectButton` | Component | Render the default wallet connection control |
 
     ```tsx
     <WalletProvider horizonUrl="https://horizon-testnet.stellar.org">
-      <ConnectWalletButton />
+      <WalletConnectButton />
     </WalletProvider>
     ```
 
-    Related docs: [WalletProvider](/docs/hooks/wallet-provider), [useStellarWallet](/docs/hooks/use-stellar-wallet), [ConnectWalletButton](/docs/components/connect-wallet-button).
+    Related docs: [WalletProvider](/docs/hooks/wallet-provider), [useStellarWallet](/docs/hooks/use-stellar-wallet), [WalletConnectButton](/docs/components/wallet-connect-button).
 
   </details>
 
