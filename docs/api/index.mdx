@@ -1,38 +1,41 @@
 ---
-title: API
-description: API documentation and reference
-date: 2026-06-01
+title: Hosted API
+description: A hosted REST/GraphQL API for Nextellar is planned but not yet available.
+date: 2026-08-03
 ---
 
-# API Documentation
+import { Note } from '@/components/note';
 
-For complete API documentation, please refer to the following resources:
+# Hosted API
 
-## SDK Reference
+<Note type="warning">
+  **Roadmap — not yet available.** Nextellar currently has no hosted API
+  endpoint. The CLI bootstraps your project locally; the only outbound network
+  call it makes is an opt-in telemetry ping. A hosted API is on the roadmap but
+  has not shipped.
+</Note>
 
-- [API Explorer](/docs/api/explorer) - Interactive workflow-based API surface
-- [SDK Overview](/docs/sdk/overview) - Architecture and key features
-- [API Reference](/docs/sdk/api-reference) - Type definitions and utilities
-- [Wallet Integration](/docs/sdk/wallet-integration) - Multi-wallet configuration
+## What is planned
 
-## Hooks API
+- A REST / GraphQL surface that mirrors the React-hook API, usable from
+  server-side or non-React environments.
+- Authentication via API keys tied to a Nextellar account.
+- Rate-limited access to Stellar Horizon and Soroban RPC through a managed
+  proxy, so you do not need to expose third-party endpoints directly.
 
-Complete documentation for all React hooks:
+## Until it ships
 
-- [useStellarWallet](/docs/hooks/use-stellar-wallet) - Wallet connection.
-- [useStellarBalances](/docs/hooks/use-stellar-balances) - Balance tracking.
-- [useStellarPayment](/docs/hooks/use-stellar-payment) - Payments.
-- [useTrustlines](/docs/hooks/use-trustlines) - Trustline management.
-- [useTransactionHistory](/docs/hooks/use-transaction-history) - Transaction history.
-- [useSorobanContract](/docs/hooks/use-soroban-contract) - Smart contracts.
-- [useSorobanEvents](/docs/hooks/use-soroban-events) - Contract events.
-- [useOfferBook](/docs/hooks/use-offer-book) - DEX orderbook.
+Everything you need today lives in the local SDK:
 
-## Context API
+| Resource | Link |
+| --- | --- |
+| React hooks reference | [Hooks](/docs/hooks/use-stellar-wallet) |
+| SDK overview | [SDK Overview](/docs/sdk/overview) |
+| Type definitions & utilities | [API Reference](/docs/sdk/api-reference) |
+| Wallet integration | [Wallet Integration](/docs/sdk/wallet-integration) |
+| CLI commands | [CLI Commands](/docs/cli/commands) |
 
-- [WalletProvider](/docs/hooks/wallet-provider) - Global wallet context.
+## Follow the roadmap
 
-## CLI Reference
-
-- [CLI Commands](/docs/cli/commands) - Full command reference.
-- [CLI Options](/docs/cli/options) - Configuration options.
+Track progress and leave feedback on the
+[Nextellar GitHub repository](https://github.com/nextellarlabs/nextellar/issues).
