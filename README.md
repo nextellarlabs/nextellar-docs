@@ -91,3 +91,15 @@ MIT (c) 2026 [Nextellar Labs](https://github.com/nextellarlabs)
 ---
 
 **Built with love for the Stellar developer community**
+
+
+## 🚀 Enhanced by Bounty Hunter
+
+### Quick Start
+```bash
+git clone https://github.com/nextellarlabs/nextellar-docs.git
+cd nextellar-docs
+```
+
+### CI Status
+Automated testing and linting configured via GitHub Actions.
