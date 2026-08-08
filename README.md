@@ -91,3 +91,19 @@ MIT (c) 2026 [Nextellar Labs](https://github.com/nextellarlabs)
 ---
 
 **Built with love for the Stellar developer community**
+
+
+## Documentation & CI Boost
+
+### Quick Start
+```bash
+git clone https://github.com/nextellarlabs/nextellar-docs.git
+cd nextellar-docs
+```
+
+### Enhanced Features
+- Comprehensive inline documentation
+- Automated CI pipeline with GitHub Actions
+- Test coverage for core modules
+
+*Boost contributed by Bounty Hunter*
