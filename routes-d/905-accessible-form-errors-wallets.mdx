@@ -1,0 +1,127 @@
+---
+title: Accessible Form Errors for Wallet Inputs
+description: Make wallet form errors perceivable to everyone — the ARIA attributes to set, a small worked example, and error copy that tells users exactly what to fix.
+date: 2026-08-25
+---
+
+# Accessible Form Errors for Wallet Inputs
+
+Wallet forms (send amount, destination address, memo) fail in specific ways: invalid G-addresses, insufficient balances, amounts below the minimum, or a rejected signature. Sighted users see red borders; screen reader users get nothing unless you wire up ARIA correctly. This guide covers the attributes to set, a small example built on the `Input` component, and copy suggestions for the most common failures.
+
+---
+
+## ARIA Attributes to Set
+
+Set these on every validated wallet input:
+
+| Attribute | Where | Value |
+|---|---|---|
+| `aria-invalid` | The input | `"true"` when validation fails, removed/`"false"` otherwise |
+| `aria-describedby` | The input | ID of the error message element (only while erroring) |
+| `role="alert"` | The error message | Announces the error immediately when it appears |
+| `aria-live="assertive"` | The error container | Alternative to `role="alert"` for regions that update repeatedly |
+| `aria-required` | The input | `"true"` on mandatory fields |
+
+Key behaviors:
+
+- **Toggle `aria-describedby`, don't leave it dangling.** Pointing at an empty or hidden element makes screen readers announce nothing.
+- **Use one live region per form.** Multiple `role="alert"` elements firing together read over each other.
+- **Keep focus where it is.** Announcing the error is enough; yanking focus to the message disorients keyboard users.
+- **Pair visual and programmatic state.** If the border turns red (`isError`), `aria-invalid` must be set too.
+
+---
+
+## Minimal Example
+
+```tsx
+'use client';
+
+import { useState } from 'react';
+import { Input } from '@/components/input';
+
+const ADDRESS_RE = /^G[A-Z2-7]{55}$/;
+
+export function SendForm() {
+  const [destination, setDestination] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  const hasError = error !== null;
+  const errorId = 'destination-error';
+
+  function validate(value: string) {
+    if (!value) setError('Enter the destination address.');
+    else if (!ADDRESS_RE.test(value))
+      setError('That doesn\u2019t look like a Stellar address. Addresses start with G and are 56 characters long.');
+    else setError(null);
+  }
+
+  return (
+    <div>
+      <label htmlFor="destination" className="mb-1 block text-sm font-medium">
+        Destination address
+      </label>
+      <Input
+        id="destination"
+        variant="outline"
+        isError={hasError}
+        value={destination}
+        placeholder="GABC..."
+        aria-invalid={hasError}
+        aria-required="true"
+        aria-describedby={hasError ? errorId : undefined}
+        onBlur={(e) => validate(e.target.value)}
+        onChange={(e) => {
+          setDestination(e.target.value);
+          if (hasError) validate(e.target.value); // clear as soon as it's fixed
+        }}
+      />
+      {hasError && (
+        <p id={errorId} role="alert" className="mt-1 text-sm text-destructive">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+```
+
+The `Input` component's `isError` prop handles the visual state (`docs/components/input.mdx`), while `aria-invalid` + `aria-describedby` carry the same information to assistive tech.
+
+---
+
+## Error Copy Suggestions
+
+Good error copy says **what happened**, **why**, and **what to do** — in that order, under ~100 characters:
+
+| Scenario | Weak copy | Suggested copy |
+|---|---|---|
+| Empty destination | "Invalid input" | "Enter the destination address." |
+| Malformed address | "Bad address" | "Stellar addresses start with G and are 56 characters long." |
+| Sending to self | — | "This is your own address. Choose a different recipient." |
+| Amount exceeds balance | "Insufficient funds" | "You have 12.4 XLM available. Enter a smaller amount." |
+| Below existence minimum | "Too low" | "Accounts must hold at least 1 XLM. Send 1 XLM or more." |
+| Wallet rejected signing | "Error" | "Signing was cancelled in Freighter. No funds were sent — try again when you're ready." |
+| Network failure during submit | "Submission failed" | "We couldn't reach the network. Your funds are untouched — retry the payment." |
+
+Guidelines:
+
+- **Never include secret data.** Echo back the amount or asset, never keys or memos.
+- **State the actual numbers.** "You have 12.4 XLM" beats "insufficient funds".
+- **Reassure on money movement.** For signing and network errors, say explicitly that nothing was sent.
+- **Avoid blame.** "Signing was cancelled" instead of "You cancelled".
+
+---
+
+## Summary
+
+- Set `aria-invalid`, point `aria-describedby` at the error only while it exists, and announce with `role="alert"` or a single assertive live region.
+- Mirror visual state (`isError`) with programmatic state (`aria-invalid`) so both channels agree.
+- Write copy that names the problem, includes real values, and reassures users their funds are safe.
+
+---
+
+## Related
+
+- [Input](/docs/components/input) - Component used in this guide, including the `isError` prop
+- [Wallets (Freighter, Albedo, Lobstr, xBull, Hana)](/docs/integrations/wallets) - Signing and rejection flows
+- [Common Error Messages](/docs/troubleshooting/common-error-messages) - Troubleshooting reference

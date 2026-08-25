@@ -1,0 +1,93 @@
+---
+title: Handling Freighter Interaction Timeouts
+description: Strategies and retry patterns for managing browser wallet interaction timeouts and unhandled popups in Stellar dApps.
+date: 2026-08-25
+---
+
+# Handling Freighter Interaction Timeouts
+
+Browser extension popups can occasionally be hidden behind full-screen windows, ignored by the user, or encounter silent connection drops. Without explicit timeout handling, a dApp's UI can stay indefinitely in a loading state.
+
+This guide provides timeout mitigation strategies, retry patterns, and implementation examples.
+
+---
+
+## Timeout Mechanics & Flow
+
+When making asynchronous calls to `@stellar/freighter-api` (such as `signTransaction`, `requestAccess`, or `signAuthEntry`):
+
+```
+User initiates action
+       ↓
+Start Timeout Timer (e.g. 60 seconds)
+       ↓
+Race between Freighter Promise & Timeout Promise
+       ├── Freighter resolves within limit → Clear timer & continue
+       └── Timeout expires first → Cancel wait, reset UI, and prompt user
+```
+
+---
+
+## Recommended Retry & Recovery Patterns
+
+1. **Reasonable Timeout Duration**: Set an initial timeout of **45 to 60 seconds**. This gives users enough time to read transaction details and review fee amounts in the popup without rushing.
+2. **Helpful Status Cue**: If 15 seconds have elapsed and the prompt is still pending, display a polite cue: *"Don't see the Freighter popup? Check your browser toolbar."*
+3. **Promise.race Implementation**: Use `Promise.race` with an explicit timeout rejection to ensure the application always regains control.
+4. **Retry Button**: Always offer an immediate "Retry Signing" action rather than forcing the user to re-fill forms from scratch.
+
+---
+
+## Implementation Example
+
+```typescript
+import { signTransaction } from '@stellar/freighter-api';
+
+interface SignWithTimeoutOptions {
+  timeoutMs?: number;
+  onApproachingTimeout?: () => void;
+}
+
+export async function signTransactionWithTimeout(
+  xdr: string,
+  networkPassphrase: string,
+  options: SignWithTimeoutOptions = {}
+): Promise<string> {
+  const { timeoutMs = 60000, onApproachingTimeout } = options;
+
+  // Warning timer for hidden popups
+  const warningTimer = setTimeout(() => {
+    onApproachingTimeout?.();
+  }, 15000);
+
+  let timeoutId: NodeJS.Timeout;
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error('FREIGHTER_TIMEOUT'));
+    }, timeoutMs);
+  });
+
+  try {
+    const signPromise = signTransaction(xdr, { networkPassphrase });
+    const result = await Promise.race([signPromise, timeoutPromise]);
+    return result;
+  } catch (error: any) {
+    if (error?.message === 'FREIGHTER_TIMEOUT') {
+      throw new Error(
+        'The signing request timed out. Please check if the Freighter extension window is open and try again.'
+      );
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId!);
+    clearTimeout(warningTimer);
+  }
+}
+```
+
+---
+
+## Related docs
+
+- [Handling Freighter User Rejections](/docs/guides/handling-freighter-user-reject) — Managing user cancellations
+- [Wallet UX Patterns](/docs/guides/wallet-ux-patterns) — Core wallet connection patterns
