@@ -1,0 +1,149 @@
+---
+title: Staggered Animations for Lists
+description: Animate lists of items (balances, transactions, search results) with a stagger using framer-motion — covering a small implementation, motion accessibility, and sensible limits on stagger.
+date: 2026-08-25
+---
+
+# Staggered Animations for Lists
+
+A stagger reveals list items one after another instead of all at once, which draws the eye down the list and makes long renders feel intentional rather than jarring. This guide shows a small framer-motion implementation for wallet UIs like balance or transaction lists, how to keep it accessible with `prefers-reduced-motion`, and the limits that keep staggers from feeling slow.
+
+---
+
+## Implementation
+
+framer-motion supports staggering through a parent's `staggerChildren` variant — each child animates automatically in order:
+
+```tsx
+'use client';
+
+import { motion } from 'framer-motion';
+
+const container = {
+  hidden: {},
+  show: {
+    transition: { staggerChildren: 0.06 }, // seconds between items
+  },
+};
+
+const item = {
+  hidden: { opacity: 0, y: 8 },
+  show: { opacity: 1, y: 0 },
+};
+
+export function AnimatedAssetList({ assets }: { assets: Asset[] }) {
+  return (
+    <motion.ul
+      variants={container}
+      initial="hidden"
+      animate="show"
+      className="divide-y"
+    >
+      {assets.map((asset) => (
+        <motion.li
+          key={asset.code}
+          variants={item}
+          transition={{ duration: 0.25 }}
+          className="flex items-center justify-between py-2"
+        >
+          <span>{asset.code}</span>
+          <span>{asset.balance}</span>
+        </motion.li>
+      ))}
+    </motion.ul>
+  );
+}
+```
+
+Only opacity and transform (`y`) are animated — these run on the compositor and don't trigger layout recalculations mid-stagger.
+
+---
+
+## Motion Accessibility
+
+Animations can cause discomfort for users with vestibular disorders. Respect the OS-level "reduce motion" setting:
+
+```tsx
+import { useReducedMotion } from 'framer-motion';
+
+export function AnimatedAssetList({ assets }: { assets: Asset[] }) {
+  const reduceMotion = useReducedMotion();
+
+  const container = {
+    hidden: {},
+    show: {
+      transition: { staggerChildren: reduceMotion ? 0 : 0.06 },
+    },
+  };
+
+  // ...
+}
+```
+
+When `useReducedMotion()` returns `true`:
+
+- Set `staggerChildren` to `0` so items appear together.
+- Or swap to a pure fade (`opacity` only, no `y` movement) if you still want a gentle transition.
+- Never remove content from the DOM based on this setting — only the motion changes.
+
+You can also handle it purely in CSS with a media query if you're not using framer-motion:
+
+```css
+@media (prefers-reduced-motion: reduce) {
+  .stagger-item {
+    animation: none;
+  }
+}
+```
+
+---
+
+## Limits on Stagger
+
+Staggers degrade quickly as lists grow. Follow these caps:
+
+| Constraint | Recommended limit | Why |
+|---|---|---|
+| Per-item delay | ≤ 60–80 ms | Above this, users wait on items they can already see |
+| Total sequence | ≤ 400–500 ms end-to-end | Longer feels sluggish, not polished |
+| Max staggered items | ~8–10 | Cap the effect; render the rest immediately |
+| Re-triggers | Once per mount | Don't re-run on filter/sort changes |
+
+For lists longer than the cap, apply the stagger to the first N items only:
+
+```tsx
+const MAX_STAGGERED = 10;
+
+const item = {
+  hidden: { opacity: 0, y: 8 },
+  show: (i: number) => ({
+    opacity: 1,
+    y: 0,
+    transition: {
+      delay: i < MAX_STAGGERED ? i * 0.06 : 0,
+      duration: 0.25,
+    },
+  }),
+};
+
+// <motion.li custom={index} variants={item} ...>
+```
+
+Items past the cap appear instantly with no delay, so a 100-row transaction history never takes 6 seconds to reveal.
+
+---
+
+## Summary
+
+- Stagger via a parent variant with `staggerChildren`; animate only `opacity` and transforms.
+- Always honor `prefers-reduced-motion` — collapse the stagger to zero or a plain fade.
+- Keep per-item delay ≤ 60–80 ms, total duration ≤ 500 ms, and stagger at most ~10 items.
+- Run the animation once per mount; don't replay it when list contents change.
+
+---
+
+## Related
+
+- [Wallets (Freighter, Albedo, Lobstr, xBull, Hana)](/docs/integrations/wallets) - Where asset lists come from
+- [useStellarBalances](/docs/hooks/use-stellar-balances) - Data source for balance lists
+- [useStellarWallet](/docs/hooks/use-stellar-wallet) - Session state around animated lists

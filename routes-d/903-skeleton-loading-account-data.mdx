@@ -1,0 +1,152 @@
+---
+title: Skeleton Loading for Account Data
+description: Show skeleton placeholders while account balances and transaction history load — covering placeholder shapes, fallback timing, and a small reusable example.
+date: 2026-08-25
+---
+
+# Skeleton Loading for Account Data
+
+Fetching account data (public key, XLM balance, asset list) over Horizon takes a moment on every page load. Showing a spinner is fine, but skeletons that mirror the final layout feel faster and prevent layout shift when real data arrives. This guide covers the placeholder shapes worth building, how long to show them before falling back to an error state, and a small reusable example.
+
+---
+
+## Placeholder Shapes
+
+Match each skeleton to the shape of the data it stands in for:
+
+| Data | Placeholder shape |
+|---|---|
+| Public key | Short pill (~`w-40 h-4`) — truncated G-address line |
+| Native XLM balance | Large block (`w-32 h-8`) next to a small label bar |
+| Asset row | Horizontal row: circle icon (`h-9 w-9 rounded-full`) + two stacked bars |
+| Transaction row | Two-line row: wide bar on top, narrow muted bar below |
+
+Rules of thumb:
+
+- Keep the skeleton's outer dimensions identical to the loaded content so nothing jumps when data lands.
+- Group skeletons into the same containers (cards, rows, dividers) as the real UI.
+- Animate with a single `animate-pulse` shimmer; don't animate borders or layout.
+
+```tsx
+function SkeletonRow() {
+  return (
+    <div className="flex items-center gap-3 py-2">
+      <div className="h-9 w-9 animate-pulse rounded-full bg-muted" />
+      <div className="flex-1 space-y-2">
+        <div className="h-3 w-24 animate-pulse rounded bg-muted" />
+        <div className="h-3 w-16 animate-pulse rounded bg-muted" />
+      </div>
+    </div>
+  );
+}
+```
+
+---
+
+## Fallback Timing
+
+Skeletons are a promise that content is coming — enforce both ends of it:
+
+1. **Delay before showing (200–300 ms).** If data arrives instantly, skip the skeleton entirely. A skeleton that flashes for 50 ms feels slower than no skeleton at all.
+2. **Timeout to error state (~10 s).** Horizon may be slow or unreachable. After the timeout, swap the skeleton for an error message with a retry button instead of pulsing forever.
+
+```tsx
+const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
+
+useEffect(() => {
+  const startedAt = Date.now();
+
+  async function load() {
+    try {
+      const [account, elapsed] = await Promise.all([
+        fetchAccount(publicKey),
+        delay(250), // minimum display window
+      ]);
+      setAccount(account);
+      setState('ready');
+    } catch {
+      setState('error');
+    }
+  }
+
+  load();
+}, [publicKey]);
+```
+
+The `Promise.all` with `delay(250)` guarantees the skeleton shows for at least 250 ms even on fast responses, avoiding a flash of empty content.
+
+---
+
+## Minimal Example
+
+A balance card with skeleton, error, and loaded states:
+
+```tsx
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useStellarBalances } from '@/hooks/useStellarBalances';
+
+function BalanceCardSkeleton() {
+  return (
+    <div
+      aria-hidden="true"
+      aria-busy="true"
+      className="rounded-xl border p-4"
+    >
+      <div className="h-3 w-20 animate-pulse rounded bg-muted" />
+      <div className="mt-2 h-8 w-32 animate-pulse rounded bg-muted" />
+      <div className="mt-4 space-y-3">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <SkeletonRow key={i} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function BalanceCard({ publicKey }: { publicKey: string }) {
+  const { balances, loading, error, refresh } = useStellarBalances(publicKey);
+
+  if (loading) return <BalanceCardSkeleton />;
+
+  if (error) {
+    return (
+      <div role="alert" className="rounded-xl border border-destructive/30 p-4 text-sm">
+        <p>We couldn't load your balances. Your funds are safe.</p>
+        <button onClick={refresh} className="mt-2 font-medium underline">
+          Try again
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border p-4">
+      {/* Render real balances */}
+    </div>
+  );
+}
+```
+
+Accessibility notes:
+
+- Put `aria-busy="true"` on the skeleton container and `aria-hidden="true"` on the decorative bars so screen readers hear "loading" rather than silence.
+- The error branch uses `role="alert"` so failures are announced immediately.
+
+---
+
+## Summary
+
+- Mirror the final layout: pills for addresses, blocks for balances, rows for assets and history.
+- Delay skeletons by ~250 ms to avoid flashes, but always cap them with a ~10 s timeout to an error + retry state.
+- Use `aria-busy` and `aria-hidden` on skeletons, `role="alert"` on the fallback.
+- Keep placeholder dimensions identical to loaded content to prevent layout shift.
+
+---
+
+## Related
+
+- [Wallets (Freighter, Albedo, Lobstr, xBull, Hana)](/docs/integrations/wallets) - Connection and balance fetching overview
+- [useStellarBalances](/docs/hooks/use-stellar-balances) - Hook used in this guide
+- [Input](/docs/components/input) - Component states including loading
