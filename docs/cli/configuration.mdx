@@ -25,7 +25,7 @@ npx nextellar my-app \
   --soroban-url https://soroban-rpc.stellar.org \
   --wallets freighter,xbull \
   --package-manager pnpm
-```typescript
+````
 
 ## Template Variables
 
@@ -52,7 +52,7 @@ After creating your project, you can modify these files:
 export const HORIZON_URL = 'https://horizon.stellar.org';
 export const SOROBAN_URL = 'https://soroban-rpc.stellar.org';
 export const NETWORK = Networks.PUBLIC;
-```typescript
+```
 
 ### 2. Wallet Configuration
 
@@ -89,7 +89,7 @@ const allowedWallets = [
     "lib": ["ES2022", "DOM"]
   }
 }
-```typescript
+````
 
 ### 5. Tailwind Configuration
 
@@ -274,11 +274,10 @@ export function validateConfig() {
     throw new Error('NEXT_PUBLIC_NETWORK is required');
   }
 }
-```typescript
+````
 
 ## Related Documentation
 
 - [CLI Commands](/docs/cli/commands) - Command reference
 - [CLI Options](/docs/cli/options) - Option reference
 - [Environment Variables](/docs/guides/deployment#environment-variables) - Deployment config
-````

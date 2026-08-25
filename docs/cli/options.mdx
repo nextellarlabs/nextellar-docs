@@ -18,7 +18,7 @@ Generate a TypeScript project (default).
 nextellar my-app --typescript
 # or
 nextellar my-app -t
-```css
+````
 
 **Default:** `true`
 **Type:** Boolean
@@ -32,7 +32,7 @@ Generate a JavaScript project.
 nextellar my-app --javascript
 # or
 nextellar my-app -j
-```css
+```
 
 **Default:** `false`
 **Type:** Boolean
@@ -48,7 +48,7 @@ Override the default Horizon endpoint.
 
 ```bash
 nextellar my-app --horizon-url https://horizon.stellar.org
-```css
+```
 
 **Default:** `https://horizon-testnet.stellar.org`
 **Type:** String (URL)
@@ -66,7 +66,7 @@ Override the default Soroban RPC endpoint.
 
 ```bash
 nextellar my-app --soroban-url https://soroban-rpc.stellar.org
-```css
+```
 
 **Default:** `https://soroban-testnet.stellar.org`
 **Type:** String (URL)
@@ -112,7 +112,7 @@ nextellar my-app --wallets freighter,xbull,ledger
 
 # All supported wallets
 nextellar my-app --wallets freighter,albedo,lobstr,xbull,ledger
-```css
+````
 
 ## Installation Options
 
@@ -137,7 +137,7 @@ nextellar my-app --skip-install
 ````bash
 cd my-app
 npm install  # or yarn install, pnpm install
-```css
+````
 
 ### --package-manager
 
@@ -145,7 +145,7 @@ Choose which package manager to use.
 
 ```bash
 nextellar my-app --package-manager pnpm
-```css
+```
 
 **Default:** Auto-detected
 **Type:** String
@@ -164,7 +164,7 @@ Set installation timeout in milliseconds.
 
 ```bash
 nextellar my-app --install-timeout 3600000
-```css
+```
 
 **Default:** `1200000` (20 minutes)
 **Type:** Number (milliseconds)
@@ -194,7 +194,7 @@ Skip prompts and use default values.
 nextellar my-app --defaults
 # or
 nextellar my-app -d
-```css
+```
 
 **Default:** `false`
 **Type:** Boolean
@@ -303,7 +303,7 @@ Display CLI version.
 nextellar --version
 # or
 nextellar -v
-```css
+````
 
 **Output:** Version number (e.g., `1.0.4`)
 
@@ -401,7 +401,7 @@ nextellar my-dapp-2024
 nextellar "my app"        # Spaces not allowed
 nextellar my@app          # Special characters not allowed
 nextellar ../my-app       # Path traversal not allowed
-```bash
+````
 
 ### URLs
 
@@ -420,4 +420,3 @@ nextellar ../my-app       # Path traversal not allowed
 - [CLI Commands](/docs/cli/commands) - Command reference
 - [Configuration](/docs/cli/configuration) - Project configuration
 - [Troubleshooting](/docs/troubleshooting/installation-issues) - Common issues
-````
