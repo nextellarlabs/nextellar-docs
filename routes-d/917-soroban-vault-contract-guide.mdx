@@ -1,0 +1,439 @@
+---
+title: Comprehensive Soroban Vault Contract Guide
+description: In-depth guide to building a Soroban vault contract — deposits, share accounting, withdrawals, and optional price-oracle integration — with a working sample.
+date: 2026-08-25
+---
+
+# Comprehensive Soroban Vault Contract Guide
+
+A **vault contract** pools a single underlying asset from many depositors, issues **shares** proportional to each deposit, and lets depositors redeem shares for their proportional claim on the vault's assets at any time. This is the same share-accounting model used by ERC-4626 vaults on EVM chains, adapted to Soroban's storage and auth model. This guide covers the full lifecycle — deposits, share math, withdrawals, and (optionally) using a price oracle to value non-uniform collateral.
+
+---
+
+## Design Overview
+
+```
+Depositor ──deposit(amount)───► Vault Contract ──transfer(depositor → vault)──► Token Contract
+                                     │
+                                     ├── shares = amount × total_shares / total_assets  (or 1:1 if empty)
+                                     ├── total_assets += amount
+                                     └── total_shares += shares
+
+Depositor ◄─withdraw(shares)── Vault Contract ──transfer(vault → depositor)──► Token Contract
+                                     │
+                                     ├── assets_out = shares × total_assets / total_shares
+                                     ├── total_assets -= assets_out
+                                     └── total_shares -= shares
+```
+
+The vault never stores a per-user "balance" of the underlying asset directly — it stores **shares**, and the exchange rate (`total_assets / total_shares`) is what lets yield (or loss) be distributed proportionally without touching every depositor's record on every accrual.
+
+<Note type="info">
+  This guide builds on the token contract from the [Comprehensive Soroban Token
+  Contract Implementation Guide](/docs/guides/soroban-token-contract-guide). The
+  vault holds and moves the underlying asset entirely through that token's
+  SEP-41-compatible `transfer` function.
+</Note>
+
+---
+
+## Project Layout
+
+```
+my-vault-contract/
+├── Cargo.toml
+└── contracts/
+    └── vault/
+        ├── Cargo.toml
+        └── src/
+            ├── lib.rs
+            ├── contract.rs
+            ├── storage.rs
+            ├── oracle.rs
+            └── test.rs
+```
+
+### Contract Cargo.toml
+
+```toml
+[package]
+name = "soroban-vault-contract"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+soroban-sdk = "21.0.0"
+
+[dev-dependencies]
+soroban-sdk = { version = "21.0.0", features = ["testutils"] }
+
+[profile.release]
+opt-level = "z"
+overflow-checks = true
+debug = false
+panic = "abort"
+codegen-units = 1
+```
+
+---
+
+## Storage Layout
+
+```rust
+// contracts/vault/src/storage.rs
+use soroban_sdk::{contracttype, Address, Env};
+
+#[derive(Clone)]
+#[contracttype]
+pub enum DataKey {
+    Admin,
+    Asset,          // underlying token contract address
+    Oracle,          // optional price oracle contract address
+    TotalAssets,
+    TotalShares,
+    Shares(Address), // per-depositor share balance
+}
+
+pub fn read_shares(env: &Env, addr: &Address) -> i128 {
+    env.storage()
+        .persistent()
+        .get(&DataKey::Shares(addr.clone()))
+        .unwrap_or(0)
+}
+
+pub fn write_shares(env: &Env, addr: &Address, amount: i128) {
+    let key = DataKey::Shares(addr.clone());
+    env.storage().persistent().set(&key, &amount);
+    env.storage().persistent().extend_ttl(&key, 100_000, 100_000);
+}
+```
+
+---
+
+## Vault Contract
+
+```rust
+// contracts/vault/src/contract.rs
+#![no_std]
+use soroban_sdk::{contract, contractimpl, token, Address, Env};
+use crate::storage::{read_shares, write_shares, DataKey};
+
+#[contract]
+pub struct VaultContract;
+
+#[contractimpl]
+impl VaultContract {
+    pub fn initialize(env: Env, admin: Address, asset: Address) {
+        admin.require_auth();
+        env.storage().instance().set(&DataKey::Admin, &admin);
+        env.storage().instance().set(&DataKey::Asset, &asset);
+        env.storage().instance().set(&DataKey::TotalAssets, &0i128);
+        env.storage().instance().set(&DataKey::TotalShares, &0i128);
+    }
+
+    /// Deposit `amount` of the underlying asset; mint and return shares.
+    pub fn deposit(env: Env, depositor: Address, amount: i128) -> i128 {
+        depositor.require_auth();
+        assert!(amount > 0, "amount must be positive");
+
+        let total_assets: i128 = env.storage().instance().get(&DataKey::TotalAssets).unwrap();
+        let total_shares: i128 = env.storage().instance().get(&DataKey::TotalShares).unwrap();
+
+        // First depositor sets the initial 1:1 exchange rate.
+        let shares = if total_shares == 0 || total_assets == 0 {
+            amount
+        } else {
+            amount
+                .checked_mul(total_shares)
+                .and_then(|v| v.checked_div(total_assets))
+                .expect("share calculation overflow")
+        };
+        assert!(shares > 0, "deposit too small to mint shares");
+
+        let asset: Address = env.storage().instance().get(&DataKey::Asset).unwrap();
+        token::Client::new(&env, &asset)
+            .transfer(&depositor, &env.current_contract_address(), &amount);
+
+        env.storage().instance().set(&DataKey::TotalAssets, &(total_assets + amount));
+        env.storage().instance().set(&DataKey::TotalShares, &(total_shares + shares));
+
+        let current_shares = read_shares(&env, &depositor);
+        write_shares(&env, &depositor, current_shares + shares);
+
+        env.events()
+            .publish((soroban_sdk::symbol_short!("deposit"), depositor), (amount, shares));
+
+        shares
+    }
+
+    /// Redeem `shares` for a proportional amount of the underlying asset.
+    pub fn withdraw(env: Env, depositor: Address, shares: i128) -> i128 {
+        depositor.require_auth();
+        assert!(shares > 0, "shares must be positive");
+
+        let current_shares = read_shares(&env, &depositor);
+        assert!(current_shares >= shares, "insufficient shares");
+
+        let total_assets: i128 = env.storage().instance().get(&DataKey::TotalAssets).unwrap();
+        let total_shares: i128 = env.storage().instance().get(&DataKey::TotalShares).unwrap();
+        assert!(total_shares > 0, "vault is empty");
+
+        let assets_out = shares
+            .checked_mul(total_assets)
+            .and_then(|v| v.checked_div(total_shares))
+            .expect("withdrawal calculation overflow");
+        assert!(assets_out > 0, "withdrawal too small");
+
+        write_shares(&env, &depositor, current_shares - shares);
+        env.storage().instance().set(&DataKey::TotalAssets, &(total_assets - assets_out));
+        env.storage().instance().set(&DataKey::TotalShares, &(total_shares - shares));
+
+        let asset: Address = env.storage().instance().get(&DataKey::Asset).unwrap();
+        token::Client::new(&env, &asset)
+            .transfer(&env.current_contract_address(), &depositor, &assets_out);
+
+        env.events()
+            .publish((soroban_sdk::symbol_short!("withdraw"), depositor), (shares, assets_out));
+
+        assets_out
+    }
+
+    /// Admin deposits external yield directly (raises the exchange rate for everyone).
+    pub fn add_yield(env: Env, admin: Address, amount: i128) {
+        let stored_admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
+        assert_eq!(admin, stored_admin, "unauthorized");
+        admin.require_auth();
+
+        let asset: Address = env.storage().instance().get(&DataKey::Asset).unwrap();
+        token::Client::new(&env, &asset)
+            .transfer(&admin, &env.current_contract_address(), &amount);
+
+        let total_assets: i128 = env.storage().instance().get(&DataKey::TotalAssets).unwrap();
+        env.storage().instance().set(&DataKey::TotalAssets, &(total_assets + amount));
+    }
+
+    pub fn exchange_rate(env: Env) -> i128 {
+        let total_assets: i128 = env.storage().instance().get(&DataKey::TotalAssets).unwrap_or(0);
+        let total_shares: i128 = env.storage().instance().get(&DataKey::TotalShares).unwrap_or(0);
+        if total_shares == 0 {
+            return 1_0000000; // 1.0 in 7-decimal fixed point
+        }
+        total_assets * 1_0000000 / total_shares
+    }
+
+    pub fn shares_of(env: Env, depositor: Address) -> i128 {
+        read_shares(&env, &depositor)
+    }
+}
+```
+
+---
+
+## Optional: Oracle-Priced Deposits
+
+If the vault should accept **multiple** collateral assets (not just its single underlying asset), each deposit must be converted to a common unit using a price oracle before minting shares. This adds one call per deposit and one extra trust assumption (the oracle's correctness and liveness).
+
+```rust
+// contracts/vault/src/oracle.rs
+use soroban_sdk::{contractclient, Address, Env};
+
+#[contractclient(name = "PriceOracleClient")]
+pub trait PriceOracle {
+    /// Returns the price of `asset` in the vault's unit of account,
+    /// scaled by 10^7 (matches Stellar's standard asset precision).
+    fn price(env: Env, asset: Address) -> i128;
+}
+
+pub fn value_in_vault_units(env: &Env, oracle: &Address, asset: &Address, amount: i128) -> i128 {
+    let client = PriceOracleClient::new(env, oracle);
+    let price = client.price(asset);
+    amount
+        .checked_mul(price)
+        .and_then(|v| v.checked_div(1_0000000))
+        .expect("oracle valuation overflow")
+}
+```
+
+Use it inside `deposit` by valuing `amount` in vault units _before_ computing `shares`:
+
+```rust
+let oracle: Address = env.storage().instance().get(&DataKey::Oracle).unwrap();
+let value = crate::oracle::value_in_vault_units(&env, &oracle, &deposited_asset, amount);
+// use `value` instead of `amount` in the shares formula
+```
+
+<Note type="warning">
+  Treat the oracle as a critical trust boundary. Prefer a well-audited oracle
+  (e.g. Reflector on Stellar) over a self-hosted price feed, and consider a
+  circuit breaker that pauses deposits if the reported price moves more than a
+  configured threshold between two consecutive reads.
+</Note>
+
+---
+
+## Test Suite
+
+```rust
+// contracts/vault/src/test.rs
+#![cfg(test)]
+use super::*;
+use soroban_sdk::testutils::Address as _;
+use soroban_sdk::Env;
+
+fn setup_token(env: &Env) -> (Address, Address) {
+    // Uses the built-in Stellar Asset Contract test helper as a stand-in
+    // for the SEP-41 token contract from the token guide.
+    let admin = Address::generate(env);
+    let contract_id = env.register_stellar_asset_contract_v2(admin.clone());
+    (contract_id.address(), admin)
+}
+
+#[test]
+fn test_first_deposit_mints_1to1_shares() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (asset, asset_admin) = setup_token(&env);
+    let asset_client = token::StellarAssetClient::new(&env, &asset);
+
+    let vault_id = env.register(VaultContract, ());
+    let vault = VaultContractClient::new(&env, &vault_id);
+    let admin = Address::generate(&env);
+    let alice = Address::generate(&env);
+
+    vault.initialize(&admin, &asset);
+    asset_client.mint(&alice, &1_000);
+
+    let shares = vault.deposit(&alice, &500);
+    assert_eq!(shares, 500);
+    assert_eq!(vault.shares_of(&alice), 500);
+    assert_eq!(vault.exchange_rate(), 1_0000000);
+}
+
+#[test]
+fn test_yield_raises_exchange_rate_for_existing_depositors() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (asset, _admin) = setup_token(&env);
+    let asset_client = token::StellarAssetClient::new(&env, &asset);
+
+    let vault_id = env.register(VaultContract, ());
+    let vault = VaultContractClient::new(&env, &vault_id);
+    let admin = Address::generate(&env);
+    let alice = Address::generate(&env);
+
+    vault.initialize(&admin, &asset);
+    asset_client.mint(&alice, &1_000);
+    asset_client.mint(&admin, &100);
+
+    vault.deposit(&alice, &1_000); // 1000 shares at rate 1.0
+    vault.add_yield(&admin, &100); // total_assets = 1100, total_shares = 1000
+
+    let withdrawn = vault.withdraw(&alice, &1_000);
+    assert_eq!(withdrawn, 1_100); // Alice earned 100 in yield
+}
+
+#[test]
+#[should_panic(expected = "insufficient shares")]
+fn test_withdraw_more_than_owned_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (asset, _admin) = setup_token(&env);
+
+    let vault_id = env.register(VaultContract, ());
+    let vault = VaultContractClient::new(&env, &vault_id);
+    let admin = Address::generate(&env);
+    let alice = Address::generate(&env);
+
+    vault.initialize(&admin, &asset);
+    vault.withdraw(&alice, &1);
+}
+```
+
+---
+
+## Client Integration
+
+```ts
+// lib/vault.ts
+import {
+  Contract,
+  Networks,
+  TransactionBuilder,
+  BASE_FEE,
+  rpc,
+  nativeToScVal,
+  Address,
+  scValToNative,
+} from '@stellar/stellar-sdk';
+
+const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL!;
+const VAULT_ID = process.env.NEXT_PUBLIC_VAULT_CONTRACT!;
+
+export async function deposit(
+  depositorKeypair: { publicKey(): string; sign(tx: any): void },
+  amount: bigint
+): Promise<bigint> {
+  const server = new rpc.Server(RPC_URL);
+  const account = await server.getAccount(depositorKeypair.publicKey());
+  const contract = new Contract(VAULT_ID);
+
+  const tx = new TransactionBuilder(account, {
+    fee: BASE_FEE,
+    networkPassphrase: Networks.MAINNET,
+  })
+    .addOperation(
+      contract.call(
+        'deposit',
+        new Address(depositorKeypair.publicKey()).toScVal(),
+        nativeToScVal(amount, { type: 'i128' })
+      )
+    )
+    .setTimeout(30)
+    .build();
+
+  const prepared = await server.prepareTransaction(tx);
+  depositorKeypair.sign(prepared);
+  const result = await server.sendTransaction(prepared);
+  return BigInt(scValToNative((result as any).returnValue).toString());
+}
+
+export async function getExchangeRate(): Promise<number> {
+  const server = new rpc.Server(RPC_URL);
+  const contract = new Contract(VAULT_ID);
+  const account = new (await import('@stellar/stellar-sdk')).Account(
+    'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN',
+    '0'
+  );
+  const tx = new TransactionBuilder(account, {
+    fee: BASE_FEE,
+    networkPassphrase: Networks.MAINNET,
+  })
+    .addOperation(contract.call('exchange_rate'))
+    .setTimeout(5)
+    .build();
+
+  const sim = (await server.simulateTransaction(
+    tx
+  )) as rpc.SimulateTransactionSuccessResponse;
+  return Number(scValToNative(sim.result!.retval)) / 1e7;
+}
+```
+
+---
+
+## Recovery & Edge Cases
+
+- **Dust deposits**: if `amount * total_shares / total_assets` rounds down to `0`, the deposit is rejected (`assets!(shares > 0, ...)`) rather than silently minting nothing for a paid transfer.
+- **Storage TTL expiry**: per-depositor share entries use `extend_ttl` on every write. For long-dormant positions, run an off-chain keeper that periodically bumps TTLs, or require an explicit `ping()` call before large time gaps.
+- **First-depositor inflation attack**: a classic ERC-4626 pitfall is an attacker depositing `1` unit, then donating assets directly to the vault to inflate the exchange rate and round later depositors down to `0` shares. Mitigate by requiring a minimum first deposit and/or seeding the vault with a small admin-owned "dead" deposit at initialization.
+
+---
+
+## Related docs
+
+- [Comprehensive Soroban Token Contract Implementation Guide](/docs/guides/soroban-token-contract-guide) — the SEP-41 token this vault wraps
+- [Comprehensive Soroban Smart Contract Authoring Guide](/docs/guides/soroban-contract-authoring) — project layout, build, and deploy fundamentals
+- [Soroban Host Functions](/docs/guides/soroban-host-functions) — storage, auth, and cross-contract call primitives
