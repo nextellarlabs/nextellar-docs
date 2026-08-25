@@ -1,0 +1,98 @@
+---
+title: Handling Freighter User Rejections
+description: Patterns for handling user signature rejections and cancellations in Freighter with clear, friendly UX feedback.
+date: 2026-08-25
+---
+
+# Handling Freighter User Rejections
+
+When requesting a transaction signature or account access through the Freighter extension, users may choose to decline the prompt or close the popup window.
+
+Handling this rejection smoothly prevents the dApp from getting stuck in an infinite loading state and reassures the user that no funds or state changes occurred.
+
+---
+
+## The Rejection Branch
+
+When a user rejects the signature request:
+1. `signTransaction()` or `signAuthEntry()` throws an error or returns an error response indicating cancellation (e.g., `User declined access` or `User rejected transaction`).
+2. The dApp catches this specific exception.
+3. Reset the transaction state to `idle`.
+4. Display a friendly, non-punitive notification.
+
+```
+Request Signature (signTransaction)
+    ├── Approved → Proceed to Horizon submission
+    └── Rejected (declined / window closed)
+            ↓
+       Catch error
+            ↓
+       Reset UI loading spinner
+            ↓
+       Show toast: "Transaction cancelled. No funds were spent."
+```
+
+---
+
+## Suggested UX Copy
+
+Avoid harsh red alerts or technical stack traces for intentional user cancellations. Use neutral or informational messaging:
+
+| Context | Good UX Copy | Poor Copy |
+| --- | --- | --- |
+| **Transaction Sign** | "Transaction was cancelled in your wallet. No changes were made." | "Error: Transaction signature failed: User rejected" |
+| **Connection Request** | "Wallet connection request was cancelled." | "Fatal: Access Denied (403)" |
+| **Action Options** | Provide a "Try Again" or "Review Details" button | Leave user on a broken or blank screen |
+
+---
+
+## Code Example
+
+```typescript
+import { signTransaction } from '@stellar/freighter-api';
+
+export async function handleSignTransaction(xdr: string, networkPassphrase: string) {
+  try {
+    const signedXdr = await signTransaction(xdr, {
+      networkPassphrase,
+    });
+
+    if (!signedXdr) {
+      throw new Error('USER_REJECTED');
+    }
+
+    return { success: true, signedXdr };
+  } catch (error: any) {
+    const message = error?.message || '';
+
+    // Check for standard Freighter user rejection phrases
+    const isUserRejection =
+      message.includes('declined') ||
+      message.includes('rejected') ||
+      message.includes('User cancelled') ||
+      error === 'USER_REJECTED';
+
+    if (isUserRejection) {
+      return {
+        success: false,
+        isCancelled: true,
+        userMessage: 'Transaction cancelled in Freighter. No funds were transferred.',
+      };
+    }
+
+    // Other unexpected wallet errors
+    return {
+      success: false,
+      isCancelled: false,
+      userMessage: error?.message || 'Failed to sign transaction. Please try again.',
+    };
+  }
+}
+```
+
+---
+
+## Related docs
+
+- [Handling Freighter Timeout](/docs/guides/handling-freighter-timeout) — Managing hanging or unanswered wallet prompts
+- [Wallet UX Patterns](/docs/guides/wallet-ux-patterns) — Core wallet connection patterns
