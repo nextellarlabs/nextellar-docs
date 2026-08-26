@@ -14,7 +14,7 @@ Use the table below to find the exact flag name, alias, default, and a short des
 | Category     | Flag                     | Alias | Default                               | Description                                                                  |
 | ------------ | ------------------------ | ----- | ------------------------------------- | ---------------------------------------------------------------------------- |
 | Language     | `--typescript`           | `-t`  | `true`                                | Generate a TypeScript project (default).                                     |
-| Language     | `--javascript`           | `-j`  | `false`                               | Generate a JavaScript project instead of TypeScript; planned future support. |
+| Language     | `--javascript`           | `-j`  | `false`                               | Generate a JavaScript project instead of TypeScript. Supported today for the default template only. |
 | Network      | `--horizon-url <url>`    |       | `https://horizon-testnet.stellar.org` | Override the default Horizon API endpoint.                                   |
 | Network      | `--soroban-url <url>`    |       | `https://soroban-testnet.stellar.org` | Override the default Soroban RPC endpoint.                                   |
 | Wallet       | `--wallets <list>`       | `-w`  | `freighter,albedo,lobstr`             | Comma-separated list of wallet adapters to include.                          |
@@ -38,6 +38,23 @@ Most options are used with the primary scaffold command:
 ```bash
 npx nextellar my-app --wallets freighter,xbull --package-manager pnpm --skip-install
 ```
+
+Generate a JavaScript project with `-j` / `--javascript` (default template only):
+
+```bash
+npx nextellar my-app --javascript
+```
+
+Combining `--javascript` with `--template minimal` or `--template defi` fails immediately:
+
+```bash
+npx nextellar my-app --javascript --template minimal
+npx nextellar my-app --javascript --template defi
+# --javascript (or --no-typescript) currently only supports the default template.
+# Use --template default or omit --javascript/--no-typescript.
+```
+
+See [Scaffolding Templates](/docs/cli/templates) for the restriction note.
 
 Without `--force`, scaffolding into a directory that already exists fails immediately:
 

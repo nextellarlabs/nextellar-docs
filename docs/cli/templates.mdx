@@ -67,21 +67,27 @@ npx nextellar my-app --template defi
 | Soroban contract calls / events | ✅        | –         | –      |
 | Transaction history             | ✅        | –         | –      |
 | Network switcher                | ✅        | –         | –      |
-| `--javascript` support          | ✅        | –         | ✅     |
+| `--javascript` support          | ✅        | –         | –      |
 
 ## JavaScript variant
 
-Add `-j` / `--javascript` to scaffold `.jsx`/`.js` files instead of TypeScript. Only `default` and `defi` ship a JavaScript variant today; `minimal` does not.
+Add `-j` / `--javascript` to scaffold `.jsx`/`.js` files instead of TypeScript. This ships today for the **default** template only. Combining it with `--template minimal` or `--template defi` fails fast before scaffolding:
 
 ```bash
 npx nextellar my-app --javascript
-npx nextellar my-app --javascript --template defi
 ```
+
+<Note>
+  `--javascript` only supports the default template. With `--template minimal` or `--template defi` the CLI exits with:
+
+  `--javascript (or --no-typescript) currently only supports the default template. Use --template default or omit --javascript/--no-typescript.`
+</Note>
 
 ```bash
 npx nextellar my-app --javascript --template minimal
-# Template "minimal" is not available for JavaScript yet.
-# Please use the default or defi template with --javascript.
+npx nextellar my-app --javascript --template defi
+# --javascript (or --no-typescript) currently only supports the default template.
+# Use --template default or omit --javascript/--no-typescript.
 ```
 
 See [Using JavaScript](/docs/getting-started/javascript) for what else differs between the TypeScript and JavaScript scaffolds, and the open CLI issues tracking JS/TS parity.

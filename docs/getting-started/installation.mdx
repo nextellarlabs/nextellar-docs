@@ -18,7 +18,7 @@ Before you begin, ensure you have:
 
 ### Check Your Node Version
 
-`````bash
+```bash
 node --version
 # Should output v20.18.0 or higher
 ```
@@ -54,9 +54,9 @@ Customize your project during scaffolding:
 
 ### Basic Usage
 
-````bash
-npx nextellar <project-name> [options]
 ```bash
+npx nextellar <project-name> [options]
+```
 
 ### Available Options
 
@@ -76,7 +76,7 @@ npx nextellar <project-name> [options]
 
 ```bash
 npx nextellar my-app --package-manager pnpm
-`````
+```
 
 **Skip installation (install later):**
 
@@ -156,10 +156,10 @@ README.md
 
 After installation completes:
 
-````bash
+```bash
 cd my-stellar-app
 npm run dev
-```bash
+```
 
 Open [http://localhost:3000](http://localhost:3000) in your browser. You should see the Nextellar starter page with a wallet connect button!
 
@@ -183,7 +183,7 @@ If `npx nextellar my-stellar-app` stops while installing dependencies, retry man
 ```bash
 cd my-stellar-app
 npm install
-```bash
+```
 
 Fixes:
 
@@ -197,7 +197,7 @@ If the scaffold fails before install, confirm your Node version:
 
 ```bash
 node --version
-```bash
+```
 
 Fixes:
 
@@ -210,7 +210,7 @@ If `npm run dev` fails because the port is occupied:
 
 ```bash
 npm run dev -- -p 3001
-```bash
+```
 
 Fix:
 
@@ -222,7 +222,7 @@ If `npm run build` reports TypeScript or type-check errors:
 
 ```bash
 npm run build
-```bash
+```
 
 Fixes:
 
@@ -236,7 +236,7 @@ If a dependency is missing after installation:
 ```bash
 rm -rf node_modules package-lock.json
 npm install
-```bash
+```
 
 Fixes:
 
@@ -288,4 +288,3 @@ Fixes:
 - [Read the FAQ](/docs/troubleshooting/faq)
 - [Report an issue](https://github.com/nextellarlabs/nextellar/issues)
 - [Join discussions](https://github.com/nextellarlabs/nextellar/discussions)
-````
