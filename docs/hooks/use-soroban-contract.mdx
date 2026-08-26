@@ -18,7 +18,7 @@ The `useSorobanContract` hook provides a complete interface for interacting with
 
 ## Basic Usage
 
-`````tsx
+```tsx
 import { useSorobanContract } from '@/hooks/useSorobanContract';
 
 export default function ContractDemo() {
@@ -44,13 +44,13 @@ export default function ContractDemo() {
 
 ### Parameters
 
-````typescript
+```typescript
 useSorobanContract(options: {
   contractId: string;
   sorobanRpc?: string;
   network?: 'TESTNET' | 'PUBLIC';
 }): SorobanContractReturn
-```css
+```
 
 | Parameter    | Type                    | Default                                 | Description                  |
 | ------------ | ----------------------- | --------------------------------------- | ---------------------------- |
@@ -71,7 +71,7 @@ interface SorobanContractReturn {
   loading: boolean;
   error: Error | null;
 }
-```typescript
+```
 
 ## Methods
 
@@ -89,7 +89,7 @@ const result = await callFunction('transfer', [
   'GDEF456...', // to
   1000, // amount
 ]);
-`````
+```
 
 **Supported Argument Types:**
 
@@ -222,13 +222,13 @@ if (loading) return <Spinner />;
 
 ### 3. Validate Contract Responses
 
-````tsx
+```tsx
 const result = await callFunction('get_balance', [address]);
 
 if (typeof result !== 'number') {
   throw new Error('Invalid balance returned');
 }
-```typescript
+```
 
 ## Related Hooks
 
@@ -262,4 +262,3 @@ if (typeof result !== 'number') {
     <span className="text-sm text-muted-foreground block">Scaffold, deploy, and invoke a Soroban contract end to end</span>
   </a>
 </div>
-````
