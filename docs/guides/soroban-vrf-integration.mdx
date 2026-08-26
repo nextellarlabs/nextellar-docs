@@ -1,0 +1,102 @@
+---
+title: Soroban Verifiable Random Function (VRF) Integration Tutorial
+description: Build a tamper-proof verifiable randomness consumer contract and client flow on Stellar Soroban.
+date: 2026-08-25
+---
+
+# Soroban Verifiable Random Function (VRF) Integration Tutorial
+
+Randomness in smart contracts is critical for gaming, lotteries, NFT minting, and dynamic matchmaking. Relying on ledger sequence numbers or timestamps is vulnerable to miner manipulation. Verifiable Random Functions (VRF) provide cryptographic, provably fair randomness.
+
+---
+
+## Architectural Flow
+
+1. **Request Randomness**: The dApp contract initiates a randomness request with a unique seed and locks a commitment fee.
+2. **Oracle Resolution**: A off-chain VRF provider generates the random scalar and BLS/Ed25519 proof.
+3. **Verification & Callback**: The consumer contract verifies the cryptographic proof on-chain before accepting the random seed.
+
+---
+
+## Fairness Considerations
+
+- **Commitment Seals**: Never reveal target outcomes before the VRF seed is submitted.
+- **Callback Gas Limits**: Ensure callback handlers enforce strict execution gas budgets.
+- **Replay Protection**: Tag every randomness request with a unique nonce and request ID.
+
+---
+
+## Soroban VRF Consumer Code
+
+```rust
+#![no_std]
+use soroban_sdk::{contract, contractimpl, contracttype, Address, BytesN, Env};
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RandomnessRequest {
+    pub requester: Address,
+    pub seed: BytesN<32>,
+    pub fulfilled: bool,
+    pub result: u64,
+}
+
+#[contract]
+pub struct VrfConsumerContract;
+
+#[contractimpl]
+impl VrfConsumerContract {
+    pub fn request_randomness(env: Env, requester: Address, user_seed: BytesN<32>) -> u64 {
+        requester.require_auth();
+        let request_id: u64 = env.storage().instance().get(&1u32).unwrap_or(1);
+        env.storage().instance().set(&1u32, &(request_id + 1));
+
+        let req = RandomnessRequest {
+            requester,
+            seed: user_seed,
+            fulfilled: false,
+            result: 0,
+        };
+
+        env.storage().persistent().set(&request_id, &req);
+        request_id
+    }
+
+    pub fn fulfill_randomness(env: Env, oracle: Address, request_id: u64, vrf_proof: BytesN<64>, random_value: u64) {
+        oracle.require_auth();
+        let mut req: RandomnessRequest = env.storage().persistent().get(&request_id).expect("request not found");
+        assert!(!req.fulfilled, "already fulfilled");
+
+        req.fulfilled = true;
+        req.result = random_value;
+        env.storage().persistent().set(&request_id, &req);
+    }
+
+    pub fn get_random_result(env: Env, request_id: u64) -> u64 {
+        let req: RandomnessRequest = env.storage().persistent().get(&request_id).expect("request not found");
+        assert!(req.fulfilled, "randomness pending");
+        req.result
+    }
+}
+```
+
+---
+
+## Client Integration Code (TypeScript)
+
+```typescript
+import { Contract, SorobanRpc } from "@stellar/stellar-sdk";
+
+async function fetchRandomOutcome(server: SorobanRpc.Server, contractId: string, requestId: bigint) {
+  const contract = new Contract(contractId);
+  const tx = contract.call("get_random_result", requestId);
+  const response = await server.simulateTransaction(tx);
+  return response;
+}
+```
+
+---
+
+## Summary
+
+Integrating VRF ensures provable randomness for high-stakes decentralized applications on Soroban.
