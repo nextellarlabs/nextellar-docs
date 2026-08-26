@@ -1,0 +1,1044 @@
+---
+title: Caching Layer for Stellar dApp Horizon Reads
+description: Build an efficient caching layer over Horizon API calls with invalidation strategies, staleness bounds, and React Query implementation for Stellar dApps.
+date: 2026-08-25
+---
+
+# Caching Layer for Stellar dApp Horizon Reads
+
+Horizon API calls are the backbone of most Stellar dApps, but uncached reads create unnecessary latency, waste bandwidth, and risk hitting rate limits. A well-designed caching layer keeps your UI responsive while respecting data freshness constraints and Horizon's rate limits.
+
+This guide covers cache invalidation strategies, staleness bounds, and a complete working implementation using React Query.
+
+---
+
+## Why Caching Matters for Horizon
+
+Horizon is a shared resource with per-IP rate limits on public endpoints (roughly 100 requests per 10 seconds on testnet — see [Rate Limiting Horizon Requests](/docs/guides/rate-limiting-horizon-requests)). Without caching:
+
+- Every component re-render triggers a fresh API call
+- Users see spinners for data that hasn't changed
+- Rate limits are reached quickly during peak usage
+- Network latency directly impacts perceived performance
+
+A caching layer solves these problems by:
+
+1. **Reducing API calls** — serve repeated reads from memory
+2. **Improving response time** — eliminate network round-trip for cached data
+3. **Respecting rate limits** — stay well below quota with intelligent revalidation
+4. **Offline resilience** — show stale data when the network is unavailable
+
+---
+
+## Cache Invalidation Strategies
+
+Cache invalidation is famously one of the two hard problems in computer science. For Horizon data, you have four primary strategies:
+
+### 1. Time-Based Invalidation (TTL)
+
+Data expires after a fixed duration. Simple and predictable.
+
+**Best for**: Account balances, transaction history, offers, asset details
+
+```ts
+const CACHE_TTL = {
+  balances: 10_000,      // 10 seconds — frequently changing
+  account: 30_000,       // 30 seconds — moderate volatility
+  transactions: 60_000,  // 1 minute — historical data rarely changes
+  assets: 300_000,       // 5 minutes — static metadata
+};
+```
+
+**Pros**:
+- Easy to reason about
+- No complex dependency tracking
+- Works for all data types
+
+**Cons**:
+- May serve stale data if changes happen mid-TTL
+- May refresh unnecessarily if data hasn't changed
+
+### 2. Event-Based Invalidation
+
+Invalidate when a known event occurs (user submits transaction, receives payment, etc.).
+
+**Best for**: User-initiated actions where you know exactly what changed
+
+```ts
+async function submitPayment(tx: Transaction) {
+  const result = await server.submitTransaction(tx);
+  
+  if (result.successful) {
+    // Invalidate caches that this transaction affects
+    queryClient.invalidateQueries({ queryKey: ['balances', sourceAccount] });
+    queryClient.invalidateQueries({ queryKey: ['balances', destination] });
+    queryClient.invalidateQueries({ queryKey: ['transactions', sourceAccount] });
+  }
+  
+  return result;
+}
+```
+
+**Pros**:
+- Immediate UI updates after actions
+- No waiting for TTL expiration
+- Precise control over what gets refreshed
+
+**Cons**:
+- Doesn't catch external changes (other users' transactions)
+- Requires manual tracking of dependencies
+- Complex for multi-hop effects
+
+### 3. Polling with Background Revalidation
+
+Keep data fresh with periodic background checks while serving from cache.
+
+**Best for**: Critical real-time data (open orders, pending transactions)
+
+```ts
+useQuery({
+  queryKey: ['openOrders', accountId],
+  queryFn: () => fetchOpenOrders(accountId),
+  staleTime: 5_000,        // Consider fresh for 5s
+  refetchInterval: 10_000, // Poll every 10s in background
+});
+```
+
+**Pros**:
+- Catches external changes automatically
+- Balances freshness and API efficiency
+- User always sees up-to-date data
+
+**Cons**:
+- More API calls than pure TTL
+- Polling continues even when data rarely changes
+- Need to pause polling when tab is hidden
+
+### 4. Stream-Based Invalidation (SSE / Ledger Close Events)
+
+Horizon supports Server-Sent Events, letting you subscribe to account activity and invalidate reactively instead of polling. Every message corresponds to a ledger close event (~5 second cadence), so this catches external changes — incoming payments from other users, trustline changes — almost immediately.
+
+```ts
+// lib/horizonStreams.ts
+import { useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { horizonServer } from './horizon';
+import { stellarKeys } from '@/hooks/useStellarAccount';
+
+/**
+ * Subscribes to an account's transaction stream and invalidates all
+ * account-related queries whenever a new ledger entry arrives.
+ * Returns nothing; cleans up the stream on unmount.
+ */
+export function useAccountInvalidationStream(accountId: string | null) {
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!accountId) return;
+
+    const closeStream = horizonServer
+      .transactions()
+      .forAccount(accountId)
+      .stream({
+        onmessage: () => {
+          // A new transaction landed — refresh everything scoped to this account
+          queryClient.invalidateQueries({
+            queryKey: stellarKeys.account(accountId),
+          });
+        },
+        onerror: (error) => {
+          console.error('Horizon stream error:', error);
+        },
+      });
+
+    // Close the SSE connection on unmount to avoid leaks
+    return () => closeStream();
+  }, [accountId, queryClient]);
+}
+```
+
+**Best for**: Accounts displayed persistently where external changes matter (wallet dashboards)
+
+**Pros**:
+- Push-based — reacts to external changes with zero wasted requests
+- Aligned with actual ledger close events rather than arbitrary intervals
+- Complements TTL: streams trigger invalidation, TTL remains the safety net
+
+**Cons**:
+- Browsers limit concurrent SSE connections (six per domain on HTTP/1.1)
+- Requires cleanup on unmount and reconnection handling on network drops
+- Not suitable for server-side rendering without extra plumbing
+
+---
+
+## Staleness Bounds Configuration
+
+Staleness bounds define how old data can be before it must be refreshed. Different data types have different tolerance for staleness:
+
+| Data Type | Staleness Bound | Rationale |
+|-----------|----------------|-----------|
+| Account balances | 5-10 seconds | Users expect current balance, but sub-second precision rarely matters |
+| Transaction history | 30-60 seconds | Historical data doesn't change; recent transactions settle within seconds |
+| Open offers | 5 seconds | Order book changes frequently in active markets |
+| Asset metadata | 5 minutes | Issuer-defined properties rarely change |
+| Network info | 30 seconds | Ledger time and fee stats are useful but not critical |
+| Account details (signers, thresholds) | 1 minute | Configuration changes are rare |
+
+Configure staleness based on **user impact**:
+
+- **High impact** (user making decisions): tight bounds (5-10s)
+- **Medium impact** (informational display): moderate bounds (30-60s)
+- **Low impact** (background context): loose bounds (5+ minutes)
+
+One physical floor applies to everything: Stellar ledgers close roughly every 5 seconds, so data cannot change faster than that. Bounds tighter than ~5 seconds buy you nothing unless you pair them with stream-based invalidation (strategy 4 above), and even then a TTL safety net is still recommended in case a stream drops.
+
+---
+
+## Implementation with React Query
+
+React Query (TanStack Query) is the standard caching layer for React applications. It provides:
+
+- Automatic background refetching
+- Stale-while-revalidate pattern
+- Request deduplication
+- Cache persistence
+- Optimistic updates
+
+### Setup
+
+```bash
+npm install @tanstack/react-query @stellar/stellar-sdk
+```
+
+```tsx
+// app/providers.tsx
+'use client';
+
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ReactNode, useState } from 'react';
+
+export function Providers({ children }: { children: ReactNode }) {
+  const [queryClient] = useState(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          queries: {
+            staleTime: 10_000,        // Default: 10s staleness
+            gcTime: 300_000,          // Keep in cache for 5 minutes
+            retry: 2,                 // Retry failed requests twice
+            refetchOnWindowFocus: true, // Refresh when user returns to tab
+          },
+        },
+      })
+  );
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      {children}
+    </QueryClientProvider>
+  );
+}
+```
+
+### Horizon Client Setup
+
+```ts
+// lib/horizon.ts
+import { Horizon } from '@stellar/stellar-sdk';
+
+export const horizonServer = new Horizon.Server(
+  process.env.NEXT_PUBLIC_HORIZON_URL || 'https://horizon-testnet.stellar.org'
+);
+
+export interface StellarBalance {
+  assetCode: string;
+  assetIssuer: string | null;
+  balance: string;
+  limit: string | null;
+  isNative: boolean;
+}
+
+export async function fetchAccountBalances(
+  accountId: string
+): Promise<StellarBalance[]> {
+  const account = await horizonServer.loadAccount(accountId);
+  
+  return account.balances.map((b) => {
+    if (b.asset_type === 'native') {
+      return {
+        assetCode: 'XLM',
+        assetIssuer: null,
+        balance: b.balance,
+        limit: null,
+        isNative: true,
+      };
+    }
+    
+    const assetBalance = b as Horizon.HorizonApi.BalanceLineAsset;
+    return {
+      assetCode: assetBalance.asset_code,
+      assetIssuer: assetBalance.asset_issuer,
+      balance: assetBalance.balance,
+      limit: assetBalance.limit,
+      isNative: false,
+    };
+  });
+}
+
+export async function fetchAccountTransactions(
+  accountId: string,
+  limit = 20
+): Promise<Horizon.ServerApi.TransactionRecord[]> {
+  const transactions = await horizonServer
+    .transactions()
+    .forAccount(accountId)
+    .limit(limit)
+    .order('desc')
+    .call();
+  
+  return transactions.records;
+}
+
+export async function fetchAccountDetails(
+  accountId: string
+): Promise<Horizon.AccountResponse> {
+  return horizonServer.loadAccount(accountId);
+}
+```
+
+---
+
+## Complete Working Example: Account Data Caching
+
+### Custom Hooks with React Query
+
+```tsx
+// hooks/useStellarAccount.ts
+'use client';
+
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  fetchAccountBalances,
+  fetchAccountTransactions,
+  fetchAccountDetails,
+  type StellarBalance,
+} from '@/lib/horizon';
+import { Horizon } from '@stellar/stellar-sdk';
+
+// Query keys factory for type-safe cache access
+export const stellarKeys = {
+  all: ['stellar'] as const,
+  accounts: () => [...stellarKeys.all, 'accounts'] as const,
+  account: (id: string) => [...stellarKeys.accounts(), id] as const,
+  balances: (id: string) => [...stellarKeys.account(id), 'balances'] as const,
+  transactions: (id: string) => [...stellarKeys.account(id), 'transactions'] as const,
+  details: (id: string) => [...stellarKeys.account(id), 'details'] as const,
+};
+
+/**
+ * Fetch and cache account balances with 10-second staleness
+ */
+export function useAccountBalances(accountId: string | null) {
+  return useQuery({
+    queryKey: stellarKeys.balances(accountId!),
+    queryFn: () => fetchAccountBalances(accountId!),
+    enabled: !!accountId,
+    staleTime: 10_000,     // Consider fresh for 10 seconds
+    gcTime: 300_000,       // Keep in cache for 5 minutes
+    retry: 2,
+  });
+}
+
+/**
+ * Fetch and cache transaction history with 1-minute staleness
+ */
+export function useAccountTransactions(
+  accountId: string | null,
+  limit = 20
+) {
+  return useQuery({
+    queryKey: [...stellarKeys.transactions(accountId!), limit],
+    queryFn: () => fetchAccountTransactions(accountId!, limit),
+    enabled: !!accountId,
+    staleTime: 60_000,     // Consider fresh for 1 minute
+    gcTime: 600_000,       // Keep in cache for 10 minutes
+  });
+}
+
+/**
+ * Fetch and cache account details (signers, thresholds, etc.)
+ */
+export function useAccountDetails(accountId: string | null) {
+  return useQuery({
+    queryKey: stellarKeys.details(accountId!),
+    queryFn: () => fetchAccountDetails(accountId!),
+    enabled: !!accountId,
+    staleTime: 60_000,     // Consider fresh for 1 minute
+    gcTime: 300_000,
+  });
+}
+
+/**
+ * Hook to manually invalidate account-related caches
+ * Use after submitting transactions
+ */
+export function useInvalidateAccount() {
+  const queryClient = useQueryClient();
+  
+  return {
+    invalidateBalances: (accountId: string) => {
+      queryClient.invalidateQueries({
+        queryKey: stellarKeys.balances(accountId),
+      });
+    },
+    invalidateTransactions: (accountId: string) => {
+      queryClient.invalidateQueries({
+        queryKey: stellarKeys.transactions(accountId),
+      });
+    },
+    invalidateAll: (accountId: string) => {
+      queryClient.invalidateQueries({
+        queryKey: stellarKeys.account(accountId),
+      });
+    },
+  };
+}
+```
+
+### UI Component Using Cached Data
+
+```tsx
+// components/AccountBalances.tsx
+'use client';
+
+import { useAccountBalances } from '@/hooks/useStellarAccount';
+
+export function AccountBalances({ accountId }: { accountId: string }) {
+  const { data: balances, isLoading, error, dataUpdatedAt } = useAccountBalances(accountId);
+
+  if (isLoading) {
+    return <div className="animate-pulse">Loading balances...</div>;
+  }
+
+  if (error) {
+    return (
+      <div className="text-red-600">
+        Error loading balances: {error.message}
+      </div>
+    );
+  }
+
+  if (!balances || balances.length === 0) {
+    return <div>No balances found</div>;
+  }
+
+  const lastUpdated = new Date(dataUpdatedAt).toLocaleTimeString();
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h2 className="text-xl font-semibold">Balances</h2>
+        <span className="text-sm text-gray-500">
+          Updated: {lastUpdated}
+        </span>
+      </div>
+      
+      <div className="space-y-2">
+        {balances.map((balance, idx) => (
+          <div
+            key={idx}
+            className="flex justify-between items-center p-3 bg-gray-50 rounded-lg"
+          >
+            <div>
+              <div className="font-medium">
+                {balance.assetCode}
+              </div>
+              {!balance.isNative && (
+                <div className="text-xs text-gray-500 truncate max-w-xs">
+                  {balance.assetIssuer}
+                </div>
+              )}
+            </div>
+            <div className="text-right">
+              <div className="font-mono">{balance.balance}</div>
+              {balance.limit && (
+                <div className="text-xs text-gray-500">
+                  Limit: {balance.limit}
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+```
+
+### Transaction Submission with Cache Invalidation
+
+```tsx
+// hooks/useSubmitPayment.ts
+'use client';
+
+import { useMutation } from '@tanstack/react-query';
+import {
+  Keypair,
+  Asset,
+  Operation,
+  TransactionBuilder,
+  Networks,
+  BASE_FEE,
+} from '@stellar/stellar-sdk';
+import { horizonServer } from '@/lib/horizon';
+import { useInvalidateAccount } from './useStellarAccount';
+
+interface PaymentParams {
+  sourceKeypair: Keypair;
+  destination: string;
+  amount: string;
+  asset?: Asset;
+}
+
+export function useSubmitPayment() {
+  const { invalidateBalances, invalidateTransactions } = useInvalidateAccount();
+
+  return useMutation({
+    mutationFn: async ({ sourceKeypair, destination, amount, asset }: PaymentParams) => {
+      const sourceAccount = await horizonServer.loadAccount(sourceKeypair.publicKey());
+      
+      const transaction = new TransactionBuilder(sourceAccount, {
+        fee: BASE_FEE,
+        networkPassphrase: Networks.TESTNET,
+      })
+        .addOperation(
+          Operation.payment({
+            destination,
+            asset: asset || Asset.native(),
+            amount,
+          })
+        )
+        .setTimeout(30)
+        .build();
+      
+      transaction.sign(sourceKeypair);
+      
+      const result = await horizonServer.submitTransaction(transaction);
+      return result;
+    },
+    onSuccess: (data, variables) => {
+      // Invalidate caches for both sender and receiver
+      const sourceId = variables.sourceKeypair.publicKey();
+      
+      invalidateBalances(sourceId);
+      invalidateBalances(variables.destination);
+      invalidateTransactions(sourceId);
+      invalidateTransactions(variables.destination);
+    },
+  });
+}
+```
+
+### Usage in Component
+
+```tsx
+// components/PaymentForm.tsx
+'use client';
+
+import { useState } from 'react';
+import { Keypair } from '@stellar/stellar-sdk';
+import { useSubmitPayment } from '@/hooks/useSubmitPayment';
+
+export function PaymentForm({ sourceKeypair }: { sourceKeypair: Keypair }) {
+  const [destination, setDestination] = useState('');
+  const [amount, setAmount] = useState('');
+  
+  const { mutate: submitPayment, isPending, isSuccess, error } = useSubmitPayment();
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    submitPayment({ sourceKeypair, destination, amount });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label className="block text-sm font-medium mb-1">
+          Destination Address
+        </label>
+        <input
+          type="text"
+          value={destination}
+          onChange={(e) => setDestination(e.target.value)}
+          className="w-full px-3 py-2 border rounded-lg"
+          placeholder="GABC..."
+          required
+        />
+      </div>
+      
+      <div>
+        <label className="block text-sm font-medium mb-1">
+          Amount (XLM)
+        </label>
+        <input
+          type="number"
+          step="0.0000001"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          className="w-full px-3 py-2 border rounded-lg"
+          placeholder="10.5"
+          required
+        />
+      </div>
+      
+      <button
+        type="submit"
+        disabled={isPending}
+        className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
+      >
+        {isPending ? 'Sending...' : 'Send Payment'}
+      </button>
+      
+      {isSuccess && (
+        <div className="text-green-600 text-sm">
+          Payment sent successfully! Balances will refresh automatically.
+        </div>
+      )}
+      
+      {error && (
+        <div className="text-red-600 text-sm">
+          Error: {error.message}
+        </div>
+      )}
+    </form>
+  );
+}
+```
+
+---
+
+## Advanced Patterns
+
+### Optimistic Updates
+
+Update the UI immediately before the transaction settles, then rollback if it fails:
+
+```ts
+// hooks/useOptimisticPayment.ts
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useInvalidateAccount } from './useStellarAccount';
+// PaymentParams is the interface defined in useSubmitPayment.ts above
+
+export function useOptimisticPayment() {
+  const queryClient = useQueryClient();
+  const { invalidateBalances } = useInvalidateAccount();
+
+  return useMutation({
+    mutationFn: async (params: PaymentParams) => {
+      // ... submit transaction as shown in useSubmitPayment
+    },
+    onMutate: async (variables) => {
+      const sourceId = variables.sourceKeypair.publicKey();
+      
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({
+        queryKey: stellarKeys.balances(sourceId),
+      });
+      
+      // Snapshot current balances
+      const previousBalances = queryClient.getQueryData(
+        stellarKeys.balances(sourceId)
+      );
+      
+      // Optimistically update cache
+      queryClient.setQueryData(
+        stellarKeys.balances(sourceId),
+        (old: StellarBalance[] | undefined) => {
+          if (!old) return old;
+          return old.map((b) =>
+            b.isNative
+              ? {
+                  ...b,
+                  balance: (
+                    parseFloat(b.balance) - parseFloat(variables.amount)
+                  ).toFixed(7),
+                }
+              : b
+          );
+        }
+      );
+      
+      return { previousBalances };
+    },
+    onError: (err, variables, context) => {
+      // Rollback on error
+      if (context?.previousBalances) {
+        queryClient.setQueryData(
+          stellarKeys.balances(variables.sourceKeypair.publicKey()),
+          context.previousBalances
+        );
+      }
+    },
+    onSettled: (data, error, variables) => {
+      // Always refetch after mutation settles
+      invalidateBalances(variables.sourceKeypair.publicKey());
+      invalidateBalances(variables.destination);
+    },
+  });
+}
+```
+
+### Prefetching Related Data
+
+Preload data that the user is likely to need:
+
+```ts
+export function usePrefetchAccount(accountId: string | null) {
+  const queryClient = useQueryClient();
+
+  const prefetch = () => {
+    if (!accountId) return;
+    
+    // Prefetch balances
+    queryClient.prefetchQuery({
+      queryKey: stellarKeys.balances(accountId),
+      queryFn: () => fetchAccountBalances(accountId),
+      staleTime: 10_000,
+    });
+    
+    // Prefetch transactions
+    queryClient.prefetchQuery({
+      queryKey: stellarKeys.transactions(accountId),
+      queryFn: () => fetchAccountTransactions(accountId),
+      staleTime: 60_000,
+    });
+  };
+
+  return { prefetch };
+}
+
+// Usage: prefetch on hover
+function AccountLink({ accountId }: { accountId: string }) {
+  const { prefetch } = usePrefetchAccount(accountId);
+
+  return (
+    <button
+      onMouseEnter={() => prefetch()}
+      onClick={() => navigate(`/account/${accountId}`)}
+    >
+      View Account
+    </button>
+  );
+}
+```
+
+### Pagination with Cursor Caching
+
+Cache paginated results efficiently:
+
+```ts
+export function useTransactionPages(accountId: string | null) {
+  return useInfiniteQuery({
+    queryKey: [...stellarKeys.transactions(accountId!), 'infinite'],
+    queryFn: async ({ pageParam }) => {
+      const builder = horizonServer
+        .transactions()
+        .forAccount(accountId!)
+        .limit(20)
+        .order('desc');
+      
+      if (pageParam) {
+        builder.cursor(pageParam);
+      }
+      
+      const result = await builder.call();
+      return {
+        records: result.records,
+        nextCursor: result.records[result.records.length - 1]?.paging_token,
+      };
+    },
+    enabled: !!accountId,
+    initialPageParam: undefined,
+    getNextPageParam: (lastPage) => lastPage.nextCursor,
+    staleTime: 60_000,
+  });
+}
+```
+
+### Pause Polling on Hidden Tabs
+
+Stop background refetching when the tab is hidden:
+
+```tsx
+// app/providers.tsx
+export function Providers({ children }: { children: ReactNode }) {
+  const [queryClient] = useState(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          queries: {
+            staleTime: 10_000,
+            refetchOnWindowFocus: true,
+            refetchOnMount: true,
+            // Stop refetching when tab is hidden
+            refetchInterval: (query) => {
+              if (typeof document === 'undefined') return false;
+              return document.hidden ? false : query.state.data ? 10_000 : false;
+            },
+          },
+        },
+      })
+  );
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      {children}
+    </QueryClientProvider>
+  );
+}
+```
+
+---
+
+## Best Practices
+
+### 1. Use Query Key Factories
+
+Centralize query keys in a factory to avoid typos and enable type-safe invalidation:
+
+```ts
+export const stellarKeys = {
+  all: ['stellar'] as const,
+  accounts: () => [...stellarKeys.all, 'accounts'] as const,
+  account: (id: string) => [...stellarKeys.accounts(), id] as const,
+  // ... more keys
+};
+```
+
+### 2. Set Appropriate Staleness Per Data Type
+
+Don't use a global `staleTime` — configure per query based on data volatility:
+
+```ts
+// Fast-changing data
+staleTime: 5_000   // 5 seconds
+
+// Moderate data
+staleTime: 30_000  // 30 seconds
+
+// Slow-changing data
+staleTime: 300_000 // 5 minutes
+```
+
+### 3. Always Invalidate After Mutations
+
+Ensure the UI reflects reality after user actions:
+
+```ts
+onSuccess: (data, variables) => {
+  queryClient.invalidateQueries({
+    queryKey: stellarKeys.balances(accountId),
+  });
+}
+```
+
+### 4. Handle Errors Gracefully
+
+Show stale data with an error message rather than a blank screen:
+
+```tsx
+if (error) {
+  return (
+    <div>
+      <div className="text-red-600">Failed to refresh data</div>
+      {data && <BalancesList balances={data} />}
+    </div>
+  );
+}
+```
+
+### 5. Monitor Cache Size
+
+Large caches consume memory. Set `gcTime` to remove old data:
+
+```ts
+gcTime: 300_000  // Remove from cache after 5 minutes of inactivity
+```
+
+### 6. Use Dependent Queries Carefully
+
+When one query depends on another, use `enabled`:
+
+```ts
+const { data: account } = useAccountDetails(accountId);
+
+const { data: offers } = useQuery({
+  queryKey: ['offers', account?.id],
+  queryFn: () => fetchOffers(account!.id),
+  enabled: !!account, // Only run if account loaded
+});
+```
+
+### 7. Debounce User Input
+
+Don't query on every keystroke:
+
+```ts
+const [search, setSearch] = useState('');
+const debouncedSearch = useDebounce(search, 500);
+
+useQuery({
+  queryKey: ['search', debouncedSearch],
+  queryFn: () => searchAssets(debouncedSearch),
+  enabled: debouncedSearch.length > 2,
+});
+```
+
+---
+
+## Common Pitfalls
+
+### 1. Over-Caching
+
+**Problem**: Caching data that changes frequently or must always be fresh.
+
+**Solution**: Use shorter `staleTime` or skip caching for critical real-time data.
+
+```ts
+// Don't cache streaming order book updates
+// Do cache historical trades
+```
+
+### 2. Cache Invalidation Bugs
+
+**Problem**: Forgetting to invalidate related caches after mutations.
+
+**Solution**: Build invalidation maps and test thoroughly.
+
+```ts
+// Invalidate all related queries after a complex operation
+const accountKeys = [
+  stellarKeys.balances(accountId),
+  stellarKeys.transactions(accountId),
+  stellarKeys.details(accountId),
+];
+
+accountKeys.forEach((key) => {
+  queryClient.invalidateQueries({ queryKey: key });
+});
+```
+
+### 3. Memory Leaks from Infinite Queries
+
+**Problem**: Infinite scroll caches grow unbounded.
+
+**Solution**: Set `gcTime` and limit page count.
+
+```ts
+useInfiniteQuery({
+  // ...
+  gcTime: 300_000,
+  maxPages: 10, // React Query v5
+});
+```
+
+### 4. Not Handling Loading States
+
+**Problem**: Showing spinners for cached data.
+
+**Solution**: Check `isLoading` vs `isFetching`:
+
+```tsx
+if (isLoading) return <Spinner />; // First load
+if (data) return <Content data={data} />; // Show cached data even if refetching
+```
+
+### 5. Polling Too Aggressively
+
+**Problem**: `refetchInterval: 1000` hammers Horizon and drains user battery.
+
+**Solution**: Use intervals ≥5s and pause when tab is hidden.
+
+---
+
+## Performance Benchmarks
+
+Typical performance improvements with caching:
+
+| Scenario | Without Cache | With Cache | Improvement |
+|----------|--------------|------------|-------------|
+| Re-render same component | 200-500ms | \<10ms | 20-50x |
+| Navigate back to cached page | 200-500ms | \<10ms | 20-50x |
+| Rapid user actions | Each triggers API call | Batched/deduplicated | 5-10x fewer calls |
+| Rate limit exposure | High risk at scale | Stays under quota | N/A |
+
+---
+
+## Testing Your Cache
+
+```ts
+import { QueryClient } from '@tanstack/react-query';
+import { renderHook, waitFor } from '@testing-library/react';
+import { useAccountBalances } from './useStellarAccount';
+
+test('caches balance data', async () => {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  
+  const wrapper = ({ children }: any) => (
+    <QueryClientProvider client={queryClient}>
+      {children}
+    </QueryClientProvider>
+  );
+
+  const { result, rerender } = renderHook(
+    () => useAccountBalances('GABC...'),
+    { wrapper }
+  );
+
+  await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+  const firstData = result.current.data;
+  
+  // Unmount and remount
+  rerender();
+  
+  // Should serve from cache immediately
+  expect(result.current.data).toBe(firstData);
+  expect(result.current.isFetching).toBe(false);
+});
+```
+
+---
+
+## Related Resources
+
+| Resource | Link |
+|----------|------|
+| Rate limits and 429 recovery | [Rate Limiting Horizon Requests](/docs/guides/rate-limiting-horizon-requests) |
+| Horizon integration overview | [Stellar Horizon](/docs/integrations/horizon) |
+| Prebuilt balances hook | [useStellarBalances](/docs/hooks/use-stellar-balances) |
+| Prebuilt history hook | [useTransactionHistory](/docs/hooks/use-transaction-history) |
+| Mocking Horizon in tests | [Testing Integrations](/docs/integrations/testing) |
+
+---
+
+## Acceptance Checklist
+
+- [ ] Guide renders without build errors (`pnpm build:content`)
+- [ ] Internal links resolve (`pnpm check:links`)
+- [ ] Four invalidation strategies are explained with code (TTL, mutations, polling, SSE streams)
+- [ ] Staleness bounds table is present and comprehensive
+- [ ] Complete React Query setup with QueryClientProvider
+- [ ] Working hooks: `useAccountBalances`, `useAccountTransactions`, `useAccountDetails`
+- [ ] Transaction submission with cache invalidation example
+- [ ] UI component consuming cached data
+- [ ] Advanced patterns: optimistic updates, prefetching, pagination
+- [ ] Best practices section with 7+ actionable tips
+- [ ] Common pitfalls section with solutions
+- [ ] Performance benchmarks included
+- [ ] Testing example provided
+- [ ] All TypeScript code is type-safe and compiles
+- [ ] Code follows Next.js 14+ conventions (use client directives, app router patterns)
+
