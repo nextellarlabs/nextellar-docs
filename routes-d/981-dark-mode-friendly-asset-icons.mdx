@@ -1,0 +1,88 @@
+---
+title: Dark Mode Friendly Asset Icons
+description: Guidelines and patterns for implementing accessible asset icons across light and dark theme modes.
+date: 2026-08-26
+---
+
+# Dark Mode Friendly Asset Icons
+
+Designing token and asset icons for Stellar dApps requires ensuring high legibility and contrast across light and dark backgrounds.
+
+---
+
+## Key Contrast Rules & Guidelines
+
+1. **WCAG AA Contrast Ratios**: Icon elements must maintain at least a 3:1 contrast ratio against the surrounding container background in both themes.
+2. **Avoid Hardcoded Dark Outlines**: Dark outlines on token symbols (e.g., black SVG stroke) become invisible in dark mode.
+3. **Dual SVG Layers or CSS Variables**: Use CSS custom properties (`var(--icon-fill)`) or theme-aware SVG layers.
+4. **Fallback Token Badges**: When a token icon fails to load, render a background fallback pill with high-contrast monochrome text.
+
+---
+
+## Fallback Tokens & CSS Design System
+
+```css
+:root {
+  --icon-bg-primary: #f3f4f6;
+  --icon-text-primary: #111827;
+  --icon-border-color: #e5e7eb;
+}
+
+[data-theme='dark'] {
+  --icon-bg-primary: #1f2937;
+  --icon-text-primary: #f9fafb;
+  --icon-border-color: #374151;
+}
+```
+
+---
+
+## Code Example
+
+```tsx
+import React, { useState } from 'react';
+
+interface AssetIconProps {
+  symbol: string;
+  iconUrl?: string;
+  size?: number;
+}
+
+export const AssetIcon: React.FC<AssetIconProps> = ({ symbol, iconUrl, size = 24 }) => {
+  const [hasError, setHasError] = useState(false);
+
+  if (!iconUrl || hasError) {
+    return (
+      <div
+        className="asset-icon-fallback"
+        style={{
+          width: size,
+          height: size,
+          backgroundColor: 'var(--icon-bg-primary)',
+          color: 'var(--icon-text-primary)',
+          border: '1px solid var(--icon-border-color)',
+          borderRadius: '50%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontWeight: 'bold',
+          fontSize: size * 0.45,
+        }}
+      >
+        {symbol.slice(0, 3).toUpperCase()}
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={iconUrl}
+      alt={`${symbol} icon`}
+      width={size}
+      height={size}
+      onError={() => setHasError(true)}
+      style={{ borderRadius: '50%', filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.1))' }}
+    />
+  );
+};
+```
