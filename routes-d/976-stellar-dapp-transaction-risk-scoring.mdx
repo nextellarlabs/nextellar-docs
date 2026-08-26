@@ -1,0 +1,138 @@
+---
+title: Stellar dApp Transaction Risk Scoring
+description: Build a simple, explainable transaction risk score from Stellar account, operation, and behavior signals.
+date: 2026-08-26
+---
+
+# Stellar dApp Transaction Risk Scoring
+
+Risk scoring helps a dApp decide when to allow, warn, slow down, or block a transaction. Keep the score explainable: users and reviewers should be able to see which signals contributed to a decision.
+
+---
+
+## Features to Compute
+
+Start with features that can be computed from Horizon data and local app context:
+
+| Feature | Example threshold | Why it matters |
+| --- | --- | --- |
+| Account age | Less than 1,000 ledgers | Very new accounts are common in Sybil attempts |
+| Transaction velocity | More than 20 ops in 5 minutes | Automation often creates tight bursts |
+| Round amount ratio | More than 80% round amounts | Repeated round values may indicate scripted behavior |
+| Destination reuse | Same destination more than 5 times in 10 minutes | Can indicate farming or circular flows |
+| Asset mismatch | Unexpected asset for this flow | Catches wrong-token approvals or spoofed UI state |
+| Device or session signal | Same session, many wallets | Connects off-chain behavior to on-chain actions |
+
+## Scoring Model
+
+Use additive scoring so every point has a reason:
+
+```ts
+export interface RiskSignal {
+  id: string;
+  points: number;
+  reason: string;
+}
+
+export interface RiskScore {
+  score: number;
+  level: 'low' | 'medium' | 'high' | 'critical';
+  signals: RiskSignal[];
+}
+
+export function scoreTransactionRisk(signals: RiskSignal[]): RiskScore {
+  const score = Math.min(
+    100,
+    signals.reduce((total, signal) => total + signal.points, 0)
+  );
+
+  const level = score >= 80
+    ? 'critical'
+    : score >= 60
+      ? 'high'
+      : score >= 30
+        ? 'medium'
+        : 'low';
+
+  return { score, level, signals };
+}
+```
+
+## Example Feature Builder
+
+```ts
+export function buildRiskSignals(input: {
+  accountAgeLedgers: number;
+  operationsInFiveMinutes: number;
+  roundAmountRatio: number;
+  repeatedDestinationCount: number;
+  expectedAsset: string;
+  actualAsset: string;
+}): RiskSignal[] {
+  const signals: RiskSignal[] = [];
+
+  if (input.accountAgeLedgers < 1000) {
+    signals.push({ id: 'new_account', points: 25, reason: 'Account is very new' });
+  }
+
+  if (input.operationsInFiveMinutes > 20) {
+    signals.push({ id: 'high_velocity', points: 30, reason: 'High recent transaction velocity' });
+  }
+
+  if (input.roundAmountRatio > 0.8) {
+    signals.push({ id: 'round_amounts', points: 10, reason: 'Mostly round-number amounts' });
+  }
+
+  if (input.repeatedDestinationCount > 5) {
+    signals.push({ id: 'destination_reuse', points: 20, reason: 'Destination reused repeatedly' });
+  }
+
+  if (input.actualAsset !== input.expectedAsset) {
+    signals.push({ id: 'asset_mismatch', points: 40, reason: 'Unexpected asset for this flow' });
+  }
+
+  return signals;
+}
+```
+
+## Thresholds and Actions
+
+| Score | Level | Suggested action |
+| --- | --- | --- |
+| 0-29 | Low | Allow silently |
+| 30-59 | Medium | Allow with monitoring or a soft warning |
+| 60-79 | High | Require an extra confirmation or slow the flow |
+| 80-100 | Critical | Block and send to review |
+
+Treat thresholds as policy configuration, not hardcoded truth. Different dApps have different risk tolerance.
+
+## Displaying the Result
+
+Show the risk level and the main reasons, not a mysterious number:
+
+```tsx
+function RiskNotice({ result }: { result: RiskScore }) {
+  if (result.level === 'low') return null;
+
+  return (
+    <div role="alert" className="rounded-lg border border-amber-300 p-4">
+      <p className="font-semibold">Extra review recommended</p>
+      <ul className="mt-2 list-disc pl-5 text-sm">
+        {result.signals.map((signal) => (
+          <li key={signal.id}>{signal.reason}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+```
+
+## Accuracy Notes
+
+Risk scores are decision-support signals, not proof of fraud. Make sure any automatic block can be reviewed, and log the signals that contributed to the score so support and compliance teams can explain the result later.
+
+## Related Docs
+
+- [Fraud Detection Signals](/docs/guides/fraud-detection-signals)
+- [Transaction Lifecycle](/docs/guides/transaction-lifecycle)
+- [dApp DoS Hardening](/docs/guides/dapp-dos-hardening)
