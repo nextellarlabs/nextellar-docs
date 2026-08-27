@@ -1,0 +1,38 @@
+---
+title: Building a small Horizon proxy
+description: How to build a simple proxy for Stellar Horizon.
+---
+
+# Building a Small Horizon Proxy
+
+A Horizon proxy allows you to cache requests, add authentication, or implement rate limiting before requests reach the public Horizon API.
+
+## Basic Implementation
+
+You can build a proxy using a simple Node.js or Go server. The proxy will intercept incoming HTTP requests and forward them to the Horizon endpoint.
+
+### Example in Node.js (Express)
+
+```javascript
+const express = require('express');
+const { createProxyMiddleware } = require('http-proxy-middleware');
+
+const app = express();
+
+app.use('/horizon', createProxyMiddleware({
+  target: 'https://horizon.stellar.org',
+  changeOrigin: true,
+  pathRewrite: {
+    '^/horizon': '', // remove base path
+  },
+}));
+
+app.listen(3000, () => {
+  console.log('Horizon proxy listening on port 3000');
+});
+```
+
+## Advantages
+- Reduces load on the primary network.
+- Custom filtering of responses.
+- Caching of frequent read requests.
