@@ -1,0 +1,171 @@
+---
+title: Defining SLAs for a Stellar dApp Service
+description: Guide to defining service-level agreements for a Stellar dApp — metrics, thresholds, and reporting cadence — with a ready-to-use template.
+date: 2026-08-27
+---
+
+# Defining SLAs for a Stellar dApp Service
+
+A Stellar dApp bridges an off-chain service (deposits, withdrawals, KYC) with an on-chain settlement layer you don't control the finality time of. That split makes naive SLAs ("99.9% uptime") insufficient — a user cares less about your server's uptime than about how long their deposit actually takes to confirm. This guide covers choosing metrics that reflect the user's real experience, setting realistic thresholds, and a reporting cadence that catches degradation before it becomes an incident.
+
+<Note type="warning">
+  This guide covers internal/customer-facing SLA definition for a dApp
+  operator. It does not cover SLAs with third-party providers (mobile money
+  gateways, KYC vendors) you depend on — those need their own contracts, and
+  your SLA to end users should generally be looser than what you require from
+  every upstream dependency combined.
+</Note>
+
+## Choosing metrics
+
+Split metrics into two categories: what you control directly, and what you can only bound (because Stellar's own finality time isn't yours to promise).
+
+| Category | Metric | Why it matters |
+|---|---|---|
+| You control | API availability | Can the frontend even reach your backend |
+| You control | API p50/p95/p99 latency | Response time for a request you're already handling |
+| You control | Webhook delivery success rate | Whether downstream systems (yours or a partner's) hear about state changes |
+| You bound, don't control | Deposit confirmation time | Ledger close time + your own processing overhead |
+| You bound, don't control | Withdrawal settlement time | Same, plus any manual-review latency you've added |
+
+**Never SLA on a metric you don't control without a clear "if X, then Y" carve-out.** A Stellar network congestion event that triples ledger close times isn't something an SLA about your uptime should silently absorb — the metric needs to distinguish "our system was down" from "our system worked correctly but the network was slow."
+
+## Setting thresholds
+
+Thresholds should come from your own historical data, not an arbitrary round number. A minimal way to derive them:
+
+```ts
+// lib/sla-thresholds.ts
+export interface LatencySample {
+  operation: "deposit_confirm" | "withdrawal_settle" | "api_request";
+  durationMs: number;
+}
+
+export interface SlaThreshold {
+  operation: LatencySample["operation"];
+  p50Ms: number;
+  p95Ms: number;
+  p99Ms: number;
+}
+
+function percentile(sorted: number[], p: number): number {
+  if (sorted.length === 0) return 0;
+  const index = Math.min(
+    sorted.length - 1,
+    Math.ceil((p / 100) * sorted.length) - 1,
+  );
+  return sorted[index];
+}
+
+export function deriveThreshold(
+  operation: LatencySample["operation"],
+  samples: LatencySample[],
+): SlaThreshold {
+  const durations = samples
+    .filter((s) => s.operation === operation)
+    .map((s) => s.durationMs)
+    .sort((a, b) => a - b);
+
+  return {
+    operation,
+    p50Ms: percentile(durations, 50),
+    p95Ms: percentile(durations, 95),
+    p99Ms: percentile(durations, 99),
+  };
+}
+
+export function isWithinSla(threshold: SlaThreshold, durationMs: number): boolean {
+  return durationMs <= threshold.p99Ms;
+}
+```
+
+```ts
+// lib/sla-thresholds.test.ts
+import { describe, expect, it } from "vitest";
+import { deriveThreshold, isWithinSla } from "./sla-thresholds";
+
+const sampleSet = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map((durationMs) => ({
+  operation: "api_request" as const,
+  durationMs,
+}));
+
+describe("deriveThreshold", () => {
+  it("computes p50 as the median of the sample set", () => {
+    const threshold = deriveThreshold("api_request", sampleSet);
+    expect(threshold.p50Ms).toBe(50);
+  });
+
+  it("computes p99 close to the max for a small sample set", () => {
+    const threshold = deriveThreshold("api_request", sampleSet);
+    expect(threshold.p99Ms).toBe(100);
+  });
+
+  it("only considers samples matching the requested operation", () => {
+    const mixed = [
+      ...sampleSet,
+      { operation: "deposit_confirm" as const, durationMs: 999999 },
+    ];
+    const threshold = deriveThreshold("api_request", mixed);
+    expect(threshold.p99Ms).toBe(100);
+  });
+
+  it("returns all-zero thresholds for an empty sample set", () => {
+    const threshold = deriveThreshold("api_request", []);
+    expect(threshold.p50Ms).toBe(0);
+    expect(threshold.p99Ms).toBe(0);
+  });
+});
+
+describe("isWithinSla", () => {
+  it("treats a duration at or below p99 as within SLA", () => {
+    const threshold = deriveThreshold("api_request", sampleSet);
+    expect(isWithinSla(threshold, threshold.p99Ms)).toBe(true);
+  });
+
+  it("treats a duration above p99 as an SLA breach", () => {
+    const threshold = deriveThreshold("api_request", sampleSet);
+    expect(isWithinSla(threshold, threshold.p99Ms + 1)).toBe(false);
+  });
+});
+```
+
+Once derived, round p99 up to a customer-facing number with headroom — publishing your actual measured p99 as the SLA leaves zero margin, and any normal variance becomes a breach.
+
+## Reporting cadence
+
+| Report | Audience | Frequency | Contents |
+|---|---|---|---|
+| Live dashboard | Internal (on-call, support) | Real-time | Current p50/p95/p99, error rate, webhook delivery rate |
+| Weekly digest | Internal (eng + product) | Weekly | Trend vs. prior week, any threshold breaches, root causes |
+| Customer SLA report | External (enterprise customers) | Monthly | Uptime %, aggregate latency percentiles, any credited incidents |
+
+**Report breaches even when they self-resolved.** A threshold breach that recovered before anyone noticed is still a data point for whether the SLA number itself needs revisiting — silently dropping it from the monthly report erodes trust in the report once a customer notices the gap independently (e.g. via their own monitoring).
+
+## SLA template
+
+```markdown
+### Service Level Agreement — <Service Name>
+
+**Effective date:** <date>
+
+| Metric | Threshold | Measurement window | Credit for breach |
+|---|---|---|---|
+| API availability | 99.9% | Monthly | 5% service credit per 0.1% below threshold |
+| API p99 latency | <Xms> | Rolling 7-day | None (informational) |
+| Deposit confirmation (p99) | <Xs>, excluding network congestion events | Rolling 7-day | 1-day service credit if breached without a congestion carve-out |
+| Withdrawal settlement (p99) | <Xh>, excluding manual review holds | Rolling 7-day | Same as above |
+
+**Exclusions:** Stellar network-wide congestion or outages, scheduled maintenance (announced 48h in advance), force majeure.
+```
+
+## Verifying the guide
+
+```bash
+pnpm build:content
+pnpm check:links
+npx vitest run lib/sla-thresholds.test.ts
+```
+
+## Related docs
+
+- [Support Runbook Tutorial](/routes-d/958-stellar-dapp-support-runbook-tutorial)
