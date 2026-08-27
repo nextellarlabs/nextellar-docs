@@ -1,0 +1,33 @@
+---
+title: Soroban Simulation Output Fields
+description: A short note on the key fields returned by rpc.Server.simulateTransaction and how to use each.
+date: 2026-08-27
+---
+
+# Soroban Simulation Output Fields
+
+Calling `rpcServer.simulateTransaction(tx)` against a Soroban RPC server returns an object describing what the invocation would cost and produce, without submitting anything. The fields you'll use most often:
+
+| Field | Use it to... |
+| --- | --- |
+| `cost.cpuInsns` / `cost.memBytes` | Check the CPU instructions and memory the invocation consumed, against the network's resource limits. |
+| `minResourceFee` | Read the minimum fee (in stroops) needed to cover the simulated resources — pass this into the transaction's fee before signing. |
+| `transactionData` | Get the `SorobanTransactionData` (footprint + resource fee) to attach to the transaction via `rpc.assembleTransaction`. |
+| `result.retval` | Read the contract function's return value, decoded as an `xdr.ScVal`. |
+| `result.auth` | Inspect the authorization entries the invocation required, before the user signs anything. |
+| `latestLedger` | Note which ledger the simulation ran against, useful for diagnosing stale-state errors. |
+| `events` | Inspect diagnostic and contract events emitted during the simulated call, for debugging. |
+| `error` | If present, the simulation failed — read this instead of the other fields; the invocation would not succeed as submitted. |
+
+```typescript
+const simulation = await rpcServer.simulateTransaction(tx);
+
+if (rpc.Api.isSimulationError(simulation)) {
+  throw new Error(simulation.error);
+}
+
+console.log('CPU instructions:', simulation.cost.cpuInsns);
+console.log('Minimum resource fee:', simulation.minResourceFee);
+```
+
+Always check `error` (or use `rpc.Api.isSimulationError`) before reading the other fields — a failed simulation has no usable `result` or `cost`.
