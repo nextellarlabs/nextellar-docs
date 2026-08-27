@@ -1,0 +1,527 @@
+---
+title: Stellar dApp Accessibility Policy Guide
+description: Comprehensive guide to creating, implementing, and maintaining accessibility policies for Stellar dApps — covering WCAG conformance targets, reporting procedures, remediation workflows, and a customizable policy template.
+date: 2026-08-25
+---
+
+# Stellar dApp Accessibility Policy Guide
+
+Accessibility is not optional for production dApps. Users with disabilities must be able to connect wallets, review transactions, approve signatures, and manage assets independently. This guide provides a structured approach to establishing accessibility policies that meet WCAG standards and ensure your Stellar dApp is usable by everyone.
+
+---
+
+## 1. Why Accessibility Matters for Stellar dApps
+
+### 1.1 Legal and Ethical Obligations
+
+Accessibility regulations — including the Americans with Disabilities Act (ADA), European Accessibility Act (EAA), and Section 508 — apply to financial applications and blockchain interfaces. Non-compliance risks lawsuits, regulatory penalties, and reputational damage.
+
+### 1.2 Technical Considerations for Web3
+
+Stellar dApps introduce unique accessibility challenges:
+
+- **Transaction signing flows**: Screen readers must announce transaction details (amount, destination, fee) clearly before users approve.
+- **Wallet connection modals**: Keyboard navigation must allow users to select wallet providers without a mouse.
+- **Real-time data updates**: Balance changes, transaction confirmations, and network status must be announced to assistive technologies.
+- **Cryptographic addresses**: Long Stellar public keys (`G...` addresses) need proper labeling and copy mechanisms that work with screen readers.
+- **Error states**: Failed transactions, insufficient balance warnings, and network errors must be perceivable by all users.
+
+### 1.3 Business Impact
+
+Accessible dApps reach a broader audience. An estimated 15% of the global population lives with some form of disability. Improving accessibility increases user retention, reduces support costs, and demonstrates professional development standards.
+
+---
+
+## 2. Conformance Targets and Standards
+
+### 2.1 WCAG 2.1 Overview
+
+The **Web Content Accessibility Guidelines (WCAG) 2.1** provide the international standard for web accessibility. The guidelines are organized into three conformance levels:
+
+| Level | Description | Recommended for |
+|---|---|---|
+| **A** | Minimum baseline — addresses critical barriers | Internal tools, proofs-of-concept |
+| **AA** | Recommended standard for public-facing applications | Production dApps, marketplaces, exchanges |
+| **AAA** | Maximum conformance — stricter color contrast, language, timing | High-security financial applications, government portals |
+
+**For Stellar dApps, target WCAG 2.1 Level AA as the minimum production standard.**
+
+### 2.2 Four Core Principles (POUR)
+
+WCAG conformance is built on four principles:
+
+1. **Perceivable**: Information must be presented in ways all users can perceive.
+   - Provide text alternatives for images (including wallet logos, token icons).
+   - Ensure color is not the only means of conveying information (e.g., success/error states).
+   - Make content adaptable (responsive layouts, semantic HTML).
+
+2. **Operable**: Users must be able to operate the interface.
+   - Full keyboard navigation support (no mouse-only interactions).
+   - Sufficient time for users to complete transactions (configurable timeouts for signing).
+   - No content that causes seizures (avoid flashing animations above 3 Hz).
+   - Clear navigation and focus management (especially in modals).
+
+3. **Understandable**: Content and operation must be clear.
+   - Predictable behavior (wallet connection flow remains consistent).
+   - Input assistance (clear labels for amount fields, destination addresses).
+   - Error identification and recovery (explain "insufficient balance" with suggested actions).
+
+4. **Robust**: Content must work reliably across assistive technologies.
+   - Valid semantic HTML5 markup.
+   - ARIA attributes used correctly (roles, states, properties).
+   - Compatibility with common screen readers (NVDA, JAWS, VoiceOver).
+
+### 2.3 Critical Success Criteria for Stellar dApps
+
+Focus on these high-impact WCAG criteria:
+
+| Criterion | Level | Impact on dApps |
+|---|---|---|
+| **1.1.1 Non-text Content** | A | Alt text for wallet icons, token logos, QR codes |
+| **1.4.3 Contrast (Minimum)** | AA | 4.5:1 for body text, 3:1 for large text and UI components |
+| **2.1.1 Keyboard** | A | All wallet actions accessible via keyboard |
+| **2.4.3 Focus Order** | A | Logical tab order through transaction forms |
+| **2.4.7 Focus Visible** | AA | Clear focus indicators on buttons, inputs, links |
+| **3.2.2 On Input** | A | Changing network doesn't auto-submit transactions |
+| **3.3.1 Error Identification** | A | Transaction errors described in text, not just color |
+| **3.3.2 Labels or Instructions** | A | Clear labels for amount, address, memo fields |
+| **4.1.2 Name, Role, Value** | A | Proper ARIA for modals, alerts, live regions |
+| **4.1.3 Status Messages** | AA | Announce "Transaction confirmed" to screen readers |
+
+### 2.4 Emerging Standards: WCAG 3.0 and ATAG 2.0
+
+- **WCAG 3.0 (W3C Working Draft)**: Currently under development, introducing a scoring model rather than pass/fail criteria. Monitor progress at [w3.org/WAI/WCAG3](https://www.w3.org/WAI/WCAG3/).
+- **ATAG 2.0 (Authoring Tool Accessibility Guidelines)**: If your dApp includes content creation features (governance proposals, asset descriptions), ATAG 2.0 applies. Ensure editors produce accessible output.
+
+---
+
+## 3. Reporting Procedures
+
+### 3.1 Establishing a Clear Reporting Channel
+
+Users must know how to report accessibility issues. Provide a dedicated contact method:
+
+- **Email address**: `accessibility@yourdapp.com`
+- **Web form**: Embedded on your site's footer or `/accessibility` page
+- **GitHub repository**: Public issue template for open-source projects
+- **In-app feedback**: Accessible feedback widget (ensure the widget itself is keyboard-accessible)
+
+### 3.2 Accessibility Statement
+
+Publish an accessibility statement at `/accessibility` that includes:
+
+1. **Commitment**: "We are committed to ensuring our dApp is accessible to all users."
+2. **Conformance target**: "Our dApp aims to conform to WCAG 2.1 Level AA."
+3. **Known issues**: List any outstanding accessibility barriers with planned remediation dates.
+4. **Contact information**: How users can report new issues.
+5. **Response timeline**: "We respond to accessibility reports within 2 business days and provide remediation timelines within 5 business days."
+
+### 3.3 Information to Request from Reporters
+
+When users report issues, ask for:
+
+- **Assistive technology used**: Screen reader (name and version), browser, operating system.
+- **Steps to reproduce**: Specific page, wallet connection flow, or transaction step.
+- **Expected behavior**: What the user expected to happen.
+- **Actual behavior**: What occurred instead.
+- **Severity**: Blocker (cannot complete task), major (workaround exists), minor (inconvenience).
+
+### 3.4 Sample Reporting Form Template
+
+```html
+<form action="/accessibility-report" method="POST">
+  <label for="name">Your Name (optional):</label>
+  <input type="text" id="name" name="name" />
+
+  <label for="email">Email (for follow-up):</label>
+  <input type="email" id="email" name="email" required />
+
+  <label for="assistive-tech">Assistive Technology Used:</label>
+  <input type="text" id="assistive-tech" name="assistive-tech" 
+         placeholder="e.g., NVDA 2023.1, JAWS 2024, VoiceOver" />
+
+  <label for="page-url">Page or Feature Affected:</label>
+  <input type="url" id="page-url" name="page-url" 
+         placeholder="https://app.yourdapp.com/swap" />
+
+  <label for="issue-description">Description of Issue:</label>
+  <textarea id="issue-description" name="issue-description" 
+            rows="6" required></textarea>
+
+  <label for="severity">Severity:</label>
+  <select id="severity" name="severity">
+    <option value="blocker">Blocker - Cannot complete task</option>
+    <option value="major">Major - Workaround exists</option>
+    <option value="minor">Minor - Inconvenience</option>
+  </select>
+
+  <button type="submit">Submit Report</button>
+</form>
+```
+
+---
+
+## 4. Remediation Workflows
+
+### 4.1 Triage and Prioritization
+
+Classify reported issues by severity and WCAG level:
+
+| Priority | Criteria | Response Time | Fix Target |
+|---|---|---|---|
+| **P0 - Critical** | WCAG A violation, blocks core functionality | 24 hours | 1 week |
+| **P1 - High** | WCAG AA violation, significant barrier | 2 business days | 2 weeks |
+| **P2 - Medium** | WCAG AA violation, workaround available | 5 business days | 1 month |
+| **P3 - Low** | WCAG AAA or minor enhancement | 1 week | Next major release |
+
+### 4.2 Investigation and Root Cause Analysis
+
+For each reported issue:
+
+1. **Reproduce the issue**: Test with the same assistive technology the user reported.
+2. **Identify WCAG criterion**: Map the issue to specific WCAG success criteria.
+3. **Determine scope**: Is this a component library issue, a framework bug, or application-level code?
+4. **Check for regressions**: Did a recent deployment introduce this issue?
+
+### 4.3 Fix Implementation
+
+Apply fixes following these best practices:
+
+```tsx
+// ❌ BEFORE: Inaccessible wallet connection modal
+function WalletModal({ isOpen, onClose }) {
+  return (
+    <div className="modal">
+      <h2>Connect Wallet</h2>
+      <button onClick={() => connectFreighter()}>
+        <img src="/freighter.png" />
+      </button>
+      <span onClick={onClose}>×</span>
+    </div>
+  );
+}
+
+// ✅ AFTER: Accessible wallet connection modal
+function WalletModal({ isOpen, onClose }) {
+  return (
+    <div
+      role="dialog"
+      aria-labelledby="wallet-modal-title"
+      aria-modal="true"
+      className="modal"
+    >
+      <h2 id="wallet-modal-title">Connect Wallet</h2>
+      <button onClick={() => connectFreighter()} aria-label="Connect with Freighter">
+        <img src="/freighter.png" alt="Freighter logo" />
+        <span>Freighter</span>
+      </button>
+      <button onClick={onClose} aria-label="Close modal">
+        ×
+      </button>
+    </div>
+  );
+}
+```
+
+Key improvements:
+- `role="dialog"` and `aria-modal="true"` announce modal context.
+- `aria-labelledby` connects modal title.
+- `alt` text for logo image.
+- `aria-label` for icon-only close button.
+- Visual text "Freighter" alongside logo for clarity.
+
+### 4.4 Verification and Testing
+
+Before marking an issue resolved:
+
+1. **Manual testing**: Verify fix with keyboard navigation and relevant screen reader.
+2. **Automated testing**: Run axe-core, Lighthouse, or Pa11y in CI pipeline.
+3. **Regression testing**: Ensure fix didn't break adjacent functionality.
+4. **User confirmation**: If possible, ask the original reporter to verify the fix.
+
+### 4.5 Documentation and Communication
+
+After remediation:
+
+- **Update accessibility statement**: Remove resolved issue from "Known Issues" section.
+- **Notify reporter**: Send follow-up email confirming fix and providing deployment timeline.
+- **Release notes**: Document accessibility fixes in changelogs.
+- **Internal tracking**: Log fix in issue tracker (GitHub, Jira, Linear) with WCAG reference.
+
+---
+
+## 5. Ongoing Maintenance and Audits
+
+### 5.1 Automated Testing in CI/CD
+
+Integrate accessibility testing into your deployment pipeline. Add these scripts to your `package.json`:
+
+```json
+{
+  "scripts": {
+    "test:a11y": "pa11y-ci --config .pa11yci.json",
+    "test:axe": "jest --testMatch '**/*.a11y.test.ts'"
+  }
+}
+```
+
+Example Jest + axe-core test:
+
+```typescript
+// WalletModal.a11y.test.ts
+import { render } from '@testing-library/react';
+import { axe, toHaveNoViolations } from 'jest-axe';
+import { WalletModal } from './WalletModal';
+
+expect.extend(toHaveNoViolations);
+
+test('WalletModal should have no accessibility violations', async () => {
+  const { container } = render(
+    <WalletModal isOpen={true} onClose={() => {}} />
+  );
+  const results = await axe(container);
+  expect(results).toHaveNoViolations();
+});
+```
+
+### 5.2 Manual Audits
+
+Schedule manual audits quarterly:
+
+- **Screen reader testing**: NVDA (Windows), JAWS (Windows), VoiceOver (macOS/iOS), TalkBack (Android).
+- **Keyboard navigation**: Verify all interactive elements reachable via Tab, Enter, Escape.
+- **Color contrast**: Use tools like WebAIM's Contrast Checker.
+- **Zoom and magnification**: Test at 200% browser zoom and with screen magnification tools.
+
+### 5.3 Third-Party Audits
+
+For critical dApps handling significant user funds, engage professional accessibility auditors annually. Reputable firms include:
+
+- **Deque Systems**: Enterprise accessibility consulting and testing.
+- **Level Access**: WCAG conformance audits and remediation planning.
+- **TPGi (The Paciello Group)**: Accessibility training and certification.
+
+### 5.4 Training and Awareness
+
+Ensure your development team understands accessibility fundamentals:
+
+- **Onboarding**: Include accessibility in new engineer training.
+- **Design reviews**: Involve accessibility considerations in UI/UX design phase.
+- **Code reviews**: Check for ARIA usage, semantic HTML, keyboard support before merging.
+- **Resources**: Bookmark MDN Web Docs (Accessibility), W3C WAI, WebAIM.
+
+---
+
+## 6. Policy Template
+
+Use this template as a starting point for your dApp's accessibility policy. Customize sections in `[brackets]` to fit your organization.
+
+---
+
+### **[Your dApp Name] Accessibility Policy**
+
+**Effective Date:** [YYYY-MM-DD]  
+**Last Reviewed:** [YYYY-MM-DD]  
+**Policy Owner:** [Name, Title]
+
+---
+
+#### **1. Commitment Statement**
+
+[Your dApp Name] is committed to ensuring digital accessibility for all users, including those with disabilities. We strive to provide an inclusive experience that allows everyone to independently access, manage, and transact digital assets on the Stellar network.
+
+---
+
+#### **2. Conformance Target**
+
+Our dApp aims to conform to **WCAG 2.1 Level AA** standards. We continuously work to meet or exceed these guidelines across all user-facing features, including:
+
+- Wallet connection and authentication flows
+- Asset management and balance displays
+- Transaction creation, review, and signing
+- Real-time notifications and status updates
+- Documentation and help resources
+
+---
+
+#### **3. Known Limitations**
+
+As of [YYYY-MM-DD], the following accessibility issues are known and under active remediation:
+
+- **[Issue 1]**: [Brief description, affected pages, planned fix date]
+- **[Issue 2]**: [Brief description, affected pages, planned fix date]
+- **[Issue 3]**: [Brief description, affected pages, planned fix date]
+
+*This section will be updated as issues are resolved.*
+
+---
+
+#### **4. Reporting Accessibility Issues**
+
+We welcome feedback on accessibility barriers. To report an issue:
+
+- **Email:** [accessibility@yourdapp.com]
+- **Web Form:** [https://yourdapp.com/accessibility-report]
+- **GitHub:** [https://github.com/yourorg/yourrepo/issues (use "accessibility" label)]
+
+Please include:
+- The page or feature affected
+- Assistive technology used (name and version)
+- A description of the issue and expected behavior
+- Your contact information for follow-up (optional)
+
+**Response Timeline:**  
+We respond to accessibility reports within **[2 business days]** and provide a remediation plan within **[5 business days]**. Critical issues blocking core functionality are prioritized for resolution within **[1 week]**.
+
+---
+
+#### **5. Remediation Process**
+
+Reported issues are triaged by severity:
+
+| Priority | Criteria | Fix Target |
+|---|---|---|
+| **Critical** | Blocks core functionality (wallet connection, transaction signing) | 1 week |
+| **High** | Significant barrier, limited workaround | 2 weeks |
+| **Medium** | Moderate barrier, workaround available | 1 month |
+| **Low** | Minor enhancement or WCAG AAA criterion | Next major release |
+
+Fixes are verified through:
+- Manual testing with assistive technologies
+- Automated accessibility scanning (axe-core, Lighthouse)
+- User confirmation when possible
+
+---
+
+#### **6. Testing and Maintenance**
+
+We maintain accessibility through:
+
+- **Automated Testing:** Accessibility tests run on every pull request via CI/CD pipeline.
+- **Manual Audits:** Quarterly internal audits covering keyboard navigation, screen reader compatibility, and color contrast.
+- **Third-Party Audits:** Annual external accessibility audits by certified professionals.
+- **Team Training:** Regular accessibility training for engineering, design, and product teams.
+
+---
+
+#### **7. Supported Assistive Technologies**
+
+Our dApp is tested with the following assistive technologies:
+
+- **Screen Readers:** NVDA (Windows), JAWS (Windows), VoiceOver (macOS, iOS), TalkBack (Android)
+- **Browsers:** Chrome, Firefox, Safari, Edge (latest stable versions)
+- **Input Methods:** Keyboard, touch, voice control
+- **Magnification:** Browser zoom up to 200%, OS-level screen magnifiers
+
+---
+
+#### **8. Third-Party Content**
+
+Some features integrate third-party services (wallet providers, RPC endpoints, oracles) that may have independent accessibility implementations. We advocate for accessibility with our partners and provide alternative interfaces where possible.
+
+---
+
+#### **9. Governance and Review**
+
+This policy is reviewed **[quarterly/annually]** and updated to reflect:
+
+- New WCAG guidelines or legal requirements
+- Lessons learned from user feedback and audits
+- Changes in technology stack or third-party dependencies
+
+Policy updates are communicated via:
+- **Changelog:** [https://yourdapp.com/changelog]
+- **Email notifications** to opted-in users
+- **Public accessibility statement** at [https://yourdapp.com/accessibility]
+
+---
+
+#### **10. Contact Information**
+
+For questions about this policy or accessibility accommodations:
+
+- **Accessibility Coordinator:** [Name, Title]
+- **Email:** [accessibility@yourdapp.com]
+- **Phone:** [+1-XXX-XXX-XXXX] (if applicable)
+- **Mailing Address:** [Physical address if required for legal compliance]
+
+---
+
+**[Your dApp Name] Team**  
+*Building an inclusive financial future on Stellar.*
+
+---
+
+## 7. Practical Implementation Checklist
+
+Use this checklist to implement your accessibility policy:
+
+### Phase 1: Foundation (Week 1-2)
+- [ ] Draft accessibility policy using template above
+- [ ] Create `/accessibility` page with conformance statement
+- [ ] Set up reporting email alias or form
+- [ ] Assign accessibility policy owner
+
+### Phase 2: Baseline Assessment (Week 3-4)
+- [ ] Run automated scan with axe DevTools or Lighthouse
+- [ ] Conduct manual keyboard navigation test
+- [ ] Test with at least one screen reader (NVDA or VoiceOver)
+- [ ] Document known issues with severity ratings
+
+### Phase 3: Critical Fixes (Week 5-8)
+- [ ] Fix P0 Critical issues (WCAG A violations blocking functionality)
+- [ ] Fix P1 High issues (WCAG AA violations with significant impact)
+- [ ] Implement focus management for modals and overlays
+- [ ] Add ARIA labels to icon-only buttons
+
+### Phase 4: Automation (Week 9-10)
+- [ ] Integrate axe-core or Pa11y into CI/CD pipeline
+- [ ] Create accessibility test suite (Jest + axe)
+- [ ] Set up automated contrast checking
+- [ ] Configure linting rules (eslint-plugin-jsx-a11y)
+
+### Phase 5: Ongoing (Quarterly)
+- [ ] Schedule manual audit with keyboard and screen reader
+- [ ] Review and update known issues list
+- [ ] Train new team members on accessibility standards
+- [ ] Conduct user testing with participants who use assistive technologies
+
+---
+
+## 8. Resources and Further Reading
+
+### WCAG Documentation
+- [WCAG 2.1 Guidelines](https://www.w3.org/WAI/WCAG21/quickref/) — Interactive quick reference
+- [WCAG 2.1 Understanding Docs](https://www.w3.org/WAI/WCAG21/Understanding/) — Detailed explanations of each criterion
+
+### Testing Tools
+- [axe DevTools](https://www.deque.com/axe/devtools/) — Browser extension for automated testing
+- [WAVE](https://wave.webaim.org/) — Web accessibility evaluation tool
+- [Lighthouse](https://developers.google.com/web/tools/lighthouse) — Built into Chrome DevTools
+- [Pa11y](https://pa11y.org/) — CI-friendly command-line accessibility testing
+
+### Assistive Technology Testing
+- [NVDA](https://www.nvaccess.org/) — Free Windows screen reader
+- [VoiceOver](https://www.apple.com/accessibility/voiceover/) — Built into macOS and iOS
+- [WebAIM Screen Reader Survey](https://webaim.org/projects/screenreadersurvey9/) — Usage statistics
+
+### Legal and Compliance
+- [ADA Website Compliance](https://www.ada.gov/) — Americans with Disabilities Act guidance
+- [Section 508](https://www.section508.gov/) — U.S. federal accessibility standards
+- [European Accessibility Act](https://ec.europa.eu/social/main.jsp?catId=1202) — EU requirements
+
+### Stellar-Specific Considerations
+- [Freighter Wallet Accessibility](https://www.freighter.app/) — Review wallet provider's own accessibility features
+- [Soroban Documentation](https://soroban.stellar.org/) — Ensure smart contract interactions are accessible
+- [Stellar Expert](https://stellar.expert/) — Reference implementation for accessible blockchain explorers
+
+### Related Documentation
+- [Stellar dApp Accessibility](/docs/guides/stellar-dapp-accessibility) — Implementation patterns for WCAG-compliant wallet flows, public key display, and transaction UIs
+
+---
+
+## Conclusion
+
+Accessibility is a continuous process, not a one-time checklist. By establishing a formal policy, clear reporting channels, and structured remediation workflows, your Stellar dApp demonstrates commitment to inclusive design. Start with WCAG 2.1 Level AA conformance, automate testing in CI/CD, and conduct regular manual audits. The result is a more usable, legally compliant, and professionally maintained application that serves all users equally.
+
+For questions or contributions to this guide, open an issue at your documentation repository or contact your accessibility policy owner.
