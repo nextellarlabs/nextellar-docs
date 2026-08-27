@@ -1,0 +1,145 @@
+---
+title: Unfunded Account UX Guide
+description: UX best practices for handling unfunded Stellar accounts — friendly error copy, base reserve explanation, and actionable call-to-action (CTA) patterns.
+date: 2026-08-27
+---
+
+# Unfunded Account UX Guide
+
+On the Stellar network, a newly generated keypair does not exist on-chain until it receives a initial payment satisfying the base reserve (minimum 1 XLM). Querying Horizon or RPC for a newly generated address returns a `404 Not Found` error.
+
+Displaying raw `404 Resource Missing` or JSON errors confuses users. This guide documents UX patterns for handling unfunded accounts with friendly copy and clear Call-to-Action (CTA) elements.
+
+---
+
+## UX Guidelines
+
+### 1. Friendly Copy Patterns
+
+Instead of showing raw SDK error messages or technical HTTP status codes:
+
+- ❌ **Avoid**: `Error: Request failed with status code 404 (Resource Missing)`
+- ✅ **Use**: `Account Not Yet Funded — Send at least 1 XLM to activate this account on the Stellar network.`
+
+Explain the concept in simple terms:
+
+- Explain that Stellar accounts require an initial deposit to be activated on the blockchain ledger.
+- Note the 1 XLM minimum base reserve requirement.
+
+### 2. Actionable Calls-to-Action (CTA)
+
+Provide context-aware CTAs based on the active network:
+
+- **Testnet**: Provide a one-click "Fund with Friendbot" button to instantly request 10,000 Testnet XLM.
+- **Mainnet**: Provide a "Copy Public Key" button and QR code so the user can transfer XLM from an exchange or existing wallet.
+
+---
+
+## React Component Example
+
+Below is a React + TypeScript component that detects an unfunded Stellar account status and renders a friendly UI with network-specific CTAs:
+
+```tsx
+import React, { useState } from 'react';
+
+interface UnfundedAccountBannerProps {
+  publicKey: string;
+  isTestnet?: boolean;
+  onAccountFunded?: () => void;
+}
+
+export const UnfundedAccountBanner: React.FC<UnfundedAccountBannerProps> = ({
+  publicKey,
+  isTestnet = true,
+  onAccountFunded,
+}) => {
+  const [isFunding, setIsFunding] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  // Trigger Testnet Friendbot funding
+  const handleFriendbotFund = async () => {
+    setIsFunding(true);
+    setMessage(null);
+
+    try {
+      const response = await fetch(
+        `https://friendbot.stellar.org?addr=${encodeURIComponent(publicKey)}`
+      );
+      if (!response.ok) {
+        throw new Error('Friendbot request failed');
+      }
+      setMessage('Account funded successfully! 10,000 Testnet XLM added.');
+      if (onAccountFunded) {
+        onAccountFunded();
+      }
+    } catch (err) {
+      setMessage('Failed to fund account with Friendbot. Please try again.');
+    } finally {
+      setIsFunding(false);
+    }
+  };
+
+  const handleCopyAddress = () => {
+    navigator.clipboard.writeText(publicKey);
+    setMessage('Public key copied to clipboard!');
+    setTimeout(() => setMessage(null), 3000);
+  };
+
+  return (
+    <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-6 text-amber-200">
+      <div className="flex items-start gap-4">
+        <div className="text-2xl">⚠️</div>
+        <div className="flex-1">
+          <h3 className="text-lg font-bold text-amber-400 mb-1">
+            Account Not Yet Activated
+          </h3>
+          <p className="text-sm text-slate-300 leading-relaxed mb-4">
+            This account does not exist on the Stellar ledger yet. Stellar
+            requires a minimum deposit of{' '}
+            <strong className="text-white">1 XLM</strong> to activate a new
+            account and cover the base reserve.
+          </p>
+
+          {message && (
+            <div className="mb-4 text-xs font-mono bg-slate-900/80 p-2 rounded text-emerald-400">
+              {message}
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center gap-3">
+            {isTestnet ? (
+              <button
+                type="button"
+                onClick={handleFriendbotFund}
+                disabled={isFunding}
+                className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm transition disabled:opacity-50"
+              >
+                {isFunding
+                  ? 'Requesting Funds...'
+                  : 'Fund with Friendbot (10,000 XLM)'}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleCopyAddress}
+                className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-medium text-sm transition"
+              >
+                Copy Address to Deposit XLM
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+```
+
+---
+
+## Best Practices Checklist
+
+- [x] Catch Horizon/RPC 404 responses gracefully without throwing unhandled exceptions.
+- [x] Use friendly, non-technical copy that explains the base reserve concept.
+- [x] Provide a one-click Friendbot CTA on Testnet.
+- [x] Provide address copying and deposit instructions on Mainnet.
