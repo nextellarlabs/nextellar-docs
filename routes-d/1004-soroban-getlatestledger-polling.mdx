@@ -1,0 +1,69 @@
+---
+title: Soroban getLatestLedger Polling
+description: Guide on calling Soroban RPC's getLatestLedger, reading its response fields, and choosing a safe polling cadence.
+date: 2026-08-27
+---
+
+# Soroban getLatestLedger Polling
+
+`getLatestLedger` returns the most recent ledger the Soroban RPC node has ingested. It has no parameters, so it is cheap to call, but polling it too aggressively still wastes requests and can trip rate limits on public endpoints.
+
+## Request
+
+```typescript
+import { rpc } from '@stellar/stellar-sdk';
+
+const server = new rpc.Server('https://soroban-testnet.stellar.org');
+
+const latest = await server.getLatestLedger();
+```
+
+No arguments are accepted — the node always answers for its current head ledger.
+
+## Response Fields
+
+| Field             | Type     | Meaning                                                                                                          |
+| ----------------- | -------- | ---------------------------------------------------------------------------------------------------------------- |
+| `id`              | `string` | Hash of the latest ledger.                                                                                       |
+| `sequence`        | `number` | Ledger sequence number — the value you diff against a previously recorded sequence to measure elapsed ledgers.   |
+| `protocolVersion` | `number` | Protocol version the ledger closed under. Useful for gating features that only exist on newer protocol versions. |
+
+`sequence` is the field almost every polling loop cares about — it is a monotonically increasing integer, so comparing two readings tells you exactly how many ledgers have elapsed between them.
+
+## Polling Cadence
+
+Stellar ledgers close roughly every 5–6 seconds. Polling faster than that only returns the same `sequence` repeatedly:
+
+- Poll no more often than once per ledger close (`~5s`) for a tight loop; `2s`–`3s` is a reasonable margin without hammering the endpoint.
+- Prefer measuring elapsed **ledgers** (`sequence` deltas) over elapsed **wall-clock time** for anything tied to transaction validity — ledger close time drifts under network load, but the ledger count does not.
+- Back off (double the interval, cap it) if consecutive calls return an identical `sequence` more times than expected — it usually means the endpoint itself is lagging, not that the network stalled.
+
+## Example
+
+```typescript
+import { rpc } from '@stellar/stellar-sdk';
+
+async function waitForLedgers(
+  server: rpc.Server,
+  ledgersToWait: number,
+  pollIntervalMs = 3000
+) {
+  const { sequence: startSequence } = await server.getLatestLedger();
+
+  while (true) {
+    await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+
+    const { sequence: currentSequence } = await server.getLatestLedger();
+    if (currentSequence - startSequence >= ledgersToWait) {
+      return currentSequence;
+    }
+  }
+}
+```
+
+This is the same pattern [Soroban sendTransaction Status Polling](/docs/guides/soroban-sendtransaction-status-polling) uses to bound a `getTransaction` polling loop by ledgers elapsed rather than a fixed timeout.
+
+## Related docs
+
+- [Document Soroban getTransaction retrieval](/docs/guides/soroban-gettransaction-retrieval) — reading the final status once you know a transaction should have landed.
+- [Soroban sendTransaction Status Polling](/docs/guides/soroban-sendtransaction-status-polling) — combines both calls into a full submit-and-confirm flow.
