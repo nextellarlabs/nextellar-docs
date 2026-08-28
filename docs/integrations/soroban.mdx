@@ -1,1 +1,243 @@
---- title: Soroban (Smart Contracts) description: How Nextellar integrates with Soroban for smart contract interactions date: 2026-06-02 ---  # Soroban Integration  Nextellar provides full support for Soroban, Stellar's smart contract platform. Through the `useSorobanContract` and `useSorobanEvents` hooks, you can call contract functions, build invocation transactions, and listen to contract events.  ## What is Soroban?  Soroban is Stellar's smart contract platform that enables:  - Deploying and invoking smart contracts. - Complex DeFi applications. - Token creation and management. - On-chain governance and DAOs.  ## Default Endpoints  | Network | Soroban RPC URL                       | | ------- | ------------------------------------- | | Testnet | `https://soroban-testnet.stellar.org` | | Mainnet | `https://soroban-rpc.stellar.org`     |  ## Hooks for Soroban  ### useSorobanContract  The primary hook for contract interaction:  ````tsx import { useSorobanContract } from '@/hooks/useSorobanContract';  function TokenBalance() {   const { callFunction, buildInvokeXDR, loading, error } = useSorobanContract({     contractId: 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQAHHXK3AWCM',     network: 'TESTNET',   });    const getBalance = async () => {     const balance = await callFunction('balance', [walletAddress]);     console.log('Token balance:', balance);   };    return <button onClick={getBalance}>Check Balance</button>; } ```  ### useSorobanEvents  Listen to contract events:  ```tsx import { useSorobanEvents } from '@/hooks/useSorobanEvents';  function EventListener() {   const { events, loading, error } = useSorobanEvents(     'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQAHHXK3AWCM',     {       pollingInterval: 5000,       limit: 20,     }   );    return (     <ul>       {events.map((event, i) => (         <li key={i}>{JSON.stringify(event)}</li>       ))}     </ul>   ); } ```  ## Contract Operations  ### Read-Only Calls (Simulation)  Call contract functions without submitting transactions:  ```tsx const { callFunction } = useSorobanContract({ contractId });  // Read contract state const result = await callFunction('get_admin', []); const balance = await callFunction('balance', [address]); ```  ### Build Invocation XDR  Create unsigned transactions for wallet signing:  ```tsx const { buildInvokeXDR } = useSorobanContract({ contractId });  // Build unsigned invocation const xdr = await buildInvokeXDR('transfer', [fromAddress, toAddress, amount]);  // Sign with wallet const signedXdr = await wallet.signTransaction(xdr);  // Submit to network const result = await submitTransaction(signedXdr); ```  ### Dev-Only Submission  For testing only - sign with secret key:  ```tsx const { submitInvokeWithSecret } = useSorobanContract({ contractId });  // DEV ONLY - Never use in production! const result = await submitInvokeWithSecret(xdr, 'SABC123...'); ```  ## Type Conversion  The hook automatically converts between JavaScript and Soroban types:  | JavaScript | Soroban (ScVal)  | | ---------- | ---------------- | | `string`   | ScvString        | | `number`   | ScvI32 / ScvI128 | | `boolean`  | ScvBool          | | `Array`    | ScvVec           | | `Object`   | ScvMap           | | `Address`  | ScvAddress       |  ```tsx // Automatic conversion await callFunction('transfer', [   'GABC...', // -> ScvAddress   1000, // -> ScvI128   true, // -> ScvBool ]); ```  ## Configuration  ### With WalletProvider  ```tsx <WalletProvider sorobanRpc="https://soroban-rpc.stellar.org" network="PUBLIC">   <App /> </WalletProvider> ```  ### Per-Hook Override  ```tsx const contract = useSorobanContract({   contractId: 'CDLZ...',   sorobanRpc: 'https://soroban-rpc.stellar.org',   network: 'PUBLIC', }); ```  ## Common Patterns  ### Token Contract Integration  ```tsx function TokenActions({ contractId, userAddress }) {   const { callFunction, buildInvokeXDR } = useSorobanContract({ contractId });    const [balance, setBalance] = useState('0');    useEffect(() => {     callFunction('balance', [userAddress]).then(setBalance);   }, [userAddress]);    const transfer = async (to: string, amount: number) => {     const xdr = await buildInvokeXDR('transfer', [userAddress, to, amount]);     const signed = await wallet.signTransaction(xdr);     return await submitTransaction(signed);   };    return (     <div>       <p>Balance: {balance}</p>       <button onClick={() => transfer('GDEF...', 100)}>Transfer 100</button>     </div>   ); } ```  ### Listening to Mint Events  ```tsx function MintEventMonitor({ contractId }) {   const { events } = useSorobanEvents(contractId, {     pollingInterval: 10000,   });    const mintEvents = events.filter((e) => e.topic?.includes('mint'));    return (     <div>       <h3>Recent Mints</h3>       {mintEvents.map((event, i) => (         <div key={i}>           Minted {event.value} to {event.to}         </div>       ))}     </div>   ); } ```  ## Error Handling  ```tsx const { callFunction, error } = useSorobanContract({ contractId });  try {   await callFunction('some_function', []); } catch (err) {   if (err.message.includes('HostError')) {     console.log('Contract execution failed');   } else if (err.message.includes('not found')) {     console.log('Contract not deployed');   } } ```  ## Environment Variables  ```bash # .env.local NEXT_PUBLIC_SOROBAN_RPC=https://soroban-rpc.stellar.org NEXT_PUBLIC_NETWORK=PUBLIC ```  ## Related  - Previous: [Stellar Horizon](/docs/integrations/horizon) - Next: [Testing](/docs/integrations/testing) - [useSorobanContract](/docs/hooks/use-soroban-contract) - Full hook documentation - [useSorobanEvents](/docs/hooks/use-soroban-events) - Event listening hook - [Stellar Horizon](/docs/integrations/horizon) - Standard Stellar operations ````
+---
+title: Soroban (Smart Contracts)
+description: How Nextellar integrates with Soroban for smart contract interactions
+date: 2026-06-02
+---
+
+# Soroban Integration
+
+Nextellar provides full support for Soroban, Stellar's smart contract platform. Through the `useSorobanContract` and `useSorobanEvents` hooks, you can call contract functions, build invocation transactions, and listen to contract events.
+
+## What is Soroban?
+
+Soroban is Stellar's smart contract platform that enables:
+
+- Deploying and invoking smart contracts.
+- Complex DeFi applications.
+- Token creation and management.
+- On-chain governance and DAOs.
+
+## Default Endpoints
+
+| Network | Soroban RPC URL                       |
+| ------- | ------------------------------------- |
+| Testnet | `https://soroban-testnet.stellar.org` |
+| Mainnet | `https://soroban-rpc.stellar.org`     |
+
+## Hooks for Soroban
+
+### useSorobanContract
+
+The primary hook for contract interaction:
+
+````tsx
+import { useSorobanContract } from '@/hooks/useSorobanContract';
+
+function TokenBalance() {
+  const { callFunction, buildInvokeXDR, loading, error } = useSorobanContract({
+    contractId: 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQAHHXK3AWCM',
+    network: 'TESTNET',
+  });
+
+  const getBalance = async () => {
+    const balance = await callFunction('balance', [walletAddress]);
+    console.log('Token balance:', balance);
+  };
+
+  return <button onClick={getBalance}>Check Balance</button>;
+}
+```
+
+### useSorobanEvents
+
+Listen to contract events:
+
+```tsx
+import { useSorobanEvents } from '@/hooks/useSorobanEvents';
+
+function EventListener() {
+  const { events, loading, error } = useSorobanEvents(
+    'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQAHHXK3AWCM',
+    {
+      pollingInterval: 5000,
+      limit: 20,
+    }
+  );
+
+  return (
+    <ul>
+      {events.map((event, i) => (
+        <li key={i}>{JSON.stringify(event)}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+## Contract Operations
+
+### Read-Only Calls (Simulation)
+
+Call contract functions without submitting transactions:
+
+```tsx
+const { callFunction } = useSorobanContract({ contractId });
+
+// Read contract state
+const result = await callFunction('get_admin', []);
+const balance = await callFunction('balance', [address]);
+```
+
+### Build Invocation XDR
+
+Create unsigned transactions for wallet signing:
+
+```tsx
+const { buildInvokeXDR } = useSorobanContract({ contractId });
+
+// Build unsigned invocation
+const xdr = await buildInvokeXDR('transfer', [fromAddress, toAddress, amount]);
+
+// Sign with wallet
+const signedXdr = await wallet.signTransaction(xdr);
+
+// Submit to network
+const result = await submitTransaction(signedXdr);
+```
+
+### Dev-Only Submission
+
+For testing only - sign with secret key:
+
+```tsx
+const { submitInvokeWithSecret } = useSorobanContract({ contractId });
+
+// DEV ONLY - Never use in production!
+const result = await submitInvokeWithSecret(xdr, 'SABC123...');
+```
+
+## Type Conversion
+
+The hook automatically converts between JavaScript and Soroban types:
+
+| JavaScript | Soroban (ScVal)  |
+| ---------- | ---------------- |
+| `string`   | ScvString        |
+| `number`   | ScvI32 / ScvI128 |
+| `boolean`  | ScvBool          |
+| `Array`    | ScvVec           |
+| `Object`   | ScvMap           |
+| `Address`  | ScvAddress       |
+
+```tsx
+// Automatic conversion
+await callFunction('transfer', [
+  'GABC...', // -> ScvAddress
+  1000, // -> ScvI128
+  true, // -> ScvBool
+]);
+```
+
+## Configuration
+
+### With WalletProvider
+
+```tsx
+<WalletProvider sorobanRpc="https://soroban-rpc.stellar.org" network="PUBLIC">
+  <App />
+</WalletProvider>
+```
+
+### Per-Hook Override
+
+```tsx
+const contract = useSorobanContract({
+  contractId: 'CDLZ...',
+  sorobanRpc: 'https://soroban-rpc.stellar.org',
+  network: 'PUBLIC',
+});
+```
+
+## Common Patterns
+
+### Token Contract Integration
+
+```tsx
+function TokenActions({ contractId, userAddress }) {
+  const { callFunction, buildInvokeXDR } = useSorobanContract({ contractId });
+
+  const [balance, setBalance] = useState('0');
+
+  useEffect(() => {
+    callFunction('balance', [userAddress]).then(setBalance);
+  }, [userAddress]);
+
+  const transfer = async (to: string, amount: number) => {
+    const xdr = await buildInvokeXDR('transfer', [userAddress, to, amount]);
+    const signed = await wallet.signTransaction(xdr);
+    return await submitTransaction(signed);
+  };
+
+  return (
+    <div>
+      <p>Balance: {balance}</p>
+      <button onClick={() => transfer('GDEF...', 100)}>Transfer 100</button>
+    </div>
+  );
+}
+```
+
+### Listening to Mint Events
+
+```tsx
+function MintEventMonitor({ contractId }) {
+  const { events } = useSorobanEvents(contractId, {
+    pollingInterval: 10000,
+  });
+
+  const mintEvents = events.filter((e) => e.topic?.includes('mint'));
+
+  return (
+    <div>
+      <h3>Recent Mints</h3>
+      {mintEvents.map((event, i) => (
+        <div key={i}>
+          Minted {event.value} to {event.to}
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+## Error Handling
+
+```tsx
+const { callFunction, error } = useSorobanContract({ contractId });
+
+try {
+  await callFunction('some_function', []);
+} catch (err) {
+  if (err.message.includes('HostError')) {
+    console.log('Contract execution failed');
+  } else if (err.message.includes('not found')) {
+    console.log('Contract not deployed');
+  }
+}
+```
+
+## Environment Variables
+
+```bash
+# .env.local
+NEXT_PUBLIC_SOROBAN_RPC=https://soroban-rpc.stellar.org
+NEXT_PUBLIC_NETWORK=PUBLIC
+```
+
+## Related
+
+- Previous: [Stellar Horizon](/docs/integrations/horizon)
+- Next: [Testing](/docs/integrations/testing)
+- [useSorobanContract](/docs/hooks/use-soroban-contract) - Full hook documentation
+- [useSorobanEvents](/docs/hooks/use-soroban-events) - Event listening hook
+- [Stellar Horizon](/docs/integrations/horizon) - Standard Stellar operations
