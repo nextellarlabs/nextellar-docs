@@ -12,7 +12,7 @@ Get started with Nextellar in under 2 minutes. No global installation required!
 
 Before you begin, ensure you have:
 
-- **Node.js** 20.18.0 or later ([Download](https://nodejs.org/))
+- **Node.js** 20.18.0 or later (Node >= 20) ([Download](https://nodejs.org/))
 - **npm**, **yarn**, or **pnpm** package manager
 - **Git** for version control (optional but recommended)
 
@@ -22,10 +22,30 @@ Before you begin, ensure you have:
 node --version
 # Should output v20.18.0 or higher
 ```
+### Verify Your Setup
+
+Run the doctor check before scaffolding, or any time you need to confirm that your local machine still matches the CLI requirements:
+
+```bash
+npx nextellar doctor
+```
+
+A healthy setup should report the required runtime and tooling checks:
+
+```text
+Nextellar Doctor
+
+✔ Node.js         v20.18.0 (>= 20.0.0 required)
+✔ npm             v10.8.2
+✔ Git             available
+✔ Stellar RPC     reachable
+```
+
+If the doctor reports a failed required check, fix that item before creating the project. Optional warnings can be handled later, but required runtime and package-manager checks should be clean first.
 
 ## Quick Install
 
-The fastest way to create a Nextellar project is with `npx` (no global installation needed):
+The fastest way to create a Nextellar project is with `npx` (no global installation needed). This keeps the command current without adding a global package to your machine:
 
 ```bash
 npx nextellar my-stellar-app
@@ -41,7 +61,7 @@ This command will:
 
 ### Alternative: Global Installation
 
-If you plan to create multiple projects, you can install Nextellar globally:
+If you plan to create multiple projects and want a shorter command, you can install Nextellar globally. Keep it updated when the CLI releases new templates or checks:
 
 ```bash
 npm install -g nextellar
@@ -165,7 +185,8 @@ Open [http://localhost:3000](http://localhost:3000) in your browser. You should 
 
 ## Verify Installation
 
-Test that everything works:
+After scaffolding, run 
+px nextellar doctor again if your environment changed, then test that the generated app works:
 
 1. **Development server starts**: `npm run dev` should run without errors
 2. **TypeScript compiles**: No type errors in the console

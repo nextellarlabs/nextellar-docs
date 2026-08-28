@@ -1,0 +1,150 @@
+---
+title: Stellar dApp Uptime Engineering Guide
+description: A practical guide to redundancy, health checks, graceful degradation, and incident-ready uptime planning for Stellar dApp services.
+date: 2026-08-28
+---
+
+# Stellar dApp Uptime Engineering Guide
+
+A Stellar dApp stays reliable by treating the blockchain, wallet, indexer, API, and frontend as separate failure domains. This guide gives teams a compact operating model for keeping user flows available when one dependency slows down, returns partial data, or goes offline.
+
+<Note type="info">
+  Use this guide as a launch-readiness checklist for production services that submit transactions, read account state, index events, or expose webhook/API surfaces to other systems.
+</Note>
+
+## Uptime Goals
+
+Start with user-visible journeys, then map each journey to the dependencies it needs.
+
+| Journey | Critical dependency | User-visible success signal |
+| --- | --- | --- |
+| Connect wallet | Wallet extension and frontend state | Account is displayed with the selected network |
+| Show balances | Horizon or indexed balance cache | Latest known balances render with freshness metadata |
+| Submit transaction | Wallet signing and Horizon/Soroban RPC | User sees submitted, pending, confirmed, or failed status |
+| Read contract events | Soroban RPC or event indexer | Events appear with ledger cursor and retry state |
+| Notify partners | Webhook worker and delivery queue | Delivery attempts are persisted and replayable |
+
+Do not collapse these into a single uptime percentage. A frontend can be healthy while an RPC provider is degraded, and a transaction can be accepted while confirmation is delayed. Track each journey separately so incidents point to the right recovery path.
+
+## Redundancy Checklist
+
+Use redundancy where a dependency can be swapped without changing the user action.
+
+- Run at least two Horizon or Soroban RPC providers, with one primary and one fallback.
+- Keep provider URLs in runtime configuration, not compiled constants.
+- Store transaction submission state before making the network call so retries do not lose the signed envelope.
+- Make event indexers resume from the last processed ledger cursor.
+- Keep webhook delivery in a durable queue with retry attempts and dead-letter review.
+- Put static frontend assets behind a CDN and keep the API origin independent from the web build.
+
+A fallback is only useful when it is exercised. Add a scheduled smoke check that reads account data and contract state from every configured provider, not just the current primary.
+
+## Health Checks
+
+Expose health checks that distinguish process health from dependency health.
+
+```ts
+// app/api/health/route.ts
+export async function GET() {
+  return Response.json({
+    status: "ok",
+    checks: {
+      api: "ok",
+      horizon: "ok",
+      sorobanRpc: "ok",
+      database: "ok",
+      queue: "ok",
+    },
+    checkedAt: new Date().toISOString(),
+  });
+}
+```
+
+Keep the public readiness endpoint conservative. If the database, queue, or active RPC provider is unavailable, return a degraded or failing status so load balancers and monitors can react.
+
+For deeper checks, record latency and ledger freshness:
+
+```ts
+type DependencyHealth = {
+  name: "horizon" | "sorobanRpc" | "database" | "queue";
+  ok: boolean;
+  latencyMs?: number;
+  latestLedger?: number;
+  lastError?: string;
+};
+```
+
+Ledger freshness matters because a provider can be reachable while still lagging behind the network. Alert when the latest ledger is stale for longer than your user journey can tolerate.
+
+## Graceful Degradation
+
+When a dependency fails, keep the parts of the product that are still truthful.
+
+| Failure | Degraded behavior |
+| --- | --- |
+| Primary Horizon fails | Retry against fallback, then show cached balances with a freshness label |
+| Soroban RPC is delayed | Keep transaction status pending and continue polling with backoff |
+| Wallet disconnects | Preserve the unsigned form state and ask the user to reconnect |
+| Event indexer lags | Show last indexed ledger and pause derived analytics |
+| Webhook partner endpoint fails | Store the delivery attempt and replay from the queue |
+
+Never show stale data as live data. Pair cached values with a timestamp or ledger number, and give the user a retry action when the operation can be safely repeated.
+
+## Alerting Signals
+
+A minimal production alert set should cover availability, latency, and correctness.
+
+| Signal | Suggested alert |
+| --- | --- |
+| API availability | Error rate above threshold for 5 minutes |
+| RPC latency | p95 above the transaction timeout budget |
+| Ledger freshness | Latest observed ledger behind target network by more than N ledgers |
+| Queue depth | Webhook or indexing queue grows for 10 minutes |
+| Failed submissions | Repeated Horizon or Soroban submission errors for the same operation |
+
+Route alerts to the team that can act on them. A frontend rendering issue, queue backlog, and RPC outage may all hurt uptime, but each needs a different owner.
+
+## Small Uptime Template
+
+Copy this template into a runbook before launch.
+
+```md
+# Stellar dApp Uptime Plan
+
+## Critical Journeys
+- Wallet connection:
+- Balance display:
+- Transaction submission:
+- Contract/event reads:
+- Partner notifications:
+
+## Dependencies
+- Frontend host:
+- API host:
+- Horizon primary/fallback:
+- Soroban RPC primary/fallback:
+- Database:
+- Queue/indexer:
+
+## Health Checks
+- Public readiness endpoint:
+- Dependency health endpoint:
+- Ledger freshness threshold:
+- Synthetic transaction or read-only smoke check:
+
+## Degradation Rules
+- Cached data label:
+- Retry/backoff policy:
+- Fallback provider order:
+- User-facing incident banner owner:
+
+## Incident Handoff
+- Alert channel:
+- On-call owner:
+- Status page owner:
+- Post-incident review link:
+```
+
+## Launch Review
+
+Before launch, confirm that every critical journey has an owner, a health signal, a fallback or degradation path, and a user-facing message for failure. The strongest uptime plans are boring during incidents because the product has already decided what to do when a dependency becomes unreliable.
