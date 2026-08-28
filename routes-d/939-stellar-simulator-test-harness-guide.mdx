@@ -1,0 +1,126 @@
+---
+title: A Test Harness for Simulation Flows in CI
+description: Set up a CI-friendly test harness that exercises Soroban transaction simulation deterministically, without depending on live network state.
+---
+
+# A Test Harness for Simulation Flows in CI
+
+Soroban's `simulateTransaction` step tells you what a transaction _would_ do — resource costs, return values, auth requirements — before you spend a fee submitting it. That makes it a natural thing to test in CI: you want to catch a simulation regression (wrong footprint, unexpected auth requirement, a cost estimate that silently doubled) before it reaches a real network. This guide covers building a harness for that, and the determinism problem that makes it harder than it first looks.
+
+---
+
+## Harness setup
+
+### Structure: fixture contract + recorded ledger state
+
+A simulation test needs three things: a deployed (or locally-instantiated) contract, a known ledger state for it to read, and an assertion on the simulation result — not the execution result, since you're testing the simulate step itself.
+
+```typescript
+// test/harness/simulation-harness.ts
+import { Server, TransactionBuilder, Contract } from '@stellar/stellar-sdk';
+
+export interface SimulationHarness {
+  rpc: Server;
+  contract: Contract;
+  simulate: (
+    method: string,
+    args: unknown[]
+  ) => Promise<SimulateTransactionResponse>;
+}
+
+export async function createSimulationHarness(
+  contractId: string,
+  rpcUrl: string
+): Promise<SimulationHarness> {
+  const rpc = new Server(rpcUrl);
+  const contract = new Contract(contractId);
+
+  const simulate = async (method: string, args: unknown[]) => {
+    const sourceAccount = await rpc.getAccount(TEST_SOURCE_ADDRESS);
+    const tx = new TransactionBuilder(sourceAccount, {
+      fee: BASE_FEE,
+      networkPassphrase,
+    })
+      .addOperation(contract.call(method, ...toScVals(args)))
+      .setTimeout(30)
+      .build();
+
+    return rpc.simulateTransaction(tx);
+  };
+
+  return { rpc, contract, simulate };
+}
+```
+
+### Running against a local Soroban RPC instance in CI
+
+Point the harness at a local `stellar-rpc`/quickstart container rather than testnet — testnet introduces network flakiness and shared-state pollution (another CI run's transactions affecting your ledger view) that a CI test suite shouldn't have to tolerate:
+
+```yaml
+# .github/workflows/simulation-tests.yml
+services:
+  soroban-rpc:
+    image: stellar/quickstart:soroban-dev
+    ports:
+      - 8000:8000
+    options: >-
+      --health-cmd "curl -f http://localhost:8000/health"
+      --health-interval 5s
+```
+
+---
+
+## Determinism considerations
+
+This is the part that actually makes simulation testing hard: a few pieces of simulation output are _legitimately_ non-deterministic across runs, and a naive `toEqual()` snapshot test will flake on exactly those fields.
+
+### What varies between identical simulate calls
+
+- **Ledger sequence / close time** embedded in the simulation's latest-ledger reference — changes every time the local network advances, which happens continuously.
+- **Resource fee estimates** can shift slightly between runs if the underlying ledger state (e.g., storage entry sizes affecting rent) has changed since the last run, even against the "same" contract.
+- **Minimum resource fee** in the simulation response can vary with current network congestion parameters on a shared testnet (less of a concern on an isolated local instance, but still possible if congestion-based fee logic runs there too).
+
+### What should be stable and safe to assert on exactly
+
+- The **auth entries required** (which addresses need to sign, and for what) — this is a function of the contract's logic and the call arguments, not of ledger timing.
+- The **return value** of a read-only or side-effect-free simulated call, given fixed input state.
+- **Footprint keys** (which storage entries the call reads/writes) — this is derived from the contract's actual execution path for these arguments, not from timing.
+- Whether the call **succeeds or fails simulation**, and the specific error code on failure.
+
+### A working pattern: assert on stable fields, snapshot-normalize the rest
+
+```typescript
+function normalizeForSnapshot(result: SimulateTransactionResponse) {
+  return {
+    // Stable — assert exactly.
+    authEntries: result.result?.auth,
+    returnValue: result.result?.retval,
+    footprintReadOnly: result.transactionData?.getReadOnly().length,
+    footprintReadWrite: result.transactionData?.getReadWrite().length,
+    success: !result.error,
+    // Non-deterministic — normalize away rather than assert on the exact value.
+    resourceFeeWithinExpectedRange:
+      result.minResourceFee !== undefined &&
+      BigInt(result.minResourceFee) < EXPECTED_MAX_RESOURCE_FEE,
+  };
+}
+
+test('transfer simulation requires sender auth and moves the expected footprint', async () => {
+  const result = await harness.simulate('transfer', [
+    sender,
+    recipient,
+    amount,
+  ]);
+  expect(normalizeForSnapshot(result)).toMatchSnapshot();
+});
+```
+
+Set `EXPECTED_MAX_RESOURCE_FEE` generously (e.g., 2x your current observed cost) so the test catches a real regression (fee doubling unexpectedly) without flaking on ordinary ledger-state drift.
+
+---
+
+## Verifying this guide renders correctly
+
+- Confirm the harness code compiles against your actual `@stellar/stellar-sdk` version — the `Server`/RPC client API has changed across major versions.
+- Run the CI workflow snippet against a real local `stellar/quickstart` container before trusting the health-check timing.
+- Re-render through `pnpm build:content` to confirm the YAML and TypeScript fences display correctly.
