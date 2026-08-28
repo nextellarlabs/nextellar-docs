@@ -1,0 +1,163 @@
+---
+title: A GraphQL Layer Over Stellar Data Sources
+description: How to design a GraphQL schema and resolver strategy over Horizon and Soroban RPC data, with a working sample server.
+---
+
+# A GraphQL Layer Over Stellar Data Sources
+
+Horizon and Soroban RPC both speak REST/JSON-RPC, which is fine for a single client fetching a known shape of data, but starts to hurt once a frontend needs several related pieces of Stellar data in one screen — an account's balances, its recent transactions, and a contract's current state, say. A GraphQL layer in front of these sources lets a client ask for exactly the fields it needs in one round trip, at the cost of a resolver layer you now own and must keep correct.
+
+---
+
+## Schema shape
+
+Model your schema around the same entities Horizon and Soroban RPC already expose, rather than inventing a parallel data model:
+
+```graphql
+type Account {
+  id: ID! # Stellar public key (G...)
+  sequence: String!
+  balances: [Balance!]!
+  transactions(first: Int, after: String): TransactionConnection!
+}
+
+type Balance {
+  assetCode: String!
+  assetIssuer: String
+  amount: String! # Kept as a string — see "Precision" below
+}
+
+type Transaction {
+  hash: String!
+  ledger: Int!
+  createdAt: String!
+  successful: Boolean!
+  operations: [Operation!]!
+}
+
+type ContractInvocation {
+  contractId: ID!
+  functionName: String!
+  result: String # XDR-encoded return value, decoded by the client
+  ledger: Int!
+}
+
+type Query {
+  account(id: ID!): Account
+  transaction(hash: String!): Transaction
+  contractState(contractId: ID!, key: String!): String
+}
+```
+
+### Precision
+
+Stellar amounts are 7-decimal fixed-point values that can exceed JavaScript's safe integer range at scale. Expose balances and amounts as `String`, not `Int`/`Float` — let the client parse with a bignum library. This mirrors how the Stellar SDK itself represents amounts internally.
+
+### Pagination
+
+Horizon's own API is cursor-paginated. Preserve that shape with GraphQL's Relay-style connections (`first`/`after`, `edges`/`pageInfo`) rather than offset pagination — it maps directly onto Horizon's `cursor` parameter without a lossy translation.
+
+---
+
+## Resolver strategies
+
+### Thin resolvers, one HTTP client per source
+
+Keep resolvers as thin adapters over the existing Horizon/RPC HTTP clients rather than reimplementing Stellar protocol logic in the GraphQL layer:
+
+```typescript
+const resolvers = {
+  Query: {
+    account: async (_parent, { id }, { horizonClient }) => {
+      const account = await horizonClient.loadAccount(id);
+      return {
+        id: account.id,
+        sequence: account.sequence,
+        balances: account.balances,
+      };
+    },
+  },
+  Account: {
+    transactions: async (account, { first, after }, { horizonClient }) => {
+      const page = await horizonClient
+        .transactions()
+        .forAccount(account.id)
+        .cursor(after ?? '')
+        .limit(first ?? 20)
+        .call();
+      return toConnection(page);
+    },
+  },
+};
+```
+
+### Batch and cache with DataLoader
+
+A single GraphQL query can trigger many resolver calls for the same underlying account (e.g., a list of transactions each resolving their own `account` field). Use `dataloader` to batch and de-duplicate these into a single Horizon request per unique account per request cycle:
+
+```typescript
+import DataLoader from 'dataloader';
+
+function createAccountLoader(horizonClient: Horizon.Server) {
+  return new DataLoader<string, Horizon.AccountResponse>(async (ids) => {
+    return Promise.all(ids.map((id) => horizonClient.loadAccount(id)));
+  });
+}
+```
+
+### Contract state resolvers need explicit staleness handling
+
+Unlike Horizon's account/transaction data, Soroban contract state can change every ledger. Decide explicitly whether `contractState` resolves against the latest ledger (default) or accepts a `ledger` argument for historical reads, and document which one your schema does — don't leave it implicit, since a caller assuming the wrong one will build on stale state without knowing it.
+
+---
+
+## A working sample
+
+```typescript
+import { ApolloServer } from '@apollo/server';
+import { startStandaloneServer } from '@apollo/server/standalone';
+import { Horizon } from '@stellar/stellar-sdk';
+import { typeDefs } from './schema';
+import { resolvers } from './resolvers';
+
+const horizonClient = new Horizon.Server('https://horizon-testnet.stellar.org');
+
+const server = new ApolloServer({ typeDefs, resolvers });
+
+const { url } = await startStandaloneServer(server, {
+  context: async () => ({ horizonClient }),
+  listen: { port: 4000 },
+});
+
+console.log(`GraphQL layer ready at ${url}`);
+```
+
+Query it:
+
+```graphql
+query {
+  account(id: "GABC...XYZ") {
+    sequence
+    balances {
+      assetCode
+      amount
+    }
+    transactions(first: 5) {
+      edges {
+        node {
+          hash
+          successful
+        }
+      }
+    }
+  }
+}
+```
+
+---
+
+## Verifying this guide renders correctly
+
+- Confirm the schema and resolver examples compile against your actual Stellar SDK version — field names on `Horizon.AccountResponse` have shifted across major versions.
+- Run the sample server against testnet before trusting the query example verbatim.
+- Re-render through `pnpm build:content` to confirm the GraphQL code fences highlight correctly.
