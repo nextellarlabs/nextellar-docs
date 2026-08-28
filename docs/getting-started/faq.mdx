@@ -1,112 +1,17 @@
----
-title: FAQ
-description: Answers to common questions about getting started with Nextellar.
-date: 2026-06-02
----
+--- title: FAQ description: Answers to common questions about getting started with Nextellar. date: 2026-06-02 ---  # FAQ  Answers to the most common questions about getting started with Nextellar.  ## What is Nextellar?  Nextellar is a one-step CLI toolkit that scaffolds production-ready Next.js + TypeScript applications with built-in Stellar blockchain support. A single command gives you wallet connectivity, 8 production-ready React hooks, and a clean project structure ready for development.  ## What are the prerequisites?  You need:  - **Node.js** 20.18.0 or later (Node >= 20) - **npm**, **yarn**, or **pnpm** - A terminal and a code editor  No global installation is required to create your first project.
+## Does it work on Windows?
 
-# FAQ
+Yes. Nextellar works on Windows, macOS, and Linux when Node.js 20.18.0 or later and a supported package manager are available. On Windows, use PowerShell, Windows Terminal, or WSL, and run `npx nextellar doctor` first if path or package-manager detection looks inconsistent.  ## How do I create my first project?  Run the following command and replace `my-app` with your project name:  ```bash npx nextellar my-app ```  Nextellar will scaffold the project, install dependencies, and configure Stellar integrations automatically.  ## Do I need to install Nextellar globally?  No. Using `npx nextellar` is the recommended approach and requires no global install. If you create projects frequently, you can install globally:  ```bash npm install -g nextellar ```  ## Which wallets are supported out of the box?  Nextellar supports **Freighter**, **Albedo**, **Lobstr**, **xBull**, and **Hana** through the Stellar Wallets Kit. The scaffold auto-detects installed wallets and wires them up via the `useStellarWallet` hook.  ## Which template should I choose?  Nextellar offers three templates for different project needs:  - **default** — Full applications with comprehensive Stellar and Soroban features - **minimal** — Lightweight wallet-only applications - **defi** — DeFi-focused projects with DEX and trading capabilities  See the [Template Comparison](/docs/cli/template-comparison) for a detailed feature breakdown to help you choose.
+## How do I update an existing project?
 
-Answers to the most common questions about getting started with Nextellar.
-
-## What is Nextellar?
-
-Nextellar is a one-step CLI toolkit that scaffolds production-ready Next.js + TypeScript applications with built-in Stellar blockchain support. A single command gives you wallet connectivity, 8 production-ready React hooks, and a clean project structure ready for development.
-
-## What are the prerequisites?
-
-You need:
-
-- **Node.js** 20.18.0 or later
-- **npm**, **yarn**, or **pnpm**
-- A terminal and a code editor
-
-No global installation is required to create your first project.
-
-## How do I create my first project?
-
-Run the following command and replace `my-app` with your project name:
+Run the upgrade command from the root of an existing Nextellar project. Start with a dry run so you can review template-file changes before applying them:
 
 ```bash
-npx nextellar my-app
+nextellar upgrade --dry-run
+nextellar upgrade
 ```
 
-Nextellar will scaffold the project, install dependencies, and configure Stellar integrations automatically.
+Use `nextellar upgrade --yes` only when you are comfortable applying the detected updates without prompts.  ## Does Nextellar support mainnet?  Yes. By default the scaffold targets Stellar testnet. To target mainnet, pass the `--horizon-url` flag during scaffolding:  ```bash npx nextellar my-app --horizon-url https://horizon.stellar.org ```  You can also update the Horizon URL in your project's environment configuration after scaffolding.
+## Does Nextellar support Soroban smart contracts?
 
-## Do I need to install Nextellar globally?
-
-No. Using `npx nextellar` is the recommended approach and requires no global install. If you create projects frequently, you can install globally:
-
-```bash
-npm install -g nextellar
-```
-
-## Which wallets are supported out of the box?
-
-Nextellar supports **Freighter**, **Albedo**, **Lobstr**, **xBull**, and **Hana** through the Stellar Wallets Kit. The scaffold auto-detects installed wallets and wires them up via the `useStellarWallet` hook.
-
-## Which template should I choose?
-
-Nextellar offers three templates for different project needs:
-
-- **default** — Full applications with comprehensive Stellar and Soroban features
-- **minimal** — Lightweight wallet-only applications
-- **defi** — DeFi-focused projects with DEX and trading capabilities
-
-See the [Template Comparison](/docs/cli/template-comparison) for a detailed feature breakdown to help you choose.
-
-## Does Nextellar support mainnet?
-
-Yes. By default the scaffold targets Stellar testnet. To target mainnet, pass the `--horizon-url` flag during scaffolding:
-
-```bash
-npx nextellar my-app --horizon-url https://horizon.stellar.org
-```
-
-You can also update the Horizon URL in your project's environment configuration after scaffolding.
-
-## What React hooks are included?
-
-Every Nextellar project ships with 8 production-ready hooks:
-
-| Hook                    | Purpose                             |
-| ----------------------- | ----------------------------------- |
-| `useStellarWallet`      | Wallet connection and account state |
-| `useStellarBalances`    | Fetch account balances              |
-| `useStellarPayment`     | Send XLM and asset payments         |
-| `useTransactionHistory` | Query transaction history           |
-| `useTrustlines`         | Manage asset trustlines             |
-| `useOfferBook`          | Read DEX order books                |
-| `useSorobanContract`    | Invoke Soroban smart contracts      |
-| `useSorobanEvents`      | Subscribe to contract events        |
-
-## Does Nextellar collect any data?
-
-Nextellar collects anonymous, opt-in telemetry to understand tool usage — no events are sent until you explicitly run `nextellar telemetry enable`. You can check your current setting, opt in or out, disable it for a single command with `--no-telemetry`, or force it off for an environment with `NEXTELLAR_TELEMETRY_DISABLED`. See [Telemetry](/docs/cli/commands#nextellar-telemetry) for the full command reference and what data is sent.
-
-## Why does the content build step fail?
-
-The most common cause is a missing or malformed frontmatter field. Every MDX file requires `title` and `description`:
-
-```yaml
----
-title: My Page
-description: A short description of this page.
----
-```
-
-Run `pnpm build:content` after adding or editing any MDX file and check the terminal output for the specific file and line causing the error.
-
-## How do I add a new documentation page?
-
-1. Create a `.mdx` file in the appropriate `docs/` subdirectory.
-2. Add `title` and `description` frontmatter.
-3. Register the page in `config/sidebar.tsx`.
-4. Run `pnpm build:content` to process the new file.
-
-See [Add a New Docs Page](/docs/guides/add-docs-page) for a full walkthrough.
-
-## Where can I get help?
-
-- [Installation guide](/docs/getting-started/installation) — detailed setup and troubleshooting
-- [GitHub Issues](https://github.com/nextellarlabs/nextellar/issues) — report bugs
-- [GitHub Discussions](https://github.com/nextellarlabs/nextellar/discussions) — ask questions
+Yes. The default scaffold includes Soroban-ready hooks such as `useSorobanContract` and `useSorobanEvents`, and the CLI exposes Soroban RPC configuration through `--soroban-url`. Use `--with-contracts` when you want contract-focused project files included during scaffolding.  ## What React hooks are included?  Every Nextellar project ships with 8 production-ready hooks:  | Hook                    | Purpose                             | | ----------------------- | ----------------------------------- | | `useStellarWallet`      | Wallet connection and account state | | `useStellarBalances`    | Fetch account balances              | | `useStellarPayment`     | Send XLM and asset payments         | | `useTransactionHistory` | Query transaction history           | | `useTrustlines`         | Manage asset trustlines             | | `useOfferBook`          | Read DEX order books                | | `useSorobanContract`    | Invoke Soroban smart contracts      | | `useSorobanEvents`      | Subscribe to contract events        |  ## Does Nextellar collect any data?  Nextellar collects anonymous, opt-in telemetry to understand tool usage — no events are sent until you explicitly run `nextellar telemetry enable`. You can check your current setting with `nextellar telemetry status`, opt out with `nextellar telemetry disable`, disable it for a single command with `--no-telemetry`, or force it off for an environment with `NEXTELLAR_TELEMETRY_DISABLED`. See [Telemetry](/docs/cli/commands#nextellar-telemetry) for the full command reference and what data is sent.  ## Why does the content build step fail?  The most common cause is a missing or malformed frontmatter field. Every MDX file requires `title` and `description`:  ```yaml --- title: My Page description: A short description of this page. --- ```  Run `pnpm build:content` after adding or editing any MDX file and check the terminal output for the specific file and line causing the error.  ## How do I add a new documentation page?  1. Create a `.mdx` file in the appropriate `docs/` subdirectory. 2. Add `title` and `description` frontmatter. 3. Register the page in `config/sidebar.tsx`. 4. Run `pnpm build:content` to process the new file.  See [Add a New Docs Page](/docs/guides/add-docs-page) for a full walkthrough.  ## Where can I get help?  - [Installation guide](/docs/getting-started/installation) — detailed setup and troubleshooting - [GitHub Issues](https://github.com/nextellarlabs/nextellar/issues) — report bugs - [GitHub Discussions](https://github.com/nextellarlabs/nextellar/discussions) — ask questions
