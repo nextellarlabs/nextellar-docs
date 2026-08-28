@@ -1,1 +1,191 @@
---- title: WalletConnect description: Connect to Stellar wallets using the WalletConnectButton component and WalletProvider date: 2026-06-02 ---  # WalletConnect  Nextellar provides a complete wallet connection system through the `WalletConnectButton` component and `WalletProvider` context. This enables users to connect their Stellar wallets to your dApp with a seamless, persistent experience.  ## Overview  The wallet connection system in Nextellar:  - **Multi-wallet support**: Freighter, Albedo, Lobstr out of the box - **Session persistence**: Auto-reconnects on page reload - **Global state**: Access wallet state from any component - **Pre-built UI**: Ready-to-use connect button component  ## Quick Start  ### 1. Wrap Your App with WalletProvider  ````tsx // app/layout.tsx import { WalletProvider } from '@/contexts';  export default function RootLayout({ children }) {   return <WalletProvider>{children}</WalletProvider>; } ```  ### 2. Add the Connect Button  ```tsx import WalletConnectButton from '@/components/WalletConnectButton';  function Header() {   return (     <header>       <WalletConnectButton />     </header>   ); } ```  ### 3. Access Wallet State  ```tsx import { useWallet } from '@/contexts';  function Dashboard() {   const { connected, publicKey, balances, disconnect } = useWallet();    if (!connected) {     return <p>Please connect your wallet</p>;   }    return (     <div>       <p>Address: {publicKey}</p>       <p>Balance: {balances[0]?.balance} XLM</p>       <button onClick={disconnect}>Disconnect</button>     </div>   ); } ```  ## Connection Flow  ``` User clicks "Connect Wallet"         -> Wallet selection modal opens         -> User selects wallet (Freighter, Albedo, etc.)         -> Wallet extension prompts for approval         -> Public key retrieved and stored         -> Balances fetched automatically         -> Session saved to localStorage ```  ## Session Persistence  Connection status is automatically persisted:  ```typescript // On connect - saved to localStorage stellar_wallet_connected: 'true'; stellar_wallet_id: 'freighter'; stellar_wallet_address: 'GABC...'; stellar_wallet_name: 'Freighter';  // On page reload - auto-reconnects if session exists ```  ## Components  ### WalletConnectButton  Pre-built button component with loading states and theme support:  ```tsx <WalletConnectButton theme="light" /> <WalletConnectButton theme="dark" /> ```  [Full component documentation](/docs/components/connect-wallet-button)  ### WalletProvider  Context provider for global wallet state:  ```tsx <WalletProvider horizonUrl="https://horizon.stellar.org" network="PUBLIC">   <App /> </WalletProvider> ```  [Full provider documentation](/docs/hooks/wallet-provider)  ## Wallet State  The `useWallet` hook provides:  ```typescript interface WalletState {   connected: boolean; // Is wallet connected?   publicKey?: string; // Stellar G-address   walletName?: string; // "Freighter", "Albedo", etc.   balances: Balance[]; // Account balances   connect: () => Promise<void>;   disconnect: () => void;   refreshBalances: () => Promise<void>;   sendPayment?: (opts) => Promise<TransactionResponse>; } ```  ## Supported Wallets  | Wallet        | Type              | Installation                           | | ------------- | ----------------- | -------------------------------------- | | **Freighter** | Browser Extension | [freighter.app](https://freighter.app) | | **Albedo**    | Web-based         | No installation needed                 | | **Lobstr**    | Browser Extension | [lobstr.co](https://lobstr.co)         |  ## Adding More Wallets  Edit `src/lib/stellar-wallet-kit.ts` to add additional wallets:  ```typescript import { xBullModule } from '@creit.tech/stellar-wallets-kit';  const kit = new StellarWalletsKit({   modules: [     new FreighterModule(),     new AlbedoModule(),     new LobstrModule(),     new xBullModule(), // Add new wallet   ], }); ```  ## Error Handling  ```tsx const handleConnect = async () => {   try {     await connect();   } catch (error) {     if (error.message.includes('rejected')) {       console.log('User cancelled');     } else if (error.message.includes('not installed')) {       alert('Please install a Stellar wallet');     }   } }; ```  ## Related  - Previous: [Wallets](/docs/integrations/wallets) - Next: [Stellar Horizon](/docs/integrations/horizon) - [ConnectWalletButton](/docs/components/connect-wallet-button) - Pre-built button component - [WalletProvider](/docs/hooks/wallet-provider) - Context provider - [Wallets Integration](/docs/integrations/wallets) - Multi-wallet deep dive - [useStellarWallet](/docs/hooks/use-stellar-wallet) - Standalone hook ````
+---
+title: WalletConnect
+description: Connect to Stellar wallets using the WalletConnectButton component and WalletProvider
+date: 2026-06-02
+---
+
+# WalletConnect
+
+Nextellar provides a complete wallet connection system through the `WalletConnectButton` component and `WalletProvider` context. This enables users to connect their Stellar wallets to your dApp with a seamless, persistent experience.
+
+## Overview
+
+The wallet connection system in Nextellar:
+
+- **Multi-wallet support**: Freighter, Albedo, Lobstr out of the box
+- **Session persistence**: Auto-reconnects on page reload
+- **Global state**: Access wallet state from any component
+- **Pre-built UI**: Ready-to-use connect button component
+
+## Quick Start
+
+### 1. Wrap Your App with WalletProvider
+
+````tsx
+// app/layout.tsx
+import { WalletProvider } from '@/contexts';
+
+export default function RootLayout({ children }) {
+  return <WalletProvider>{children}</WalletProvider>;
+}
+```
+
+### 2. Add the Connect Button
+
+```tsx
+import WalletConnectButton from '@/components/WalletConnectButton';
+
+function Header() {
+  return (
+    <header>
+      <WalletConnectButton />
+    </header>
+  );
+}
+```
+
+### 3. Access Wallet State
+
+```tsx
+import { useWallet } from '@/contexts';
+
+function Dashboard() {
+  const { connected, publicKey, balances, disconnect } = useWallet();
+
+  if (!connected) {
+    return <p>Please connect your wallet</p>;
+  }
+
+  return (
+    <div>
+      <p>Address: {publicKey}</p>
+      <p>Balance: {balances[0]?.balance} XLM</p>
+      <button onClick={disconnect}>Disconnect</button>
+    </div>
+  );
+}
+```
+
+## Connection Flow
+
+```
+User clicks "Connect Wallet"
+        ->
+Wallet selection modal opens
+        ->
+User selects wallet (Freighter, Albedo, etc.)
+        ->
+Wallet extension prompts for approval
+        ->
+Public key retrieved and stored
+        ->
+Balances fetched automatically
+        ->
+Session saved to localStorage
+```
+
+## Session Persistence
+
+Connection status is automatically persisted:
+
+```typescript
+// On connect - saved to localStorage
+stellar_wallet_connected: 'true';
+stellar_wallet_id: 'freighter';
+stellar_wallet_address: 'GABC...';
+stellar_wallet_name: 'Freighter';
+
+// On page reload - auto-reconnects if session exists
+```
+
+## Components
+
+### WalletConnectButton
+
+Pre-built button component with loading states and theme support:
+
+```tsx
+<WalletConnectButton theme="light" />
+<WalletConnectButton theme="dark" />
+```
+
+[Full component documentation](/docs/components/connect-wallet-button)
+
+### WalletProvider
+
+Context provider for global wallet state:
+
+```tsx
+<WalletProvider horizonUrl="https://horizon.stellar.org" network="PUBLIC">
+  <App />
+</WalletProvider>
+```
+
+[Full provider documentation](/docs/hooks/wallet-provider)
+
+## Wallet State
+
+The `useWallet` hook provides:
+
+```typescript
+interface WalletState {
+  connected: boolean; // Is wallet connected?
+  publicKey?: string; // Stellar G-address
+  walletName?: string; // "Freighter", "Albedo", etc.
+  balances: Balance[]; // Account balances
+  connect: () => Promise<void>;
+  disconnect: () => void;
+  refreshBalances: () => Promise<void>;
+  sendPayment?: (opts) => Promise<TransactionResponse>;
+}
+```
+
+## Supported Wallets
+
+| Wallet        | Type              | Installation                           |
+| ------------- | ----------------- | -------------------------------------- |
+| **Freighter** | Browser Extension | [freighter.app](https://freighter.app) |
+| **Albedo**    | Web-based         | No installation needed                 |
+| **Lobstr**    | Browser Extension | [lobstr.co](https://lobstr.co)         |
+
+## Adding More Wallets
+
+Edit `src/lib/stellar-wallet-kit.ts` to add additional wallets:
+
+```typescript
+import { xBullModule } from '@creit.tech/stellar-wallets-kit';
+
+const kit = new StellarWalletsKit({
+  modules: [
+    new FreighterModule(),
+    new AlbedoModule(),
+    new LobstrModule(),
+    new xBullModule(), // Add new wallet
+  ],
+});
+```
+
+## Error Handling
+
+```tsx
+const handleConnect = async () => {
+  try {
+    await connect();
+  } catch (error) {
+    if (error.message.includes('rejected')) {
+      console.log('User cancelled');
+    } else if (error.message.includes('not installed')) {
+      alert('Please install a Stellar wallet');
+    }
+  }
+};
+```
+
+## Related
+
+- Previous: [Wallets](/docs/integrations/wallets)
+- Next: [Stellar Horizon](/docs/integrations/horizon)
+- [ConnectWalletButton](/docs/components/connect-wallet-button) - Pre-built button component
+- [WalletProvider](/docs/hooks/wallet-provider) - Context provider
+- [Wallets Integration](/docs/integrations/wallets) - Multi-wallet deep dive
+- [useStellarWallet](/docs/hooks/use-stellar-wallet) - Standalone hook
