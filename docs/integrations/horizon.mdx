@@ -1,1 +1,183 @@
---- title: Stellar Horizon description: How Nextellar integrates with Stellar's Horizon API for account and transaction operations date: 2026-06-02 ---  # Stellar Horizon Integration  Nextellar uses the official `@stellar/stellar-sdk` to interact with Stellar's Horizon API. This integration powers account queries, balance fetching, payment transactions, and transaction history.  ## What is Horizon?  Horizon is Stellar's HTTP API server that provides a RESTful interface to the Stellar network. It allows you to:  - Query account balances and details. - Submit transactions. - Fetch transaction history. - Query the order book (DEX). - Stream real-time updates.  ## How Nextellar Uses Horizon  ### Default Endpoints  Nextellar hooks default to Stellar's public Horizon servers:  | Network | URL                                   | | ------- | ------------------------------------- | | Testnet | `https://horizon-testnet.stellar.org` | | Mainnet | `https://horizon.stellar.org`         |  ### Hooks That Use Horizon  | Hook                    | Horizon Operations                     | | ----------------------- | -------------------------------------- | | `useStellarBalances`    | `GET /accounts/{id}` - Fetch balances  | | `useStellarPayment`     | `POST /transactions` - Submit payments | | `useStellarWallet`      | Account queries and payments           | | `useTransactionHistory` | `GET /accounts/{id}/operations`        | | `useTrustlines`         | `POST /transactions` - ChangeTrust ops | | `useOfferBook`          | `GET /order_book` - DEX queries        |  ## Using Horizon in Hooks  ### With WalletProvider (Recommended)  Configure once at the provider level:  ````tsx <WalletProvider horizonUrl="https://horizon.stellar.org">   <App /> {/* All hooks use mainnet Horizon */} </WalletProvider> ```  ### Per-Hook Override  Override for specific components:  ```tsx const { balances } = useStellarBalances(publicKey, {   horizonUrl: 'https://horizon.stellar.org', // Use mainnet }); ```  ### Standalone Usage  Use without WalletProvider:  ```tsx const { balances } = useStellarBalances(publicKey, {   horizonUrl: 'https://horizon-testnet.stellar.org', }); ```  ## Direct Horizon Usage  For advanced use cases, use the Stellar SDK directly:  ```tsx import { Horizon } from '@stellar/stellar-sdk';  const server = new Horizon.Server('https://horizon-testnet.stellar.org');  // Fetch account const account = await server.accounts().accountId(publicKey).call();  // Fetch transactions const transactions = await server   .transactions()   .forAccount(publicKey)   .limit(10)   .order('desc')   .call();  // Load account for transaction building const sourceAccount = await server.loadAccount(publicKey); ```  ## Transaction Building  Nextellar hooks build transactions using the Stellar SDK:  ```tsx import {   TransactionBuilder,   Operation,   Asset,   Networks,   BASE_FEE, } from '@stellar/stellar-sdk';  // Build a payment transaction const transaction = new TransactionBuilder(sourceAccount, {   fee: BASE_FEE,   networkPassphrase: Networks.TESTNET, })   .addOperation(     Operation.payment({       destination: recipientAddress,       asset: Asset.native(),       amount: '10',     })   )   .setTimeout(30)   .build(); ```  ## Environment Variables  Configure Horizon endpoints via environment variables:  ```bash # .env.local NEXT_PUBLIC_HORIZON_URL=https://horizon.stellar.org NEXT_PUBLIC_NETWORK=PUBLIC ```  ```tsx // Access in your app const horizonUrl = process.env.NEXT_PUBLIC_HORIZON_URL; ```  ## Error Handling  Horizon returns specific error codes. Hooks handle common ones:  | Error          | Meaning              | Hook Response                 | | -------------- | -------------------- | ----------------------------- | | 404            | Account not found    | Empty balances, `error` state | | 400            | Bad request          | Validation error              | | 504            | Timeout              | Network error                 | | tx_bad_seq     | Sequence mismatch    | Retry needed                  | | op_underfunded | Insufficient balance | Payment failed                |  ```tsx const { error, refresh } = useStellarBalances(publicKey);  if (error?.message.includes('404')) {   return <p>Account not funded yet</p>; } ```  ## Rate Limiting  Stellar's public Horizon servers have rate limits. For production:  1. **Use polling sparingly** - Set `pollIntervalMs` to 10+ seconds 2. **Consider self-hosting** - Run your own Horizon instance 3. **Use caching** - Implement client-side caching  ```tsx const { balances } = useStellarBalances(publicKey, {   pollIntervalMs: 15000, // Poll every 15 seconds }); ```  ## Related  - Previous: [WalletConnect](/docs/integrations/walletconnect) - Next: [Soroban](/docs/integrations/soroban) - [useStellarBalances](/docs/hooks/use-stellar-balances) - Balance fetching hook - [useStellarPayment](/docs/hooks/use-stellar-payment) - Payment transactions - [useTransactionHistory](/docs/hooks/use-transaction-history) - Transaction queries ````
+---
+title: Stellar Horizon
+description: How Nextellar integrates with Stellar's Horizon API for account and transaction operations
+date: 2026-06-02
+---
+
+# Stellar Horizon Integration
+
+Nextellar uses the official `@stellar/stellar-sdk` to interact with Stellar's Horizon API. This integration powers account queries, balance fetching, payment transactions, and transaction history.
+
+## What is Horizon?
+
+Horizon is Stellar's HTTP API server that provides a RESTful interface to the Stellar network. It allows you to:
+
+- Query account balances and details.
+- Submit transactions.
+- Fetch transaction history.
+- Query the order book (DEX).
+- Stream real-time updates.
+
+## How Nextellar Uses Horizon
+
+### Default Endpoints
+
+Nextellar hooks default to Stellar's public Horizon servers:
+
+| Network | URL                                   |
+| ------- | ------------------------------------- |
+| Testnet | `https://horizon-testnet.stellar.org` |
+| Mainnet | `https://horizon.stellar.org`         |
+
+### Hooks That Use Horizon
+
+| Hook                    | Horizon Operations                     |
+| ----------------------- | -------------------------------------- |
+| `useStellarBalances`    | `GET /accounts/{id}` - Fetch balances  |
+| `useStellarPayment`     | `POST /transactions` - Submit payments |
+| `useStellarWallet`      | Account queries and payments           |
+| `useTransactionHistory` | `GET /accounts/{id}/operations`        |
+| `useTrustlines`         | `POST /transactions` - ChangeTrust ops |
+| `useOfferBook`          | `GET /order_book` - DEX queries        |
+
+## Using Horizon in Hooks
+
+### With WalletProvider (Recommended)
+
+Configure once at the provider level:
+
+````tsx
+<WalletProvider horizonUrl="https://horizon.stellar.org">
+  <App /> {/* All hooks use mainnet Horizon */}
+</WalletProvider>
+```
+
+### Per-Hook Override
+
+Override for specific components:
+
+```tsx
+const { balances } = useStellarBalances(publicKey, {
+  horizonUrl: 'https://horizon.stellar.org', // Use mainnet
+});
+```
+
+### Standalone Usage
+
+Use without WalletProvider:
+
+```tsx
+const { balances } = useStellarBalances(publicKey, {
+  horizonUrl: 'https://horizon-testnet.stellar.org',
+});
+```
+
+## Direct Horizon Usage
+
+For advanced use cases, use the Stellar SDK directly:
+
+```tsx
+import { Horizon } from '@stellar/stellar-sdk';
+
+const server = new Horizon.Server('https://horizon-testnet.stellar.org');
+
+// Fetch account
+const account = await server.accounts().accountId(publicKey).call();
+
+// Fetch transactions
+const transactions = await server
+  .transactions()
+  .forAccount(publicKey)
+  .limit(10)
+  .order('desc')
+  .call();
+
+// Load account for transaction building
+const sourceAccount = await server.loadAccount(publicKey);
+```
+
+## Transaction Building
+
+Nextellar hooks build transactions using the Stellar SDK:
+
+```tsx
+import {
+  TransactionBuilder,
+  Operation,
+  Asset,
+  Networks,
+  BASE_FEE,
+} from '@stellar/stellar-sdk';
+
+// Build a payment transaction
+const transaction = new TransactionBuilder(sourceAccount, {
+  fee: BASE_FEE,
+  networkPassphrase: Networks.TESTNET,
+})
+  .addOperation(
+    Operation.payment({
+      destination: recipientAddress,
+      asset: Asset.native(),
+      amount: '10',
+    })
+  )
+  .setTimeout(30)
+  .build();
+```
+
+## Environment Variables
+
+Configure Horizon endpoints via environment variables:
+
+```bash
+# .env.local
+NEXT_PUBLIC_HORIZON_URL=https://horizon.stellar.org
+NEXT_PUBLIC_NETWORK=PUBLIC
+```
+
+```tsx
+// Access in your app
+const horizonUrl = process.env.NEXT_PUBLIC_HORIZON_URL;
+```
+
+## Error Handling
+
+Horizon returns specific error codes. Hooks handle common ones:
+
+| Error          | Meaning              | Hook Response                 |
+| -------------- | -------------------- | ----------------------------- |
+| 404            | Account not found    | Empty balances, `error` state |
+| 400            | Bad request          | Validation error              |
+| 504            | Timeout              | Network error                 |
+| tx_bad_seq     | Sequence mismatch    | Retry needed                  |
+| op_underfunded | Insufficient balance | Payment failed                |
+
+```tsx
+const { error, refresh } = useStellarBalances(publicKey);
+
+if (error?.message.includes('404')) {
+  return <p>Account not funded yet</p>;
+}
+```
+
+## Rate Limiting
+
+Stellar's public Horizon servers have rate limits. For production:
+
+1. **Use polling sparingly** - Set `pollIntervalMs` to 10+ seconds
+2. **Consider self-hosting** - Run your own Horizon instance
+3. **Use caching** - Implement client-side caching
+
+```tsx
+const { balances } = useStellarBalances(publicKey, {
+  pollIntervalMs: 15000, // Poll every 15 seconds
+});
+```
+
+## Related
+
+- Previous: [WalletConnect](/docs/integrations/walletconnect)
+- Next: [Soroban](/docs/integrations/soroban)
+- [useStellarBalances](/docs/hooks/use-stellar-balances) - Balance fetching hook
+- [useStellarPayment](/docs/hooks/use-stellar-payment) - Payment transactions
+- [useTransactionHistory](/docs/hooks/use-transaction-history) - Transaction queries
