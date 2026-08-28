@@ -1,0 +1,114 @@
+---
+title: Accessibility Test Harness for a Stellar dApp
+description: Set up an automated accessibility test harness in CI for a Stellar dApp — tool selection, common failure modes, and a working sample you can adapt.
+---
+
+# Accessibility Test Harness for a Stellar dApp
+
+Wallet connection modals, transaction confirmation dialogs, and asset lists are all places where a Stellar dApp's UI can silently exclude users — keyboard-only users, screen reader users, and anyone relying on sufficient color contrast to read a balance correctly. This tutorial walks through wiring an automated accessibility (a11y) test harness into CI so these regressions get caught before merge, not after a user reports them.
+
+---
+
+## Tool selection
+
+For a React/Next.js Stellar dApp, three tools cover most of what you need:
+
+| Tool                             | What it checks                                                                                                             | When it runs            |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
+| **`jest-axe`** (or `vitest-axe`) | WCAG rule violations on rendered component output                                                                          | Unit/component tests    |
+| **`@axe-core/playwright`**       | Same axe-core engine, but against a real running page (catches issues component tests miss — focus order, dynamic content) | E2E tests               |
+| **`eslint-plugin-jsx-a11y`**     | Static analysis — missing `alt`, invalid ARIA usage, non-interactive elements with click handlers                          | Lint step, every commit |
+
+Start with `eslint-plugin-jsx-a11y` since it's the cheapest to add and catches issues at write-time. Add `jest-axe`/`vitest-axe` for components with real interactivity (wallet connect, transaction forms). Reserve Playwright + axe for critical user flows end-to-end (connect wallet → sign transaction → see confirmation).
+
+---
+
+## Common failure modes in Stellar dApp UIs specifically
+
+- **Address/key display without labels.** A raw `G...` address or `C...` contract ID with no accessible label reads as an opaque string of characters to a screen reader.
+- **Loading states with no `aria-live` region.** Transaction submission often takes several seconds; if the pending → success/failure transition isn't announced, screen reader users get no feedback.
+- **Modal focus traps that don't reset.** Wallet-selection modals (Freighter/Albedo/xBull) need to trap focus while open and restore it to the trigger element on close — a common miss when modals are built ad hoc.
+- **Color-only status indicators.** Green/red dots for "connected"/"disconnected" or "success"/"failed" fail for color-blind users without a text or icon alternative.
+- **Insufficient contrast on secondary text.** Balance sub-text, timestamps, and truncated addresses are frequently styled with low-contrast gray that fails WCAG AA.
+
+---
+
+## A working sample: component-level test with `vitest-axe`
+
+```typescript
+// AddressDisplay.a11y.test.tsx
+import { render } from '@testing-library/react';
+import { axe, toHaveNoViolations } from 'vitest-axe';
+import { expect, test } from 'vitest';
+import { AddressDisplay } from './AddressDisplay';
+
+expect.extend(toHaveNoViolations);
+
+test('AddressDisplay has no accessibility violations', async () => {
+  const { container } = render(
+    <AddressDisplay
+      address="GABC123...XYZ"
+      label="Recipient address"
+    />
+  );
+
+  const results = await axe(container);
+  expect(results).toHaveNoViolations();
+});
+```
+
+## A working sample: end-to-end flow with Playwright + axe
+
+```typescript
+// wallet-connect.a11y.spec.ts
+import { test, expect } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
+
+test('wallet connect modal has no critical a11y violations', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: /connect wallet/i }).click();
+
+  // Wait for the modal to be visible before scanning it.
+  await page.getByRole('dialog').waitFor({ state: 'visible' });
+
+  const results = await new AxeBuilder({ page })
+    .include('[role="dialog"]')
+    .withTags(['wcag2a', 'wcag2aa'])
+    .analyze();
+
+  expect(results.violations).toEqual([]);
+});
+```
+
+## Wiring it into CI
+
+```yaml
+# .github/workflows/accessibility.yml
+name: Accessibility
+on: [pull_request]
+jobs:
+  a11y:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npm run lint # includes eslint-plugin-jsx-a11y
+      - run: npm run test:a11y # vitest-axe component tests
+      - run: npx playwright install --with-deps
+      - run: npm run test:e2e:a11y # Playwright + axe flows
+```
+
+Fail the build on any `critical` or `serious` axe violation; treat `moderate`/`minor` as warnings you triage separately so the signal-to-noise ratio stays high enough that people don't start ignoring the check.
+
+---
+
+## Verifying this tutorial is accurate
+
+- Run both sample tests against a real component in your codebase before trusting them verbatim — prop names and component structure will differ.
+- Confirm your CI runner has the dependencies Playwright needs (`--with-deps` above) or the E2E job will fail for unrelated reasons.
+- Periodically re-run a full axe scan even on pages with no recent changes — some violations (like contrast) can regress silently when a shared design token changes.
