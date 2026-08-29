@@ -1,0 +1,108 @@
+---
+title: Stellar dApp KYC Integration Guide
+description: A practical guide to onboarding flows, provider webhooks, KYC status storage, and safe gating for Stellar dApps.
+date: 2026-08-29
+---
+
+# Stellar dApp KYC Integration Guide
+
+KYC integration for a Stellar dApp should verify the user once, store only the minimum status needed by the product, and gate regulated actions without leaking personal information into wallet metadata, memos, logs, or analytics events.
+
+<Note type="info">
+  Keep identity evidence in the KYC provider whenever possible. Your app usually needs status, risk tier, provider reference, and timestamps, not raw documents.
+</Note>
+
+## Onboarding Flow
+
+A basic flow has four stages:
+
+1. The user creates an account and connects a wallet.
+2. The app starts a KYC session with the provider and redirects the user to the hosted verification flow.
+3. The provider sends a signed webhook when the review status changes.
+4. The app gates deposits, withdrawals, or contract actions based on the stored status.
+
+| Status | Meaning | Product behavior |
+| --- | --- | --- |
+| `not_started` | No KYC session exists | Show onboarding prompt |
+| `pending` | Provider is reviewing the user | Allow read-only features, block regulated actions |
+| `approved` | User passed verification | Enable regulated actions within the approved limits |
+| `rejected` | Provider declined verification | Block regulated actions and show support guidance |
+| `expired` | Verification must be refreshed | Prompt the user to reverify |
+
+## Store KYC Status
+
+Store a compact local record keyed to your user account, not to a public wallet address alone. Users can rotate wallets, and a wallet can be shared by a business account.
+
+```ts
+type KycStatusRecord = {
+  userId: string;
+  provider: "sumsub" | "persona" | "stripe_identity" | "custom";
+  providerReference: string;
+  status: "not_started" | "pending" | "approved" | "rejected" | "expired";
+  riskTier: "standard" | "enhanced";
+  approvedAt?: string;
+  expiresAt?: string;
+  updatedAt: string;
+};
+```
+
+Encrypt provider references at rest if they can be linked back to personal data. Never write documents, legal names, dates of birth, or government IDs to logs, client-side storage, transaction memos, or smart-contract events.
+
+## Verify Webhooks
+
+Provider webhooks should be verified before changing a user's KYC state.
+
+```ts
+export async function handleKycWebhook(request: Request) {
+  const signature = request.headers.get("x-provider-signature");
+  const rawBody = await request.text();
+
+  if (!verifyProviderSignature(rawBody, signature)) {
+    return new Response("invalid signature", { status: 401 });
+  }
+
+  const event = JSON.parse(rawBody) as {
+    userId: string;
+    reference: string;
+    status: KycStatusRecord["status"];
+  };
+
+  await saveKycStatus({
+    userId: event.userId,
+    provider: "custom",
+    providerReference: event.reference,
+    status: event.status,
+    riskTier: "standard",
+    updatedAt: new Date().toISOString(),
+  });
+
+  return Response.json({ ok: true });
+}
+```
+
+## Gate Stellar Actions
+
+Check KYC status before building a transaction or invoking a contract method that requires identity verification.
+
+```ts
+export function assertKycApproved(status: KycStatusRecord) {
+  if (status.status !== "approved") {
+    throw new Error("KYC approval is required before this action can continue.");
+  }
+
+  if (status.expiresAt && Date.parse(status.expiresAt) <= Date.now()) {
+    throw new Error("KYC approval has expired. Please verify again.");
+  }
+}
+```
+
+Perform the check on the server, not only in the frontend. Frontend gating improves user experience, but server-side enforcement protects the action.
+
+## Operations Checklist
+
+- Document which actions require KYC and which remain available without it.
+- Verify webhook signatures and reject replayed events.
+- Store status changes with an audit trail.
+- Define expiration and reverification rules.
+- Provide manual review and support escalation for rejected users.
+- Keep provider credentials out of client bundles and public environment files.
