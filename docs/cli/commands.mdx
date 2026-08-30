@@ -1,39 +1,216 @@
-# `nextellar doctor --json` — CI Integration Guide
+---
+title: CLI Commands
+description: Complete reference for all Nextellar CLI commands
+date: 2026-06-02
+---
 
-> Related: [Document `doctor --json` for CI pipelines #649](https://github.com/nextellarlabs/nextellar-docs/issues/649)
-> Coordinate with the CLI's `doctor-json` schema-freeze issue. This page documents `schemaVersion: "1.0.0"`.
+# CLI Commands
 
-Run environment diagnostics to verify a machine (or CI runner) is ready for Nextellar development. The `doctor` command checks local tooling, network connectivity to Stellar endpoints, and available system resources.
+Complete reference for all Nextellar CLI commands and their usage.
+
+## Command Overview
+
+| Command               | Purpose                                                    |
+| --------------------- | ---------------------------------------------------------- |
+| `nextellar`           | Create a new Stellar dApp project                          |
+| `nextellar add`       | Add features to an existing Nextellar project              |
+| `nextellar doctor`    | Run environment diagnostics and system checks              |
+| `nextellar upgrade`   | Upgrade a project to the latest template files             |
+| `nextellar deploy`    | Validate and prepare project for production deployment     |
+| `nextellar telemetry` | Manage CLI telemetry preferences (status, enable, disable) |
+
+## Main Command
+
+### nextellar
+
+Create a new Stellar dApp project.
+
+```bash
+nextellar <project-name> [options]
+```
+
+**Arguments:**
+
+| Argument       | Type   | Required | Description                    |
+| -------------- | ------ | -------- | ------------------------------ |
+| `project-name` | string | Yes      | Name of your project directory |
+
+**Examples:**
+
+```bash
+# Basic usage
+nextellar my-stellar-app
+
+# With custom package manager
+nextellar my-app --package-manager pnpm
+
+# Skip installation
+nextellar my-app --skip-install
+
+# Full customization (with custom wallet selection)
+nextellar my-app \
+  --package-manager yarn \
+  --horizon-url https://horizon.stellar.org \
+  --wallets freighter,xbull \
+  --skip-install
+# Note: freighter,xbull is a custom wallet selection. See [Wallet Configuration](/docs/cli/flags#wallet-configuration-wallets) for defaults and options.
+```
+
+### Overwriting an existing directory
+
+By default, scaffolding into a directory that already exists fails without changing anything:
+
+```bash
+nextellar my-app
+# Error: Directory "my-app" already exists.
+```
+
+Pass `--force` to overwrite it instead:
+
+```bash
+nextellar my-app --force
+```
+
+<Note type="warning">
+  `--force` deletes the existing directory before scaffolding, and this cannot
+  be undone. When both stdin and stdout are a TTY and `--defaults` is not set,
+  it prompts you to confirm the overwrite first. With `--defaults`, in CI, or in
+  any non-TTY shell, it skips the prompt and deletes the directory immediately.
+</Note>
+
+## Help Commands
+
+### --help, -h
+
+Display help information.
+
+```bash
+nextellar --help
+# or
+nextellar -h
+```
+
+**Output:**
+
+```bash
+Usage: nextellar <project-name> [options]
+
+Options:
+  -t, --typescript         Generate a TypeScript project (default)
+  -j, --javascript         Generate a JavaScript project
+  --template <name>        Use a specific template (default, minimal, defi)
+  --with-contracts         Include Soroban smart contract support
+  --horizon-url <url>      Override default Horizon endpoint
+  --soroban-url <url>      Override default Soroban RPC endpoint
+  -w, --wallets <list>     Comma-separated list of wallet adapters
+  -d, --defaults           Skip prompts and use defaults
+  --skip-install           Skip dependency installation
+  --package-manager <pm>   Choose package manager (npm, yarn, pnpm)
+  --install-timeout <ms>   Installation timeout in milliseconds
+  --force                  Overwrite existing directory (use with caution)
+  --no-telemetry           Disable telemetry for this invocation
+  -v, --version            Show CLI version
+  -h, --help               Show help text
+```
+
+### --version, -v
+
+Display CLI version.
+
+```bash
+nextellar --version
+# or
+nextellar -v
+```
+
+**Output:**
+
+```bash
+nextellar/1.0.4 (linux-x64)
+node/20.18.0
+```
+
+## Feature Commands
+
+### nextellar add
+
+Add Stellar features to an existing Nextellar project. This command allows you to incrementally add wallet adapters, smart contract support, or pre-built UI components as your application grows.
+
+```bash
+nextellar add <feature-name> [options]
+```
+
+**Arguments:**
+
+| Argument       | Type   | Required | Description                |
+| -------------- | ------ | -------- | -------------------------- |
+| `feature-name` | string | No       | Name of the feature to add |
+
+**Options:**
+
+| Option                   | Alias | Description                                                     |
+| ------------------------ | ----- | --------------------------------------------------------------- |
+| `--list`                 | `-l`  | List all available features that can be added                   |
+| `--force`                | `-f`  | Force add feature, overwriting existing files without prompting |
+| `--skip-install`         |       | Skip automatic dependency installation after adding the feature |
+| `--package-manager <pm>` |       | Choose package manager (npm, yarn, pnpm) for installation       |
+
+**Examples:**
+
+```bash
+# List all available features
+nextellar add --list
+
+# Add a Soroban smart contract feature to the project
+nextellar add soroban
+
+# Force add Freighter wallet support, overwriting existing configuration
+nextellar add freighter --force --package-manager pnpm
+```
+
+### nextellar doctor
+
+Run environment diagnostics to verify your machine is ready for Nextellar development. The doctor command checks local tooling, network connectivity to Stellar endpoints, and available system resources.
 
 ```bash
 nextellar doctor [options]
 ```
 
-## Options
+**Options:**
 
-| Option   | Description                              |
+| Option   | Description                               |
 | -------- | ----------------------------------------- |
 | `--json` | Output results as JSON for CI integration |
 
-## What It Checks
+**What it checks:**
 
-| Check          | Required | Description                                          |
-| --------------- | -------- | ----------------------------------------------------- |
-| Node.js         | Yes      | Version 20 or later                                   |
-| npm             | Yes      | Package manager bundled with Node.js                  |
-| yarn            | No       | Optional package manager                              |
-| pnpm            | No       | Optional package manager                              |
-| Git             | Yes      | Version control for project scaffolding               |
-| Rust            | No       | Needed for Soroban contract development                |
-| Stellar CLI     | No       | Needed for contract deployment and testing             |
-| wasm32 target   | No       | Rust target for compiling Soroban contracts             |
-| Horizon API     | Yes      | Reachability of the default testnet Horizon endpoint    |
-| Soroban RPC     | No       | Reachability of the default testnet Soroban RPC endpoint |
-| Free memory     | Yes      | At least 1 GB of available RAM                          |
+| Check         | Required | Description                                              |
+| ------------- | -------- | -------------------------------------------------------- |
+| Node.js       | Yes      | Version 20 or later                                      |
+| npm           | Yes      | Package manager bundled with Node.js                     |
+| yarn          | No       | Optional package manager                                 |
+| pnpm          | No       | Optional package manager                                 |
+| Git           | Yes      | Version control for project scaffolding                  |
+| Rust          | No       | Needed for Soroban contract development                  |
+| Stellar CLI   | No       | Needed for contract deployment and testing               |
+| wasm32 target | No       | Rust target for compiling Soroban contracts              |
+| Horizon API   | Yes      | Reachability of the default testnet Horizon endpoint     |
+| Soroban RPC   | No       | Reachability of the default testnet Soroban RPC endpoint |
+| Free memory   | Yes      | At least 1 GB of available RAM                           |
 
-## Standard Output
+**Examples:**
 
+```bash
+# Run environment diagnostics
+nextellar doctor
+
+# Output results as JSON (useful in CI pipelines)
+nextellar doctor --json
 ```
+
+**Standard output:**
+
+```bash
 Nextellar Doctor
 
 ✔ Node.js         v20.18.0 (>= 20.0.0 required)
@@ -51,197 +228,364 @@ Nextellar Doctor
 10 checks passed, 1 checks failed
 ```
 
-## JSON Output for CI Pipelines
-
-When run with `--json`, the command outputs a structured JSON object designed for CI/CD integration.
+**JSON output:**
 
 ```bash
 nextellar doctor --json
 ```
 
-### Complete JSON Structure
-
 ```json
 {
-  "schemaVersion": "1.0.0",
+  "schemaVersion": 2,
+  "horizonUrl": "https://horizon-testnet.stellar.org",
+  "sorobanUrl": "https://soroban-testnet.stellar.org",
   "checks": [
     {
       "id": "node",
       "name": "Node.js",
       "required": true,
       "ok": true,
-      "detail": "v20.18.0 (>= 20.0.0 required)",
-      "fix": "Install Node.js v20.x or higher from https://nodejs.org",
-      "link": "https://nextellar.com/docs/requirements"
+      "detail": "v20.18.0 (>= 20.0.0 required)"
     },
     {
-      "id": "horizon-api",
+      "id": "horizon",
       "name": "Horizon API",
       "required": true,
-      "ok": false,
-      "detail": "Connection timeout to https://horizon-testnet.stellar.org",
-      "fix": "Check your network connection and firewall settings",
-      "link": "https://nextellar.com/docs/troubleshooting/horizon-issues"
+      "ok": true,
+      "detail": "https://horizon-testnet.stellar.org (200)"
     }
   ],
-  "summary": {
-    "total": 10,
-    "passed": 9,
-    "failed": 1,
-    "requiredFailed": 1
-  }
+  "passed": 10,
+  "failed": 1,
+  "requiredFailures": 0
 }
 ```
 
-### Field Descriptions
+The `checks` array is truncated above for brevity — it contains one entry per check (`node`, `npm`, `yarn`, `pnpm`, `git`, `rustc`, `stellar-cli`, `wasm32`, `horizon`, `soroban`, `disk`).
 
-| Field                    | Type    | Description                                                    |
-| ------------------------- | ------- | ---------------------------------------------------------------- |
-| `schemaVersion`           | string  | Version of the output schema for forward compatibility           |
-| `checks`                  | array   | List of all system checks performed                               |
-| `checks[].id`             | string  | Unique identifier for the check (e.g., `"node"`, `"horizon-api"`) |
-| `checks[].name`           | string  | Human-readable name of the check                                  |
-| `checks[].required`       | boolean | Whether this check must pass for the system to be considered healthy |
-| `checks[].ok`             | boolean | Whether the check passed (`true`) or failed (`false`)             |
-| `checks[].detail`         | string  | Detailed message about the check result                            |
-| `checks[].fix`            | string  | Instructions on how to fix the issue if the check failed           |
-| `checks[].link`           | string  | URL to relevant documentation for more information                 |
-| `summary`                 | object  | Aggregated results of all checks                                   |
-| `summary.total`           | number  | Total number of checks performed                                   |
-| `summary.passed`          | number  | Number of checks that passed                                       |
-| `summary.failed`          | number  | Number of checks that failed (both required and optional)          |
-| `summary.requiredFailed`  | number  | Number of required checks that failed                              |
+**Top-level fields:**
 
-### Exit Codes
+| Field              | Type   | Description                                                          |
+| ------------------ | ------ | ------------------------------------------------------------------- |
+| `schemaVersion`    | number | Output schema version (currently `2`). Bumped on breaking changes.  |
+| `horizonUrl`       | string | Horizon endpoint that was checked                                   |
+| `sorobanUrl`       | string | Soroban RPC endpoint that was checked                               |
+| `checks`           | array  | One result object per diagnostic (see below)                        |
+| `passed`           | number | Number of checks that passed                                        |
+| `failed`           | number | Number of checks that failed (required **and** optional)            |
+| `requiredFailures` | number | Number of **required** checks that failed — drives the exit code    |
 
-| Exit Code | Meaning                          |
+**`checks[]` fields:**
+
+| Field      | Type    | Description                                                            |
+| ---------- | ------- | --------------------------------------------------------------------- |
+| `id`       | string  | Stable machine-readable identifier (e.g. `node`, `horizon`)           |
+| `name`     | string  | Human-readable check name                                             |
+| `required` | boolean | Whether a failure counts toward `requiredFailures` / the exit code    |
+| `ok`       | boolean | Whether the check passed                                              |
+| `detail`   | string  | Human-readable detail (version found, endpoint status, etc.)          |
+| `fix`      | string  | Optional remediation hint, present on some failed checks              |
+| `link`     | string  | Optional documentation link, present on some failed checks            |
+
+**Exit codes:**
+
+The command exits with code `0` when all required checks pass, or `1` when one or more required checks fail (`requiredFailures > 0`). Optional check failures are reported but do not affect the exit code.
+
+| Exit code | Meaning                            |
 | --------- | ---------------------------------- |
 | `0`       | All required checks passed         |
 | `1`       | One or more required checks failed |
 
-> Optional check failures do **not** affect the exit code — they're reported in the JSON output but don't cause the command to fail.
+#### Using `doctor --json` in CI/CD
 
-## CI/CD Integration Examples
+Because `nextellar doctor --json` exits non-zero when a required check fails, you can gate a pipeline on it directly, and parse the JSON for detail. Read the top-level `requiredFailures` field (there is no nested `summary` object).
 
-### GitHub Actions
+**GitHub Actions**
 
 ```yaml
-name: Check Nextellar Environment
-
-on:
-  push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main ]
-
-jobs:
-  doctor-check:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install Nextellar CLI
-        run: npm install -g nextellar
-
-      - name: Run Nextellar Doctor
-        id: doctor
-        run: |
-          # Run doctor and capture JSON output
-          npx nextellar doctor --json > doctor-output.json
-
-          # Display the output for debugging
-          cat doctor-output.json
-
-          # Check if any required checks failed
-          if jq -e '.summary.requiredFailed > 0' doctor-output.json > /dev/null; then
-            echo "❌ Required checks failed!"
-            echo "Failed required checks:"
-            jq '.checks[] | select(.required == true and .ok == false) | {id, name, detail, fix}' doctor-output.json
-            exit 1
-          else
-            echo "✅ All required checks passed!"
-            exit 0
-          fi
-
-      - name: Upload doctor report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: doctor-report
-          path: doctor-output.json
+- name: Verify Nextellar environment
+  run: |
+    npx nextellar doctor --json | tee doctor.json
+    if [ "$(jq '.requiredFailures' doctor.json)" -gt 0 ]; then
+      echo "Required checks failed:"
+      jq -r '.checks[] | select(.required and (.ok | not)) | "  - \(.name): \(.detail)"' doctor.json
+      exit 1
+    fi
 ```
 
-### GitLab CI
+**GitLab CI**
 
 ```yaml
 doctor:
-  stage: test
-  image: node:20
   script:
-    - npm install -g nextellar
-    - npx nextellar doctor --json > doctor-output.json
-    - |
-      if jq -e '.summary.requiredFailed > 0' doctor-output.json > /dev/null; then
-        echo "❌ Required checks failed!"
-        jq '.checks[] | select(.required == true and .ok == false) | {id, name, detail, fix}' doctor-output.json
-        exit 1
-      else
-        echo "✅ All required checks passed!"
-        exit 0
-      fi
-  artifacts:
-    paths:
-      - doctor-output.json
-    expire_in: 7 days
+    - npx nextellar doctor --json > doctor.json
+    - test "$(jq '.requiredFailures' doctor.json)" -eq 0
 ```
 
-### CircleCI
+**CircleCI**
 
 ```yaml
-version: 2.1
-
-jobs:
-  doctor-check:
-    docker:
-      - image: cimg/node:20.0
-    steps:
-      - checkout
-      - run:
-          name: Install Nextellar CLI
-          command: npm install -g nextellar
-      - run:
-          name: Run Nextellar Doctor
-          command: |
-            npx nextellar doctor --json > doctor-output.json
-            if jq -e '.summary.requiredFailed > 0' doctor-output.json > /dev/null; then
-              echo "❌ Required checks failed!"
-              jq '.checks[] | select(.required == true and .ok == false) | {id, name, detail, fix}' doctor-output.json
-              exit 1
-            else
-              echo "✅ All required checks passed!"
-              exit 0
-            fi
-      - store_artifacts:
-          path: doctor-output.json
+- run:
+    name: Nextellar doctor
+    command: |
+      npx nextellar doctor --json > doctor.json
+      jq -e '.requiredFailures == 0' doctor.json
 ```
 
-## Using `jq` for Advanced Parsing
+**Parsing with `jq`**
 
 ```bash
-# Get a list of all failed checks (both required and optional)
-jq '.checks[] | select(.ok == false) | .name' doctor-output.json
+# List every failed check (required and optional)
+jq -r '.checks[] | select(.ok | not) | "\(.name): \(.detail)"' doctor.json
 
-# Check if a specific check passed
-jq '.checks[] | select(.id == "horizon-api") | .ok' doctor-output.json
+# Check whether a specific check passed
+jq -e '.checks[] | select(.id == "horizon") | .ok' doctor.json
 
-# Generate a summary report
-jq '{status: if .summary.requiredFailed == 0 then "PASS" else "FAIL" end, total: .summary.total, failed: .summary.failed}' doctor-output.json
-
-# Count total failures
-jq '.summary.failed' doctor-output.json
+# One-line summary
+jq -r '"\(.passed) passed, \(.failed) failed, \(.requiredFailures) required failed"' doctor.json
 ```
+
+### nextellar upgrade
+
+Upgrade an existing Nextellar project to the latest template files.
+
+```bash
+nextellar upgrade [options]
+```
+
+Run this command from the root of an existing Nextellar project. Use a dry run first to review the files that would change, then run the upgrade when you are ready to apply updates.
+
+**Options:**
+
+| Option      | Description                                         |
+| ----------- | --------------------------------------------------- |
+| `--dry-run` | Show what would change without applying the upgrade |
+| `--yes`     | Apply changes without prompting for confirmation    |
+
+**Examples:**
+
+```bash
+# Preview upgrade changes
+nextellar upgrade --dry-run
+
+# Apply the upgrade interactively
+nextellar upgrade
+
+# Apply the upgrade without prompting
+nextellar upgrade --yes
+```
+
+### nextellar deploy
+
+Validate and prepare your project for production deployment. This command checks that your Horizon and Soroban RPC endpoints are properly configured, and builds a optimized production bundle of your Stellar dApp.
+
+```bash
+nextellar deploy [options]
+```
+
+**Options:**
+
+| Option      | Description                                                                |
+| ----------- | -------------------------------------------------------------------------- |
+| `--dry-run` | Validate configuration and build process without producing a deploy bundle |
+
+**Examples:**
+
+```bash
+# Prepare project for deployment
+nextellar deploy
+
+# Run a dry-run validation without actual deployment
+nextellar deploy --dry-run
+```
+
+### nextellar telemetry
+
+Manage anonymous CLI telemetry preferences.
+
+```bash
+nextellar telemetry <action>
+```
+
+**Arguments:**
+
+| Argument | Type   | Required | Description                          |
+| -------- | ------ | -------- | ------------------------------------ |
+| `action` | string | Yes      | One of `status`, `enable`, `disable` |
+
+**Examples:**
+
+```bash
+# Check current telemetry status and config file location
+nextellar telemetry status
+
+# Opt in to anonymous telemetry
+nextellar telemetry enable
+
+# Opt out of telemetry
+nextellar telemetry disable
+```
+
+**Output:**
+
+```bash
+nextellar telemetry status
+```
+
+```bash
+Telemetry is disabled.
+Config: /Users/you/.nextellar/config.json
+```
+
+`status`, `enable`, and `disable` all read from and write to the config file path printed above (`~/.nextellar/config.json`).
+
+**Disabling telemetry for a single invocation:**
+
+Pass `--no-telemetry` to the main scaffold command:
+
+```bash
+npx nextellar my-app --no-telemetry
+```
+
+**Disabling telemetry for an environment:**
+
+Set `NEXTELLAR_TELEMETRY_DISABLED` to force telemetry off, overriding both the stored config and any missing `--no-telemetry` flag:
+
+```bash
+export NEXTELLAR_TELEMETRY_DISABLED=1
+npx nextellar my-app
+```
+
+Accepted values are `1`, `true`, `yes`, or `on` (case-insensitive).
+
+**First-run notice:**
+
+The first time you scaffold a project without `--no-telemetry` or `NEXTELLAR_TELEMETRY_DISABLED` set, the CLI prints a one-time notice explaining that anonymous usage data is collected and how to opt out. The notice is shown once and then recorded in the config file so it isn't repeated on later runs.
+
+**What is sent:**
+
+Telemetry is opt-in — no events are sent until you run `nextellar telemetry enable`. Once enabled, a single anonymous `scaffold` event is sent to the `nextellar.dev` telemetry endpoint after each scaffold, containing the template, language, network, wallets, package manager, `--with-contracts` flag, success flag, CLI version, Node version, and OS. It never includes your project name, file paths, or secrets. See the CLI repository's [`docs/telemetry.md`](https://github.com/nextellarlabs/nextellar/blob/main/docs/telemetry.md) for the full payload shape and reliability guarantees.
+
+## Project Creation Workflow
+
+When you run `nextellar my-app`, here's what happens:
+
+### Step 1: Validation
+
+- Checks if project name is valid.
+- Verifies directory doesn't already exist.
+- Validates CLI options.
+
+### Step 2: Scaffolding
+
+- Creates project directory.
+- Copies template files.
+- Substitutes configuration variables.
+- Generates package.json.
+
+### Step 3: Installation
+
+- Detects package manager (npm/yarn/pnpm).
+- Installs dependencies.
+- Verifies installation success.
+
+### Step 4: Success
+
+- Displays success message.
+- Shows next steps.
+- Provides helpful links.
+
+## Exit Codes
+
+| Code | Meaning             | Description                       |
+| ---- | ------------------- | --------------------------------- |
+| `0`  | Success             | Project created successfully      |
+| `1`  | Error               | General error (see error message) |
+| `2`  | Invalid Arguments   | Invalid command-line arguments    |
+| `3`  | Directory Exists    | Project directory already exists  |
+| `4`  | Installation Failed | Dependency installation failed    |
+
+## Command Examples
+
+### Basic Project
+
+```bash
+npx nextellar stellar-payment-app
+```
+
+Creates a project with default settings:
+
+- TypeScript enabled
+- testnet configuration
+- Default wallets (all supported)
+- Automatic dependency installation
+
+### Production Configuration
+
+```bash
+npx nextellar stellar-mainnet-app \
+  --horizon-url https://horizon.stellar.org \
+  --soroban-url https://soroban-rpc.stellar.org \
+  --package-manager pnpm
+```
+
+Creates a mainnet-ready project.
+
+### Development Setup
+
+```bash
+npx nextellar dev-app \
+  --skip-install \
+  --wallets freighter
+```
+
+Creates a project for development:
+
+- Skips installation (install manually later)
+- Only includes Freighter wallet
+
+### Custom Timeout
+
+```bash
+npx nextellar my-app --install-timeout 3600000
+```
+
+Increases installation timeout to 1 hour (useful for slow networks).
+
+## Interactive Mode
+
+Nextellar can prompt for scaffold configuration when it runs in a suitable interactive terminal.
+
+Prompts are shown when standard input and output are both TTYs, the `CI` environment variable is not set, and `--defaults` is not provided. If any of those conditions are not met, the CLI uses provided flags and default values instead.
+
+Flags still take precedence over prompts. For example, passing `--wallets`, `--horizon-url`, `--soroban-url`, `--package-manager`, or `--skip-install` keeps those values fixed and skips prompting for that setting.
+
+## Command Aliases
+
+Nextellar doesn't currently support command aliases, but you can create your own:
+
+**Bash/Zsh:**
+
+```bash
+# Add to ~/.bashrc or ~/.zshrc
+alias nxt="npx nextellar"
+
+# Usage
+nxt my-app
+```
+
+**PowerShell:**
+
+```powershell
+# Add to $PROFILE
+function nxt { npx nextellar $args }
+
+# Usage
+nxt my-app
+```
+
+## Related Documentation
+
+- [CLI Options](/docs/cli/options) - Detailed option reference
+- [Configuration](/docs/cli/configuration) - Project configuration
+- [Troubleshooting](/docs/troubleshooting/installation-issues) - Common issues
