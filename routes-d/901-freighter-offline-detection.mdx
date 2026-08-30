@@ -1,0 +1,200 @@
+---
+title: Freighter Offline Detection
+description: Detect when the Freighter wallet is offline or unresponsive — covering connection probes, request timeouts, browser connectivity events, and clear user messaging.
+date: 2026-08-25
+---
+
+# Freighter Offline Detection
+
+Freighter is a browser extension wallet, so "offline" can mean three different things: the user's device lost network access, the extension was disabled or removed, or the extension is installed but not responding to requests. A production dApp should detect all three states and tell the user what to do about each one, instead of letting a `getPublicKey()` or `signTransaction()` call hang forever.
+
+---
+
+## The Three Failure States
+
+| State | Cause | Typical symptom |
+|---|---|---|
+| Device offline | No internet connection | Horizon fetches fail alongside wallet calls |
+| Wallet unavailable | Extension disabled, removed, or not injected | `window.freighter` is undefined / API throws |
+| Wallet unresponsive | Extension loaded but stalled (background update, suspended tab) | Promise from the API never settles |
+
+Each state needs its own detection strategy and its own message.
+
+---
+
+## Detection Patterns
+
+### 1. Check that the extension is reachable
+
+The Freighter API exposes `isConnected()`, which resolves to `true` only when the extension is installed and able to respond:
+
+```typescript
+import { isConnected } from '@stellar/freighter-api';
+
+const available = await isConnected();
+if (!available) {
+  // Extension missing or disabled — prompt an install/enable flow
+}
+```
+
+### 2. Watch browser connectivity events
+
+Device-level offline state is free to observe via the browser:
+
+```typescript
+useEffect(() => {
+  const goOffline = () => setDeviceOnline(false);
+  const goOnline = () => setDeviceOnline(true);
+
+  window.addEventListener('offline', goOffline);
+  window.addEventListener('online', goOnline);
+  return () => {
+    window.removeEventListener('offline', goOffline);
+    window.removeEventListener('online', goOnline);
+  };
+}, []);
+```
+
+Also seed the initial value with `navigator.onLine` on mount.
+
+### 3. Time out wallet requests
+
+An unresponsive extension never throws — it just never resolves. Wrap every wallet call in a timeout so the UI can recover:
+
+```typescript
+function withTimeout<T>(promise: Promise<T>, ms = 10_000): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('WALLET_TIMEOUT')), ms)
+    ),
+  ]);
+}
+
+// Usage
+const publicKey = await withTimeout(getPublicKey(), 10_000);
+```
+
+### 4. Poll a lightweight health check
+
+While a session is active, poll `isConnected()` every ~30 seconds. Two consecutive failures mark the wallet as unavailable and let you downgrade the UI (disable sign buttons, show a reconnect banner).
+
+---
+
+## Minimal Example
+
+```tsx
+'use client';
+
+import { useEffect, useState } from 'react';
+import { isConnected, getPublicKey } from '@stellar/freighter-api';
+
+type WalletStatus =
+  | 'checking'
+  | 'ready'
+  | 'device-offline'
+  | 'unavailable'
+  | 'unresponsive';
+
+const REQUEST_TIMEOUT_MS = 10_000;
+
+export function useWalletStatus() {
+  const [status, setStatus] = useState<WalletStatus>('checking');
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function probe() {
+      if (!navigator.onLine) {
+        setStatus('device-offline');
+        return;
+      }
+
+      try {
+        // Race the health check against a timeout so a stalled
+        // extension cannot leave us in "checking" forever.
+        const available = await Promise.race([
+          isConnected(),
+          new Promise<never>((_, reject) =>
+            setTimeout(
+              () => reject(new Error('timeout')),
+              REQUEST_TIMEOUT_MS
+            )
+          ),
+        ]);
+
+        if (!available) throw new Error('not-installed');
+        await getPublicKey(); // confirms permission is granted
+        setStatus('ready');
+      } catch (err) {
+        if (!cancelled) {
+          setStatus(
+            err.message === 'timeout' ? 'unresponsive' : 'unavailable'
+          );
+        }
+      }
+    }
+
+    probe();
+
+    const onOffline = () => setStatus('device-offline');
+    const onOnline = () => probe();
+    window.addEventListener('offline', onOffline);
+    window.addEventListener('online', onOnline);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener('offline', onOffline);
+      window.removeEventListener('online', onOnline);
+    };
+  }, []);
+
+  return status;
+}
+```
+
+---
+
+## User Messaging
+
+Map every detected state to a short, actionable message. Name the fix, don't just describe the failure:
+
+| State | Suggested copy |
+|---|---|
+| `device-offline` | "You're offline. Check your internet connection — your wallet will reconnect automatically." |
+| `unavailable` | "We can't reach Freighter. Make sure the extension is installed and enabled, then refresh this page." |
+| `unresponsive` | "Freighter isn't responding. Try reopening the extension — your transaction wasn't submitted." |
+| Recovered (`online`) | "Connection restored. You can continue." |
+
+Guidelines:
+
+- **Never blame the user** — say "we can't reach Freighter", not "you disconnected".
+- **Preserve form state.** An offline error during signing must not clear amounts or destinations; let the user retry the same transaction.
+- **One status at a time.** If both device and wallet are unreachable, show the device message first — it's usually the root cause.
+- **Announce changes accessibly.** Render the banner in a `role="status"` region so screen readers hear transitions.
+
+```tsx
+{status !== 'ready' && status !== 'checking' && (
+  <div role="status" className="rounded-md bg-amber-50 p-3 text-sm text-amber-900">
+    {MESSAGES[status]}
+  </div>
+)}
+```
+
+---
+
+## Summary
+
+- Distinguish device offline, wallet unavailable, and wallet unresponsive — each has a different fix.
+- Use `isConnected()` as the health probe and `navigator.onLine` plus browser events for device state.
+- Always race wallet calls with a timeout (~10s); an unresponsive extension throws nothing.
+- Poll the health check while a session is active to catch mid-session failures.
+- Show one actionable message per state, keep form state intact, and announce changes via `role="status"`.
+
+---
+
+## Related
+
+- [Wallets (Freighter, Albedo, Lobstr, xBull, Hana)](/docs/integrations/wallets) - Multi-wallet integration overview
+- [useStellarWallet](/docs/hooks/use-stellar-wallet) - Standalone hook docs
+- [Common Error Messages](/docs/troubleshooting/common-error-messages) - Troubleshooting reference

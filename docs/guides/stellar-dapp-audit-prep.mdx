@@ -1,0 +1,79 @@
+---
+title: Stellar dApp Audit Preparation Tutorial
+description: How to prepare Soroban smart contracts, Next.js frontend code, and deployment artifacts for an external security audit.
+date: 2026-08-26
+---
+
+# Stellar dApp Audit Preparation Tutorial
+
+Engaging an external security firm for a smart contract and dApp audit is a vital step before mainnet deployment. Proper preparation minimizes auditor context-switching, reduces turnaround time, and ensures high audit coverage of critical attack surfaces.
+
+This tutorial outlines the artifact preparation workflow, reviewer expectations, and an audit readiness checklist for Nextellar dApps.
+
+---
+
+## 1. Artifact Preparation
+
+Before handing over your codebase to security reviewers, assemble the following core artifacts in a dedicated `audit/` folder or repository branch:
+
+| Artifact | File / Location | Description |
+| --- | --- | --- |
+| **Reproducible WASM Builds** | `target/wasm32-unknown-unknown/release/*.wasm` | Pre-compiled WASM binaries matching target commit hash |
+| **WASM Hash Verification** | `sha256sum target/.../*.wasm` | Exact SHA-256 hashes of compiled contract binaries |
+| **Architecture Specification** | `docs/architecture.md` | Threat model, actor roles, state machine, and data flow diagrams |
+| **Test Suite & Coverage** | `cargo test`, `vitest run` | Automated test suite with coverage report ($>90\%$ target) |
+| **Deployment Scripts** | `scripts/deploy.ts` / `soroban contract deploy` | Exact initialization sequence, admin keys, and parameter values |
+
+---
+
+## 2. Reviewer Expectations
+
+External security auditors expect a clean, frozen commit hash with explicit documentation around security assumptions:
+
+1. **Frozen Commit SHA**: Never push non-trivial code changes to the audited branch during an active audit engagement.
+2. **Explicit Access Control Mapping**: Document every privileged function (e.g. `require_auth()`, admin keys, upgrade authorities) and emergency pause mechanisms.
+3. **Storage Expiration & Rent Strategy**: Detail how contract instances, persistent storage keys, and temporary storage TTLs are bumped and funded.
+4. **Third-Party Integrations**: Clearly delineate external dependencies (e.g. SEP anchors, price oracles, DEX orderbooks) and explain trust assumptions.
+
+---
+
+## 3. Audit Readiness Checklist
+
+Verify your dApp against this readiness checklist before submitting your audit intake form:
+
+- [ ] **Code Freeze**: Codebase is tagged at a specific Git release or commit SHA.
+- [ ] **Clean Build**: `cargo build --target wasm32-unknown-unknown --release` compiles without warnings or errors.
+- [ ] **WASM Hash Match**: `soroban contract install` produces matching WASM hash on local testnet.
+- [ ] **Auth Verification**: All public contract methods enforce `address.require_auth()` or explicit permission checks.
+- [ ] **Integer Overflow Checks**: Math operations use checked arithmetic (`checked_add`, `checked_mul`) or Soroban `BigInt` abstractions.
+- [ ] **Storage TTL Bump**: Critical persistent storage entries include TTL extension logic (`env.storage().persistent().extend_ttl()`).
+- [ ] **Frontend Key Hygiene**: Environment variables separate public Horizon/RPC endpoints from backend admin secrets.
+- [ ] **Automated Test Coverage**: Unit tests and cross-contract integration tests pass cleanly.
+
+---
+
+## 4. Verification Workflow
+
+Run the following commands to verify audit artifact completeness locally:
+
+```bash
+# 1. Compile Soroban contracts in release mode
+cargo build --target wasm32-unknown-unknown --release
+
+# 2. Generate WASM SHA-256 hashes
+sha256sum target/wasm32-unknown-unknown/release/*.wasm > audit/wasm-hashes.txt
+
+# 3. Run full contract test suite
+cargo test --all
+
+# 4. Run frontend and SDK unit tests
+pnpm test:unit
+```
+
+---
+
+## Related Documentation
+
+- [Testing Horizon & Soroban](/docs/guides/testing-horizon-soroban) — Unit and integration test setup
+- [Cross-Contract Calls](/docs/guides/cross-contract-calls) — Auth propagation and invocation security
+- [Incident Response Runbook](/docs/guides/incident-response-runbook) — Emergency response procedures

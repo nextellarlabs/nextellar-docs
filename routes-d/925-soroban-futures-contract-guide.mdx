@@ -1,0 +1,187 @@
+---
+title: Soroban Futures Contract Guide
+description: Learn how to build a cash-settled futures contract on Stellar Soroban, covering position management, margin, and settlement.
+date: 2026-08-27
+---
+
+# Soroban Futures Contract Guide
+
+A futures contract lets a long and a short party lock in a price for an asset today, settled in cash at a future expiry based on the difference between the agreed strike price and the market price at settlement. This guide covers a simple, cash-settled, single-pair futures contract on Soroban.
+
+---
+
+## Position Management
+
+Each open position tracks the trader's address, side (long or short), notional size, entry (strike) price, and posted margin:
+
+- **Opening a position** locks in the current oracle price as the strike and transfers the trader's margin into the contract.
+- **Margin** is the collateral a trader posts to cover potential losses. This guide uses a simple fixed-margin model — a percentage of notional value, checked once at open — rather than continuous margin calls, to keep the contract's storage and logic minimal.
+- **Position size** is denominated in the quote asset (e.g. USDC) per unit of the base asset (e.g. XLM).
+
+A position is fully described by:
+
+```
+Position {
+  trader: Address
+  side: Long | Short
+  notional: i128       // size of the position, in quote asset units
+  strike_price: i128   // price at which the position was opened
+  margin: i128          // collateral posted
+  expiry: u64            // ledger timestamp the position settles at
+}
+```
+
+---
+
+## Settlement Flow
+
+1. **Open**: A trader calls `open_position` with a side, notional size, and expiry. The contract reads the current price from an oracle, records it as the strike, and pulls margin from the trader.
+2. **Hold**: The position accrues no interim payments in this simple model — profit and loss are realized entirely at settlement (no continuous funding rate).
+3. **Settle**: After `expiry`, anyone can call `settle_position(position_id)`. The contract reads the current oracle price, computes the P&L relative to the strike, and pays out:
+   - A **long** position profits when the settlement price is above the strike; a **short** position profits when it is below.
+   - P&L is capped at the trader's posted margin — this simple design does not support losses beyond the margin (no liquidation logic), so `payout = margin + pnl`, clamped to `[0, margin * 2]`.
+4. **Close**: The position is removed from storage once settled, and funds are transferred to the trader.
+
+This settle-once-at-expiry design avoids the complexity of continuous mark-to-market and liquidation engines, which are a natural next step for a production futures contract but out of scope for this guide.
+
+---
+
+## Soroban Smart Contract Sample
+
+```rust
+#![no_std]
+use soroban_sdk::{contract, contractimpl, contracttype, contracterror, Address, Env, Symbol, symbol_short};
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Side {
+    Long,
+    Short,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Position {
+    pub trader: Address,
+    pub side: Side,
+    pub notional: i128,
+    pub strike_price: i128,
+    pub margin: i128,
+    pub expiry: u64,
+    pub settled: bool,
+}
+
+#[contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[repr(u32)]
+pub enum Error {
+    InvalidNotional = 1,
+    InvalidExpiry = 2,
+    PositionNotFound = 3,
+    AlreadySettled = 4,
+    NotYetExpired = 5,
+}
+
+const MARGIN_BPS: i128 = 1000; // 10% of notional, in basis points
+
+fn position_key(id: u64) -> (Symbol, u64) {
+    (symbol_short!("POS"), id)
+}
+
+#[contract]
+pub struct FuturesContract;
+
+#[contractimpl]
+impl FuturesContract {
+    /// Opens a new position, pulling margin from the trader and recording
+    /// the current oracle price as the strike.
+    pub fn open_position(
+        env: Env,
+        trader: Address,
+        side: Side,
+        notional: i128,
+        expiry: u64,
+        current_price: i128, // supplied by an oracle client in a real deployment
+    ) -> Result<u64, Error> {
+        trader.require_auth();
+
+        if notional <= 0 {
+            return Err(Error::InvalidNotional);
+        }
+        if expiry <= env.ledger().timestamp() {
+            return Err(Error::InvalidExpiry);
+        }
+
+        let margin = (notional * MARGIN_BPS) / 10_000;
+
+        // In production: transfer `margin` from `trader` to this contract via
+        // a token client, e.g. token::Client::new(&env, &token_address)
+        //   .transfer(&trader, &env.current_contract_address(), &margin);
+
+        let id: u64 = env
+            .storage()
+            .instance()
+            .get(&symbol_short!("NEXT_ID"))
+            .unwrap_or(0);
+
+        let position = Position {
+            trader,
+            side,
+            notional,
+            strike_price: current_price,
+            margin,
+            expiry,
+            settled: false,
+        };
+
+        env.storage().persistent().set(&position_key(id), &position);
+        env.storage()
+            .instance()
+            .set(&symbol_short!("NEXT_ID"), &(id + 1));
+
+        Ok(id)
+    }
+
+    /// Settles a position after expiry, paying out margin plus/minus P&L
+    /// (clamped to [0, margin * 2]) to the trader.
+    pub fn settle_position(
+        env: Env,
+        position_id: u64,
+        settlement_price: i128, // supplied by an oracle client in a real deployment
+    ) -> Result<i128, Error> {
+        let mut position: Position = env
+            .storage()
+            .persistent()
+            .get(&position_key(position_id))
+            .ok_or(Error::PositionNotFound)?;
+
+        if position.settled {
+            return Err(Error::AlreadySettled);
+        }
+        if env.ledger().timestamp() < position.expiry {
+            return Err(Error::NotYetExpired);
+        }
+
+        let price_diff = settlement_price - position.strike_price;
+        let raw_pnl = match position.side {
+            Side::Long => (position.notional * price_diff) / position.strike_price,
+            Side::Short => (position.notional * -price_diff) / position.strike_price,
+        };
+
+        let payout = (position.margin + raw_pnl).clamp(0, position.margin * 2);
+
+        position.settled = true;
+        env.storage().persistent().set(&position_key(position_id), &position);
+
+        // In production: transfer `payout` from this contract to `position.trader`.
+
+        Ok(payout)
+    }
+}
+```
+
+---
+
+## Summary
+
+This futures contract keeps the trading model deliberately simple — a single strike price, fixed margin, and one-shot settlement at expiry — so the position lifecycle (open, hold, settle) is easy to audit. A production version would add continuous mark-to-market, liquidation thresholds, and funding payments for positions held across multiple periods.

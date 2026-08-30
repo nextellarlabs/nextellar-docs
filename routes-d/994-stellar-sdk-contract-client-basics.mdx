@@ -1,0 +1,52 @@
+---
+title: Soroban Contract Client Basics
+description: An overview of Soroban smart contract client construction and invocation patterns in @stellar/stellar-sdk.
+date: 2026-08-26
+---
+
+# Soroban Contract Client Basics
+
+The `Contract` class in `@stellar/stellar-sdk` represents a Soroban smart contract deployed on the Stellar network. It provides utilities for building invocations and parsing contract state.
+
+---
+
+## Key Methods & Properties
+
+| Component | Description |
+| --- | --- |
+| `new Contract(contractId)` | Constructs a `Contract` instance bound to a specific C... address. |
+| `contract.contractId()` | Returns the 56-character strkey string of the target contract. |
+| `contract.call(methodName, ...args)` | Prepares an `Operation.invokeContractFunction` operation for invocation. |
+| `contract.address()` | Returns the `Address` instance representing the contract's identity. |
+
+---
+
+## Usage Example
+
+### 1. Constructing a Contract Instance
+
+```typescript
+import { Contract } from '@stellar/stellar-sdk';
+
+const CONTRACT_ID = 'CAXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX';
+const contract = new Contract(CONTRACT_ID);
+
+console.log('Contract StrKey:', contract.contractId());
+```
+
+### 2. Invoking Contract Functions
+
+```typescript
+import { Contract, Operation, TransactionBuilder, Account, Address } from '@stellar/stellar-sdk';
+
+const contract = new Contract('C123...');
+const userAddress = Address.fromString('G123...');
+
+// Build operation to call a smart contract method
+const callOp = contract.call(
+  'transfer',
+  userAddress.toScVal(), // From
+  Address.fromString('G456...').toScVal(), // To
+  1000n // Amount (i128 / u64 ScVal)
+);
+```

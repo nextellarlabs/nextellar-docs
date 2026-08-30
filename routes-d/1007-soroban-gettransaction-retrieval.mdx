@@ -1,0 +1,73 @@
+---
+title: Soroban getTransaction Retrieval
+description: Guide on retrieving a Soroban transaction by hash with getTransaction, including request shape and how to handle each returned field.
+date: 2026-08-27
+---
+
+# Soroban getTransaction Retrieval
+
+`getTransaction` looks up a transaction by its hash on the Soroban RPC node. It is the call you poll after `sendTransaction` to learn whether the transaction actually landed, and it is also how you look up any past transaction once you have its hash.
+
+## Request
+
+```typescript
+import { rpc } from '@stellar/stellar-sdk';
+
+const server = new rpc.Server('https://soroban-testnet.stellar.org');
+
+const result = await server.getTransaction(
+  '3389e9f0f1a65f19736cacf544c2e825313e8447f569233bb8db39aa607c8fc'
+);
+```
+
+The only input is the 64-character hex transaction hash — the same hash returned by `sendTransaction`.
+
+## Return Field Handling
+
+| Field           | Present when                         | Meaning                                                                                                                                                                            |
+| --------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `status`        | Always                               | One of `SUCCESS`, `FAILED`, or `NOT_FOUND`.                                                                                                                                        |
+| `ledger`        | `SUCCESS` or `FAILED`                | Ledger sequence the transaction was included in.                                                                                                                                   |
+| `createdAt`     | `SUCCESS` or `FAILED`                | Unix timestamp of that ledger's close time.                                                                                                                                        |
+| `envelopeXdr`   | `SUCCESS` or `FAILED`                | The submitted transaction envelope, base64-encoded XDR.                                                                                                                            |
+| `resultXdr`     | `SUCCESS` or `FAILED`                | The transaction result, base64-encoded XDR — decode this to get the precise failure reason on `FAILED`.                                                                            |
+| `resultMetaXdr` | `SUCCESS` or `FAILED`                | Full ledger entry changes and, for contract invocations, the Soroban return value.                                                                                                 |
+| `returnValue`   | `SUCCESS`, contract invocations only | Convenience field with the contract function's return value already parsed as an `xdr.ScVal` — decode with `scValToNative` rather than digging it out of `resultMetaXdr` yourself. |
+
+`NOT_FOUND` does **not** mean the transaction failed — it means the node has no record of it yet (still propagating) or any more (expired from the node's retention window). Treat it as "keep polling until your own timeout", never as a terminal failure.
+
+## Example
+
+```typescript
+import { rpc, scValToNative } from '@stellar/stellar-sdk';
+
+async function fetchTransactionOutcome(server: rpc.Server, hash: string) {
+  const result = await server.getTransaction(hash);
+
+  switch (result.status) {
+    case 'NOT_FOUND':
+      // Not an error — the caller decides whether to keep polling.
+      return { status: 'pending' as const };
+
+    case 'FAILED':
+      return {
+        status: 'failed' as const,
+        resultXdr: result.resultXdr,
+      };
+
+    case 'SUCCESS':
+      return {
+        status: 'success' as const,
+        ledger: result.ledger,
+        returnValue: result.returnValue
+          ? scValToNative(result.returnValue)
+          : undefined,
+      };
+  }
+}
+```
+
+## Related docs
+
+- [Add a guide on Soroban getLatestLedger polling](/docs/guides/soroban-getlatestledger-polling) — bounding how long you keep calling `getTransaction` for.
+- [Soroban sendTransaction Status Polling](/docs/guides/soroban-sendtransaction-status-polling) — the full submit → poll → confirm flow this call is part of.

@@ -1,0 +1,58 @@
+---
+title: Stellar SDK Keypair Helpers
+description: A quick reference guide on keypair generation, parsing, and key management helpers in @stellar/stellar-sdk.
+date: 2026-08-26
+---
+
+# Stellar SDK Keypair Helpers
+
+The `Keypair` class in `@stellar/stellar-sdk` represents a Stellar account's public and secret keys. It provides helper static methods for keypair creation, key extraction, and signing.
+
+---
+
+## Common Helpers Summary
+
+| Helper Method | Description |
+| --- | --- |
+| `Keypair.random()` | Generates a new randomly generated cryptographic keypair. |
+| `Keypair.fromSecret(secretKey)` | Reconstructs a `Keypair` object from an encoded secret key string (`S...`). |
+| `Keypair.fromPublicKey(publicKey)` | Creates a public-only `Keypair` object from an encoded public key string (`G...`). |
+| `keypair.publicKey()` | Returns the encoded public key address string (`G...`). |
+| `keypair.secret()` | Returns the encoded secret seed string (`S...`). Throws if secret is missing. |
+
+---
+
+## Code Examples
+
+### 1. Generating a Random Keypair
+
+```typescript
+import { Keypair } from '@stellar/stellar-sdk';
+
+const pair = Keypair.random();
+console.log('Public Key:', pair.publicKey()); // G...
+console.log('Secret Key:', pair.secret());    // S...
+```
+
+### 2. Loading Keypair from Secret Key
+
+```typescript
+import { Keypair } from '@stellar/stellar-sdk';
+
+const secret = 'SXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX';
+const pair = Keypair.fromSecret(secret);
+
+console.log('Restored Public Key:', pair.publicKey());
+```
+
+### 3. Creating Public-Only Keypair for Verification
+
+```typescript
+import { Keypair } from '@stellar/stellar-sdk';
+
+const pubKey = 'GXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX';
+const publicPair = Keypair.fromPublicKey(pubKey);
+
+// Can verify signatures without holding the private key
+const isValid = publicPair.verify(dataBuffer, signatureBuffer);
+```

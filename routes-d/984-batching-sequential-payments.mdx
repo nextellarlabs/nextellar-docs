@@ -1,0 +1,70 @@
+---
+title: Batching Sequential Payments
+description: A guide on grouping multiple sequential payment operations into a single Stellar transaction, covering the operation count limit, fee choice, and a worked example.
+date: 2026-08-27
+---
+
+# Batching Sequential Payments
+
+When you need to send several payments in a row — for example, paying out a batch of recipients — you can pack multiple `payment` operations into a single transaction instead of submitting one transaction per payment. They share one sequence number and one base fee, and either all of them apply or none do.
+
+## Operation Count Limit
+
+A single Stellar transaction can hold **up to 100 operations**. For a pure payment batch, that means up to 100 `payment` operations in one envelope. If you have more recipients than that, split them across multiple transactions, each using the next sequence number.
+
+## Choosing the Fee
+
+The `fee` passed to `TransactionBuilder` is a **per-operation** rate, not a flat total. The transaction's total fee is `fee × number of operations`, so a batch of payments costs more in total than a single payment at the same rate:
+
+```typescript
+// 50 payment operations at 100 stroops each = 5,000 stroops total
+const tx = new TransactionBuilder(sourceAccount, {
+  fee: '100',
+  networkPassphrase: Networks.TESTNET,
+});
+```
+
+Use `server.fetchBaseFee()` (or a fee-bump-aware estimate) rather than hardcoding `BASE_FEE` when the network is congested, since an underpriced batch is more likely to be skipped by validators under load.
+
+## Example
+
+```typescript
+import {
+  TransactionBuilder,
+  Operation,
+  Asset,
+  Networks,
+  BASE_FEE,
+} from '@stellar/stellar-sdk';
+
+async function batchPayments(
+  server: Horizon.Server,
+  senderKeypair: Keypair,
+  recipients: { destination: string; amount: string }[]
+) {
+  const sourceAccount = await server.loadAccount(senderKeypair.publicKey());
+
+  const builder = new TransactionBuilder(sourceAccount, {
+    fee: BASE_FEE,
+    networkPassphrase: Networks.TESTNET,
+  });
+
+  for (const { destination, amount } of recipients) {
+    builder.addOperation(
+      Operation.payment({
+        destination,
+        asset: Asset.native(),
+        amount,
+      })
+    );
+  }
+
+  const tx = builder.setTimeout(30).build();
+  tx.sign(senderKeypair);
+
+  const result = await server.submitTransaction(tx);
+  return result;
+}
+```
+
+One sequence number, one base fee multiplied by the recipient count, and every payment either lands together or the whole batch is rejected. For batching payments alongside other operation types (trustlines, Soroban invocations), see [Transaction Batching](/docs/guides/transaction-batching).

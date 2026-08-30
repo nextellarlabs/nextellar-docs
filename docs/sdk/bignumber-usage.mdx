@@ -1,0 +1,68 @@
+---
+title: Stellar SDK BigNumber Usage
+description: Understanding BigNumber representation in @stellar/stellar-sdk, key fields, and conversion helpers.
+date: 2026-08-26
+---
+
+# Stellar SDK BigNumber Usage
+
+The `@stellar/stellar-sdk` relies on `BigNumber.js` to preserve mathematical precision across token balances, order amounts, and price ratios.
+
+---
+
+## Why BigNumber is Used
+
+1. **64-bit Integer Precision**: Stellar ledger amounts are stored as 64-bit signed integers (stroops: 1 XLM = $10^7$ stroops). Native JavaScript `Number` types use 64-bit floating point (IEEE 754) and lose precision above $2^{53} - 1$ ($9,007,199,254,740,991$).
+2. **Fixed-Point Decimal Arithmetic**: Token operations and orderbook calculations require exact decimal math without floating-point rounding errors (e.g. `0.1 + 0.2 !== 0.3`).
+3. **Price Ratios**: DEX offer prices are represented as rational fractions ($n/d$) which require precise ratio calculations.
+
+---
+
+## Fields Using BigNumber
+
+The SDK utilizes `BigNumber` across several core types and Horizon response objects:
+
+| Area | Field / Type | Description |
+| --- | --- | --- |
+| **Operation Amounts** | `Operation.payment({ amount })` | High-precision token/XLM transfer amounts |
+| **DEX Offers** | `Price.n`, `Price.d`, `price` | Price numerator, denominator, and computed ratio |
+| **Orderbook Amounts** | `OfferRecord.amount`, `buying.amount` | Order amounts and liquidity depth values |
+| **Soroban Numbers** | `i128`, `u128`, `i256`, `u256` | Large contract integer parameters and return values |
+
+---
+
+## Recommended Conversion Helpers
+
+Convert between `BigNumber`, strings, XLM/stroops, and native `BigInt` safely:
+
+```typescript
+import BigNumber from 'bignumber.js';
+
+// 1. Convert XLM string to Stroops (integer representation)
+export function xlmToStroops(xlmAmount: string): string {
+  return new BigNumber(xlmAmount).times(1e7).toFixed(0);
+}
+
+// 2. Convert Stroops to XLM string (7 decimal places)
+export function stroopsToXlm(stroops: string | number): string {
+  return new BigNumber(stroops).dividedBy(1e7).toFixed(7);
+}
+
+// 3. Safe conversion to native BigInt
+export function toBigInt(bn: BigNumber): bigint {
+  return BigInt(bn.toFixed(0));
+}
+
+// 4. Formatting for UI display
+export function formatBalance(amount: string, decimals = 4): string {
+  return new BigNumber(amount).toFormat(decimals);
+}
+```
+
+---
+
+## Related Documentation
+
+- [SDK Overview](/docs/sdk/overview) — Overview of Nextellar SDK architecture
+- [API Reference](/docs/sdk/api-reference) — Types and client reference
+- [Stellar SDK Error Class Hierarchy](/docs/sdk/error-class-hierarchy) — Error hierarchy reference

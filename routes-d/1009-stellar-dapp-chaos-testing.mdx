@@ -1,0 +1,156 @@
+---
+title: Stellar dApp Chaos Testing Tutorial
+description: An end-to-end tutorial for chaos testing a Stellar dApp — injecting failures at the Horizon and Soroban RPC boundary, verifying recovery, and a runnable sample.
+date: 2026-08-27
+---
+
+# Stellar dApp Chaos Testing Tutorial
+
+Chaos testing deliberately breaks the dependencies your dApp relies on — Horizon, Soroban RPC, the user's wallet — while it is running, so you find out how it behaves under failure before your users do. This tutorial builds a small chaos harness on top of MSW (already used for [Testing Horizon and Soroban Interactions](/docs/guides/testing-horizon-soroban)) and walks through what "correct" recovery looks like for each failure.
+
+---
+
+## Failure Injection Points
+
+A Stellar dApp has a small number of network boundaries worth attacking. Each maps to a specific class of real-world incident:
+
+| Injection point                                                  | Simulates                                    | Where to inject it                                             |
+| ---------------------------------------------------------------- | -------------------------------------------- | -------------------------------------------------------------- |
+| Horizon request hangs or times out                               | Horizon under load, regional outage          | MSW handler delays the response past your client timeout       |
+| Horizon returns 5xx / malformed JSON                             | Horizon deploy, bad upstream state           | MSW handler returns a non-2xx status or truncated body         |
+| Soroban RPC `sendTransaction` returns `TRY_AGAIN_LATER`          | RPC node submission queue full               | MSW handler for the RPC method                                 |
+| Soroban RPC `getTransaction` stays `NOT_FOUND` past your timeout | Ledger congestion, dropped transaction       | MSW handler always returns `NOT_FOUND`                         |
+| Wallet extension disconnects mid-flow                            | User closes Freighter, browser crash/restore | Mock the wallet hook's `signTransaction` to reject             |
+| Network switch (mainnet ↔ testnet) while a request is in flight  | User changes wallet network manually         | Change the mocked `networkPassphrase` after the request starts |
+
+Only inject at the boundary — the actual XDR encode/decode and signing logic should run unmodified so a chaos test still exercises real parsing code, not a stub of it.
+
+## Recovery Expectations
+
+Define what "handled correctly" means for each injection point before you start asserting on it:
+
+- **Timeouts** — the request aborts at your configured client timeout, not the OS default; the UI shows a retry affordance instead of hanging indefinitely.
+- **5xx / malformed responses** — the error is caught and surfaced as a user-facing message; it never reaches the UI as an unhandled promise rejection or a raw stack trace.
+- **`TRY_AGAIN_LATER`** — the same signed envelope is resubmitted with backoff, per [Soroban sendTransaction Status Polling](/docs/guides/soroban-sendtransaction-status-polling); the transaction is never silently dropped.
+- **`getTransaction` stuck at `NOT_FOUND`** — the polling loop stops at its ledger-based timeout (see [Soroban getLatestLedger Polling](/docs/guides/soroban-getlatestledger-polling)) and reports "expired," not an infinite spinner.
+- **Wallet disconnect mid-flow** — any in-progress submission is cancelled cleanly; the UI returns to a "reconnect wallet" state rather than retrying with a stale session.
+- **Network switch mid-flight** — the in-flight request either completes against the network it started on or is rejected and re-initiated; results are never attributed to the wrong network.
+
+## Working Sample
+
+```typescript
+// tests/chaos/horizon-timeout.test.ts
+import { http, HttpResponse, delay } from 'msw';
+import { setupServer } from 'msw/node';
+import { renderHook, waitFor } from '@testing-library/react';
+import { useStellarWallet } from '@/hooks/useStellarWallet';
+
+const HORIZON = 'https://horizon-testnet.stellar.org';
+const CLIENT_TIMEOUT_MS = 5000;
+
+const server = setupServer(
+  http.get(`${HORIZON}/accounts/:id`, async () => {
+    // Hang well past the client's own timeout.
+    await delay(CLIENT_TIMEOUT_MS + 2000);
+    return HttpResponse.json({ id: 'unreachable' });
+  })
+);
+
+beforeAll(() => server.listen({ onUnhandledRequest: 'warn' }));
+afterEach(() => server.resetHandlers());
+afterAll(() => server.close());
+
+describe('Horizon timeout', () => {
+  it('surfaces a timeout error instead of hanging', async () => {
+    const { result } = renderHook(() =>
+      useStellarWallet(HORIZON, 'Test SDF Network ; September 2015', {
+        timeoutMs: CLIENT_TIMEOUT_MS,
+      })
+    );
+
+    await waitFor(
+      () => {
+        expect(result.current.error).toMatch(/timed out/i);
+      },
+      { timeout: CLIENT_TIMEOUT_MS + 1000 }
+    );
+
+    // The hook must not still be loading once the timeout has fired.
+    expect(result.current.loading).toBe(false);
+  });
+});
+```
+
+```typescript
+// tests/chaos/rpc-try-again-later.test.ts
+import { http, HttpResponse } from 'msw';
+import { setupServer } from 'msw/node';
+
+const SOROBAN_RPC = 'https://soroban-testnet.stellar.org';
+
+let attempt = 0;
+
+const server = setupServer(
+  http.post(SOROBAN_RPC, async ({ request }) => {
+    const body = (await request.json()) as { method: string };
+    if (body.method !== 'sendTransaction') {
+      return HttpResponse.json({
+        jsonrpc: '2.0',
+        id: 1,
+        error: { code: -32601, message: 'unhandled' },
+      });
+    }
+
+    attempt += 1;
+    // Fail the queue twice, then accept — verifies the retry loop actually retries.
+    if (attempt < 3) {
+      return HttpResponse.json({
+        jsonrpc: '2.0',
+        id: 1,
+        result: { status: 'TRY_AGAIN_LATER' },
+      });
+    }
+    return HttpResponse.json({
+      jsonrpc: '2.0',
+      id: 1,
+      result: { status: 'PENDING', hash: 'aabbcc' },
+    });
+  })
+);
+
+beforeAll(() => server.listen());
+afterEach(() => {
+  server.resetHandlers();
+  attempt = 0;
+});
+afterAll(() => server.close());
+
+describe('sendTransaction TRY_AGAIN_LATER', () => {
+  it('resubmits the same envelope until the node accepts it', async () => {
+    // ... call the submit-with-retry helper from
+    // /docs/guides/soroban-sendtransaction-status-polling and assert
+    // it made exactly 3 attempts before resolving PENDING.
+  });
+});
+```
+
+Run the chaos suite on its own so a flaky failure-injection test never blocks the main unit run:
+
+```bash
+pnpm vitest run tests/chaos
+```
+
+## Verifying the Tutorial
+
+Before treating a chaos test as done:
+
+- Confirm the test fails (red) when you temporarily remove the recovery code it targets — a chaos test that passes against broken recovery code is testing nothing.
+- Run the full chaos suite at least twice locally; MSW's `delay()`-based tests are timing-sensitive and should not be flaky.
+- Keep chaos tests in their own directory (`tests/chaos/`) and out of the default `pnpm test:unit` run, the same way [Testing Horizon and Soroban Interactions](/docs/guides/testing-horizon-soroban) isolates Docker-based integration tests.
+
+## Related docs
+
+- [Testing Horizon and Soroban Interactions](/docs/guides/testing-horizon-soroban) — the MSW setup this tutorial builds on.
+- [Soroban sendTransaction Status Polling](/docs/guides/soroban-sendtransaction-status-polling) — the retry/backoff behavior the `TRY_AGAIN_LATER` sample verifies.
+- [Soroban getLatestLedger Polling](/docs/guides/soroban-getlatestledger-polling) — the ledger-based timeout the stuck-`NOT_FOUND` sample verifies.
+- [dApp Denial of Service Hardening](/docs/guides/dapp-dos-hardening) — hardening measures that chaos tests are a good way to validate.

@@ -47,12 +47,13 @@ nextellar my-app --package-manager pnpm
 # Skip installation
 nextellar my-app --skip-install
 
-# Full customization
+# Full customization (with custom wallet selection)
 nextellar my-app \
   --package-manager yarn \
   --horizon-url https://horizon.stellar.org \
   --wallets freighter,xbull \
   --skip-install
+# Note: freighter,xbull is a custom wallet selection. See [Wallet Configuration](/docs/cli/flags#wallet-configuration-wallets) for defaults and options.
 ```
 
 ### Overwriting an existing directory

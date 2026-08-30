@@ -1,0 +1,67 @@
+---
+title: Previewing a Soroban Invocation
+description: How to preview a Soroban contract invocation with simulateTransaction before signing and submitting it, and how to read the returned resource budget.
+date: 2026-08-27
+---
+
+# Previewing a Soroban Invocation
+
+Before signing and submitting a Soroban contract invocation, simulate it against RPC first. Simulation tells you whether the call would succeed, what it would return, and what it would cost — without spending a fee or consuming a sequence number.
+
+## 1. Build the unsigned transaction
+
+Assemble the invocation as you normally would, with a placeholder fee and no footprint yet — simulation fills both in:
+
+```typescript
+import { Contract, TransactionBuilder, Networks, BASE_FEE } from '@stellar/stellar-sdk';
+
+const contract = new Contract(contractId);
+
+const tx = new TransactionBuilder(sourceAccount, {
+  fee: BASE_FEE,
+  networkPassphrase: Networks.TESTNET,
+})
+  .addOperation(contract.call('transfer', ...args))
+  .setTimeout(30)
+  .build();
+```
+
+## 2. Simulate
+
+Pass the built transaction to `simulateTransaction`. This runs the invocation against the current ledger state and returns the result, required authorizations, and resource costs:
+
+```typescript
+const simulation = await rpcServer.simulateTransaction(tx);
+
+if (rpc.Api.isSimulationError(simulation)) {
+  throw new Error(`Simulation failed: ${simulation.error}`);
+}
+```
+
+## 3. Read the resource budget
+
+The simulation response's `cost` field reports the instructions and memory the invocation consumed, and `minResourceFee` reports the fee needed to cover it:
+
+```typescript
+console.log('CPU instructions used:', simulation.cost.cpuInsns);
+console.log('Memory bytes used:', simulation.cost.memBytes);
+console.log('Minimum resource fee (stroops):', simulation.minResourceFee);
+```
+
+Compare `cost.cpuInsns` against your network's instruction limit before submitting — a simulation that passes but sits close to the limit is worth flagging to the user, since a slightly different ledger state at submission time could push it over.
+
+## 4. Assemble and sign
+
+Apply the simulation's footprint and fee to the transaction with `rpc.assembleTransaction`, then sign the result — not the original unsimulated transaction:
+
+```typescript
+const preparedTx = rpc.assembleTransaction(tx, simulation).build();
+
+preparedTx.sign(sourceKeypair);
+
+const result = await rpcServer.sendTransaction(preparedTx);
+```
+
+Submitting the pre-simulation transaction instead of the assembled one will fail, since it carries no footprint or resource fee.
+
+See [Soroban Simulation Output Fields](/routes-d/986-soroban-simulation-output-fields) for the full set of fields the simulation response returns.

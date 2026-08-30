@@ -1,0 +1,228 @@
+---
+title: Stellar dApp Status Page Tutorial
+description: 'Build a status page that monitors Horizon, Soroban RPC, and your smart contract so users always know what is working.'
+date: 2026-08-26
+---
+
+# Stellar dApp Status Page Tutorial
+
+A status page gives your users a single URL to check when something feels wrong. For a Stellar dApp this is especially important because your product depends on services you do not control — Horizon, the Soroban RPC node, and the Stellar network itself. A user who gets a blank screen cannot tell whether their wallet extension has crashed, your frontend is down, or Horizon is having an incident. A status page removes that ambiguity.
+
+## What You Need to Monitor
+
+| Signal | What it tells you |
+|--------|-------------------|
+| Horizon `/health` | The Horizon server your frontend queries is reachable and healthy |
+| Soroban RPC `/health` | The Soroban RPC node can accept smart contract calls |
+| Smart contract reachability | A lightweight simulation call to your deployed contract returns a valid response |
+| Your own backend (if any) | Your API layer is up and accepting requests |
+
+## Uptime Signals in Detail
+
+### Horizon health
+
+Horizon exposes a `/health` endpoint that returns `{"status":"healthy"}` when the server is operating normally. Poll this endpoint from your status-page API route rather than from the browser so you do not expose your internal endpoint URLs to end-users.
+
+```bash
+GET https://horizon.stellar.org/health
+# → {"status":"healthy"}
+```
+
+A non-`healthy` response or a network error means Horizon is degraded. When this signal is red, users cannot load account balances or submit transactions.
+
+### Soroban RPC health
+
+Soroban RPC also provides a health check:
+
+```bash
+POST https://soroban-testnet.stellar.org
+Content-Type: application/json
+
+{"jsonrpc":"2.0","id":1,"method":"getHealth"}
+# → {"jsonrpc":"2.0","id":1,"result":{"status":"healthy"}}
+```
+
+When the Soroban RPC is unhealthy, smart contract calls fail. Users who try to interact with your contract will see errors.
+
+### Smart contract reachability
+
+A health check that only pings the RPC node does not guarantee your specific contract is reachable. Add a lightweight `simulateTransaction` call that invokes a read-only method on your contract (for example, a getter that returns a constant). If the simulation succeeds, your contract is reachable.
+
+### Your backend
+
+If you run your own API (for off-chain data, notifications, or indexing), add a simple `GET /health` endpoint and include it in your status page.
+
+## Maintenance Windows
+
+Communicate planned downtime before it happens, not during it.
+
+### Before the window
+
+1. Post on your announcement channels (Discord, Twitter/X, email list) at least 48 hours in advance.
+2. Add a dismissible banner to your UI that appears 24 hours before the window.
+3. Update your status page with a scheduled maintenance entry.
+
+### Stellar protocol upgrades
+
+Stellar Core validators periodically vote on protocol upgrades. Upgrades are announced in the [Stellar Developer Newsletter](https://stellar.org/developers) and on the `#protocol-upgrades` channel in the Stellar Developer Discord. Subscribe and watch for votes that may temporarily affect Horizon or contract behaviour.
+
+### After the window
+
+Post a resolution update on your status page and remove the UI banner. A short incident report (even one paragraph) builds user trust.
+
+## Working Sample
+
+The following example builds a minimal status page as a Next.js API route and a React component. Add these files to your Nextellar project:
+
+### API route — `app/api/status/route.ts`
+
+```ts
+import { NextResponse } from 'next/server';
+
+const HORIZON_URL = process.env.NEXT_PUBLIC_HORIZON_URL ?? 'https://horizon.stellar.org';
+const SOROBAN_URL = process.env.NEXT_PUBLIC_SOROBAN_RPC ?? 'https://soroban-testnet.stellar.org';
+
+type SignalStatus = 'healthy' | 'degraded' | 'down';
+
+async function checkHorizon(): Promise<SignalStatus> {
+  try {
+    const res = await fetch(`${HORIZON_URL}/health`, { next: { revalidate: 0 } });
+    const json = await res.json();
+    return json?.status === 'healthy' ? 'healthy' : 'degraded';
+  } catch {
+    return 'down';
+  }
+}
+
+async function checkSorobanRpc(): Promise<SignalStatus> {
+  try {
+    const res = await fetch(SOROBAN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getHealth' }),
+      next: { revalidate: 0 },
+    });
+    const json = await res.json();
+    return json?.result?.status === 'healthy' ? 'healthy' : 'degraded';
+  } catch {
+    return 'down';
+  }
+}
+
+export async function GET() {
+  const [horizon, soroban] = await Promise.all([checkHorizon(), checkSorobanRpc()]);
+
+  const overall: SignalStatus =
+    horizon === 'healthy' && soroban === 'healthy'
+      ? 'healthy'
+      : horizon === 'down' || soroban === 'down'
+        ? 'down'
+        : 'degraded';
+
+  return NextResponse.json({
+    overall,
+    signals: { horizon, soroban },
+    checkedAt: new Date().toISOString(),
+  });
+}
+```
+
+### Status component — `components/StatusBadge.tsx`
+
+```tsx
+'use client';
+
+import { useEffect, useState } from 'react';
+
+type SignalStatus = 'healthy' | 'degraded' | 'down' | 'loading';
+
+interface StatusResponse {
+  overall: SignalStatus;
+  signals: { horizon: SignalStatus; soroban: SignalStatus };
+  checkedAt: string;
+}
+
+const COLOUR: Record<SignalStatus, string> = {
+  healthy: 'bg-green-500',
+  degraded: 'bg-yellow-400',
+  down: 'bg-red-500',
+  loading: 'bg-gray-300',
+};
+
+const LABEL: Record<SignalStatus, string> = {
+  healthy: 'All systems operational',
+  degraded: 'Partial degradation',
+  down: 'Service disruption',
+  loading: 'Checking…',
+};
+
+export function StatusBadge() {
+  const [status, setStatus] = useState<StatusResponse | null>(null);
+
+  useEffect(() => {
+    fetch('/api/status')
+      .then((r) => r.json())
+      .then(setStatus)
+      .catch(() => null);
+  }, []);
+
+  const overall: SignalStatus = status?.overall ?? 'loading';
+
+  return (
+    <a href="/status" className="flex items-center gap-2 text-sm">
+      <span className={`h-2.5 w-2.5 rounded-full ${COLOUR[overall]}`} />
+      <span>{LABEL[overall]}</span>
+    </a>
+  );
+}
+```
+
+### Status page — `app/status/page.tsx`
+
+```tsx
+import { StatusBadge } from '@/components/StatusBadge';
+
+export default function StatusPage() {
+  return (
+    <main className="mx-auto max-w-xl px-4 py-16">
+      <h1 className="mb-6 text-2xl font-bold">System Status</h1>
+      <StatusBadge />
+      <p className="mt-4 text-sm text-gray-500">
+        Status refreshes automatically every 60 seconds.
+      </p>
+    </main>
+  );
+}
+```
+
+## Maintenance Window Banner
+
+Add this component to your root layout so users see it before a planned outage:
+
+```tsx
+// components/MaintenanceBanner.tsx
+const MAINTENANCE_END = process.env.NEXT_PUBLIC_MAINTENANCE_END; // ISO string or empty
+
+export function MaintenanceBanner() {
+  if (!MAINTENANCE_END) return null;
+  const end = new Date(MAINTENANCE_END);
+  if (end < new Date()) return null; // window has passed
+
+  return (
+    <div className="bg-yellow-100 px-4 py-2 text-center text-sm text-yellow-800">
+      Scheduled maintenance on{' '}
+      {end.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}. Some features
+      may be temporarily unavailable.
+    </div>
+  );
+}
+```
+
+Set `NEXT_PUBLIC_MAINTENANCE_END` in your environment variables to activate the banner. Remove or clear it after the window closes.
+
+## Next Steps
+
+- Wire your status page URL into your app's footer using `StatusBadge`.
+- Subscribe to the [Stellar Developer Newsletter](https://stellar.org/developers) for advance notice of protocol upgrades.
+- Consider a hosted status page service (Statuspage, Instatus) if you want incident history and subscriber notifications without building them yourself.
+- See the [Deployment guide](/docs/guides/deployment) for production environment variable configuration.

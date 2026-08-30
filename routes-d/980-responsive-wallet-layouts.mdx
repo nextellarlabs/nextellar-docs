@@ -1,0 +1,69 @@
+---
+title: Responsive Wallet Layouts
+description: Design patterns and breakpoint guidelines for building responsive web wallet user interfaces.
+date: 2026-08-26
+---
+
+# Responsive Wallet Layouts
+
+Stellar dApp interfaces require adaptive responsive layouts to support seamless interactions across mobile devices, tablets, and desktop displays.
+
+---
+
+## Standard Breakpoints & Layout Adaptations
+
+| Device Class | Breakpoint Range | Navigation & Layout Strategy |
+| --- | --- | --- |
+| **Mobile** | `< 640px` | Bottom navigation bar or collapsible slide-out drawer. Single-column card stack. Sticky action drawer. |
+| **Tablet** | `640px - 1024px` | Collapsible sidebar. Two-column balance and transaction feed grid. |
+| **Desktop** | `> 1024px` | Expanded permanent sidebar navigation. Multi-column dashboard with side-by-side asset list & activity feed. |
+
+---
+
+## Navigation & Action Bar Adaptations
+
+1. **Sticky Bottom Action Bar on Mobile**: Primary transaction triggers (e.g. "Send", "Swap", "Receive") anchor to the screen bottom for thumb accessibility.
+2. **Flexible Cards**: Account balances collapse into tabbed cards on small viewports and expand to side-by-side metric tiles on desktop.
+
+---
+
+## Code Example
+
+```tsx
+import React from 'react';
+
+export const ResponsiveWalletContainer: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  return (
+    <div className="wallet-layout-grid">
+      <aside className="wallet-sidebar">
+        {/* Navigation links */}
+      </aside>
+      <main className="wallet-main-content">
+        {children}
+      </main>
+      <div className="mobile-bottom-nav">
+        <button>Overview</button>
+        <button>Send</button>
+        <button>Swap</button>
+      </div>
+    </div>
+  );
+};
+```
+
+```css
+.wallet-layout-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  min-height: 100vh;
+}
+
+@media (min-width: 1024px) {
+  .wallet-layout-grid {
+    grid-template-columns: 240px 1fr;
+  }
+  .mobile-bottom-nav {
+    display: none;
+  }
+}
+```

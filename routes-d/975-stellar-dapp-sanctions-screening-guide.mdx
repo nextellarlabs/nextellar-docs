@@ -1,0 +1,88 @@
+---
+title: Stellar dApp Sanctions Screening Guide
+description: A practical guide to sanctions list sources, wallet matching, review queues, and screening examples for Stellar dApps.
+date: 2026-08-29
+---
+
+# Stellar dApp Sanctions Screening Guide
+
+Sanctions screening helps a Stellar dApp identify users, wallets, issuers, anchors, or destinations that may require blocking, review, or escalation before funds move. The screening design should be explicit about sources, matching logic, false-positive review, and what happens when a match is confirmed.
+
+<Note type="warning">
+  Sanctions obligations depend on jurisdiction and product design. Treat this guide as an engineering pattern and confirm policy choices with compliance counsel.
+</Note>
+
+## Screening Sources
+
+Use authoritative and auditable sources. At minimum, document who owns each source, how often it refreshes, and whether it covers names, entities, wallet addresses, issuers, countries, or vessels.
+
+| Source type | Example coverage | Refresh expectation |
+| --- | --- | --- |
+| Government sanctions lists | Individuals, entities, regions | Daily or provider-managed |
+| Blockchain intelligence provider | Wallet clusters and exposure | Provider-managed webhook or API |
+| Internal denylist | Confirmed abuse or policy blocks | Immediate on analyst decision |
+| Issuer and anchor registry | Asset issuers and off-ramp partners | At deployment and scheduled review |
+
+Store source metadata with each screening result so reviewers know which list produced the match.
+
+## Match And Review
+
+Screening usually has two phases: deterministic matching for wallet addresses and fuzzy matching for off-chain identity fields. Wallet matches can be exact; name matches need a review queue because false positives are common.
+
+```ts
+type ScreeningMatch = {
+  subjectId: string;
+  subjectType: "user" | "wallet" | "issuer" | "anchor";
+  source: string;
+  matchedValue: string;
+  confidence: "exact" | "strong" | "possible";
+  action: "allow" | "review" | "block";
+  checkedAt: string;
+};
+```
+
+Never rely on frontend-only screening. Run checks on the server before account activation, deposit crediting, withdrawal submission, issuer onboarding, and contract actions that can move value.
+
+## Screening Example
+
+```ts
+export function decideScreeningAction(match: ScreeningMatch | null) {
+  if (!match) return "allow";
+
+  if (match.confidence === "exact") {
+    return "block";
+  }
+
+  if (match.confidence === "strong" || match.confidence === "possible") {
+    return "review";
+  }
+
+  return "allow";
+}
+```
+
+Use `review` when the system needs a human decision before funds move. Use `block` only for confirmed matches or policy rules that require immediate denial.
+
+## Where To Screen
+
+| Product event | Screening target |
+| --- | --- |
+| Account registration | User profile and connected wallet |
+| Wallet connection | Public key and known cluster metadata |
+| Deposit crediting | Source account and asset issuer |
+| Withdrawal creation | Destination account and memo requirements |
+| Anchor integration | Anchor domain and issuing account |
+| Contract invocation | Invoker, contract ID, and destination where applicable |
+
+## Audit Trail
+
+Each decision should record the input hash, matched source, action, reviewer, reason, and timestamp. Avoid storing sensitive raw identity data in ordinary application logs. Keep enough evidence to explain the decision during review without spreading personal data across unrelated systems.
+
+## Operations Checklist
+
+- Define screening sources and refresh cadence.
+- Screen users, wallets, issuers, anchors, and withdrawal destinations.
+- Separate exact wallet matches from fuzzy identity matches.
+- Route possible matches to a review queue.
+- Log decisions with source metadata and reviewer notes.
+- Re-screen active users when source lists update.

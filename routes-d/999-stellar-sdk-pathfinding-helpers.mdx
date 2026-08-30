@@ -1,0 +1,53 @@
+---
+title: stellar-sdk Pathfinding Helpers
+description: A guide on the Horizon.Server pathfinding helpers in @stellar/stellar-sdk for discovering path payment routes, including their limits and a usage example.
+date: 2026-08-27
+---
+
+# stellar-sdk Pathfinding Helpers
+
+`@stellar/stellar-sdk` exposes two `Horizon.Server` methods that wrap Horizon's path-finding endpoints. They return candidate routes for a path payment without requiring you to build or submit a transaction first.
+
+## Helper Methods
+
+| Method | Horizon endpoint | You fix... | Use to discover... |
+| --- | --- | --- | --- |
+| `server.strictSendPaths(sourceAsset, sourceAmount, destinationAssets)` | `GET /paths/strict-send` | Exact amount you send | The minimum the recipient could receive for each destination asset |
+| `server.strictReceivePaths(destinationAssets, destinationAmount, sourceAssets)` | `GET /paths/strict-receive` | Exact amount the recipient gets | The source assets/amounts that could fund that payment |
+
+Both methods return a `CallBuilder` — call `.call()` to execute the request, or `.limit(n)` to cap the number of candidate paths returned before calling.
+
+## Pathfinding Limits
+
+- A returned path can include **at most 5 intermediate assets**, matching the maximum path length enforced by `PathPaymentStrictSend`/`PathPaymentStrictReceive` operations on the network.
+- Horizon returns a bounded number of candidate routes per request (a handful by default); use `.limit(n)` to request more, up to Horizon's own page-size cap.
+- Pathfinding only considers order book offers and liquidity pools that exist at the time of the request — routes can become stale by the time you submit a payment, so re-query immediately before building the transaction for time-sensitive payments.
+- The source/destination asset lists only accept assets Horizon already knows about (i.e. assets with at least one trustline); unknown assets return no paths rather than an error.
+
+## Example
+
+```typescript
+import { Asset, Horizon } from '@stellar/stellar-sdk';
+
+const server = new Horizon.Server('https://horizon-testnet.stellar.org');
+
+const USDC = new Asset(
+  'USDC',
+  'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN'
+);
+
+// "I'm sending exactly 100 USDC — what could the recipient receive in XLM?"
+const paths = await server
+  .strictSendPaths(USDC, '100', [Asset.native()])
+  .limit(5)
+  .call();
+
+for (const path of paths.records) {
+  console.log(
+    `${path.source_amount} ${path.source_asset_code ?? 'XLM'} -> ` +
+      `${path.destination_amount} ${path.destination_asset_code ?? 'XLM'}`
+  );
+}
+```
+
+Each record describes one candidate route, including the intermediate `path` array of assets the payment would hop through. See [Path Payment Cost Analysis](/routes-d/913-path-payment-cost-analysis) for how to compare candidate routes once you have them.

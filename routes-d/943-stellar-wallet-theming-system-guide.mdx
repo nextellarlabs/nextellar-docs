@@ -1,0 +1,191 @@
+---
+title: A Robust Theming System for Stellar Wallet UIs
+description: Guide to building a token-based theming system for Stellar wallet interfaces — token structure, dark mode, and a working sample.
+date: 2026-08-27
+---
+
+# A Robust Theming System for Stellar Wallet UIs
+
+Wallet UIs accumulate ad hoc color values fast — a hardcoded `#16a34a` for "success" scattered across a dozen components, then a rebrand or a dark-mode request turns into a grep-and-replace exercise across the whole codebase. This guide builds a token-based theming system: semantic tokens rather than raw colors, a light/dark pair for each, and a typed way to consume them from components.
+
+<Note type="warning">
+  This guide covers a CSS-custom-property-based token system, framework
+  agnostic beyond assuming a component layer that can read CSS variables
+  (React, Vue, plain DOM). The token *names* and structure are the reusable
+  part; the delivery mechanism (CSS variables vs. a JS theme object) is a
+  substitutable implementation detail.
+</Note>
+
+## Token structure
+
+Two layers: **primitive tokens** (raw values, never referenced directly by components) and **semantic tokens** (what components actually use, aliasing a primitive). This indirection is what makes a rebrand a one-file change instead of a codebase-wide search.
+
+```ts
+// lib/theme/tokens.ts
+export const primitives = {
+  green500: "#16a34a",
+  green400: "#4ade80",
+  red500: "#dc2626",
+  red400: "#f87171",
+  amber500: "#d97706",
+  amber400: "#fbbf24",
+  slate900: "#0f172a",
+  slate700: "#334155",
+  slate200: "#e2e8f0",
+  slate50: "#f8fafc",
+  white: "#ffffff",
+} as const;
+
+export interface SemanticTokenSet {
+  "color-success": string;
+  "color-danger": string;
+  "color-warning": string;
+  "color-text-primary": string;
+  "color-text-secondary": string;
+  "color-surface": string;
+  "color-background": string;
+}
+
+export const lightTheme: SemanticTokenSet = {
+  "color-success": primitives.green500,
+  "color-danger": primitives.red500,
+  "color-warning": primitives.amber500,
+  "color-text-primary": primitives.slate900,
+  "color-text-secondary": primitives.slate700,
+  "color-surface": primitives.white,
+  "color-background": primitives.slate50,
+};
+
+export const darkTheme: SemanticTokenSet = {
+  "color-success": primitives.green400,
+  "color-danger": primitives.red400,
+  "color-warning": primitives.amber400,
+  "color-text-primary": primitives.slate50,
+  "color-text-secondary": primitives.slate200,
+  "color-surface": primitives.slate900,
+  "color-background": "#020617",
+};
+```
+
+**Never let a component reference `primitives` directly.** A "success" green needs to become an accessible-in-dark-mode green independently of what "danger" red does — that's only possible if each semantic token is set separately, not derived by a shared formula from the primitive.
+
+## Emitting CSS custom properties
+
+```ts
+// lib/theme/emit-css-vars.ts
+import type { SemanticTokenSet } from "./tokens";
+
+export function tokensToCssVars(tokens: SemanticTokenSet): string {
+  return Object.entries(tokens)
+    .map(([key, value]) => `  --${key}: ${value};`)
+    .join("\n");
+}
+
+export function generateThemeStylesheet(
+  light: SemanticTokenSet,
+  dark: SemanticTokenSet,
+): string {
+  return [
+    ":root {",
+    tokensToCssVars(light),
+    "}",
+    "",
+    '[data-theme="dark"] {',
+    tokensToCssVars(dark),
+    "}",
+    "",
+    "@media (prefers-color-scheme: dark) {",
+    '  :root:not([data-theme="light"]) {',
+    tokensToCssVars(dark)
+      .split("\n")
+      .map((line) => `  ${line}`)
+      .join("\n"),
+    "  }",
+    "}",
+  ].join("\n");
+}
+```
+
+```ts
+// lib/theme/emit-css-vars.test.ts
+import { describe, expect, it } from "vitest";
+import { darkTheme, lightTheme } from "./tokens";
+import { generateThemeStylesheet, tokensToCssVars } from "./emit-css-vars";
+
+describe("tokensToCssVars", () => {
+  it("emits one --custom-property per token", () => {
+    const css = tokensToCssVars(lightTheme);
+    expect(css).toContain("--color-success: #16a34a;");
+    expect(css).toContain("--color-danger: #dc2626;");
+  });
+});
+
+describe("generateThemeStylesheet", () => {
+  it("scopes the light theme to :root", () => {
+    const css = generateThemeStylesheet(lightTheme, darkTheme);
+    const rootBlock = css.split(":root {")[1].split("}")[0];
+    expect(rootBlock).toContain("--color-surface: #ffffff;");
+  });
+
+  it("scopes the dark theme to [data-theme=dark] for an explicit toggle", () => {
+    const css = generateThemeStylesheet(lightTheme, darkTheme);
+    expect(css).toContain('[data-theme="dark"] {');
+    const darkBlock = css.split('[data-theme="dark"] {')[1].split("}")[0];
+    expect(darkBlock).toContain("--color-surface: #0f172a;");
+  });
+
+  it("also applies dark tokens via prefers-color-scheme, guarded against an explicit light override", () => {
+    const css = generateThemeStylesheet(lightTheme, darkTheme);
+    expect(css).toContain("@media (prefers-color-scheme: dark)");
+    expect(css).toContain(':root:not([data-theme="light"])');
+  });
+});
+```
+
+The guard pattern above — `[data-theme="dark"]` for an explicit user choice, `prefers-color-scheme` only when no explicit choice has been made (`:not([data-theme="light"])`) — means a user who explicitly picks light mode on a dark-OS device doesn't get overridden by the media query, since the explicit selector and the media-query selector never both win at the same specificity.
+
+## Dark mode considerations specific to wallet UIs
+
+- **Never encode transaction status meaning in color alone.** A colorblind user (an estimated 1 in 12 men) can't distinguish `color-success` green from `color-danger` red by hue alone in some forms of colorblindness — pair every status color with an icon or label, especially for anything showing a balance change or transaction outcome.
+- **Test contrast in both themes independently**, not just once. A green that passes WCAG AA against a white surface can fail against a dark surface at the same lightness value — `green400` above is deliberately lighter than `green500` for this reason, not an arbitrary choice.
+- **QR codes and wallet address displays should stay high-contrast regardless of theme** — a light-on-dark QR code can fail to scan on some camera/lighting combinations; render these in a fixed light-background card even inside an otherwise dark-themed page.
+
+## Consuming tokens from a component
+
+```tsx
+// components/Badge.tsx
+import type { CSSProperties } from "react";
+
+type BadgeVariant = "success" | "danger" | "warning";
+
+const VARIANT_TOKEN: Record<BadgeVariant, string> = {
+  success: "var(--color-success)",
+  danger: "var(--color-danger)",
+  warning: "var(--color-warning)",
+};
+
+export function Badge({
+  variant,
+  children,
+}: {
+  variant: BadgeVariant;
+  children: React.ReactNode;
+}) {
+  const style: CSSProperties = { color: VARIANT_TOKEN[variant] };
+  return <span style={style}>{children}</span>;
+}
+```
+
+Because `Badge` references `--color-success` rather than a raw hex value, it automatically tracks whichever theme is active — no per-component dark-mode branching required.
+
+## Verifying the guide
+
+```bash
+pnpm build:content
+pnpm check:links
+npx vitest run lib/theme/emit-css-vars.test.ts
+```
+
+## Related docs
+
+- [Stellar SDK Code Generator Tutorial](/routes-d/944-stellar-sdk-code-generator-tutorial)
