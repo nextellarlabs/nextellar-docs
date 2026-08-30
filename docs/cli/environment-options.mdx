@@ -6,126 +6,260 @@ date: 2026-05-29
 
 # Environment Options Reference
 
-This page is the single source of truth for environment variables used by **Nextellar-generated applications** and the **Nextellar CLI**. Options are grouped by purpose so you can configure testnet development, production deployment, or CI scaffolding from one place.
+This page is the single source of truth for environment variables used by **Nextellar-generated applications** and the **Nextellar CLI**. Variables are grouped by purpose so you can configure testnet development, production deployment, or CI scaffolding from one place.
 
-> **Scope:** These variables apply to projects created with `npx nextellar my-app`. They are read at build time (`NEXT_PUBLIC_*`) or by the CLI during scaffolding (`NODE_ENV`, `npm_config_user_agent`).
+> **Scope:** `NEXT_PUBLIC_*` variables are written into the generated `.env.example` by the scaffold command and are read at Next.js build time. `NEXTELLAR_*` variables control CLI behaviour and are never bundled into the generated app.
 
 ## Quick reference
 
-| Variable                       | Group      | Default (testnet scaffold)            | Valid values                                |
-| ------------------------------ | ---------- | ------------------------------------- | ------------------------------------------- |
-| `NEXT_PUBLIC_HORIZON_URL`      | Network    | `https://horizon-testnet.stellar.org` | Any `http://` or `https://` Horizon URL     |
-| `NEXT_PUBLIC_SOROBAN_RPC`      | Network    | `https://soroban-testnet.stellar.org` | Any `http://` or `https://` Soroban RPC URL |
-| `NEXT_PUBLIC_NETWORK`          | Network    | `TESTNET`                             | `TESTNET`, `PUBLIC`                         |
-| `NEXT_PUBLIC_ENABLE_ANALYTICS` | Features   | `false`                               | `true`, `false`                             |
-| `NEXT_PUBLIC_ENABLE_DEBUG`     | Features   | `true`                                | `true`, `false`                             |
-| `NODE_ENV`                     | CLI / Node | `development`                         | `development`, `production`, `test`         |
-| `npm_config_user_agent`        | CLI / Node | Auto-detected                         | Set by npm, yarn, or pnpm                   |
+| Variable                              | Group        | Default (testnet scaffold)            | Required |
+| ------------------------------------- | ------------ | ------------------------------------- | -------- |
+| `NEXT_PUBLIC_HORIZON_URL`             | Network      | `https://horizon-testnet.stellar.org` | Yes      |
+| `NEXT_PUBLIC_SOROBAN_URL`             | Network      | `https://soroban-testnet.stellar.org` | Yes      |
+| `NEXT_PUBLIC_NETWORK`                 | Network      | `TESTNET`                             | Yes      |
+| `NEXT_PUBLIC_APP_NAME`                | App metadata | Project name                          | Yes      |
+| `NEXT_PUBLIC_WALLETS`                 | Wallets      | _(commented out)_                     | No       |
+| `NEXT_PUBLIC_CONTRACT_ID`             | Contracts    | _(commented out)_                     | No       |
+| `NEXT_PUBLIC_HELLO_WORLD_CONTRACT_ID` | Contracts    | _(appended with `--with-contracts`)_  | No       |
+| `NEXTELLAR_TELEMETRY_DISABLED`        | CLI          | unset (telemetry off by default)      | No       |
+| `NEXTELLAR_TELEMETRY_ENDPOINT`        | CLI          | `https://nextellar.dev/api/telemetry` | No       |
+| `npm_config_user_agent`               | CLI / Node   | Set by the active package manager     | No       |
+| `NODE_ENV`                            | CLI / Node   | `development`                         | No       |
+| `CI`                                  | CLI / Node   | unset                                 | No       |
 
 ---
 
 ## Application variables (`NEXT_PUBLIC_*`)
 
-Next.js exposes variables prefixed with `NEXT_PUBLIC_` to browser code. Set them in `.env.local` for local development or in your hosting provider for production.
+Next.js exposes any variable prefixed `NEXT_PUBLIC_` to browser code. Copy `.env.example` to `.env.local` for local development, or set these in your hosting provider's environment panel for production.
 
 ### Network and endpoints
 
 #### `NEXT_PUBLIC_HORIZON_URL`
+
+**Source:** `src/templates/*/. env.example` — `{{HORIZON_URL}}` placeholder
 
 **Effect:** Sets the Horizon REST API base URL used for account queries, payments, and transaction history.
 
 |                        |                                               |
 | ---------------------- | --------------------------------------------- |
 | **Default (scaffold)** | `https://horizon-testnet.stellar.org`         |
-| **Production example** | `https://horizon.stellar.org`                 |
+| **Production value**   | `https://horizon.stellar.org`                 |
 | **Valid values**       | Full Horizon URL with `http://` or `https://` |
-
-**Usage:**
 
 ```typescript
 const horizonUrl = process.env.NEXT_PUBLIC_HORIZON_URL;
 ```
 
-#### `NEXT_PUBLIC_SOROBAN_RPC`
+#### `NEXT_PUBLIC_SOROBAN_URL`
 
-**Effect:** Sets the Soroban RPC endpoint for smart contract reads, invokes, and event subscriptions.
+**Source:** `src/templates/*/. env.example` — `{{SOROBAN_URL}}` placeholder
+
+**Effect:** Sets the Soroban RPC endpoint for smart contract reads, invocations, and event subscriptions.
 
 |                        |                                                   |
 | ---------------------- | ------------------------------------------------- |
 | **Default (scaffold)** | `https://soroban-testnet.stellar.org`             |
-| **Production example** | `https://soroban-rpc.stellar.org`                 |
+| **Production value**   | `https://soroban-rpc.stellar.org`                 |
 | **Valid values**       | Full Soroban RPC URL with `http://` or `https://` |
 
-> **Note:** Some older examples use `NEXT_PUBLIC_SOROBAN_URL` for the same purpose. Prefer `NEXT_PUBLIC_SOROBAN_RPC` to match deployment and integration guides.
+```typescript
+const sorobanUrl = process.env.NEXT_PUBLIC_SOROBAN_URL;
+```
+
+> **Note:** The variable name is `NEXT_PUBLIC_SOROBAN_URL` — not `NEXT_PUBLIC_SOROBAN_RPC`. The CLI flag that sets it is `--soroban-url`.
 
 #### `NEXT_PUBLIC_NETWORK`
+
+**Source:** `src/templates/*/. env.example` — `{{NETWORK}}` placeholder
 
 **Effect:** Declares which Stellar network the app targets. Hooks and wallet adapters use this to select passphrases and validate transactions.
 
 |                        |                                                         |
 | ---------------------- | ------------------------------------------------------- |
 | **Default (scaffold)** | `TESTNET`                                               |
-| **Production example** | `PUBLIC`                                                |
+| **Production value**   | `PUBLIC`                                                |
 | **Valid values**       | `TESTNET` (Stellar testnet), `PUBLIC` (Stellar mainnet) |
 
-Switching networks requires updating Horizon and Soroban URLs together. See [CLI Configuration](/docs/cli/configuration#network-switching).
+Switching networks requires updating both `NEXT_PUBLIC_HORIZON_URL` and `NEXT_PUBLIC_SOROBAN_URL` together. See [Network Switching](/docs/cli/configuration#network-switching).
 
-### Feature flags
+### App metadata
 
-#### `NEXT_PUBLIC_ENABLE_ANALYTICS`
+#### `NEXT_PUBLIC_APP_NAME`
 
-**Effect:** Toggles optional analytics instrumentation in the generated template (when implemented in your project).
+**Source:** `src/templates/*/. env.example` — `{{APP_NAME}}` placeholder
 
-|                  |                          |
-| ---------------- | ------------------------ |
-| **Default**      | `false`                  |
-| **Valid values** | `true`, `false` (string) |
+**Effect:** Exposes the application name to client-side code. Used in page titles, SEO metadata, and UI components.
 
-#### `NEXT_PUBLIC_ENABLE_DEBUG`
+|                        |                                          |
+| ---------------------- | ---------------------------------------- |
+| **Default (scaffold)** | The project name you provided to the CLI |
+| **Valid values**       | Any non-empty string                     |
 
-**Effect:** Enables verbose logging and development-only diagnostics in the app shell.
+```typescript
+const appName = process.env.NEXT_PUBLIC_APP_NAME;
+```
 
-|                  |                          |
-| ---------------- | ------------------------ |
-| **Default**      | `true`                   |
-| **Valid values** | `true`, `false` (string) |
+### Wallet configuration
 
-Set to `false` in production to reduce console noise and avoid leaking internal state.
+#### `NEXT_PUBLIC_WALLETS`
+
+**Source:** `src/templates/*/. env.example` (commented out by default)
+
+**Effect:** Overrides the compiled-in wallet list at runtime. Accepts a comma-separated list of wallet adapter identifiers.
+
+|                  |                                                   |
+| ---------------- | ------------------------------------------------- |
+| **Default**      | Compiled into `stellar-wallet-kit.ts` at scaffold |
+| **Valid values** | `freighter`, `albedo`, `lobstr`, `xbull`, `hana`  |
+
+This variable is commented out in `.env.example`. Uncomment it only if you need runtime wallet selection independent of the compiled list.
+
+```bash
+# .env.local
+NEXT_PUBLIC_WALLETS=freighter,albedo,lobstr
+```
+
+### Contract IDs
+
+#### `NEXT_PUBLIC_CONTRACT_ID`
+
+**Source:** `src/templates/*/. env.example` (commented out by default)
+
+**Effect:** General-purpose contract ID slot for custom contracts. Not populated at scaffold time — add it after deploying your contract.
+
+|             |                                             |
+| ----------- | ------------------------------------------- |
+| **Default** | _(empty — commented out in `.env.example`)_ |
+| **Example** | `NEXT_PUBLIC_CONTRACT_ID=CABC...XYZ`        |
+
+#### `NEXT_PUBLIC_HELLO_WORLD_CONTRACT_ID`
+
+**Source:** Appended to `.env.example` when `--with-contracts` is used (`src/lib/scaffold.ts`)
+
+**Effect:** Contract ID for the scaffolded Hello World Soroban contract. Only present in projects created with `--with-contracts`.
+
+|               |                                                                        |
+| ------------- | ---------------------------------------------------------------------- |
+| **Default**   | `C_REPLACE_WITH_YOUR_CONTRACT_ID` (placeholder — replace after deploy) |
+| **Only with** | `npx nextellar my-app --with-contracts`                                |
+
+```bash
+# .env.local  (only present with --with-contracts)
+NEXT_PUBLIC_HELLO_WORLD_CONTRACT_ID=CABC...XYZ
+```
+
+---
+
+## CLI environment variables (`NEXTELLAR_*`)
+
+These variables are read by the Nextellar CLI process. They are never bundled into the generated Next.js application.
+
+### `NEXTELLAR_TELEMETRY_DISABLED`
+
+**Source:** `src/lib/telemetry.ts` — `isTelemetryDisabledByEnv()`
+
+**Effect:** Disables anonymous usage telemetry for the current CLI invocation. Takes priority over the persisted config in `~/.nextellar/config.json`. Accepts the values `1`, `true`, `yes`, or `on` (case-insensitive).
+
+|                  |                                                              |
+| ---------------- | ------------------------------------------------------------ |
+| **Default**      | unset (telemetry is off by default until explicitly enabled) |
+| **Valid values** | `1`, `true`, `yes`, `on`                                     |
+
+```bash
+# Disable telemetry for a single run
+NEXTELLAR_TELEMETRY_DISABLED=1 npx nextellar my-app
+
+# Or export for the session
+export NEXTELLAR_TELEMETRY_DISABLED=true
+```
+
+You can also pass `--no-telemetry` as a flag instead.
+
+### `NEXTELLAR_TELEMETRY_ENDPOINT`
+
+**Source:** `src/lib/telemetry.ts` — `postTelemetryEvent()`
+
+**Effect:** Overrides the telemetry collection endpoint. Useful for routing events to a self-hosted analytics instance or for testing telemetry in a local environment.
+
+|                  |                                       |
+| ---------------- | ------------------------------------- |
+| **Default**      | `https://nextellar.dev/api/telemetry` |
+| **Valid values** | Full `http://` or `https://` URL      |
+
+```bash
+NEXTELLAR_TELEMETRY_ENDPOINT=https://my-analytics.example.com/ingest npx nextellar my-app
+```
 
 ---
 
 ## CLI and Node environment variables
 
-These variables are not prefixed with `NEXT_PUBLIC_`. They affect the Nextellar CLI during scaffolding or standard Node.js tooling.
+These standard variables are read by the CLI or by the underlying Node.js runtime.
 
 ### `npm_config_user_agent`
 
-**Effect:** Used by the CLI to detect which package manager invoked the scaffold command (`npm`, `yarn`, or `pnpm`) when `--package-manager` is not set.
+**Source:** `src/lib/install.ts` — package manager detection
 
-|                  |                                                                      |
-| ---------------- | -------------------------------------------------------------------- |
-| **Default**      | Set automatically by the active package manager                      |
-| **Valid values** | Any user-agent string (typically set by npm/yarn/pnpm, not manually) |
+**Effect:** Used by the CLI to detect which package manager invoked the scaffold command (`npm`, `yarn`, or `pnpm`) when `--package-manager` is not explicitly set. Set automatically by your package manager — do not set this manually.
 
-**Example (set by npm):**
-
-```bash
-npm_config_user_agent="npm/10.2.0 node/v20.10.0"
-```
+|                  |                                                               |
+| ---------------- | ------------------------------------------------------------- |
+| **Default**      | Set automatically by the active package manager               |
+| **Valid values** | Any user-agent string (typically set by npm/yarn/pnpm itself) |
 
 ### `NODE_ENV`
 
-**Effect:** Standard Node.js environment mode. Influences dependency installation behavior, build optimizations, and conditional code paths in generated projects.
+**Source:** Standard Node.js
+
+**Effect:** Influences dependency installation behaviour and build optimisations in generated projects.
 
 |                  |                                     |
 | ---------------- | ----------------------------------- |
 | **Default**      | `development`                       |
 | **Valid values** | `development`, `production`, `test` |
 
-**Example:**
+### `CI`
+
+**Source:** Standard CI convention, read in `src/lib/scaffold.ts`
+
+**Effect:** When set to any truthy value, the CLI suppresses interactive prompts (e.g. the "overwrite existing directory?" confirmation) and assumes non-interactive defaults.
+
+|                  |                                                                |
+| ---------------- | -------------------------------------------------------------- |
+| **Default**      | unset                                                          |
+| **Valid values** | Any non-empty string; most CI providers set this automatically |
+
+---
+
+## Complete `.env.example` reference
+
+The following is the verbatim `.env.example` written into every scaffolded project (all templates). Placeholders in `{{DOUBLE_BRACES}}` are replaced at scaffold time.
 
 ```bash
-NODE_ENV=production npx nextellar my-app
+# Nextellar — Environment Variables
+# Copy this file to .env.local and fill in your values
+
+# Stellar Network Configuration
+NEXT_PUBLIC_HORIZON_URL={{HORIZON_URL}}
+NEXT_PUBLIC_SOROBAN_URL={{SOROBAN_URL}}
+NEXT_PUBLIC_NETWORK={{NETWORK}}
+
+# Wallet Configuration (comma-separated: freighter,albedo,lobstr,xbull,hana)
+# NEXT_PUBLIC_WALLETS=freighter,albedo,lobstr
+
+# Soroban Contract IDs (add after deploying contracts)
+# NEXT_PUBLIC_CONTRACT_ID=
+
+# App Metadata
+NEXT_PUBLIC_APP_NAME={{APP_NAME}}
+```
+
+When `--with-contracts` is used, the CLI appends:
+
+```bash
+# Soroban Smart Contracts
+NEXT_PUBLIC_HELLO_WORLD_CONTRACT_ID=C_REPLACE_WITH_YOUR_CONTRACT_ID
 ```
 
 ---
@@ -137,10 +271,9 @@ NODE_ENV=production npx nextellar my-app
 ```bash
 # .env.local
 NEXT_PUBLIC_HORIZON_URL=https://horizon-testnet.stellar.org
-NEXT_PUBLIC_SOROBAN_RPC=https://soroban-testnet.stellar.org
+NEXT_PUBLIC_SOROBAN_URL=https://soroban-testnet.stellar.org
 NEXT_PUBLIC_NETWORK=TESTNET
-NEXT_PUBLIC_ENABLE_ANALYTICS=false
-NEXT_PUBLIC_ENABLE_DEBUG=true
+NEXT_PUBLIC_APP_NAME=my-stellar-app
 ```
 
 ### Production (mainnet)
@@ -148,40 +281,44 @@ NEXT_PUBLIC_ENABLE_DEBUG=true
 ```bash
 # .env.production
 NEXT_PUBLIC_HORIZON_URL=https://horizon.stellar.org
-NEXT_PUBLIC_SOROBAN_RPC=https://soroban-rpc.stellar.org
+NEXT_PUBLIC_SOROBAN_URL=https://soroban-rpc.stellar.org
 NEXT_PUBLIC_NETWORK=PUBLIC
-NEXT_PUBLIC_ENABLE_ANALYTICS=false
-NEXT_PUBLIC_ENABLE_DEBUG=false
+NEXT_PUBLIC_APP_NAME=my-stellar-app
 ```
 
 ---
 
 ## Map CLI flags to environment variables
 
-When you scaffold a project, CLI flags write equivalent values into generated config and `.env` templates:
-
-| CLI flag               | Environment variable      | Notes                 |
-| ---------------------- | ------------------------- | --------------------- |
-| `--horizon-url`        | `NEXT_PUBLIC_HORIZON_URL` | Set at scaffold time  |
-| `--soroban-url`        | `NEXT_PUBLIC_SOROBAN_RPC` | Soroban RPC URL       |
-| (derived from network) | `NEXT_PUBLIC_NETWORK`     | `TESTNET` or `PUBLIC` |
+| CLI flag         | Environment variable           | Notes                                   |
+| ---------------- | ------------------------------ | --------------------------------------- |
+| `--horizon-url`  | `NEXT_PUBLIC_HORIZON_URL`      | Written into `.env.example` at scaffold |
+| `--soroban-url`  | `NEXT_PUBLIC_SOROBAN_URL`      | Written into `.env.example` at scaffold |
+| _(derived)_      | `NEXT_PUBLIC_NETWORK`          | `TESTNET` or `PUBLIC` based on URL      |
+| `--wallets`      | `NEXT_PUBLIC_WALLETS`          | Compiled into `stellar-wallet-kit.ts`   |
+| `--no-telemetry` | `NEXTELLAR_TELEMETRY_DISABLED` | Equivalent to setting `=1`              |
 
 See [CLI Flags & Options](/docs/cli/flags) for the full flag reference.
 
 ---
 
-## Validate configuration
+## Runtime validation
 
-At runtime, guard required variables before rendering wallet or payment UI:
+Guard required variables before rendering wallet or payment UI:
 
 ```typescript
 export function validateConfig() {
-  if (!process.env.NEXT_PUBLIC_HORIZON_URL) {
-    throw new Error('NEXT_PUBLIC_HORIZON_URL is required');
-  }
+  const required = [
+    'NEXT_PUBLIC_HORIZON_URL',
+    'NEXT_PUBLIC_SOROBAN_URL',
+    'NEXT_PUBLIC_NETWORK',
+    'NEXT_PUBLIC_APP_NAME',
+  ] as const;
 
-  if (!process.env.NEXT_PUBLIC_NETWORK) {
-    throw new Error('NEXT_PUBLIC_NETWORK is required');
+  for (const key of required) {
+    if (!process.env[key]) {
+      throw new Error(`${key} is required but not set`);
+    }
   }
 }
 ```
@@ -200,7 +337,7 @@ For local preview, run `pnpm dev` and open `/docs/cli/environment-options`.
 ## Related documentation
 
 - [CLI Configuration](/docs/cli/configuration) — post-scaffold configuration and network switching
+- [CLI Flags & Options](/docs/cli/flags) — complete CLI flag reference
 - [Deployment](/docs/guides/deployment) — production environment setup on Vercel and Netlify
-- [CLI Options](/docs/cli/options) — CLI flags and tooling environment variables
 - [Horizon Integration](/docs/integrations/horizon) — Horizon-specific usage
 - [Soroban Integration](/docs/integrations/soroban) — Soroban RPC usage
