@@ -1,0 +1,250 @@
+---
+title: Soroban Prediction Market Guide
+description: Learn how to build a binary outcome prediction market on Stellar Soroban, covering market creation, oracle-based resolution, and payouts.
+date: 2026-08-27
+---
+
+# Soroban Prediction Market Guide
+
+A prediction market lets participants bet on the outcome of a future event by buying shares in "Yes" or "No" pools. After the event resolves, holders of the winning pool split the total pooled funds proportionally.
+
+---
+
+## Market Creation
+
+Creating a market requires:
+
+- A **question** describing the event (e.g. "Will XLM close above $0.50 on 2026-09-01?").
+- A **resolution time**, after which the market can be resolved.
+- A **resolver** address — the party (or oracle) trusted to report the outcome. In this guide the resolver is a single trusted address for simplicity; a production market would typically use a decentralized oracle or a dispute window instead.
+
+```
+Market {
+  question: Symbol
+  resolver: Address
+  resolve_time: u64
+  yes_pool: i128
+  no_pool: i128
+  resolved: bool
+  outcome: Option<bool>   // true = Yes won, false = No won
+}
+```
+
+Participants buy into a side by depositing funds, which increases that side's pool. Each participant's share of a pool is tracked so they can be paid out proportionally if their side wins.
+
+---
+
+## Oracle Usage
+
+This guide uses a **trusted resolver** model rather than a price-feed oracle: the `resolver` address calls `resolve_market(outcome)` once the real-world event has occurred. This is the simplest resolution mechanism and is appropriate for markets on subjective or hard-to-feed events (e.g. "Will Project X ship by date Y?").
+
+For markets on data that's available on-chain (e.g. "Will asset Z's price exceed $N?"), you would instead:
+
+1. Integrate a price-feed oracle contract (such as a Soroban-native oracle following the [SEP-40](https://stellar.org) reflector interface).
+2. Call the oracle's `lastprice` (or equivalent) function at `resolve_time` instead of trusting a single resolver address.
+3. Derive the boolean outcome from the returned price versus the market's threshold.
+
+The contract sample below implements the trusted-resolver model and notes exactly where an oracle call would replace it.
+
+---
+
+## Market Resolution & Payouts
+
+1. **Before `resolve_time`**: participants may buy into either pool. No payouts occur.
+2. **At or after `resolve_time`**: the resolver calls `resolve_market(outcome)` exactly once. This locks in the winning side and marks the market resolved.
+3. **After resolution**: each participant calls `claim_payout()`. Their payout is:
+
+$$\text{payout} = \text{their\_stake\_in\_winning\_pool} \times \frac{\text{yes\_pool} + \text{no\_pool}}{\text{winning\_pool}}$$
+
+This distributes the _entire_ pooled amount (both sides combined) among winners, proportional to their stake in the winning side — the losing side's stakes fund the winners' payout.
+
+---
+
+## Soroban Smart Contract Sample
+
+```rust
+#![no_std]
+use soroban_sdk::{contract, contractimpl, contracttype, contracterror, Address, Env, Map, Symbol, symbol_short};
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Market {
+    pub resolver: Address,
+    pub resolve_time: u64,
+    pub yes_pool: i128,
+    pub no_pool: i128,
+    pub resolved: bool,
+    pub outcome: Option<bool>,
+}
+
+#[contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[repr(u32)]
+pub enum Error {
+    InvalidAmount = 1,
+    InvalidResolveTime = 2,
+    MarketNotFound = 3,
+    AlreadyResolved = 4,
+    NotYetResolvable = 5,
+    NotResolved = 6,
+    Unauthorized = 7,
+    NothingToClaim = 8,
+    AlreadyClaimed = 9,
+}
+
+fn market_key(id: u64) -> (Symbol, u64) {
+    (symbol_short!("MKT"), id)
+}
+
+fn stake_key(id: u64, side: bool) -> (Symbol, u64, bool) {
+    (symbol_short!("STAKE"), id, side)
+}
+
+#[contract]
+pub struct PredictionMarketContract;
+
+#[contractimpl]
+impl PredictionMarketContract {
+    pub fn create_market(
+        env: Env,
+        resolver: Address,
+        resolve_time: u64,
+    ) -> Result<u64, Error> {
+        resolver.require_auth();
+
+        if resolve_time <= env.ledger().timestamp() {
+            return Err(Error::InvalidResolveTime);
+        }
+
+        let id: u64 = env
+            .storage()
+            .instance()
+            .get(&symbol_short!("NEXT_ID"))
+            .unwrap_or(0);
+
+        let market = Market {
+            resolver,
+            resolve_time,
+            yes_pool: 0,
+            no_pool: 0,
+            resolved: false,
+            outcome: None,
+        };
+
+        env.storage().persistent().set(&market_key(id), &market);
+        env.storage()
+            .instance()
+            .set(&symbol_short!("NEXT_ID"), &(id + 1));
+
+        Ok(id)
+    }
+
+    /// Buys into a side of the market. `side` is true for Yes, false for No.
+    pub fn buy(env: Env, buyer: Address, market_id: u64, side: bool, amount: i128) -> Result<(), Error> {
+        buyer.require_auth();
+
+        if amount <= 0 {
+            return Err(Error::InvalidAmount);
+        }
+
+        let mut market: Market = env
+            .storage()
+            .persistent()
+            .get(&market_key(market_id))
+            .ok_or(Error::MarketNotFound)?;
+
+        if market.resolved {
+            return Err(Error::AlreadyResolved);
+        }
+
+        // In production: transfer `amount` from `buyer` into this contract.
+
+        if side {
+            market.yes_pool += amount;
+        } else {
+            market.no_pool += amount;
+        }
+        env.storage().persistent().set(&market_key(market_id), &market);
+
+        let stakes_key = stake_key(market_id, side);
+        let mut stakes: Map<Address, i128> = env
+            .storage()
+            .persistent()
+            .get(&stakes_key)
+            .unwrap_or(Map::new(&env));
+        let current = stakes.get(buyer.clone()).unwrap_or(0);
+        stakes.set(buyer, current + amount);
+        env.storage().persistent().set(&stakes_key, &stakes);
+
+        Ok(())
+    }
+
+    /// Resolves the market. `outcome` would come from an oracle call in a
+    /// price-feed-backed market instead of a trusted resolver argument.
+    pub fn resolve_market(env: Env, market_id: u64, outcome: bool) -> Result<(), Error> {
+        let mut market: Market = env
+            .storage()
+            .persistent()
+            .get(&market_key(market_id))
+            .ok_or(Error::MarketNotFound)?;
+
+        market.resolver.require_auth();
+
+        if market.resolved {
+            return Err(Error::AlreadyResolved);
+        }
+        if env.ledger().timestamp() < market.resolve_time {
+            return Err(Error::NotYetResolvable);
+        }
+
+        market.resolved = true;
+        market.outcome = Some(outcome);
+        env.storage().persistent().set(&market_key(market_id), &market);
+
+        Ok(())
+    }
+
+    /// Pays out a winning participant's proportional share of the total pool.
+    pub fn claim_payout(env: Env, claimant: Address, market_id: u64) -> Result<i128, Error> {
+        claimant.require_auth();
+
+        let market: Market = env
+            .storage()
+            .persistent()
+            .get(&market_key(market_id))
+            .ok_or(Error::MarketNotFound)?;
+
+        let outcome = market.outcome.ok_or(Error::NotResolved)?;
+
+        let stakes_key = stake_key(market_id, outcome);
+        let mut stakes: Map<Address, i128> = env
+            .storage()
+            .persistent()
+            .get(&stakes_key)
+            .unwrap_or(Map::new(&env));
+
+        let stake = stakes.get(claimant.clone()).unwrap_or(0);
+        if stake <= 0 {
+            return Err(Error::NothingToClaim);
+        }
+
+        let winning_pool = if outcome { market.yes_pool } else { market.no_pool };
+        let total_pool = market.yes_pool + market.no_pool;
+        let payout = (stake * total_pool) / winning_pool;
+
+        // Zero out the stake so it cannot be claimed twice.
+        stakes.set(claimant.clone(), 0);
+        env.storage().persistent().set(&stakes_key, &stakes);
+
+        // In production: transfer `payout` to `claimant`.
+
+        Ok(payout)
+    }
+}
+```
+
+---
+
+## Summary
+
+This prediction market keeps resolution simple and auditable via a single trusted resolver, with clear notes on swapping in a real price-feed oracle for markets on on-chain data. The proportional-payout formula ensures the entire pool (both winning and losing stakes) is distributed to winners, with each stake zeroed after claiming to prevent double payouts.

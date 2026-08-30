@@ -1,0 +1,119 @@
+---
+title: Soroban Dutch Auction Contract Guide
+description: Learn how to build a descending-price Dutch Auction contract on Stellar Soroban with dynamic price decay and automated settlement.
+date: 2026-08-25
+---
+
+# Soroban Dutch Auction Contract Guide
+
+A Dutch Auction starts at a high initial price and continuously decays over time until a bidder accepts the current price or the reserve floor is reached. This design guarantees price discovery without gas wars.
+
+---
+
+## Price Decay Curve
+
+The current price $P(t)$ is calculated dynamically:
+
+$$P(t) = \max\left(P_{\text{reserve}}, P_{\text{start}} - \frac{(P_{\text{start}} - P_{\text{reserve}}) \cdot (t - t_{\text{start}})}{T_{\text{duration}}}\right)$$
+
+- $P_{\text{start}}$: Initial starting price
+- $P_{\text{reserve}}$: Reserve price floor
+- $t_{\text{start}}$: Auction start timestamp
+- $T_{\text{duration}}$: Total duration of price decay
+
+---
+
+## Bid & Settlement Flow
+
+1. Seller initializes auction parameters (`start_price`, `reserve_price`, `start_time`, `duration`).
+2. Buyer calls `buy(buyer)` when the current decaying price reaches their valuation.
+3. The contract transfers the asset to the buyer, sends payment to the seller, and closes the auction.
+
+---
+
+## Soroban Smart Contract Sample
+
+```rust
+#![no_std]
+use soroban_sdk::{contract, contractimpl, contracttype, Address, Env};
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AuctionConfig {
+    pub seller: Address,
+    pub start_price: u128,
+    pub reserve_price: u128,
+    pub start_time: u64,
+    pub duration: u64,
+    pub ended: bool,
+    pub winner: Option<Address>,
+}
+
+#[contract]
+pub struct DutchAuctionContract;
+
+#[contractimpl]
+impl DutchAuctionContract {
+    pub fn init_auction(
+        env: Env,
+        seller: Address,
+        start_price: u128,
+        reserve_price: u128,
+        start_time: u64,
+        duration: u64,
+    ) {
+        seller.require_auth();
+        assert!(start_price > reserve_price, "start price must exceed reserve price");
+        assert!(duration > 0, "duration must be positive");
+
+        let config = AuctionConfig {
+            seller,
+            start_price,
+            reserve_price,
+            start_time,
+            duration,
+            ended: false,
+            winner: None,
+        };
+
+        env.storage().instance().set(&1u32, &config);
+    }
+
+    pub fn get_current_price(env: Env) -> u128 {
+        let config: AuctionConfig = env.storage().instance().get(&1u32).expect("auction not configured");
+        let now = env.ledger().timestamp();
+
+        if now <= config.start_time {
+            return config.start_price;
+        }
+
+        let elapsed = now.saturating_sub(config.start_time);
+        if elapsed >= config.duration {
+            return config.reserve_price;
+        }
+
+        let price_drop = config.start_price.saturating_sub(config.reserve_price);
+        let current_drop = (price_drop.saturating_mul(elapsed as u128)) / (config.duration as u128);
+        config.start_price.saturating_sub(current_drop)
+    }
+
+    pub fn buy(env: Env, buyer: Address) -> u128 {
+        buyer.require_auth();
+        let mut config: AuctionConfig = env.storage().instance().get(&1u32).expect("auction not configured");
+        assert!(!config.ended, "auction already ended");
+
+        let current_price = Self::get_current_price(env.clone());
+        config.ended = true;
+        config.winner = Some(buyer);
+        env.storage().instance().set(&1u32, &config);
+
+        current_price
+    }
+}
+```
+
+---
+
+## Summary
+
+Dutch Auctions eliminate bid sniping and promote efficient price discovery on Stellar Soroban.

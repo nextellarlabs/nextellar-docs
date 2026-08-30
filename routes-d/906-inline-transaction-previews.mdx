@@ -1,0 +1,144 @@
+---
+title: Inline Transaction Previews
+description: How to render a clear preview before submitting a Stellar transaction — what to summarize, warning states to surface, and a small worked example.
+date: 2026-08-25
+---
+
+# Inline Transaction Previews
+
+Before a user signs anything, they should see a clear, plain-language preview of exactly what the transaction will do — rendered inline in the flow they're already in, not buried behind a "view details" tap. This guide covers what to summarize, which warning states to surface, and a small example implementation.
+
+---
+
+## What to Summarize
+
+A preview should answer three questions at a glance: _what_ is happening, _to whom_, and _what does it cost_.
+
+### Operation summary
+
+Decode every operation in the transaction and describe each one in plain language, in order:
+
+```ts
+function summarizeOperation(op: Operation): string {
+  switch (op.type) {
+    case 'payment':
+      return `Send ${op.amount} ${assetLabel(op.asset)} to ${shortenAddress(op.destination)}`;
+    case 'pathPaymentStrictSend':
+      return `Send ${op.sendAmount} ${assetLabel(op.sendAsset)}, receive at least ${op.destMin} ${assetLabel(op.destAsset)}`;
+    case 'changeTrust':
+      return op.limit === '0'
+        ? `Remove trustline for ${assetLabel(op.asset)}`
+        : `Add trustline for ${assetLabel(op.asset)}`;
+    case 'setOptions':
+      return summarizeSetOptions(op); // signer/threshold/home-domain changes — never collapse this to "Update account"
+    case 'accountMerge':
+      return `Close this account and send remaining balance to ${shortenAddress(op.destination)}`;
+    default:
+      return `${op.type} (unrecognized — review raw operation)`;
+  }
+}
+```
+
+A multi-operation transaction must show **every** operation, not just the first or the one the UI flow expects — a payment bundled with a hidden `setOptions` op is a known phishing pattern, and collapsing the summary to "Payment" hides exactly the part the user most needs to see.
+
+### Fee and total cost
+
+Show the network fee separately from the amount being sent, and the total (amount + fee) when the fee is paid in the same asset:
+
+```
+Send:     500 USDC → GDXKI...ZR9F
+Network fee: 0.00001 XLM
+```
+
+If the fee is unusually high relative to the recent network baseline, flag it (see warning states below) rather than silently including it.
+
+### Source and sequence context
+
+Show which account is initiating the transaction (helpful for multi-account wallets) and, for anything involving `setOptions` or trustlines, the account's _current_ state next to the _resulting_ state — a before/after, not just the after.
+
+## Warning States
+
+Surface these distinctly from the routine summary — visually separated, not just another line of text:
+
+| Condition                                                             | Warning                                                                                                             |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Destination has never received a payment from this account            | "New destination — you haven't sent here before."                                                                   |
+| Destination account does not exist on-chain yet                       | "This account doesn't exist yet. This payment will create it and requires at least the base reserve."               |
+| `changeTrust` with `limit: 0` and a non-zero balance                  | "Removing this trustline requires a zero balance first — this transaction will fail."                               |
+| No `timebounds.maxTime` set                                           | "This transaction has no expiration and will remain valid indefinitely once signed."                                |
+| Fee well above recent network average                                 | "Network fee is higher than usual for this transaction."                                                            |
+| `setOptions` changes signer weights or thresholds                     | "This changes who can control your account."                                                                        |
+| Memo is missing but destination is a known exchange/custodial address | "This destination typically requires a memo to credit your deposit — sending without one may result in lost funds." |
+
+Each warning should be specific and actionable — "Something looks unusual" tells the user nothing they can act on.
+
+## Rendering: A Small Example
+
+```tsx
+function TransactionPreview({
+  tx,
+  accountHistory,
+}: {
+  tx: Transaction;
+  accountHistory: AccountHistory;
+}) {
+  const warnings = collectWarnings(tx, accountHistory);
+
+  return (
+    <div className="tx-preview">
+      <ol className="tx-preview__operations">
+        {tx.operations.map((op, i) => (
+          <li key={i}>{summarizeOperation(op)}</li>
+        ))}
+      </ol>
+
+      <dl className="tx-preview__cost">
+        <dt>Network fee</dt>
+        <dd>{formatAmount(tx.fee)} XLM</dd>
+      </dl>
+
+      {warnings.length > 0 && (
+        <ul className="tx-preview__warnings" role="alert">
+          {warnings.map((w) => (
+            <li key={w.code} className={`warning warning--${w.severity}`}>
+              {w.message}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+```
+
+`collectWarnings` runs the checks from the table above against the decoded transaction plus whatever local context the wallet has (address book, prior payment history, recent fee stats) — none of it requires a network round-trip beyond what the wallet already fetches to build the transaction.
+
+## Worked Example
+
+A payment to a new destination with an elevated fee:
+
+```
+┌─────────────────────────────────────────────┐
+│  Confirm Payment                             │
+│                                               │
+│  Send 500 USDC                               │
+│  to GDXKI...ZR9F                             │
+│                                               │
+│  Network fee: 0.005 XLM                      │
+│                                               │
+│  ⚠ New destination — you haven't sent        │
+│    here before.                              │
+│  ⚠ Network fee is higher than usual for      │
+│    this transaction.                         │
+│                                               │
+│         [ Cancel ]      [ Confirm ]          │
+└─────────────────────────────────────────────┘
+```
+
+Both warnings render together rather than the UI picking one to show — a user acting on incomplete information is the exact failure mode this pattern exists to prevent. For transactions that also cross the high-value or signer-change thresholds, pair this preview with the full [confirmation ceremony pattern](/routes-d/907-tx-confirmation-ceremony-pattern) rather than treating the two as alternatives — the preview is what's shown, the ceremony is how the user acknowledges it.
+
+## Verifying the Guide
+
+- Build a transaction with a payment op and a trustline-removal op with a non-zero balance; confirm the preview shows both operations and the "will fail" warning.
+- Build a transaction with no `timebounds.maxTime`; confirm the no-expiration warning renders.
+- Confirm a routine payment to a known address with a normal fee renders with zero warnings — the warning list should not appear at all when there's nothing to flag.

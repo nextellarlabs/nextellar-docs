@@ -1,0 +1,162 @@
+---
+title: Send Flow Confirmation Modal Guide
+description: Best practices for implementing an accessible send flow confirmation modal — explicit transaction details, keyboard navigation, focus trapping, and React code examples.
+date: 2026-08-27
+---
+
+# Send Flow Confirmation Modal Guide
+
+A confirmation modal is the final safety checkpoint before a wallet signs and submits a payment transaction. Designing an effective confirmation modal requires balancing clear, explicit transaction details with accessible user interaction and keyboard support.
+
+This guide outlines key patterns for send flow confirmation modals, including keyboard navigation, focus management, and a worked React component example.
+
+---
+
+## Key Requirements
+
+### 1. Explicit Confirmation Details
+
+A send flow confirmation modal must present all critical details in human-readable format before the user approves:
+
+- **Recipient Address**: Show the full destination address (or clear identifier) to prevent lookalike address attacks.
+- **Amount & Asset**: Display the exact transfer amount and asset code (e.g. `100.00 XLM`, `50.00 USDC`).
+- **Network Fee**: Display the estimated transaction fee in XLM.
+- **Memo**: Show the memo type and content if present, or explicitly state "No memo".
+- **Destination Warning**: Highlight unfamiliar or un-funded destination addresses.
+
+### 2. Accessible Keyboard Support
+
+For accessibility and keyboard navigation compliance:
+
+- **Escape Key (`Escape`)**: Pressing `Escape` must close the modal and return the user to the previous edit step without submitting.
+- **Focus Trapping**: Focus should be trapped inside the modal container while open so keyboard tab navigation (`Tab` / `Shift+Tab`) does not drift into background page elements.
+- **Initial Focus**: Automatically set focus on the "Cancel" or "Confirm" button when the modal opens.
+- **ARIA Attributes**: Include `role="dialog"`, `aria-modal="true"`, `aria-labelledby`, and `aria-describedby`.
+
+---
+
+## React Component Example
+
+Below is a complete React + TypeScript component implementing an accessible send flow confirmation modal:
+
+```tsx
+import React, { useEffect, useRef } from 'react';
+
+interface SendDetails {
+  recipient: string;
+  amount: string;
+  asset: string;
+  feeXlm: string;
+  memo?: string;
+}
+
+interface ConfirmationModalProps {
+  isOpen: boolean;
+  details: SendDetails;
+  onConfirm: () => void;
+  onCancel: () => void;
+  isSubmitting?: boolean;
+}
+
+export const SendConfirmationModal: React.FC<ConfirmationModalProps> = ({
+  isOpen,
+  details,
+  onConfirm,
+  onCancel,
+  isSubmitting = false,
+}) => {
+  const confirmButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Focus management & Escape key listener
+  useEffect(() => {
+    if (!isOpen) return;
+
+    // Focus confirm button when modal opens
+    confirmButtonRef.current?.focus();
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onCancel();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onCancel]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-title"
+      aria-describedby="modal-description"
+    >
+      <div className="w-full max-w-md rounded-xl bg-slate-900 p-6 border border-slate-800 text-white shadow-2xl">
+        <h2 id="modal-title" className="text-xl font-bold mb-2">
+          Confirm Transaction
+        </h2>
+        <p id="modal-description" className="text-sm text-slate-400 mb-6">
+          Please review the details of your transfer before confirming.
+        </p>
+
+        <div className="space-y-4 rounded-lg bg-slate-950 p-4 text-sm font-mono border border-slate-800">
+          <div className="flex justify-between">
+            <span className="text-slate-400">Amount:</span>
+            <span className="font-bold text-emerald-400">
+              {details.amount} {details.asset}
+            </span>
+          </div>
+          <div>
+            <span className="text-slate-400 block mb-1">To Address:</span>
+            <span className="break-all text-xs bg-slate-900 p-2 rounded block">
+              {details.recipient}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-slate-400">Estimated Fee:</span>
+            <span>{details.feeXlm} XLM</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-slate-400">Memo:</span>
+            <span>{details.memo || 'None'}</span>
+          </div>
+        </div>
+
+        <div className="mt-6 flex justify-end gap-3">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={isSubmitting}
+            className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-sm font-medium transition"
+          >
+            Cancel
+          </button>
+          <button
+            ref={confirmButtonRef}
+            type="button"
+            onClick={onConfirm}
+            disabled={isSubmitting}
+            className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-sm font-medium text-white transition flex items-center gap-2"
+          >
+            {isSubmitting ? 'Submitting...' : 'Confirm & Send'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+```
+
+---
+
+## Accessibility Checklist
+
+- [x] Clear display of recipient address, amount, asset, fee, and memo.
+- [x] Closes cleanly on `Escape` key press.
+- [x] Sets focus to the confirmation action upon opening.
+- [x] Includes standard ARIA modal attributes (`role="dialog"`, `aria-modal="true"`).
+- [x] Disables buttons during submission state to prevent double-clicks.

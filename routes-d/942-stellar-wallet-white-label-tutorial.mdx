@@ -1,0 +1,114 @@
+---
+title: Producing a White-Label Stellar Wallet
+description: A tutorial for theming and rebranding a Stellar wallet toolkit for a client deployment, including where the safe configuration boundaries are.
+---
+
+# Producing a White-Label Stellar Wallet
+
+A white-label wallet takes an existing, audited wallet codebase and reskins it for a specific brand — new colors, logo, name, and copy — without touching the parts that actually move funds. This tutorial covers what's safe to customize per-deployment, and where the line is that keeps every white-label instance inheriting security fixes from the shared core.
+
+---
+
+## Theming and branding
+
+### What should be configuration, not a fork
+
+Treat every deployment as one codebase plus a config object, not a forked copy of the source:
+
+```typescript
+// wallet.config.ts — the only file that changes per client
+export const walletConfig: WalletConfig = {
+  brand: {
+    name: 'Acme Wallet',
+    logoUrl: '/brand/acme-logo.svg',
+    primaryColor: '#1a56db',
+    accentColor: '#f59e0b',
+  },
+  network: {
+    default: 'public', // or 'testnet' for a client's staging deployment
+    horizonUrl: 'https://horizon.stellar.org',
+    sorobanRpcUrl: 'https://soroban-rpc.stellar.org',
+  },
+  features: {
+    swapEnabled: true,
+    stakingEnabled: false,
+    fiatOnRamp: 'moonpay', // or null to disable
+  },
+};
+```
+
+A forked-per-client codebase means every security patch has to be manually reapplied N times. A config-driven approach means one patch to the shared core fixes every deployment.
+
+### Theming with CSS custom properties
+
+Generate a CSS variable set from `walletConfig.brand` at build time so component styles never hardcode a color:
+
+```css
+:root {
+  --wallet-color-primary: var(--brand-primary, #1a56db);
+  --wallet-color-accent: var(--brand-accent, #f59e0b);
+}
+```
+
+```typescript
+function injectBrandTheme(brand: WalletConfig['brand']) {
+  const root = document.documentElement;
+  root.style.setProperty('--brand-primary', brand.primaryColor);
+  root.style.setProperty('--brand-accent', brand.accentColor);
+}
+```
+
+### Copy and localization
+
+Route all user-facing strings through an i18n layer keyed by brand, not hardcoded English with per-client string replacement scripts — the latter silently drifts out of sync as the core adds new strings.
+
+---
+
+## Configuration boundaries
+
+Some things are safe to expose as per-client config; others should never be, because a mistake there is a fund-safety issue, not a branding issue.
+
+### Safe to configure per client
+
+- Brand name, logo, color palette, copy/localization
+- Which optional features are enabled (swap, staking, fiat on-ramp provider)
+- Default network (public vs. testnet) for a client's own staging environment
+- Fee display preferences, default asset list shown on the home screen
+
+### Never expose as client-editable config
+
+- **Key derivation and storage logic.** How the wallet derives, encrypts, and stores the user's secret key must be identical across every deployment and reviewed once, centrally. A client-supplied override here is a direct path to a fund-loss bug in exactly one brand's deployment that the shared security review never saw.
+- **Transaction signing and submission logic.** The code path that builds, signs, and submits a Stellar transaction should have zero configuration surface. If a client needs a custom fee strategy, that's a policy value the shared signing code reads — not a client-supplied signing function.
+- **Network endpoint validation.** A client can choose _which_ network (public/testnet), but the wallet's core should still validate that whatever Horizon/RPC URL is configured actually responds like Horizon/RPC before trusting it — don't let brand config silently point signing flows at an unvalidated endpoint.
+
+The dividing line: if a bug in this piece of config could result in a user losing funds or signing something they didn't intend, it belongs in the audited core, not per-client configuration.
+
+---
+
+## A working sample: brand-aware wallet bootstrap
+
+```typescript
+import { walletConfig } from './wallet.config';
+import { createWalletCore } from '@your-org/wallet-core'; // the shared, audited core
+
+async function bootstrapWallet() {
+  injectBrandTheme(walletConfig.brand);
+
+  // The core's signing/key logic takes no branding input at all —
+  // only network + feature flags, which are policy, not security-critical.
+  const wallet = await createWalletCore({
+    network: walletConfig.network,
+    features: walletConfig.features,
+  });
+
+  return wallet;
+}
+```
+
+---
+
+## Verifying this tutorial is accurate
+
+- Confirm your actual wallet core's public API matches the `createWalletCore` shape above — this is illustrative, not a real package.
+- Audit your own codebase against the "never expose as config" list above before shipping a second white-label deployment — this is the single highest-leverage review to do once, early, rather than per-client.
+- Render through `pnpm build:content` to confirm the CSS/TypeScript code fences display correctly.

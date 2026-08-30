@@ -9,7 +9,7 @@ date: 2026-06-02
 The `useTrustlines` hook manages asset trustlines, allowing accounts to hold custom Stellar assets. It provides methods to query existing trustlines, build change-trust transactions, and submit them to the network.
 
 <Note>
-  **Ships in:** default, js<br/>
+  **Ships in:** default, defi, js-template, js-defi (not minimal)<br/>
   Not in your scaffold? Run `nextellar add trustlines`
 </Note>
 
@@ -20,7 +20,7 @@ The `useTrustlines` hook manages asset trustlines, allowing accounts to hold cus
 - **Dev-Only Submission**: Sign and submit with secret key (testing only)
 - **Authorization Tracking**: Monitor asset authorization status
 - **Custom Limits**: Set trust limits on assets
-- **Auto-Consume Config**: Automatically uses `WalletProvider` settings as fallback
+- **Auto-Consume Config**: Uses `WalletProvider` `horizonUrl` as fallback
 
 ## Basic Usage
 
@@ -65,6 +65,9 @@ export default function TrustlineManager({ publicKey }: { publicKey: string }) {
             <span> (Issuer: {tl.asset_issuer.substring(0, 8)}...)</span>
             <span> Balance: {tl.balance || '0'}</span>
             {tl.limit && <span> Limit: {tl.limit}</span>}
+            {tl.authorized !== undefined && (
+              <span>{tl.authorized ? ' Authorized' : ' Not authorized'}</span>
+            )}
           </div>
         ))
       )}
@@ -81,15 +84,23 @@ export default function TrustlineManager({ publicKey }: { publicKey: string }) {
 useTrustlines(
   publicKey?: string | null,
   options?: {
-    horizonUrl?: string;        // Defaults to WalletProvider config or testnet
+    horizonUrl?: string;
     network?: 'TESTNET' | 'PUBLIC';
   }
 ): TrustlinesState
 ```
 
+| Parameter    | Type                    | Default                                          | Description                                         |
+| ------------ | ----------------------- | ------------------------------------------------ | --------------------------------------------------- |
+| `publicKey`  | `string \| null`        | `undefined`                                      | Account to load trustlines for                      |
+| `horizonUrl` | `string`                | WalletProvider config or `https://horizon-testnet.stellar.org` | Horizon server URL                    |
+| `network`    | `'TESTNET' \| 'PUBLIC'` | `'TESTNET'`                                      | Network passphrase used when building transactions  |
+
+`horizonUrl` falls back to `WalletProvider`. `network` does **not** — it defaults to `'TESTNET'` unless you pass it in `options`.
+
 ### Return Value
 
-````typescript
+```typescript
 interface TrustlinesState {
   trustlines: Trustline[];
   loading: boolean;
@@ -103,7 +114,12 @@ interface TrustlinesState {
   submitChangeTrustWithSecret: (
     xdr: string,
     secret: string
-  ) => Promise<{ success: boolean; hash?: string; error?: string }>;
+  ) => Promise<{
+    success: boolean;
+    hash?: string;
+    raw?: unknown;
+    error?: string;
+  }>;
 }
 ```
 
@@ -118,6 +134,8 @@ interface Trustline {
   authorized?: boolean;
 }
 ```
+
+Trustlines are parsed from Horizon `account.balances` entries where `asset_type !== 'native'`. `authorized` maps from Horizon `is_authorized`.
 
 ## Examples
 
@@ -136,6 +154,15 @@ const xdr = await buildChangeTrustXDR({
 // Sign with Freighter or other wallet
 const signedXdr = await freighter.signTransaction(xdr);
 ```
+
+`buildChangeTrustXDR` validates the asset before talking to Horizon. Invalid input throws:
+
+- `'Invalid asset code: must be 1-12 alphanumeric characters'`
+- `'Invalid asset issuer: must be a valid Stellar public key'`
+- `'Asset limit must be a positive number'` (the string `"0"` is allowed and removes the trustline)
+- `'Public key required to build change trust XDR'`
+
+If the account is not on the network yet, it throws `Account {publicKey} not found. Account may need funding.`
 
 ### Dev-Only: Submit with Secret Key
 
@@ -162,9 +189,11 @@ if (result.success) {
 }
 ```
 
+Validation failures (bad secret, XDR, or mismatched key) **throw**. Horizon submission failures **return** `{ success: false, error, raw }` instead of throwing. On success the hook calls `refresh()` so `trustlines` updates.
+
 ### Remove Trustline
 
-To remove a trustline, set the limit to `"0"`:
+To remove a trustline, set the limit to `"0"` (Stellar `change_trust` with limit 0). The account's balance for that asset must already be 0 or Horizon will reject the operation:
 
 ```tsx
 const xdr = await buildChangeTrustXDR({
@@ -180,17 +209,33 @@ const xdr = await buildChangeTrustXDR({
 const { trustlines } = useTrustlines(publicKey);
 
 const hasUSDC = trustlines.some((tl) => tl.asset_code === 'USDC');
-````
+```
 
 ## Error Handling
 
 ### Invalid Asset Data
 
-Validate the asset code and issuer before building the transaction. A malformed issuer address should fail fast.
+`buildChangeTrustXDR` fails fast on malformed asset data. Catch the thrown `Error` and keep the form editable:
+
+```tsx
+try {
+  await buildChangeTrustXDR({ code: assetCode, issuer: assetIssuer });
+} catch (err) {
+  setFormError(err instanceof Error ? err.message : 'Invalid asset');
+}
+```
 
 ### Insufficient Reserve
 
-Explain that trustlines require account reserve when the wallet or Horizon returns an underfunded error.
+The hook does **not** check account reserve locally. Opening a trustline requires an additional base reserve (0.5 XLM) on the account. If Horizon rejects the submitted change-trust as underfunded, `submitChangeTrustWithSecret` returns `{ success: false, error }` with the Horizon result codes, typically:
+
+```text
+Transaction failed - op_low_reserve
+```
+
+Surface `result.error` (or the wallet/Horizon message when signing externally) and keep the form editable so the user can fund the account and retry.
+
+Unfunded accounts (Horizon 404) return an empty `trustlines` array from `refresh()`, and `buildChangeTrustXDR` throws `Account ${publicKey} not found. Account may need funding.`
 
 ### Submission Failures
 
@@ -212,38 +257,47 @@ if (error) {
 1. **Verify Issuer**: Always verify the asset issuer address before adding a trustline
 2. **Set Limits**: Use trust limits to cap your exposure to a particular asset
 3. **Remove Unused**: Remove trustlines for assets you no longer use (balance must be 0)
-4. **Check Authorization**: Some assets require issuer authorization before you can hold them
+4. **Check Authorization**: Some assets require issuer authorization before you can hold them (`authorized` on each `Trustline`)
 5. **Use Wallet Signing**: In production, always use `buildChangeTrustXDR` with external wallet signing
+6. **Leave Reserve**: Keep extra XLM so the account can fund the new trustline's base reserve
 
 ## Using with WalletProvider
 
-The hook automatically consumes configuration from `WalletProvider`:
+The hook uses `WalletProvider`'s `horizonUrl` as a fallback. Pass `network` yourself if you need mainnet transaction building:
 
-`````tsx
-// In your app layout
-<WalletProvider horizonUrl="https://horizon.stellar.org" network="PUBLIC">
-  <App />
-</WalletProvider>;
+```tsx
+import { WalletProvider } from '@/contexts';
+import { useStellarWallet } from '@/hooks/useStellarWallet';
+import { useTrustlines } from '@/hooks/useTrustlines';
 
-// In your component - hook uses provider's horizonUrl automatically
-function MyComponent() {
+export function App() {
+  return (
+    <WalletProvider horizonUrl="https://horizon.stellar.org" network="PUBLIC">
+      <TrustlineList />
+    </WalletProvider>
+  );
+}
+
+function TrustlineList() {
+  const { publicKey } = useStellarWallet();
   const { trustlines } = useTrustlines(publicKey);
-  // Uses mainnet automatically from provider
+  // Uses the provider horizonUrl (mainnet). network still defaults to TESTNET
+  // unless you pass it in options — see override below.
+  return <p>{trustlines.length} trustlines</p>;
 }
 ```
 
 Or override per-component:
 
-````tsx
+```tsx
 const { trustlines } = useTrustlines(publicKey, {
   horizonUrl: 'https://horizon-testnet.stellar.org',
   network: 'TESTNET',
 });
-```typescript
+```
 
 ## Related Hooks
 
 - [`useStellarBalances`](/docs/hooks/use-stellar-balances) - View asset balances
 - [`useStellarPayment`](/docs/hooks/use-stellar-payment) - Send custom assets
 - [`useStellarWallet`](/docs/hooks/use-stellar-wallet) - Wallet connection and management
-`````

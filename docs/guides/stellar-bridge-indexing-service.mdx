@@ -1,0 +1,283 @@
+---
+title: Building a Stellar Bridge Indexing Service
+description: A complete tutorial for indexing bridge deposit/withdrawal events on Stellar — ingestion, storage schema, replay strategy, and a working sample service.
+date: 2026-08-28
+---
+
+# Building a Stellar Bridge Indexing Service
+
+A cross-chain bridge needs to answer one question reliably: "for every deposit locked on Stellar, was the corresponding mint issued on the destination chain, and vice versa?" That requires indexing every bridge-contract event — lock, release, mint, burn — into a queryable store that survives reorgs, RPC outages, and indexer restarts. This tutorial builds that service: ingestion from Soroban events, a storage schema for reconciling both sides of the bridge, and a replay strategy that recovers cleanly from downtime.
+
+For general-purpose Stellar event indexing options, see [Stellar Event Indexers](/docs/guides/stellar-event-indexers). This tutorial builds a purpose-specific service rather than comparing hosted options, because bridge indexing has requirements (exactly-once processing, cross-chain reconciliation, gap detection) that a generic indexer doesn't provide out of the box.
+
+---
+
+## Architecture
+
+```
+Soroban RPC (getEvents) ──► Ingestion loop ──► Postgres (bridge_events)
+                                                       │
+Destination chain RPC ──► Ingestion loop ──► Postgres (bridge_events)
+                                                       │
+                                                       ▼
+                                            Reconciliation job
+                                        (matches lock ↔ mint, burn ↔ release)
+                                                       │
+                                                       ▼
+                                              Alerting (stuck / mismatched)
+```
+
+Two independent ingestion loops write into one shared events table, keyed so that a lock on Stellar and its corresponding mint on the destination chain can be joined by a shared `transfer_id`.
+
+---
+
+## Ingestion
+
+Soroban RPC's `getEvents` is paginated by ledger range and returns a `cursor` for resuming. The ingestion loop tracks the last processed ledger and cursor in its own state table — never in memory only — so a restart resumes rather than re-scanning from genesis.
+
+```ts
+// ingest/soroban-events.ts
+import { Server } from '@stellar/stellar-sdk/rpc';
+import { Pool } from 'pg';
+
+const rpc = new Server(process.env.SOROBAN_RPC_URL!);
+const db = new Pool({ connectionString: process.env.DATABASE_URL });
+const BRIDGE_CONTRACT_ID = process.env.BRIDGE_CONTRACT_ID!;
+const PAGE_SIZE = 100;
+
+interface IngestCursor {
+  lastLedger: number;
+  lastCursor: string | null;
+}
+
+async function loadCursor(): Promise<IngestCursor> {
+  const { rows } = await db.query(
+    `SELECT last_ledger, last_cursor FROM bridge_ingest_state WHERE source = 'stellar'`
+  );
+  if (rows.length === 0) {
+    // Cold start: begin from the contract's deployment ledger, not genesis.
+    const startLedger = Number(process.env.BRIDGE_DEPLOY_LEDGER!);
+    return { lastLedger: startLedger, lastCursor: null };
+  }
+  return { lastLedger: rows[0].last_ledger, lastCursor: rows[0].last_cursor };
+}
+
+async function saveCursor(cursor: IngestCursor): Promise<void> {
+  await db.query(
+    `INSERT INTO bridge_ingest_state (source, last_ledger, last_cursor, updated_at)
+     VALUES ('stellar', $1, $2, now())
+     ON CONFLICT (source) DO UPDATE
+       SET last_ledger = EXCLUDED.last_ledger,
+           last_cursor = EXCLUDED.last_cursor,
+           updated_at = now()`,
+    [cursor.lastLedger, cursor.lastCursor]
+  );
+}
+
+export async function ingestOnce(): Promise<number> {
+  const cursor = await loadCursor();
+
+  const response = await rpc.getEvents({
+    startLedger: cursor.lastCursor ? undefined : cursor.lastLedger,
+    cursor: cursor.lastCursor ?? undefined,
+    filters: [
+      {
+        type: 'contract',
+        contractIds: [BRIDGE_CONTRACT_ID],
+        topics: [['lock'], ['release']],
+      },
+    ],
+    limit: PAGE_SIZE,
+  });
+
+  if (response.events.length === 0) return 0;
+
+  await db.query('BEGIN');
+  try {
+    for (const event of response.events) {
+      await insertBridgeEvent(event);
+    }
+    await saveCursor({
+      lastLedger: response.latestLedger,
+      lastCursor: response.cursor,
+    });
+    await db.query('COMMIT');
+  } catch (err) {
+    await db.query('ROLLBACK');
+    throw err;
+  }
+
+  return response.events.length;
+}
+
+async function insertBridgeEvent(event: {
+  id: string;
+  ledger: number;
+  ledgerClosedAt: string;
+  contractId: string;
+  topic: unknown[];
+  value: unknown;
+  txHash: string;
+}): Promise<void> {
+  const eventType = String(event.topic[0]); // 'lock' | 'release'
+  const transferId = String(event.topic[1]);
+
+  await db.query(
+    `INSERT INTO bridge_events (event_id, source_chain, event_type, transfer_id, ledger, closed_at, tx_hash, raw_value)
+     VALUES ($1, 'stellar', $2, $3, $4, $5, $6, $7)
+     ON CONFLICT (event_id) DO NOTHING`,
+    [
+      event.id,
+      eventType,
+      transferId,
+      event.ledger,
+      event.ledgerClosedAt,
+      event.txHash,
+      JSON.stringify(event.value),
+    ]
+  );
+}
+```
+
+<Note type="info">
+  `ON CONFLICT (event_id) DO NOTHING` makes ingestion idempotent — if a page is
+  re-processed after a crash before the cursor was saved, no duplicate rows are
+  written.
+</Note>
+
+---
+
+## Storage Schema
+
+```sql
+CREATE TABLE bridge_events (
+  event_id      TEXT PRIMARY KEY,
+  source_chain  TEXT NOT NULL,             -- 'stellar' | 'destination'
+  event_type    TEXT NOT NULL,             -- 'lock' | 'release' | 'mint' | 'burn'
+  transfer_id   TEXT NOT NULL,             -- shared correlation key across chains
+  ledger        BIGINT NOT NULL,
+  closed_at     TIMESTAMPTZ NOT NULL,
+  tx_hash       TEXT NOT NULL,
+  raw_value     JSONB NOT NULL,
+  ingested_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_bridge_events_transfer_id ON bridge_events (transfer_id);
+CREATE INDEX idx_bridge_events_type_chain ON bridge_events (source_chain, event_type);
+
+-- Tracks per-source ingestion progress for resumable replay.
+CREATE TABLE bridge_ingest_state (
+  source       TEXT PRIMARY KEY,           -- 'stellar' | 'destination'
+  last_ledger  BIGINT NOT NULL,
+  last_cursor  TEXT,
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Materialized reconciliation view: pairs a Stellar lock with its
+-- destination-chain mint by transfer_id.
+CREATE VIEW bridge_transfer_status AS
+SELECT
+  l.transfer_id,
+  l.closed_at   AS locked_at,
+  m.closed_at   AS minted_at,
+  CASE
+    WHEN m.event_id IS NULL THEN 'pending'
+    ELSE 'completed'
+  END AS status,
+  EXTRACT(EPOCH FROM (m.closed_at - l.closed_at)) AS settlement_seconds
+FROM bridge_events l
+LEFT JOIN bridge_events m
+  ON m.transfer_id = l.transfer_id AND m.event_type = 'mint'
+WHERE l.event_type = 'lock';
+```
+
+---
+
+## Replay Strategy
+
+Two distinct replay scenarios need different handling:
+
+| Scenario                            | Cause                                              | Strategy                                                                                                                          |
+| ----------------------------------- | -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| **Short gap** (minutes)             | Ingestor restart, brief RPC outage                 | Resume from saved cursor — `getEvents` cursors remain valid across restarts as long as the ledger range hasn't been pruned        |
+| **Long gap** (beyond RPC retention) | Extended downtime, migration to a new RPC provider | Fall back to `startLedger`-based replay from `last_ledger`, since the cursor may reference pruned history                         |
+| **Suspected missed events**         | Bug fix, schema change requiring a full rebuild    | Full replay: truncate `bridge_events`, reset `bridge_ingest_state` to the contract's deploy ledger, re-run ingestion from genesis |
+
+```ts
+// ingest/replay.ts
+import { ingestOnce } from './soroban-events';
+
+const SOROBAN_RPC_RETENTION_LEDGERS = 17_280; // ~24h at 5s/ledger, provider-dependent
+
+export async function determineReplayMode(
+  lastIngestedLedger: number,
+  currentLedger: number
+): Promise<'resume' | 'ledger-range' | 'full-rebuild'> {
+  const gap = currentLedger - lastIngestedLedger;
+
+  if (gap < SOROBAN_RPC_RETENTION_LEDGERS) return 'resume';
+  return 'ledger-range'; // cursor is likely stale; re-derive from startLedger instead
+}
+
+/** Drains all available events, looping until a page returns 0 results. */
+export async function drainBacklog(): Promise<number> {
+  let total = 0;
+  let batch: number;
+  do {
+    batch = await ingestOnce();
+    total += batch;
+  } while (batch === 100); // PAGE_SIZE — a short page means we've caught up
+  return total;
+}
+```
+
+<Note type="warning">
+  Soroban RPC providers typically retain event history for a limited window
+  (often ~24h, but this varies by provider). If your indexer is offline longer
+  than that, cursor-based resume will fail — always keep `last_ledger` as a
+  fallback and detect the gap explicitly rather than letting `getEvents`
+  silently return an empty or error response.
+</Note>
+
+---
+
+## Working Sample: Reconciliation Alert
+
+```ts
+// jobs/check-stuck-transfers.ts
+import { Pool } from 'pg';
+
+const db = new Pool({ connectionString: process.env.DATABASE_URL });
+const STUCK_THRESHOLD_SECONDS = 15 * 60; // 15 minutes
+
+export async function findStuckTransfers(): Promise<
+  { transferId: string; lockedAt: string; ageSeconds: number }[]
+> {
+  const { rows } = await db.query(
+    `SELECT transfer_id, locked_at,
+            EXTRACT(EPOCH FROM (now() - locked_at)) AS age_seconds
+     FROM bridge_transfer_status
+     WHERE status = 'pending'
+       AND EXTRACT(EPOCH FROM (now() - locked_at)) > $1
+     ORDER BY locked_at ASC`,
+    [STUCK_THRESHOLD_SECONDS]
+  );
+
+  return rows.map((r) => ({
+    transferId: r.transfer_id,
+    lockedAt: r.locked_at,
+    ageSeconds: Number(r.age_seconds),
+  }));
+}
+```
+
+Run this on a schedule (every 1–5 minutes) and alert when it returns non-empty results — a lock without a matching mint past the threshold indicates either a destination-chain outage or a bug worth paging someone for.
+
+---
+
+## Acceptance Checklist
+
+- [ ] Guide renders without build errors (`pnpm build:content`)
+- [ ] Internal links resolve (`pnpm check:links`)
+- [ ] Code samples are copy-pasteable without modification
+- [ ] Replay strategy covers restart, RPC-retention gaps, and full rebuild

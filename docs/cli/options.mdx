@@ -84,35 +84,32 @@ nextellar my-app --soroban-url https://soroban-rpc.stellar.org
 Specify which wallet adapters to include.
 
 ```bash
-nextellar my-app --wallets freighter,xbull,ledger
+nextellar my-app --wallets freighter,xbull
 # or
 nextellar my-app -w freighter,albedo
-````
+```
 
 **Default:** `freighter,albedo,lobstr`
 **Type:** Comma-separated string
-**Validation:** Must be valid wallet names
 
-**Supported Wallets:**
+For a complete list of supported wallets, examples, and detailed information about defaults and unknown adapter behavior, see [Wallet Configuration](/docs/cli/flags#wallet-configuration-wallets) in the Flags & Options reference.
 
-- `freighter` - Freighter Wallet
-- `albedo` - Albedo Wallet
-- `lobstr` - Lobstr Wallet
-- `xbull` - xBull Wallet
-- `ledger` - Ledger Hardware Wallet
+**Quick Reference:**
+
+**Supported Wallets:** `freighter`, `albedo`, `lobstr`, `xbull`, `hana`
 
 **Examples:**
 
-````bash
+```bash
 # Only Freighter
 nextellar my-app --wallets freighter
 
-# Multiple wallets
-nextellar my-app --wallets freighter,xbull,ledger
+# Custom combination (non-default)
+nextellar my-app --wallets freighter,xbull
 
 # All supported wallets
-nextellar my-app --wallets freighter,albedo,lobstr,xbull,ledger
-```css
+nextellar my-app --wallets freighter,albedo,lobstr,xbull,hana
+```
 
 ## Installation Options
 
@@ -321,14 +318,16 @@ nextellar -h
 
 ## Option Combinations
 
-### Mainnet Production Setup
+### Mainnet Production Setup (with custom wallet selection)
 
 ```bash
 nextellar stellar-mainnet-app \
   --horizon-url https://horizon.stellar.org \
   --soroban-url https://soroban-rpc.stellar.org \
-  --wallets freighter,xbull,ledger \
+  --wallets freighter,xbull \
   --package-manager pnpm
+# Note: freighter,xbull is a custom wallet selection.
+# See [Wallet Configuration](/docs/cli/flags#wallet-configuration-wallets) for defaults and all supported adapters.
 ```
 
 ### Development Setup
@@ -412,7 +411,7 @@ nextellar ../my-app       # Path traversal not allowed
 ### Wallet Names
 
 - **Format:** Comma-separated, no spaces
-- **Valid:** `freighter`, `albedo`, `lobstr`, `xbull`, `ledger`
+- **Valid:** `freighter`, `albedo`, `lobstr`, `xbull`, `hana`
 - **Case:** Case-insensitive
 
 ## Related Documentation

@@ -1,0 +1,48 @@
+---
+title: stellar-sdk Operation Namespace
+description: A quick reference on the Operation namespace in @stellar/stellar-sdk and its most commonly used factory methods.
+date: 2026-08-27
+---
+
+# stellar-sdk Operation Namespace
+
+`Operation` is a namespace of static factory methods in `@stellar/stellar-sdk`. Each factory builds the XDR for one classic Stellar operation type, ready to be passed to `TransactionBuilder.addOperation()`.
+
+## Frequently Used Factories
+
+| Factory | Description |
+| --- | --- |
+| `Operation.payment({ destination, asset, amount })` | Sends a payment of `asset` to `destination`. |
+| `Operation.createAccount({ destination, startingBalance })` | Funds and creates a new account on the ledger. |
+| `Operation.changeTrust({ asset, limit })` | Creates or modifies a trustline for a non-native asset. |
+| `Operation.pathPaymentStrictSend({ sendAsset, sendAmount, destination, destAsset, destMin })` | Sends a fixed source amount, converted through the DEX to a minimum destination amount. |
+| `Operation.manageSellOffer({ selling, buying, amount, price })` | Creates, updates, or deletes an offer on the DEX. |
+| `Operation.invokeHostFunction({ func, auth })` | Invokes a Soroban contract function (or deploys/uploads one) via the host function XDR. |
+
+## Example
+
+```typescript
+import { Operation, Asset, TransactionBuilder, Networks } from '@stellar/stellar-sdk';
+
+const payment = Operation.payment({
+  destination: 'GDESTINATION...',
+  asset: Asset.native(),
+  amount: '10',
+});
+
+const trustline = Operation.changeTrust({
+  asset: new Asset('USDC', 'GISSUER...'),
+  limit: '1000',
+});
+
+const tx = new TransactionBuilder(sourceAccount, {
+  fee: '100',
+  networkPassphrase: Networks.TESTNET,
+})
+  .addOperation(payment)
+  .addOperation(trustline)
+  .setTimeout(30)
+  .build();
+```
+
+Each factory returns an `xdr.Operation` — multiple operations can be chained onto a single transaction via repeated `addOperation()` calls, and they execute atomically in the order added.

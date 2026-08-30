@@ -1,0 +1,196 @@
+---
+title: Customer Support Runbook for a Stellar dApp
+description: Tutorial for building a support runbook covering common Stellar dApp issues — triage flow, escalation paths, and a ready-to-use ticket template.
+date: 2026-08-27
+---
+
+# Customer Support Runbook for a Stellar dApp
+
+Support tickets for a Stellar dApp cluster around a small set of recurring problems: a deposit that never confirmed, a withdrawal stuck pending, a KYC rejection with no clear reason, a wallet that won't connect. Without a runbook, every ticket gets re-diagnosed from scratch. This tutorial builds a triage flow, escalation paths, and a support-ticket template you can adapt directly.
+
+<Note type="warning">
+  This runbook assumes a support agent with read access to transaction and
+  KYC status in an admin panel, but without direct database or Stellar
+  account-key access. Escalation paths below route anything needing that
+  level of access to engineering.
+</Note>
+
+## Triage flow
+
+Every ticket starts with the same three questions, in order — they narrow the problem space before any deep investigation:
+
+```text
+1. What Stellar operation is involved?
+   (deposit / withdrawal / KYC / wallet connection / other)
+        │
+        ▼
+2. What is the current on-chain / DB status?
+   (check the transaction or KYC record directly — do not trust
+    what the user reports their app is showing, since client-side
+    caching often lags the real state)
+        │
+        ▼
+3. Does the status match what the user reports?
+   ├─ No  → likely a client-side display/cache bug → Tier 1 fix
+   └─ Yes → the backend state itself is the problem → Tier 2/3
+```
+
+### Common issue → first check
+
+| Symptom | First check | Likely cause |
+|---|---|---|
+| "Deposit never showed up" | Transaction status in admin panel | Ledger not yet finalized, or webhook delivery failed |
+| "Withdrawal stuck pending" | Withdrawal record's `status` + `stellar_tx_hash` | Awaiting manual review, or Stellar tx failed silently |
+| "KYC rejected, no reason given" | KYC record's rejection reason field | Document quality, or a real compliance flag |
+| "Wallet won't connect" | Browser console error the user reports | Extension not installed vs. network mismatch vs. a real bug |
+
+## Working sample: ticket classifier
+
+A small helper turns a raw ticket into a routed category and default response, so Tier 1 agents have a starting point instead of a blank ticket:
+
+```ts
+// lib/support-triage.ts
+export type IssueCategory =
+  | "deposit"
+  | "withdrawal"
+  | "kyc"
+  | "wallet-connection"
+  | "other";
+
+export type EscalationTier = "tier-1" | "tier-2" | "tier-3-engineering";
+
+export interface TriageResult {
+  category: IssueCategory;
+  tier: EscalationTier;
+  suggestedResponse: string;
+}
+
+const KEYWORD_MAP: Array<{ pattern: RegExp; category: IssueCategory }> = [
+  { pattern: /deposit|top.?up|funding/i, category: "deposit" },
+  { pattern: /withdraw|payout|cash.?out/i, category: "withdrawal" },
+  { pattern: /kyc|verification|document|rejected/i, category: "kyc" },
+  { pattern: /wallet|freighter|albedo|connect/i, category: "wallet-connection" },
+];
+
+function classifyCategory(ticketBody: string): IssueCategory {
+  for (const { pattern, category } of KEYWORD_MAP) {
+    if (pattern.test(ticketBody)) return category;
+  }
+  return "other";
+}
+
+const TIER_BY_CATEGORY: Record<IssueCategory, EscalationTier> = {
+  deposit: "tier-1",
+  withdrawal: "tier-2",
+  kyc: "tier-2",
+  "wallet-connection": "tier-1",
+  other: "tier-3-engineering",
+};
+
+const DEFAULT_RESPONSE: Record<IssueCategory, string> = {
+  deposit:
+    "Thanks for reaching out — deposits can take a few minutes to confirm on-chain. Checking the status now.",
+  withdrawal:
+    "Withdrawals over a certain amount require manual review, which can take up to 24h. Checking your specific case now.",
+  kyc: "Sorry about the trouble — let me pull up your verification status and get you the specific reason.",
+  "wallet-connection":
+    "Let's get your wallet connected. Can you confirm which wallet extension you're using and what error message you see?",
+  other:
+    "Thanks for the report — this needs a closer look from our engineering team. Escalating now.",
+};
+
+export function triageTicket(ticketBody: string): TriageResult {
+  const category = classifyCategory(ticketBody);
+  return {
+    category,
+    tier: TIER_BY_CATEGORY[category],
+    suggestedResponse: DEFAULT_RESPONSE[category],
+  };
+}
+```
+
+```ts
+// lib/support-triage.test.ts
+import { describe, expect, it } from "vitest";
+import { triageTicket } from "./support-triage";
+
+describe("triageTicket", () => {
+  it("classifies a deposit issue as tier-1", () => {
+    const result = triageTicket("My deposit hasn't shown up after an hour");
+    expect(result.category).toBe("deposit");
+    expect(result.tier).toBe("tier-1");
+  });
+
+  it("classifies a withdrawal issue as tier-2", () => {
+    const result = triageTicket("My withdrawal is stuck pending");
+    expect(result.category).toBe("withdrawal");
+    expect(result.tier).toBe("tier-2");
+  });
+
+  it("classifies a KYC rejection as tier-2", () => {
+    const result = triageTicket("My KYC verification was rejected");
+    expect(result.category).toBe("kyc");
+    expect(result.tier).toBe("tier-2");
+  });
+
+  it("classifies a wallet connection issue as tier-1", () => {
+    const result = triageTicket("Freighter won't connect to the app");
+    expect(result.category).toBe("wallet-connection");
+    expect(result.tier).toBe("tier-1");
+  });
+
+  it("routes anything unrecognized straight to engineering", () => {
+    const result = triageTicket("The page shows a blank white screen");
+    expect(result.category).toBe("other");
+    expect(result.tier).toBe("tier-3-engineering");
+  });
+
+  it("provides a category-specific suggested response", () => {
+    const result = triageTicket("deposit missing");
+    expect(result.suggestedResponse).toMatch(/deposits can take/i);
+  });
+});
+```
+
+## Escalation paths
+
+| Tier | Who | When |
+|---|---|---|
+| Tier 1 | Support agent | Client-side/display issues, standard wait-time questions, wallet connection help |
+| Tier 2 | Support lead | Backend state genuinely looks wrong (stuck withdrawal, unclear KYC rejection) but doesn't need a code fix |
+| Tier 3 | Engineering (on-call) | Transaction failed on-chain with no clear cause, suspected bug, anything touching account keys |
+
+**Escalate to Tier 3 immediately, skipping Tier 2, for:** any report suggesting funds were sent to the wrong address, any request to manually adjust an on-chain balance, or repeated reports of the same symptom from multiple users within a short window (possible incident, not an isolated ticket).
+
+## Ticket template
+
+```markdown
+### Support Ticket
+
+**Category:** <deposit | withdrawal | kyc | wallet-connection | other>
+**Tier:** <tier-1 | tier-2 | tier-3-engineering>
+**User-reported symptom:** <verbatim from user>
+
+**Verified status (from admin panel, not user's client):**
+-
+
+**Stellar tx hash (if applicable):**
+-
+
+**Next action:**
+- [ ] Reply to user with status update
+- [ ] Escalate to <tier>
+- [ ] Resolved — no further action
+```
+
+## Verifying the tutorial
+
+```bash
+pnpm build:content
+pnpm check:links
+npx vitest run lib/support-triage.test.ts
+```
+
+## Related docs
+
+- [SLA Definition Guide](/routes-d/957-stellar-dapp-sla-definition-guide)

@@ -1,0 +1,159 @@
+---
+title: CI Matrix Testing Across Networks and SDK Versions
+description: Tutorial for building a CI test matrix that runs a Soroban contract's suite across multiple networks and SDK versions, with safe secret handling — and a working sample.
+date: 2026-08-27
+---
+
+# CI Matrix Testing Across Networks and SDK Versions
+
+A Soroban contract that only runs its tests once, against one network and one SDK version, can pass CI while silently breaking on testnet, or against the SDK version most integrators actually use. This tutorial builds a CI matrix that runs the same suite across combinations of network and SDK version, and covers how to keep per-network secrets (RPC URLs, funded test accounts) from leaking across matrix legs.
+
+<Note type="warning">
+  This tutorial targets GitHub Actions matrix builds. The matrix-design
+  principles (which axes to combine, how to scope secrets) transfer to other CI
+  systems; the exact YAML syntax does not.
+</Note>
+
+## Choosing matrix axes
+
+Two axes are usually worth crossing for a Soroban project:
+
+- **Network**: `local` (a disposable quickstart container), `testnet`, and optionally `futurenet` for bleeding-edge protocol features.
+- **SDK version**: the SDK version your project currently pins, plus the next major/minor, so a breaking SDK release is caught before you upgrade for real.
+
+Resist adding a third axis (e.g. OS) unless you have a concrete reason — each additional axis multiplies job count, and most Soroban test failures are network- or SDK-shape issues, not OS issues.
+
+```yaml
+# .github/workflows/ci-matrix.yml
+name: Contract Test Matrix
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        network: [local, testnet]
+        sdk-version: ['21.0.0', '22.0.0']
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install SDK at matrix version
+        run: npm install --no-save "@stellar/stellar-sdk@${{ matrix.sdk-version }}"
+      - name: Start local network
+        if: matrix.network == 'local'
+        run: docker run -d -p 8000:8000 stellar/quickstart:soroban-dev --local
+      - name: Run contract tests
+        env:
+          NETWORK: ${{ matrix.network }}
+          RPC_URL: ${{ matrix.network == 'local' && 'http://localhost:8000/soroban/rpc' || secrets.TESTNET_RPC_URL }}
+          TEST_ACCOUNT_SECRET: ${{ matrix.network == 'local' && '' || secrets.TESTNET_FUNDED_SECRET }}
+        run: npm test
+```
+
+`fail-fast: false` matters here: a testnet flake on one SDK version shouldn't cancel the local-network legs, which are the fastest signal you have.
+
+## Secret handling
+
+Matrix legs share the workflow's secret scope by default — every job in the matrix can see every secret defined at the workflow or repo level, even legs that don't need them. Two rules keep this from becoming a liability:
+
+1. **Scope secrets to the leg that needs them in the step itself**, not by trying to restrict what the job can see (GitHub Actions doesn't support per-matrix-leg secret scoping). The `env:` block above only _reads_ `TESTNET_RPC_URL` when `matrix.network != 'local'` — the local legs never touch it even though they technically could.
+2. **Never use a mainnet-funded account for CI.** Every network leg other than `local` should use a dedicated testnet/futurenet account that is re-funded via friendbot, holds no real value, and is rotated if a fork ever runs CI on a PR from an external contributor (forked-repo PRs don't get repo secrets by default on GitHub Actions — verify this hasn't been overridden with `pull_request_target` before relying on it).
+
+```ts
+// scripts/ci/resolve-network-config.ts
+export interface NetworkConfig {
+  rpcUrl: string;
+  usesSecretAccount: boolean;
+}
+
+export function resolveNetworkConfig(
+  network: string,
+  env: { RPC_URL?: string; TEST_ACCOUNT_SECRET?: string }
+): NetworkConfig {
+  if (network === 'local') {
+    return {
+      rpcUrl: 'http://localhost:8000/soroban/rpc',
+      usesSecretAccount: false,
+    };
+  }
+  if (!env.RPC_URL) {
+    throw new Error(`RPC_URL is required for network '${network}'`);
+  }
+  return {
+    rpcUrl: env.RPC_URL,
+    usesSecretAccount: Boolean(env.TEST_ACCOUNT_SECRET),
+  };
+}
+```
+
+```ts
+// scripts/ci/resolve-network-config.test.ts
+import { describe, expect, it } from 'vitest';
+import { resolveNetworkConfig } from './resolve-network-config';
+
+describe('resolveNetworkConfig', () => {
+  it('uses a fixed local RPC URL and no secret account for the local network', () => {
+    const config = resolveNetworkConfig('local', {});
+    expect(config.rpcUrl).toBe('http://localhost:8000/soroban/rpc');
+    expect(config.usesSecretAccount).toBe(false);
+  });
+
+  it('requires an RPC_URL for non-local networks', () => {
+    expect(() => resolveNetworkConfig('testnet', {})).toThrow(
+      /RPC_URL is required/
+    );
+  });
+
+  it('reports whether a secret account was supplied for a remote network', () => {
+    const config = resolveNetworkConfig('testnet', {
+      RPC_URL: 'https://soroban-testnet.stellar.org',
+      TEST_ACCOUNT_SECRET: 'SA...',
+    });
+    expect(config.usesSecretAccount).toBe(true);
+  });
+
+  it('does not require a secret account to be present for a remote network', () => {
+    const config = resolveNetworkConfig('futurenet', {
+      RPC_URL: 'https://rpc-futurenet.stellar.org',
+    });
+    expect(config.usesSecretAccount).toBe(false);
+  });
+});
+```
+
+## Matrix result aggregation
+
+With `fail-fast: false`, a single required status check ("all tests passed") needs an explicit aggregation job, since GitHub doesn't merge matrix leg statuses into one check by default:
+
+```yaml
+matrix-result:
+  needs: test
+  if: always()
+  runs-on: ubuntu-latest
+  steps:
+    - name: Fail if any matrix leg failed
+      if: contains(needs.test.result, 'failure')
+      run: exit 1
+```
+
+Set branch protection's required check to `matrix-result`, not to any individual `test (local, 21.0.0)` leg — matrix leg names change if you add/remove versions, silently disabling the required check.
+
+## Verifying the tutorial
+
+```bash
+pnpm build:content
+pnpm check:links
+npx vitest run scripts/ci/resolve-network-config.test.ts
+```
+
+## Related docs
+
+- [Release Automation Guide](/routes-d/941-stellar-dapp-release-automation-guide)
+- [CDN Strategy Guide](/routes-d/953-stellar-dapp-cdn-strategy-guide)

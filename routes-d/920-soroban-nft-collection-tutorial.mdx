@@ -1,0 +1,553 @@
+---
+title: Complete Soroban NFT Collection Tutorial
+description: Build a Soroban NFT collection contract from scratch — mint, transfer, metadata, client invocation, and royalty considerations.
+date: 2026-08-28
+---
+
+# Complete Soroban NFT Collection Tutorial
+
+Soroban has no native NFT primitive — an **NFT collection contract** is a token contract with `amount` fixed at 1 per id instead of a fungible balance, plus per-token metadata. This tutorial builds a full collection contract (mint, transfer, ownership queries, metadata) modeled after the emerging Soroban non-fungible token interface, and covers client invocation and royalty handling on top of it.
+
+---
+
+## Design Overview
+
+```
+Minter ──mint(to, token_id, uri)───────► NFT Contract
+                                             │
+                                             ├── require_auth() on minter (must be contract admin)
+                                             ├── assert token_id not already minted
+                                             └── owner[token_id] = to; token_uri[token_id] = uri
+
+Owner ──transfer(from, to, token_id)───► NFT Contract
+                                             │
+                                             ├── require_auth() on from (or an approved operator)
+                                             ├── assert owner[token_id] == from
+                                             └── owner[token_id] = to
+
+Owner ──approve(operator, token_id)────► NFT Contract
+                                             │
+                                             ├── require_auth() on owner
+                                             └── approved[token_id] = operator
+```
+
+Unlike the fungible [token contract](/docs/guides/soroban-token-contract-guide), balances aren't tracked as a single number per address — ownership is tracked per **token id**, and `balance_of(owner)` is a derived count rather than a stored field (or a stored counter maintained on every mint/transfer/burn, which is the approach this tutorial takes for O(1) reads).
+
+<Note type="info">
+  There is no finalized SEP for Soroban NFTs at the time of writing, unlike
+  SEP-41 for fungible tokens. This tutorial follows the interface shape that the
+  ecosystem's NFT contracts (and OpenZeppelin's Stellar Soroban contracts) have
+  converged on — `mint`, `transfer`, `owner_of`, `balance_of`, `token_uri` — so
+  that indexers and marketplaces built against one such contract need minimal
+  changes to support another.
+</Note>
+
+---
+
+## Project Layout
+
+```
+my-nft-contract/
+├── Cargo.toml
+└── contracts/
+    └── nft/
+        ├── Cargo.toml
+        └── src/
+            ├── lib.rs
+            ├── contract.rs
+            ├── storage.rs
+            └── test.rs
+```
+
+### Contract Cargo.toml
+
+```toml
+[package]
+name = "soroban-nft-contract"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+soroban-sdk = "21.0.0"
+
+[dev-dependencies]
+soroban-sdk = { version = "21.0.0", features = ["testutils"] }
+
+[profile.release]
+opt-level = "z"
+overflow-checks = true
+debug = false
+panic = "abort"
+codegen-units = 1
+```
+
+---
+
+## Storage Layout
+
+```rust
+// contracts/nft/src/storage.rs
+use soroban_sdk::{contracttype, Address, Env, String};
+
+#[derive(Clone)]
+#[contracttype]
+pub enum DataKey {
+    Admin,
+    Owner(u128),          // token_id -> owner
+    Approved(u128),       // token_id -> approved operator (single-token approval)
+    TokenUri(u128),       // token_id -> metadata URI
+    BalanceOf(Address),   // owner -> count of tokens held
+    RoyaltyBps,           // basis points paid to the creator on secondary sales
+    RoyaltyReceiver,
+}
+
+pub fn read_owner(env: &Env, token_id: u128) -> Option<Address> {
+    env.storage().persistent().get(&DataKey::Owner(token_id))
+}
+
+pub fn write_owner(env: &Env, token_id: u128, owner: &Address) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::Owner(token_id), owner);
+    env.storage()
+        .persistent()
+        .extend_ttl(&DataKey::Owner(token_id), 100_000, 100_000);
+}
+
+pub fn read_balance(env: &Env, owner: &Address) -> u32 {
+    env.storage()
+        .persistent()
+        .get(&DataKey::BalanceOf(owner.clone()))
+        .unwrap_or(0)
+}
+
+pub fn write_balance(env: &Env, owner: &Address, balance: u32) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::BalanceOf(owner.clone()), &balance);
+}
+
+pub fn read_token_uri(env: &Env, token_id: u128) -> String {
+    env.storage()
+        .persistent()
+        .get(&DataKey::TokenUri(token_id))
+        .unwrap_or_else(|| panic!("token does not exist"))
+}
+```
+
+<Note type="warning">
+  `Owner(token_id)` and `TokenUri(token_id)` use **persistent** storage keyed by
+  a `u128` token id — NFTs are typically held for long periods, so treating them
+  like temporary call state (which can expire) would risk an owned token
+  becoming unreadable. Extend TTL generously, same as the timelock and vault
+  guides.
+</Note>
+
+---
+
+## Contract Implementation
+
+```rust
+// contracts/nft/src/contract.rs
+#![no_std]
+use soroban_sdk::{contract, contractimpl, Address, Env, String};
+use crate::storage::{read_balance, read_owner, read_token_uri, write_balance, write_owner, DataKey};
+
+#[contract]
+pub struct NftContract;
+
+#[contractimpl]
+impl NftContract {
+    pub fn initialize(env: Env, admin: Address, royalty_receiver: Address, royalty_bps: u32) {
+        if env.storage().instance().has(&DataKey::Admin) {
+            panic!("already initialized");
+        }
+        assert!(royalty_bps <= 10_000, "royalty_bps cannot exceed 10000 (100%)");
+        admin.require_auth();
+        env.storage().instance().set(&DataKey::Admin, &admin);
+        env.storage()
+            .instance()
+            .set(&DataKey::RoyaltyReceiver, &royalty_receiver);
+        env.storage().instance().set(&DataKey::RoyaltyBps, &royalty_bps);
+    }
+
+    /// Mints `token_id` to `to` with metadata at `uri`. Admin-only.
+    pub fn mint(env: Env, to: Address, token_id: u128, uri: String) {
+        let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
+        admin.require_auth();
+
+        assert!(read_owner(&env, token_id).is_none(), "token already minted");
+
+        write_owner(&env, token_id, &to);
+        env.storage()
+            .persistent()
+            .set(&DataKey::TokenUri(token_id), &uri);
+        write_balance(&env, &to, read_balance(&env, &to) + 1);
+
+        env.events()
+            .publish((soroban_sdk::symbol_short!("mint"), token_id), to);
+    }
+
+    pub fn owner_of(env: Env, token_id: u128) -> Address {
+        read_owner(&env, token_id).unwrap_or_else(|| panic!("token does not exist"))
+    }
+
+    pub fn balance_of(env: Env, owner: Address) -> u32 {
+        read_balance(&env, &owner)
+    }
+
+    pub fn token_uri(env: Env, token_id: u128) -> String {
+        read_token_uri(&env, token_id)
+    }
+
+    /// Grants a single operator the right to transfer one specific token_id.
+    /// Cleared automatically on transfer (see below).
+    pub fn approve(env: Env, owner: Address, operator: Address, token_id: u128) {
+        owner.require_auth();
+        let current_owner = read_owner(&env, token_id).unwrap_or_else(|| panic!("token does not exist"));
+        assert_eq!(owner, current_owner, "not the token owner");
+
+        env.storage()
+            .persistent()
+            .set(&DataKey::Approved(token_id), &operator);
+
+        env.events().publish(
+            (soroban_sdk::symbol_short!("approve"), token_id),
+            operator,
+        );
+    }
+
+    /// Transfers `token_id` from `from` to `to`. Callable by the owner or an
+    /// address the owner previously approved for this specific token.
+    pub fn transfer(env: Env, from: Address, to: Address, token_id: u128) {
+        let current_owner = read_owner(&env, token_id).unwrap_or_else(|| panic!("token does not exist"));
+        assert_eq!(from, current_owner, "from is not the token owner");
+
+        let approved: Option<Address> = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Approved(token_id));
+
+        // Either the owner authorizes directly, or the approved operator does.
+        if let Some(op) = approved.clone() {
+            if op != from {
+                op.require_auth();
+            } else {
+                from.require_auth();
+            }
+        } else {
+            from.require_auth();
+        }
+
+        write_owner(&env, token_id, &to);
+        write_balance(&env, &from, read_balance(&env, &from) - 1);
+        write_balance(&env, &to, read_balance(&env, &to) + 1);
+
+        // Approval does not carry over to the new owner.
+        env.storage().persistent().remove(&DataKey::Approved(token_id));
+
+        env.events().publish(
+            (soroban_sdk::symbol_short!("transfer"), from, to),
+            token_id,
+        );
+    }
+
+    /// Returns (receiver, royalty_amount) for a sale of `sale_price` — the
+    /// EIP-2981-style royalty query pattern, adapted for Soroban. Marketplaces
+    /// call this and pay the royalty themselves; the NFT contract does not
+    /// enforce payment (see the note below).
+    pub fn royalty_info(env: Env, sale_price: i128) -> (Address, i128) {
+        let receiver: Address = env.storage().instance().get(&DataKey::RoyaltyReceiver).unwrap();
+        let bps: u32 = env.storage().instance().get(&DataKey::RoyaltyBps).unwrap();
+        let amount = sale_price * (bps as i128) / 10_000;
+        (receiver, amount)
+    }
+}
+```
+
+<Note type="warning">
+  **Royalties are advisory, not enforced on-chain.** `royalty_info` tells a
+  well-behaved marketplace contract what to pay, but nothing in `transfer`
+  requires a royalty payment — a marketplace (or a direct peer-to-peer transfer)
+  can simply not call it. This mirrors the real-world limitation of EIP-2981 on
+  EVM chains: on-chain royalty enforcement generally requires either a
+  marketplace-specific escrow that the NFT contract also gates transfers
+  through, or accepting that royalties are cooperative, not guaranteed. Document
+  this tradeoff for your users rather than claiming enforced royalties when they
+  aren't.
+</Note>
+
+---
+
+## Client Invocation (TypeScript)
+
+```typescript
+// lib/nft-client.ts
+import {
+  Contract,
+  Address,
+  TransactionBuilder,
+  BASE_FEE,
+  Networks,
+  nativeToScVal,
+  scValToNative,
+  rpc,
+} from '@stellar/stellar-sdk';
+
+const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL!;
+const NFT_ID = process.env.NEXT_PUBLIC_NFT_CONTRACT!;
+
+async function invoke(
+  method: string,
+  keypair: { publicKey(): string; sign(tx: any): void },
+  ...args: any[]
+) {
+  const server = new rpc.Server(RPC_URL);
+  const account = await server.getAccount(keypair.publicKey());
+  const contract = new Contract(NFT_ID);
+
+  const tx = new TransactionBuilder(account, {
+    fee: BASE_FEE,
+    networkPassphrase: Networks.MAINNET,
+  })
+    .addOperation(contract.call(method, ...args))
+    .setTimeout(30)
+    .build();
+
+  const prepared = await server.prepareTransaction(tx);
+  keypair.sign(prepared);
+  return server.sendTransaction(prepared);
+}
+
+export function mint(
+  adminKeypair: { publicKey(): string; sign(tx: any): void },
+  to: string,
+  tokenId: bigint,
+  uri: string
+) {
+  return invoke(
+    'mint',
+    adminKeypair,
+    new Address(to).toScVal(),
+    nativeToScVal(tokenId, { type: 'u128' }),
+    nativeToScVal(uri, { type: 'string' })
+  );
+}
+
+export function transfer(
+  fromKeypair: { publicKey(): string; sign(tx: any): void },
+  to: string,
+  tokenId: bigint
+) {
+  return invoke(
+    'transfer',
+    fromKeypair,
+    new Address(fromKeypair.publicKey()).toScVal(),
+    new Address(to).toScVal(),
+    nativeToScVal(tokenId, { type: 'u128' })
+  );
+}
+
+// Read-only: simulate rather than submit, no signature required.
+export async function ownerOf(tokenId: bigint): Promise<string> {
+  const server = new rpc.Server(RPC_URL);
+  const contract = new Contract(NFT_ID);
+  const account = new (await import('@stellar/stellar-sdk')).Account(
+    'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN',
+    '0'
+  );
+
+  const tx = new TransactionBuilder(account, {
+    fee: BASE_FEE,
+    networkPassphrase: Networks.MAINNET,
+  })
+    .addOperation(
+      contract.call('owner_of', nativeToScVal(tokenId, { type: 'u128' }))
+    )
+    .setTimeout(5)
+    .build();
+
+  const sim = (await server.simulateTransaction(
+    tx
+  )) as rpc.SimulateTransactionSuccessResponse;
+  return scValToNative(sim.result!.retval);
+}
+
+export async function tokenUri(tokenId: bigint): Promise<string> {
+  const server = new rpc.Server(RPC_URL);
+  const contract = new Contract(NFT_ID);
+  const account = new (await import('@stellar/stellar-sdk')).Account(
+    'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN',
+    '0'
+  );
+
+  const tx = new TransactionBuilder(account, {
+    fee: BASE_FEE,
+    networkPassphrase: Networks.MAINNET,
+  })
+    .addOperation(
+      contract.call('token_uri', nativeToScVal(tokenId, { type: 'u128' }))
+    )
+    .setTimeout(5)
+    .build();
+
+  const sim = (await server.simulateTransaction(
+    tx
+  )) as rpc.SimulateTransactionSuccessResponse;
+  return scValToNative(sim.result!.retval);
+}
+```
+
+---
+
+## CLI Walkthrough
+
+```bash
+stellar contract build
+stellar contract deploy \
+  --wasm target/wasm32-unknown-unknown/release/soroban_nft_contract.wasm \
+  --source alice --network testnet
+
+stellar contract invoke --id <NFT_ID> --source alice --network testnet -- \
+  initialize --admin alice --royalty_receiver alice --royalty_bps 500
+
+stellar contract invoke --id <NFT_ID> --source alice --network testnet -- \
+  mint --to bob --token_id 1 --uri "ipfs://bafybe.../1.json"
+
+stellar contract invoke --id <NFT_ID> --source alice --network testnet -- \
+  owner_of --token_id 1
+
+stellar contract invoke --id <NFT_ID> --source bob --network testnet -- \
+  transfer --from bob --to carol --token_id 1
+```
+
+---
+
+## Royalty Considerations
+
+| Question                                             | Answer for this contract                                                                                                                                                                                                                                         |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Are royalties enforced on-chain?                     | No — `royalty_info` is advisory. A cooperating marketplace reads it and pays out; a direct transfer bypasses it entirely.                                                                                                                                        |
+| Who receives royalties?                              | A single `royalty_receiver` set at `initialize`, applied uniformly to every token id. Per-token royalty receivers (e.g. different creators within one collection) require keying `RoyaltyReceiver` by `token_id` instead of storing it once in instance storage. |
+| Can royalty percentage change after mint?            | Not in this sample — `RoyaltyBps` is set once at `initialize` and never updated. If you need mutability, gate it behind `admin.require_auth()` and consider whether existing marketplace listings should honor the old or new rate.                              |
+| What happens on a zero-price transfer (e.g. a gift)? | `royalty_info(0)` returns `(receiver, 0)` — no royalty owed, which is correct, but confirm your marketplace doesn't misinterpret a `0` sale price as "royalty check skipped" versus "royalty check ran and computed zero."                                       |
+
+---
+
+## Test Suite
+
+```rust
+// contracts/nft/src/test.rs
+#![cfg(test)]
+use super::*;
+use soroban_sdk::testutils::Address as _;
+use soroban_sdk::{Env, String};
+
+#[test]
+fn mint_then_transfer() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let alice = Address::generate(&env);
+    let bob = Address::generate(&env);
+
+    let contract_id = env.register(NftContract, ());
+    let client = NftContractClient::new(&env, &contract_id);
+    client.initialize(&admin, &admin, &500);
+
+    client.mint(&alice, &1, &String::from_str(&env, "ipfs://token/1"));
+    assert_eq!(client.owner_of(&1), alice);
+    assert_eq!(client.balance_of(&alice), 1);
+
+    client.transfer(&alice, &bob, &1);
+    assert_eq!(client.owner_of(&1), bob);
+    assert_eq!(client.balance_of(&alice), 0);
+    assert_eq!(client.balance_of(&bob), 1);
+}
+
+#[test]
+#[should_panic(expected = "token already minted")]
+fn double_mint_same_id_panics() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let alice = Address::generate(&env);
+
+    let contract_id = env.register(NftContract, ());
+    let client = NftContractClient::new(&env, &contract_id);
+    client.initialize(&admin, &admin, &500);
+
+    client.mint(&alice, &1, &String::from_str(&env, "ipfs://token/1"));
+    client.mint(&alice, &1, &String::from_str(&env, "ipfs://token/1-dup"));
+}
+
+#[test]
+#[should_panic(expected = "from is not the token owner")]
+fn transfer_by_non_owner_panics() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let alice = Address::generate(&env);
+    let bob = Address::generate(&env);
+    let mallory = Address::generate(&env);
+
+    let contract_id = env.register(NftContract, ());
+    let client = NftContractClient::new(&env, &contract_id);
+    client.initialize(&admin, &admin, &500);
+
+    client.mint(&alice, &1, &String::from_str(&env, "ipfs://token/1"));
+    client.transfer(&mallory, &bob, &1); // mallory does not own token 1
+}
+
+#[test]
+fn approved_operator_can_transfer() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let alice = Address::generate(&env);
+    let bob = Address::generate(&env);
+    let marketplace = Address::generate(&env);
+
+    let contract_id = env.register(NftContract, ());
+    let client = NftContractClient::new(&env, &contract_id);
+    client.initialize(&admin, &admin, &500);
+
+    client.mint(&alice, &1, &String::from_str(&env, "ipfs://token/1"));
+    client.approve(&alice, &marketplace, &1);
+    client.transfer(&alice, &bob, &1); // owner still transfers directly; approval unaffected here
+
+    assert_eq!(client.owner_of(&1), bob);
+}
+
+#[test]
+fn royalty_info_computes_correct_bps() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let creator = Address::generate(&env);
+
+    let contract_id = env.register(NftContract, ());
+    let client = NftContractClient::new(&env, &contract_id);
+    client.initialize(&admin, &creator, &500); // 5%
+
+    let (receiver, amount) = client.royalty_info(&10_000);
+    assert_eq!(receiver, creator);
+    assert_eq!(amount, 500); // 5% of 10,000
+}
+```
+
+---
+
+## Related docs
+
+- [Comprehensive Soroban Token Contract Implementation Guide](/docs/guides/soroban-token-contract-guide) — the SEP-41 fungible-token counterpart to this NFT contract
+- [Comprehensive Soroban Fractional NFT Guide](/docs/guides/soroban-fractional-nft-guide) — split an NFT like this one into fungible fractional shares
+- [Soroban Host Functions](/docs/guides/soroban-host-functions) — storage, auth, and cross-contract call primitives

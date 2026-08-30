@@ -1,0 +1,87 @@
+---
+title: Stellar dApp Support Escalation Matrix
+description: A template escalation matrix for a Stellar dApp — severity levels, owner assignments, and response-time targets you can adapt for your team.
+---
+
+# Stellar dApp Support Escalation Matrix
+
+When something breaks in a Stellar dApp — a stuck transaction, a Horizon outage, a smart contract bug — the difference between a quick fix and a multi-hour incident is usually whether the team already agreed on who owns what, and how fast. This guide gives you a starting escalation matrix to adapt.
+
+---
+
+## Why Stellar dApps need this more than typical web apps
+
+A few things make on-chain incidents different from a normal backend outage:
+
+- **Some failures are unrecoverable by design.** A submitted transaction with an incorrect destination can't be "rolled back" the way a database write can.
+- **Dependencies you don't control.** Horizon, Soroban RPC, and the network itself can degrade independently of your own infrastructure.
+- **User-visible urgency is different.** "My funds are gone" reports need a different triage path than "the page is slow."
+
+Because of this, your escalation matrix should separate **on-chain** incidents (where the blockchain state itself is involved) from **off-chain** incidents (your API, frontend, database) — they often need different people and different response postures.
+
+---
+
+## Severity levels
+
+| Severity  | Definition                                             | Example                                                                       |
+| --------- | ------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| **SEV-1** | User funds at risk, or a bug enables fund loss/theft   | A contract bug allows over-withdrawal; a signing flow leaks a secret key      |
+| **SEV-2** | Core functionality broken for many users, no fund risk | Transactions fail to submit for all users; wallet connect is broken           |
+| **SEV-3** | Degraded experience, workaround exists                 | Slow transaction confirmation; a secondary feature (e.g. price chart) is down |
+| **SEV-4** | Cosmetic or low-impact issue                           | UI glitch, non-blocking console error                                         |
+
+---
+
+## Owner assignments
+
+| Severity | Primary owner                        | Secondary / escalation                   | Notify                                             |
+| -------- | ------------------------------------ | ---------------------------------------- | -------------------------------------------------- |
+| SEV-1    | On-call engineer (contract/backend)  | Engineering lead + security contact      | Leadership, legal (if funds affected), status page |
+| SEV-2    | On-call engineer                     | Team lead                                | Status page, support channel                       |
+| SEV-3    | Assigned engineer (business hours)   | Team lead if unresolved in target window | Support channel                                    |
+| SEV-4    | Backlog — triaged in normal planning | —                                        | —                                                  |
+
+Adapt the specific roles to your org chart, but keep the principle: **SEV-1 always has a named security-aware escalation path**, not just "whoever is on call."
+
+---
+
+## Response time targets
+
+| Severity | Acknowledge within | Mitigate/workaround within | Full resolution target |
+| -------- | ------------------ | -------------------------- | ---------------------- |
+| SEV-1    | 15 minutes         | 1 hour                     | 24 hours               |
+| SEV-2    | 30 minutes         | 4 hours                    | 3 business days        |
+| SEV-3    | 4 business hours   | 2 business days            | Next release cycle     |
+| SEV-4    | Next business day  | —                          | Backlog                |
+
+"Mitigate" for a SEV-1 involving a contract bug often means **pausing the affected contract function** (if your contract has an admin-gated pause, per your governance design) rather than shipping a full fix — buy time safely before you ship a rushed patch to production.
+
+---
+
+## A small escalation template
+
+Copy this into your incident channel when SEV-1/SEV-2 is declared:
+
+```
+INCIDENT: <one-line summary>
+SEVERITY: SEV-<1-4>
+DETECTED: <timestamp, UTC>
+DETECTED BY: <person/monitor>
+ON-CHAIN IMPACT: <yes/no — if yes, describe: contract address, affected tx types>
+USER IMPACT: <who/how many, if known>
+CURRENT STATUS: <investigating / mitigating / resolved>
+OWNER: <name>
+NEXT UPDATE BY: <timestamp>
+```
+
+Post an update at least as often as your "acknowledge within" target for that severity, even if the update is "still investigating."
+
+---
+
+## Verifying this guide renders correctly
+
+Before relying on this as your team's actual runbook:
+
+- Replace every role/name placeholder with your real on-call rotation and escalation contacts.
+- Confirm your contract's pause/admin-gated functions (if any) actually exist and who holds the keys to trigger them — document that separately, since it's operationally critical and shouldn't live only in a markdown table.
+- Render this page through your normal build (`pnpm build:content`) to confirm the tables and code block render as expected before publishing.

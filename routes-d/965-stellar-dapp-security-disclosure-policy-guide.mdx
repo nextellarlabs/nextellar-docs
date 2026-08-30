@@ -1,0 +1,84 @@
+---
+title: Stellar dApp Security Disclosure Policy Guide
+description: A practical guide to security contact channels, response timelines, intake triage, and disclosure templates for Stellar dApps.
+date: 2026-08-29
+---
+
+# Stellar dApp Security Disclosure Policy Guide
+
+A security disclosure policy gives researchers a predictable path for reporting vulnerabilities without exposing users to unnecessary risk. For Stellar dApps, the policy should cover the web app, wallet connection flows, backend services, Horizon or Soroban integrations, smart contracts, webhook surfaces, and any off-chain infrastructure that can affect funds or private user data.
+
+<Note type="warning">
+  This guide is operational documentation, not legal advice. Review disclosure promises with counsel before publishing them to users or researchers.
+</Note>
+
+## Contact Channels
+
+Publish one primary channel and one backup channel. The primary channel should create an auditable ticket that the security team can triage, while the backup channel should remain usable if the main site is unavailable.
+
+| Channel | Purpose | Minimum expectation |
+| --- | --- | --- |
+| `security@example.com` | Main inbound reports | Monitored daily by the security owner |
+| Security form | Structured report intake | Requires affected asset, impact, reproduction steps, and reporter contact |
+| GitHub Security Advisory | Repository-specific reports | Enabled for public code repositories |
+| Status page contact | Backup during outages | Routes to the incident commander |
+
+Avoid asking researchers to disclose sensitive details in a public issue. Public issues are useful for non-sensitive bugs, but vulnerability reports need a private channel by default.
+
+## Intake And Triage
+
+Every report should be recorded with a timestamp, reporter contact, affected component, severity estimate, reproduction status, and current owner.
+
+```ts
+type DisclosureTicket = {
+  id: string;
+  receivedAt: string;
+  reporterContact: string;
+  affectedComponent: "frontend" | "api" | "contract" | "wallet" | "infrastructure";
+  severity: "critical" | "high" | "medium" | "low" | "informational";
+  status: "new" | "triaging" | "accepted" | "fixed" | "disclosed" | "declined";
+  owner: string;
+};
+```
+
+Use severity to drive response time, but do not promise a fix before the issue is reproduced. A serious-looking report may turn out to be out of scope, while a small wallet or signing issue can become high impact once reproduced.
+
+## Response Timelines
+
+Set timelines that the team can actually meet.
+
+| Severity | Acknowledge | Triage target | Update cadence |
+| --- | --- | --- | --- |
+| Critical | 24 hours | 48 hours | Daily until mitigated |
+| High | 2 business days | 5 business days | Twice weekly |
+| Medium | 5 business days | 10 business days | Weekly |
+| Low | 10 business days | Best effort | At major status changes |
+
+If a fix requires a contract migration, key rotation, or partner coordination, communicate the mitigation plan without revealing exploit details before users are protected.
+
+## Safe Harbor
+
+A coordinated policy should explain what good-faith testing looks like. Permit testing that avoids data destruction, privacy violations, denial of service, social engineering, and unauthorized fund movement. Ask researchers to stop testing and report immediately if they discover sensitive data, private keys, or a path that could affect user funds.
+
+## Disclosure Template
+
+```md
+# Security Disclosure Policy
+
+## Reporting
+Send vulnerability reports to security@example.com or use our private GitHub Security Advisory form. Please include affected assets, reproduction steps, expected impact, and a secure way to contact you.
+
+## Scope
+In scope: production web app, API services, wallet flows, smart contracts, deployment configuration, and public SDKs.
+Out of scope: social engineering, spam, denial-of-service testing, and third-party services not controlled by the project.
+
+## Timelines
+We acknowledge critical reports within 24 hours and high-severity reports within 2 business days. We provide status updates until the issue is resolved or declined.
+
+## Safe Harbor
+We will not pursue action against researchers who act in good faith, avoid user harm, and report findings through the approved private channels.
+```
+
+## Release And Disclosure
+
+Before public disclosure, confirm the fix is deployed, vulnerable contracts or keys are retired where applicable, monitoring is in place, and affected users or partners have been notified. Keep a private incident record that links the report, fix PRs, release version, and post-incident review.

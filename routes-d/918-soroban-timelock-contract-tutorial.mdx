@@ -1,0 +1,547 @@
+---
+title: Complete Soroban Timelock Contract Tutorial
+description: Build a Soroban timelock contract from scratch — lock, unlock, and cancel paths, client invocation, and edge cases — with a working sample.
+date: 2026-08-28
+---
+
+# Complete Soroban Timelock Contract Tutorial
+
+A **timelock contract** holds a token deposit (or queues an arbitrary contract call) until a specified ledger-time deadline has passed. It is the building block behind vesting schedules, delayed governance execution, and "cooling-off" withdrawal patterns. This tutorial builds a token-timelock contract on Soroban end to end: locking funds, unlocking after maturity, and cancelling before maturity, plus the edge cases that trip up a first implementation.
+
+---
+
+## Design Overview
+
+```
+Depositor ──lock(id, amount, unlock_time)──► Timelock Contract ──transfer(depositor → contract)──► Token Contract
+                                                   │
+                                                   ├── require_auth() on depositor
+                                                   ├── assert unlock_time > ledger_timestamp()
+                                                   └── store Lock { depositor, beneficiary, amount, unlock_time, released: false }
+
+Beneficiary ──unlock(id)──────────────────────► Timelock Contract ──transfer(contract → beneficiary)──► Token Contract
+                                                   │
+                                                   ├── require_auth() on beneficiary
+                                                   ├── assert ledger_timestamp() >= unlock_time
+                                                   └── mark released = true (single-use)
+
+Depositor ──cancel(id)─────────────────────────► Timelock Contract ──transfer(contract → depositor)──► Token Contract
+                                                   │
+                                                   ├── require_auth() on depositor
+                                                   ├── assert NOT released and (cancellable == true)
+                                                   └── remove Lock entry
+```
+
+Each lock is its own state machine with exactly three terminal transitions — `unlock`, `cancel`, or "stays locked forever" — and the contract's entire job is refusing every transition that doesn't satisfy its precondition.
+
+<Note type="info">
+  Soroban has no native "delayed call" primitive — there is no scheduler that
+  invokes your contract automatically at a future ledger. A timelock only
+  *gates* a state transition behind a time check; someone (the beneficiary, a
+  keeper bot, a frontend cron job) must still submit the `unlock` transaction
+  after maturity.
+</Note>
+
+---
+
+## Project Layout
+
+```
+my-timelock-contract/
+├── Cargo.toml
+└── contracts/
+    └── timelock/
+        ├── Cargo.toml
+        └── src/
+            ├── lib.rs
+            ├── contract.rs
+            ├── storage.rs
+            └── test.rs
+```
+
+### Contract Cargo.toml
+
+```toml
+[package]
+name = "soroban-timelock-contract"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+soroban-sdk = "21.0.0"
+
+[dev-dependencies]
+soroban-sdk = { version = "21.0.0", features = ["testutils"] }
+
+[profile.release]
+opt-level = "z"
+overflow-checks = true
+debug = false
+panic = "abort"
+codegen-units = 1
+```
+
+---
+
+## Storage Layout
+
+```rust
+// contracts/timelock/src/storage.rs
+use soroban_sdk::{contracttype, Address, Env};
+
+#[derive(Clone)]
+#[contracttype]
+pub struct Lock {
+    pub depositor: Address,
+    pub beneficiary: Address,
+    pub token: Address,
+    pub amount: i128,
+    pub unlock_time: u64, // seconds since epoch, compared against env.ledger().timestamp()
+    pub cancellable: bool,
+    pub released: bool,
+}
+
+#[derive(Clone)]
+#[contracttype]
+pub enum DataKey {
+    NextId,
+    Lock(u64),
+}
+
+pub fn next_id(env: &Env) -> u64 {
+    let id: u64 = env.storage().instance().get(&DataKey::NextId).unwrap_or(0);
+    env.storage().instance().set(&DataKey::NextId, &(id + 1));
+    id
+}
+
+pub fn read_lock(env: &Env, id: u64) -> Lock {
+    env.storage()
+        .persistent()
+        .get(&DataKey::Lock(id))
+        .unwrap_or_else(|| panic!("lock not found"))
+}
+
+pub fn write_lock(env: &Env, id: u64, lock: &Lock) {
+    env.storage().persistent().set(&DataKey::Lock(id), lock);
+    env.storage()
+        .persistent()
+        .extend_ttl(&DataKey::Lock(id), 100_000, 100_000);
+}
+
+pub fn remove_lock(env: &Env, id: u64) {
+    env.storage().persistent().remove(&DataKey::Lock(id));
+}
+```
+
+<Note type="warning">
+  Locks live in **persistent** storage, not temporary — a lock that is meant to
+  sit untouched for months or years must not be allowed to expire off the
+  ledger's TTL window before its `unlock_time` arrives. Extend the TTL
+  generously on every write, and treat "restore before archival" as an
+  operational task for long-duration locks.
+</Note>
+
+---
+
+## Contract Implementation
+
+```rust
+// contracts/timelock/src/contract.rs
+#![no_std]
+use soroban_sdk::{contract, contractimpl, token, Address, Env};
+use crate::storage::{next_id, read_lock, remove_lock, write_lock, Lock};
+
+#[contract]
+pub struct TimelockContract;
+
+#[contractimpl]
+impl TimelockContract {
+    /// Locks `amount` of `token`, transferred from `depositor`, releasable to
+    /// `beneficiary` once `unlock_time` has passed. Returns the lock id.
+    pub fn lock(
+        env: Env,
+        depositor: Address,
+        beneficiary: Address,
+        token: Address,
+        amount: i128,
+        unlock_time: u64,
+        cancellable: bool,
+    ) -> u64 {
+        depositor.require_auth();
+        assert!(amount > 0, "amount must be positive");
+        assert!(
+            unlock_time > env.ledger().timestamp(),
+            "unlock_time must be in the future"
+        );
+
+        // Pull funds into the contract up front — the lock only exists once
+        // the token transfer has actually succeeded.
+        let client = token::Client::new(&env, &token);
+        client.transfer(&depositor, &env.current_contract_address(), &amount);
+
+        let id = next_id(&env);
+        write_lock(
+            &env,
+            id,
+            &Lock {
+                depositor,
+                beneficiary,
+                token,
+                amount,
+                unlock_time,
+                cancellable,
+                released: false,
+            },
+        );
+
+        env.events()
+            .publish((soroban_sdk::symbol_short!("lock"), id), (unlock_time, amount));
+        id
+    }
+
+    /// Releases a matured lock's funds to its beneficiary. Anyone can submit
+    /// this transaction, but only the beneficiary's authorization moves funds
+    /// to a beneficiary-controlled outcome — see the auth note below.
+    pub fn unlock(env: Env, id: u64) {
+        let mut lock = read_lock(&env, id);
+        lock.beneficiary.require_auth();
+
+        assert!(!lock.released, "already released");
+        assert!(
+            env.ledger().timestamp() >= lock.unlock_time,
+            "not yet matured"
+        );
+
+        let client = token::Client::new(&env, &lock.token);
+        client.transfer(&env.current_contract_address(), &lock.beneficiary, &lock.amount);
+
+        lock.released = true;
+        write_lock(&env, id, &lock);
+
+        env.events()
+            .publish((soroban_sdk::symbol_short!("unlock"), id), lock.amount);
+    }
+
+    /// Cancels a not-yet-matured, cancellable lock and refunds the depositor.
+    pub fn cancel(env: Env, id: u64) {
+        let lock = read_lock(&env, id);
+        lock.depositor.require_auth();
+
+        assert!(lock.cancellable, "lock is not cancellable");
+        assert!(!lock.released, "already released");
+        assert!(
+            env.ledger().timestamp() < lock.unlock_time,
+            "lock already matured — use unlock instead"
+        );
+
+        let client = token::Client::new(&env, &lock.token);
+        client.transfer(&env.current_contract_address(), &lock.depositor, &lock.amount);
+
+        remove_lock(&env, id);
+
+        env.events()
+            .publish((soroban_sdk::symbol_short!("cancel"), id), lock.amount);
+    }
+
+    pub fn get_lock(env: Env, id: u64) -> Lock {
+        read_lock(&env, id)
+    }
+}
+```
+
+<Note type="warning">
+  `unlock` requires `beneficiary.require_auth()`, not the caller's. This means a
+  keeper bot can *submit* the transaction on the beneficiary's behalf, but the
+  beneficiary must have signed it (directly, or via a smart-wallet policy) — the
+  contract never releases funds to an address it wasn't authorized to release
+  to. Don't relax this to "anyone can trigger unlock, funds always go to
+  `lock.beneficiary`" without deciding that tradeoff deliberately; the version
+  here keeps the beneficiary in control of *when* they receive funds in a given
+  ledger, which matters for tax/accounting timing in some jurisdictions.
+</Note>
+
+---
+
+## Edge Cases
+
+| Case                                     | Behavior in this contract                                     | Why                                                                                                                                                                                                                                                  |
+| ---------------------------------------- | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `unlock_time` equal to current timestamp | Rejected at `lock()` — must be strictly in the future         | Prevents a "lock" that is unlockable in the same block, which defeats the purpose and can mask a caller bug (e.g. wrong unit — seconds vs. ledger sequence).                                                                                         |
+| Double `unlock()`                        | Rejected — `released` flag is checked before transfer         | Without this, a matured lock could be drained twice if called concurrently or if the caller retries after a transient RPC error before checking on-chain state.                                                                                      |
+| `cancel()` after maturity                | Rejected — must use `unlock()` instead                        | Keeps a single, unambiguous "correct" exit path once time has passed, rather than two code paths that both move the same funds.                                                                                                                      |
+| `cancel()` on a non-cancellable lock     | Rejected — `cancellable` is fixed at creation                 | Vesting-style locks are usually meant to be irrevocable once created; making cancellability an explicit, immutable flag prevents a depositor from unilaterally reneging on a commitment a beneficiary is relying on.                                 |
+| Lock id reuse                            | Impossible — `NextId` only increments, ids are never recycled | A removed (cancelled) lock's id must never be reassigned, or a stale client reference could resolve to an unrelated lock.                                                                                                                            |
+| Token transfer fails inside `lock()`     | Whole transaction reverts, no `Lock` entry is written         | Soroban transactions are atomic — a failed inner `transfer` call aborts state changes in the same invocation, so there is no risk of an orphaned lock with no backing funds.                                                                         |
+| Beneficiary account never used again     | Funds remain claimable indefinitely (subject to storage TTL)  | The contract doesn't unilaterally return unclaimed funds to the depositor — that would let a depositor race a slow beneficiary. If you want an expiry-and-reclaim path, add a separate `reclaim(id)` guarded by `now >= unlock_time + grace_period`. |
+
+---
+
+## Client Invocation (TypeScript)
+
+```typescript
+// lib/timelock-client.ts
+import {
+  Contract,
+  Address,
+  TransactionBuilder,
+  BASE_FEE,
+  Networks,
+  nativeToScVal,
+  scValToNative,
+  rpc,
+} from '@stellar/stellar-sdk';
+
+const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL!;
+const TIMELOCK_ID = process.env.NEXT_PUBLIC_TIMELOCK_CONTRACT!;
+
+async function invoke(
+  method: string,
+  keypair: { publicKey(): string; sign(tx: any): void },
+  ...args: any[]
+) {
+  const server = new rpc.Server(RPC_URL);
+  const account = await server.getAccount(keypair.publicKey());
+  const contract = new Contract(TIMELOCK_ID);
+
+  const tx = new TransactionBuilder(account, {
+    fee: BASE_FEE,
+    networkPassphrase: Networks.MAINNET,
+  })
+    .addOperation(contract.call(method, ...args))
+    .setTimeout(30)
+    .build();
+
+  const prepared = await server.prepareTransaction(tx);
+  keypair.sign(prepared);
+  const result = await server.sendTransaction(prepared);
+  return result;
+}
+
+export function lock(
+  depositorKeypair: { publicKey(): string; sign(tx: any): void },
+  beneficiary: string,
+  token: string,
+  amount: bigint,
+  unlockTime: number,
+  cancellable: boolean
+) {
+  return invoke(
+    'lock',
+    depositorKeypair,
+    new Address(depositorKeypair.publicKey()).toScVal(),
+    new Address(beneficiary).toScVal(),
+    new Address(token).toScVal(),
+    nativeToScVal(amount, { type: 'i128' }),
+    nativeToScVal(unlockTime, { type: 'u64' }),
+    nativeToScVal(cancellable, { type: 'bool' })
+  );
+}
+
+export function unlock(
+  beneficiaryKeypair: { publicKey(): string; sign(tx: any): void },
+  id: bigint
+) {
+  return invoke(
+    'unlock',
+    beneficiaryKeypair,
+    nativeToScVal(id, { type: 'u64' })
+  );
+}
+
+export function cancel(
+  depositorKeypair: { publicKey(): string; sign(tx: any): void },
+  id: bigint
+) {
+  return invoke('cancel', depositorKeypair, nativeToScVal(id, { type: 'u64' }));
+}
+
+// Read-only: simulate rather than submit, no signature required.
+export async function getLock(id: bigint) {
+  const server = new rpc.Server(RPC_URL);
+  const contract = new Contract(TIMELOCK_ID);
+  const account = new (await import('@stellar/stellar-sdk')).Account(
+    'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN',
+    '0'
+  );
+
+  const tx = new TransactionBuilder(account, {
+    fee: BASE_FEE,
+    networkPassphrase: Networks.MAINNET,
+  })
+    .addOperation(contract.call('get_lock', nativeToScVal(id, { type: 'u64' })))
+    .setTimeout(5)
+    .build();
+
+  const sim = (await server.simulateTransaction(
+    tx
+  )) as rpc.SimulateTransactionSuccessResponse;
+  return scValToNative(sim.result!.retval);
+}
+```
+
+---
+
+## CLI Walkthrough
+
+```bash
+stellar contract build
+stellar contract deploy \
+  --wasm target/wasm32-unknown-unknown/release/soroban_timelock_contract.wasm \
+  --source alice --network testnet
+
+# Lock 1000 units for 7 days (unlock_time as a unix timestamp)
+stellar contract invoke --id <TIMELOCK_ID> --source alice --network testnet -- \
+  lock --depositor alice --beneficiary bob --token <TOKEN_ID> --amount 1000 \
+  --unlock_time 1798761600 --cancellable true
+
+stellar contract invoke --id <TIMELOCK_ID> --source alice --network testnet -- \
+  get_lock --id 0
+
+# After unlock_time has passed:
+stellar contract invoke --id <TIMELOCK_ID> --source bob --network testnet -- \
+  unlock --id 0
+
+# Before maturity, if cancellable:
+stellar contract invoke --id <TIMELOCK_ID> --source alice --network testnet -- \
+  cancel --id 0
+```
+
+---
+
+## Test Suite
+
+```rust
+// contracts/timelock/src/test.rs
+#![cfg(test)]
+use super::*;
+use soroban_sdk::testutils::{Address as _, Ledger};
+use soroban_sdk::{token, Env};
+
+fn setup_token(env: &Env, admin: &Address) -> (Address, token::Client<'static>) {
+    let contract_id = env.register_stellar_asset_contract_v2(admin.clone());
+    let client = token::Client::new(env, &contract_id.address());
+    (contract_id.address(), client)
+}
+
+#[test]
+fn lock_then_unlock_after_maturity() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let depositor = Address::generate(&env);
+    let beneficiary = Address::generate(&env);
+    let (token_id, token_client) = setup_token(&env, &admin);
+    token_client.mint(&depositor, &1_000);
+
+    let contract_id = env.register(TimelockContract, ());
+    let client = TimelockContractClient::new(&env, &contract_id);
+
+    let unlock_time = env.ledger().timestamp() + 1000;
+    let id = client.lock(&depositor, &beneficiary, &token_id, &500, &unlock_time, &true);
+
+    env.ledger().set_timestamp(unlock_time);
+    client.unlock(&id);
+
+    assert_eq!(token_client.balance(&beneficiary), 500);
+    assert_eq!(token_client.balance(&depositor), 500);
+}
+
+#[test]
+#[should_panic(expected = "not yet matured")]
+fn unlock_before_maturity_panics() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let depositor = Address::generate(&env);
+    let beneficiary = Address::generate(&env);
+    let (token_id, token_client) = setup_token(&env, &admin);
+    token_client.mint(&depositor, &1_000);
+
+    let contract_id = env.register(TimelockContract, ());
+    let client = TimelockContractClient::new(&env, &contract_id);
+
+    let unlock_time = env.ledger().timestamp() + 1000;
+    let id = client.lock(&depositor, &beneficiary, &token_id, &500, &unlock_time, &true);
+
+    client.unlock(&id); // still before unlock_time
+}
+
+#[test]
+fn cancel_before_maturity_refunds_depositor() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let depositor = Address::generate(&env);
+    let beneficiary = Address::generate(&env);
+    let (token_id, token_client) = setup_token(&env, &admin);
+    token_client.mint(&depositor, &1_000);
+
+    let contract_id = env.register(TimelockContract, ());
+    let client = TimelockContractClient::new(&env, &contract_id);
+
+    let unlock_time = env.ledger().timestamp() + 1000;
+    let id = client.lock(&depositor, &beneficiary, &token_id, &500, &unlock_time, &true);
+
+    client.cancel(&id);
+
+    assert_eq!(token_client.balance(&depositor), 1_000);
+}
+
+#[test]
+#[should_panic(expected = "lock is not cancellable")]
+fn cancel_non_cancellable_lock_panics() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let depositor = Address::generate(&env);
+    let beneficiary = Address::generate(&env);
+    let (token_id, token_client) = setup_token(&env, &admin);
+    token_client.mint(&depositor, &1_000);
+
+    let contract_id = env.register(TimelockContract, ());
+    let client = TimelockContractClient::new(&env, &contract_id);
+
+    let unlock_time = env.ledger().timestamp() + 1000;
+    let id = client.lock(&depositor, &beneficiary, &token_id, &500, &unlock_time, &false);
+
+    client.cancel(&id);
+}
+
+#[test]
+#[should_panic(expected = "already released")]
+fn double_unlock_panics() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let depositor = Address::generate(&env);
+    let beneficiary = Address::generate(&env);
+    let (token_id, token_client) = setup_token(&env, &admin);
+    token_client.mint(&depositor, &1_000);
+
+    let contract_id = env.register(TimelockContract, ());
+    let client = TimelockContractClient::new(&env, &contract_id);
+
+    let unlock_time = env.ledger().timestamp() + 1000;
+    let id = client.lock(&depositor, &beneficiary, &token_id, &500, &unlock_time, &true);
+
+    env.ledger().set_timestamp(unlock_time);
+    client.unlock(&id);
+    client.unlock(&id); // second call must panic
+}
+```
+
+---
+
+## Related docs
+
+- [Comprehensive Soroban Token Contract Implementation Guide](/docs/guides/soroban-token-contract-guide) — the SEP-41 token moved into and out of the timelock
+- [Comprehensive Soroban Multisig Contract Guide](/docs/guides/soroban-multisig-contract-guide) — pair a multisig as the depositor to require group approval before funds are locked
+- [Soroban Host Functions](/docs/guides/soroban-host-functions) — storage, auth, and cross-contract call primitives
