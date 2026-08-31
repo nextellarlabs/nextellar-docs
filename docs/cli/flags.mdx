@@ -32,6 +32,7 @@ Use the table below to find the exact flag name, alias, default, and a short des
 | Feature Add  | `--skip-install`         |       | `false`                               | Add feature files but skip running the package manager install step.         |
 | Feature Add  | `--package-manager <pm>` |       | Auto-detected                         | Choose `npm`, `yarn`, `pnpm`, or `bun` for the post-add install step.       |
 | Deployment   | `--dry-run`              |       | `false`                               | Validate deployment without creating a final bundle.                         |
+| Deployment   | `--size-threshold <bytes>` |     | `52428800` (50 MB)                    | Fail deploy if the production bundle exceeds this byte size.                 |
 | Information  | `--help`                 | `-h`  | `false`                               | Show CLI help text.                                                          |
 | Information  | `--version`              | `-v`  | `false`                               | Print the installed Nextellar CLI version.                                   |
 
