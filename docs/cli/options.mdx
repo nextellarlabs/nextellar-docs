@@ -336,6 +336,46 @@ nextellar add freighter --force --package-manager bun
 
 ---
 
+## Doctor Options
+
+The following options apply to the `nextellar doctor` command:
+
+### --horizon-url (doctor)
+
+Override the Horizon endpoint that `doctor` uses for its connectivity check.
+
+```bash
+nextellar doctor --horizon-url https://horizon.stellar.org
+```
+
+**Default:** Project config value, falling back to `https://horizon-testnet.stellar.org`
+**Type:** String (URL)
+**Status:** Supported
+
+---
+
+### --soroban-url (doctor)
+
+Override the Soroban RPC endpoint that `doctor` uses for its connectivity check.
+
+```bash
+nextellar doctor --soroban-url https://soroban-rpc.stellar.org
+```
+
+**Default:** Project config value, falling back to `https://soroban-testnet.stellar.org`
+**Type:** String (URL)
+**Status:** Supported
+
+Check mainnet connectivity in one command:
+
+```bash
+nextellar doctor \
+  --horizon-url https://horizon.stellar.org \
+  --soroban-url https://soroban-rpc.stellar.org
+```
+
+---
+
 ## Upgrade Options
 
 The following options apply to the `nextellar upgrade` command:
@@ -351,6 +391,36 @@ nextellar upgrade --dry-run
 **Default:** `false`
 **Type:** Boolean
 **Status:** Supported
+
+---
+
+### --check
+
+Show a changelog-style preview of available upgrades and exit with a non-zero code if any updates are available. Includes human-readable upgrade notes (breaking changes, migration hints) in addition to the file diff shown by `--dry-run`.
+
+```bash
+nextellar upgrade --check
+```
+
+**Default:** `false`
+**Type:** Boolean
+**Status:** Supported
+**Exit code:** `0` = up to date; `1` = updates available
+
+**Difference from `--dry-run`:**
+
+| | `--dry-run` | `--check` |
+|---|---|---|
+| Shows file diff | ✅ | ✅ |
+| Shows changelog/upgrade notes | ❌ | ✅ |
+| Non-zero exit when updates exist | ❌ | ✅ |
+| Suitable for CI gate | No | **Yes** |
+
+Use `--check` in CI to fail a pipeline when the project is behind the latest template:
+
+```bash
+nextellar upgrade --check || echo "Project needs upgrade"
+```
 
 ---
 
@@ -383,6 +453,38 @@ nextellar deploy --dry-run
 **Default:** `false`
 **Type:** Boolean
 **Status:** Supported
+
+---
+
+### --size-threshold
+
+Fail the deploy command if the production bundle exceeds the specified size in bytes.
+
+```bash
+nextellar deploy --size-threshold 20971520
+```
+
+**Default:** `52428800` (50 MB)
+**Type:** Number (bytes)
+**Status:** Supported
+
+**Common threshold values:**
+
+- 10 MB: `10485760`
+- 20 MB: `20971520`
+- 50 MB: `52428800` (default)
+- 100 MB: `104857600`
+
+```bash
+# Use the default 50 MB threshold
+nextellar deploy
+
+# Enforce a stricter 20 MB limit
+nextellar deploy --size-threshold 20971520
+
+# Combine with dry-run to check bundle size without deploying
+nextellar deploy --dry-run --size-threshold 20971520
+```
 
 ---
 

@@ -178,9 +178,20 @@ nextellar doctor [options]
 
 **Options:**
 
-| Option   | Description                               |
-| -------- | ----------------------------------------- |
-| `--json` | Output results as JSON for CI integration |
+| Option                   | Description                                                          |
+| ------------------------ | -------------------------------------------------------------------- |
+| `--json`                 | Output results as JSON for CI integration                            |
+| `--horizon-url <url>`    | Override the Horizon endpoint used for the connectivity check        |
+| `--soroban-url <url>`    | Override the Soroban RPC endpoint used for the connectivity check    |
+
+By default `doctor` resolves endpoints from your project config, falling back to the testnet URLs (`https://horizon-testnet.stellar.org` and `https://soroban-testnet.stellar.org`). Pass `--horizon-url` or `--soroban-url` to check a custom or mainnet endpoint instead:
+
+```bash
+# Check against mainnet endpoints
+nextellar doctor \
+  --horizon-url https://horizon.stellar.org \
+  --soroban-url https://soroban-rpc.stellar.org
+```
 
 **What it checks:**
 
@@ -357,16 +368,25 @@ Run this command from the root of an existing Nextellar project. Use a dry run f
 
 **Options:**
 
-| Option      | Description                                         |
-| ----------- | --------------------------------------------------- |
-| `--dry-run` | Show what would change without applying the upgrade |
-| `--yes`     | Apply changes without prompting for confirmation    |
+| Option      | Description                                                                 |
+| ----------- | --------------------------------------------------------------------------- |
+| `--dry-run` | Show which template files would change without applying the upgrade         |
+| `--check`   | Show a changelog-style diff preview with upgrade notes; exits non-zero if updates are available |
+| `--yes`     | Apply changes without prompting for confirmation                            |
+
+**`--check` vs `--dry-run`:**
+
+- `--dry-run` lists the files that would be modified and shows a unified diff of the changes.
+- `--check` shows the same file-level diff plus human-readable upgrade notes (changelogs, breaking changes, migration hints from the template). It also exits with a non-zero code when updates are available, making it suitable for CI gates.
 
 **Examples:**
 
 ```bash
-# Preview upgrade changes
+# Preview upgrade changes (file diff only)
 nextellar upgrade --dry-run
+
+# Preview with changelog notes; exits non-zero if outdated (useful in CI)
+nextellar upgrade --check
 
 # Apply the upgrade interactively
 nextellar upgrade
@@ -385,9 +405,10 @@ nextellar deploy [options]
 
 **Options:**
 
-| Option      | Description                                                                |
-| ----------- | -------------------------------------------------------------------------- |
-| `--dry-run` | Validate configuration and build process without producing a deploy bundle |
+| Option                        | Description                                                                |
+| ----------------------------- | -------------------------------------------------------------------------- |
+| `--dry-run`                   | Validate configuration and build process without producing a deploy bundle |
+| `--size-threshold <bytes>`    | Fail the deploy if the production bundle exceeds this size in bytes (default: `52428800` — 50 MB) |
 
 **Examples:**
 
@@ -397,6 +418,12 @@ nextellar deploy
 
 # Run a dry-run validation without actual deployment
 nextellar deploy --dry-run
+
+# Fail if bundle exceeds 20 MB
+nextellar deploy --size-threshold 20971520
+
+# Raise the threshold to 100 MB for large projects
+nextellar deploy --size-threshold 104857600
 ```
 
 ### nextellar telemetry
