@@ -17,6 +17,7 @@ Nextellar is a one-step CLI toolkit that bootstraps production-ready Next.js + T
 
 ## Features
 
+
 - **Interactive Playground**: Test CLI commands and hooks in your browser
 - **Live Code Examples**: Copy-paste ready code snippets
 - **Dark Mode**: Beautiful light and dark themes

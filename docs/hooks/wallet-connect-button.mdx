@@ -1,0 +1,162 @@
+---
+title: WalletConnectButton
+description: Pre-built wallet connection button with dropdown menu
+date: 2026-06-02
+---
+
+# WalletConnectButton
+
+A production-ready React component for wallet connection with a polished dropdown interface. Handles the complete connection flow, displays wallet info, and provides quick actions.
+
+<Note>
+  **Ships in:** default, js<br/>
+  Not in your scaffold? Run `nextellar add wallet`
+</Note>
+
+## Features
+
+- **One-Click Connect**: Opens wallet selection modal
+- **Wallet Info Display**: Shows connected wallet name and truncated address
+- **Copy Address**: Click to copy full address to clipboard
+- **Block Explorer**: Link to view account on Stellar Expert
+- **Disconnect**: Clean disconnect with state cleanup
+- **Dark Mode**: Automatic dark mode support
+
+## Basic Usage
+
+````tsx
+import { WalletConnectButton } from '@/components/WalletConnectButton';
+
+export default function Header() {
+  return (
+    <nav>
+      <div className="logo">My dApp</div>
+      <WalletConnectButton />
+    </nav>
+  );
+}
+```
+
+That's it! The component handles all connection logic internally.
+
+## Connected State
+
+When connected, the button shows a dropdown with:
+
+- **Wallet Name**: e.g., "Freighter"
+- **Address**: Truncated with copy functionality (GABC...XYZ)
+- **View on Explorer**: Opens Stellar Expert in new tab
+- **Disconnect**: Clears connection and localStorage
+
+## Styling
+
+The component uses inline shadcn/ui-inspired styles with Tailwind classes. It's designed to fit seamlessly into any Nextellar project.
+
+### Default Appearance
+
+```
+[Connect Wallet]  → [Freighter ▼]
+                            GABC...XYZ
+                            View on Stellar Expert ↗
+                            Disconnect
+````
+
+## Customization
+
+The component is located at `src/components/WalletConnectButton.tsx`. You can:
+
+1. **Modify styles**: Edit Tailwind classes directly
+2. **Add actions**: Extend the dropdown menu
+3. **Change icons**: Swap Lucide icons
+4. **Integrate with UI library**: Replace with your component library
+
+### Example: Custom Styling
+
+````tsx
+// In WalletConnectButton.tsx
+<button
+  onClick={connected ? toggleDropdown : connect}
+  className="
+    bg-purple-600 hover:bg-purple-700
+    text-white font-medium
+    px-4 py-2 rounded-lg
+    transition-colors
+  "
+>
+  {connected ? walletName : 'Connect Wallet'}
+</button>
+```
+
+## Dependencies
+
+The component uses:
+
+- `@creit.tech/stellar-wallets-kit` - Wallet connection
+- `lucide-react` - Icons (Copy, ExternalLink, LogOut, ChevronDown)
+- `framer-motion` - Dropdown animations
+
+## With WalletProvider
+
+The component works with `WalletProvider` for global state:
+
+```tsx
+// app/layout.tsx
+import { WalletProvider } from '@/contexts';
+import { WalletConnectButton } from '@/components/WalletConnectButton';
+
+export default function Layout({ children }) {
+  return (
+    <WalletProvider>
+      <header>
+        <WalletConnectButton />
+      </header>
+      <main>{children}</main>
+    </WalletProvider>
+  );
+}
+```
+
+## Standalone Usage
+
+The component also works without `WalletProvider` using the internal `useStellarWallet` hook:
+
+```tsx
+import { WalletConnectButton } from '@/components/WalletConnectButton';
+
+// Works without WalletProvider wrapper
+export default function Page() {
+  return <WalletConnectButton />;
+}
+````
+
+## Error Handling
+
+### No Supported Wallet
+
+If no supported wallet is installed, render an install prompt instead of repeatedly opening the modal.
+
+### User Rejection
+
+When the user cancels the connection request, keep the button interactive and explain that the connection was not approved.
+
+### Missing Provider Context
+
+If the button expects `WalletProvider`, surface a configuration error early so the page can be corrected before shipping.
+
+## Component Source
+
+Located at: `src/components/WalletConnectButton.tsx`
+
+The component is ~150 lines and includes:
+
+- Connection logic
+- Dropdown state management
+- Clipboard functionality
+- Block explorer links
+- Accessibility attributes
+
+## Related
+
+- [WalletProvider](/docs/hooks/wallet-provider) - Global wallet context
+- [useStellarWallet](/docs/hooks/use-stellar-wallet) - Manual wallet hook
+- [Getting Started](/docs/getting-started/quick-start) - Full setup guide

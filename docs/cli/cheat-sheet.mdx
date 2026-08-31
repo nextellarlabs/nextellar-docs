@@ -22,8 +22,9 @@ nextellar my-app --package-manager pnpm
 # Create without installing dependencies
 nextellar my-app --skip-install
 
-# Create with specific wallets only
+# Create with specific wallets only (custom selection)
 nextellar my-app --wallets freighter,xbull
+# See [Wallet Configuration](/docs/cli/flags#wallet-configuration-wallets) for defaults and all supported adapters
 ```
 
 ### Advanced Project Creation
@@ -138,8 +139,9 @@ nextellar add soroban --force
 ### Feature Examples
 
 ```bash
-# Add multiple wallet adapters
+# Add multiple wallet adapters (custom selection)
 nextellar add wallets --wallets freighter,albedo,xbull
+# See [Wallet Configuration](/docs/cli/flags#wallet-configuration-wallets) for defaults and all supported adapters
 
 # Add UI components
 nextellar add components

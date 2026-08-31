@@ -1,0 +1,76 @@
+---
+title: Soroban sendTransaction Status Polling
+description: Guide on polling for a Soroban transaction's final status after sendTransaction, covering the status transitions and timeout handling.
+date: 2026-08-27
+---
+
+# Soroban sendTransaction Status Polling
+
+Soroban RPC's `sendTransaction` returns as soon as the node has accepted (or rejected) the transaction for relay — it does **not** wait for the transaction to be included in a ledger. Getting the final outcome requires polling `getTransaction` separately by hash.
+
+## Status Transitions
+
+`sendTransaction` itself returns one of:
+
+| Status | Meaning |
+| --- | --- |
+| `PENDING` | Accepted and relayed to the network — poll `getTransaction` for the outcome. |
+| `DUPLICATE` | An identical transaction was already submitted; treat it the same as `PENDING` and poll the same hash. |
+| `TRY_AGAIN_LATER` | The node's submission queue is full — back off and resubmit the same signed envelope. |
+| `ERROR` | Rejected outright (for example a malformed envelope); nothing to poll for. |
+
+Once `sendTransaction` returns `PENDING` (or `DUPLICATE`), the hash transitions through `getTransaction` statuses:
+
+```
+sendTransaction → PENDING
+        │
+        ▼
+getTransaction → NOT_FOUND  (not yet in a ledger — keep polling)
+        │
+        ▼
+getTransaction → SUCCESS | FAILED  (final)
+```
+
+## Timeout Handling
+
+Bound the polling loop by **ledgers elapsed**, not a fixed wall-clock duration — a transaction's own validity window (`TransactionBuilder`'s `setTimeout`) is itself expressed in ledgers via the `timeBounds` it produces, so tying your poll timeout to the same unit keeps the two in sync. If `getTransaction` still returns `NOT_FOUND` once that many ledgers have passed, treat the transaction as expired rather than continuing to poll indefinitely.
+
+## Example
+
+```typescript
+import { rpc } from '@stellar/stellar-sdk';
+
+async function submitAndConfirm(
+  server: rpc.Server,
+  signedTx: import('@stellar/stellar-sdk').Transaction,
+  { timeoutLedgers = 30, pollIntervalMs = 2000 } = {}
+) {
+  const sendResult = await server.sendTransaction(signedTx);
+
+  if (sendResult.status === 'ERROR') {
+    throw new Error(`Submission rejected: ${sendResult.errorResult}`);
+  }
+
+  // PENDING or DUPLICATE both mean "poll this hash"
+  const { sequence: startLedger } = await server.getLatestLedger();
+
+  while (true) {
+    const result = await server.getTransaction(sendResult.hash);
+
+    if (result.status === 'SUCCESS') return result;
+    if (result.status === 'FAILED') {
+      throw new Error(`Transaction failed: ${result.resultXdr}`);
+    }
+
+    // still NOT_FOUND — check the ledger-based timeout before waiting and retrying
+    const { sequence: currentLedger } = await server.getLatestLedger();
+    if (currentLedger - startLedger > timeoutLedgers) {
+      throw new Error(`Transaction ${sendResult.hash} expired after ${timeoutLedgers} ledgers`);
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+  }
+}
+```
+
+For a closer look at each piece this builds on, see [Document Soroban getTransaction retrieval](/docs/guides/soroban-gettransaction-retrieval) and [Add a guide on Soroban getLatestLedger polling](/docs/guides/soroban-getlatestledger-polling).

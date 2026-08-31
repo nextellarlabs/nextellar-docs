@@ -1,0 +1,92 @@
+---
+title: Stellar dApp Legal Compliance Tutorial
+description: A practical walkthrough of the legal compliance areas a Stellar dApp team should understand, when to bring in counsel, and a checklist to work from.
+---
+
+# Stellar dApp Legal Compliance Tutorial
+
+Shipping a Stellar dApp — especially one that moves value, issues assets, or serves users across jurisdictions — puts you in contact with legal areas that have nothing to do with Soroban or Horizon. This tutorial is not legal advice. It is a map of the categories you are likely to run into, so you know what to ask a lawyer about before you need to.
+
+---
+
+## Why this matters for a Stellar dApp specifically
+
+Stellar's design choices raise compliance questions earlier than a typical web app does:
+
+- **Asset issuance** (`stellar-sdk`'s `Asset` / trustline flows) can look like issuing a security or a stored-value instrument depending on what the asset represents.
+- **Cross-border payments** are Stellar's core use case, which means money-transmission and sanctions rules are relevant from day one, not as an afterthought.
+- **Non-custodial wallets** (Freighter, Albedo, xBull) shift some liability away from you, but only if your dApp genuinely never custodies user funds or keys.
+- **Public ledger data** means every transaction your dApp submits is permanently, publicly visible — this affects data-protection analysis in ways a private database doesn't.
+
+None of this means you need a legal team before your first commit. It means you should know which of the categories below apply to what you're building.
+
+---
+
+## Common categories
+
+### 1. Money transmission and licensing
+
+If your dApp facilitates transfers of value between users — even just relaying signed transactions — you may fall under money-transmitter regulations in some jurisdictions (e.g., US state-level MTL requirements, EU's PSD2/MiCA). This depends heavily on:
+
+- Whether you ever touch user funds (custodial vs. non-custodial)
+- Whether you're matching buyers/sellers or just broadcasting transactions
+- Where your users are located
+
+### 2. Securities and token classification
+
+If your dApp issues, wraps, or trades an asset, ask whether that asset could be classified as a security under your jurisdiction's test (e.g., the US Howey test). Utility tokens, stablecoins pegged to fiat, and yield-bearing assets each carry different analysis.
+
+### 3. AML / KYC obligations
+
+Anti-money-laundering rules can apply based on transaction volume, whether you operate an exchange-like function, or whether you're classified as a Virtual Asset Service Provider (VASP) under frameworks like FATF's Travel Rule.
+
+### 4. Sanctions compliance
+
+Public blockchains don't have built-in sanctions screening. If your dApp interacts with counterparties you don't control (e.g., an open DEX), you should understand whether — and how — sanctions list screening applies to your specific product.
+
+### 5. Data protection
+
+Off-chain data (emails, KYC documents, session data) is subject to normal data-protection law (GDPR, CCPA, etc.). On-chain data is public and immutable, which has its own implications — you generally cannot honor a "right to be forgotten" request for data already committed to a public ledger.
+
+### 6. Terms of service and liability
+
+Non-custodial dApps typically disclaim custody and control over user funds explicitly in their terms. This is a legal drafting exercise, not a code change, but it directly shapes how you should design consent flows in the UI.
+
+---
+
+## When to seek counsel
+
+Treat these as trigger points, not a complete list:
+
+- Before you launch any feature that issues a new asset or token.
+- Before you accept fiat on-ramps or off-ramps.
+- Before you operate anything resembling an order book, matching engine, or liquidity pool with your own capital.
+- Before you expand to users in a new country.
+- If you are ever unsure whether your dApp is "custodial" in a given flow — this is a legal question, not just a technical one.
+- Before writing your terms of service and privacy policy for production.
+
+A short paid consultation with a lawyer familiar with digital assets, early, is far cheaper than a compliance retrofit later.
+
+---
+
+## A starting checklist
+
+Use this as a conversation starter with counsel, not a substitute for one:
+
+- [ ] Have we identified every flow where the dApp could be considered to custody user funds or keys?
+- [ ] Have we classified every asset our dApp issues, wraps, or lists?
+- [ ] Do we know which jurisdictions our users are in, and which of those have money-transmission or VASP licensing regimes?
+- [ ] Have we documented whether we perform any KYC/AML function, even indirectly?
+- [ ] Does our terms of service disclaim custody and describe the non-custodial nature of the product accurately?
+- [ ] Have we reviewed what user data we collect off-chain and how it's protected?
+- [ ] Do we have a process for responding to law-enforcement or regulatory inquiries about on-chain activity?
+
+---
+
+## Verifying this tutorial stays accurate
+
+Compliance requirements change faster than most documentation. Before relying on this page:
+
+- Confirm the categories above still reflect current regulatory guidance in your target jurisdictions — cite the specific regulator (e.g., FinCEN, FCA, MiCA text) rather than this page, when in doubt.
+- Re-review after any material change to your product (new asset type, new country, new custody model).
+- Treat every "when to seek counsel" trigger point as non-negotiable, not optional.

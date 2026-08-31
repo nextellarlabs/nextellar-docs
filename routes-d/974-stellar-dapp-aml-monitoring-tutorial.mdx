@@ -1,0 +1,117 @@
+---
+title: Stellar dApp AML Monitoring Tutorial
+description: A tutorial for monitoring AML signals, setting thresholds, and alerting on suspicious Stellar dApp activity.
+date: 2026-08-29
+---
+
+# Stellar dApp AML Monitoring Tutorial
+
+AML monitoring is the ongoing review of activity after a user is onboarded. In a Stellar dApp, the monitor should combine off-chain account context with on-chain signals such as transaction velocity, asset movement, destination patterns, memo usage, and sudden changes in withdrawal behavior.
+
+<Note type="warning">
+  Tune thresholds to your jurisdiction, product, and risk appetite. The examples here are starter patterns, not a substitute for a compliance program.
+</Note>
+
+## Signals To Watch
+
+| Signal | Example indicator | Why it matters |
+| --- | --- | --- |
+| Velocity | Many withdrawals in a short window | May indicate account takeover or layering |
+| Value spike | Transfer amount exceeds user baseline | Catches sudden behavior changes |
+| Destination churn | New destination for each withdrawal | Can indicate dispersal patterns |
+| Memo anomaly | Required memo missing or unusual | May break attribution or hide intent |
+| KYC mismatch | User risk tier conflicts with activity | Higher-risk users may need stricter limits |
+| Sanctions hit | Destination matches screening source | Requires immediate review or block |
+
+Keep raw signals separate from final decisions. A single signal may only require review, while combined signals can justify holding a transaction.
+
+## Threshold Model
+
+Start with explicit thresholds, then refine them using historical data.
+
+```ts
+type AmlSignal = {
+  code: "high_velocity" | "large_transfer" | "destination_churn" | "memo_anomaly";
+  severity: "low" | "medium" | "high";
+  reason: string;
+};
+
+type AmlReview = {
+  accountId: string;
+  transactionHash?: string;
+  score: number;
+  signals: AmlSignal[];
+  action: "allow" | "review" | "hold";
+};
+
+export function chooseAmlAction(score: number): AmlReview["action"] {
+  if (score >= 80) return "hold";
+  if (score >= 50) return "review";
+  return "allow";
+}
+```
+
+Use different thresholds by product action. A profile edit may need no AML review, while a large withdrawal or asset redemption may require stronger checks.
+
+## Alerting Flow
+
+A lightweight monitoring loop can evaluate activity as it arrives from Horizon, Soroban events, or your own backend transaction table.
+
+```ts
+export async function reviewTransfer(event: {
+  accountId: string;
+  amount: number;
+  destination: string;
+  memo?: string;
+}) {
+  const signals: AmlSignal[] = [];
+
+  if (event.amount > 10000) {
+    signals.push({
+      code: "large_transfer",
+      severity: "high",
+      reason: "Transfer exceeds the standard review threshold.",
+    });
+  }
+
+  if (!event.memo) {
+    signals.push({
+      code: "memo_anomaly",
+      severity: "medium",
+      reason: "Expected memo was not supplied.",
+    });
+  }
+
+  const score = signals.reduce((total, signal) => {
+    return total + (signal.severity === "high" ? 40 : signal.severity === "medium" ? 20 : 10);
+  }, 0);
+
+  return {
+    accountId: event.accountId,
+    score,
+    signals,
+    action: chooseAmlAction(score),
+  };
+}
+```
+
+## Review Queue
+
+Create a review queue with status, owner, evidence, decision, and timestamps. Analysts should see why a case was created, which signals fired, which transaction or account is affected, and what action is currently blocking the user.
+
+| Queue field | Purpose |
+| --- | --- |
+| Case ID | Stable audit reference |
+| Subject | User, account, wallet, or transaction |
+| Signals | Machine-generated reasons |
+| Evidence | Links to internal records and chain explorers |
+| Decision | Allow, hold, reject, or escalate |
+| Reviewer | Human owner for accountability |
+
+## Operational Checklist
+
+- Recompute risk when KYC status, sanctions results, or user behavior changes.
+- Alert on high-severity signals immediately.
+- Keep analyst decisions in an immutable audit trail.
+- Avoid storing personal data in monitoring logs unless required.
+- Periodically review false positives and false negatives.

@@ -8,6 +8,11 @@ date: 2026-06-02
 
 The `WalletProvider` component wraps your application to provide global wallet functionality throughout the component tree. It handles wallet connection, state persistence, and exposes its configuration to all Nextellar hooks.
 
+<Note>
+  **Ships in:** default, js<br/>
+  Not in your scaffold? Run `nextellar add wallet`
+</Note>
+
 ## Features
 
 - **Global Wallet State**: Share connection status across all components
@@ -20,7 +25,7 @@ The `WalletProvider` component wraps your application to provide global wallet f
 
 Wrap your app with `WalletProvider`:
 
-`````tsx
+```tsx
 // app/layout.tsx or _app.tsx
 import { WalletProvider } from '@/contexts';
 
@@ -49,7 +54,7 @@ interface WalletProviderProps {
 
 ### Networks
 
-````tsx
+```tsx
 // Testnet (default)
 <WalletProvider>
   <App />
@@ -62,7 +67,7 @@ interface WalletProviderProps {
 >
   <App />
 </WalletProvider>
-```css
+```
 
 ---
 
@@ -98,11 +103,11 @@ function WalletStatus() {
     </div>
   );
 }
-`````
+```
 
 ### Return Value
 
-````typescript
+```typescript
 interface WalletContextState {
   connected: boolean;
   publicKey?: string;
@@ -113,7 +118,7 @@ interface WalletContextState {
   refreshBalances: () => Promise<void>;
   sendPayment?: (opts: PaymentOptions) => Promise<TransactionResponse>;
 }
-```css
+```
 
 > [!NOTE]
 > `sendPayment` is only available when a wallet is connected.
@@ -138,16 +143,16 @@ function MultiNetworkComponent() {
 
   return <div>...</div>;
 }
-````
+```
 
 ### Return Value
 
-````typescript
+```typescript
 interface WalletConfigContextState {
   horizonUrl: string;
   network: string;
 }
-```css
+```
 
 Returns `undefined` when used outside a `WalletProvider`.
 
@@ -198,18 +203,18 @@ function PaymentForm() {
     </form>
   );
 }
-````
+```
 
 ### PaymentOptions
 
-````typescript
+```typescript
 interface PaymentOptions {
   to: string;
   amount: string;
   asset?: 'XLM' | { code: string; issuer: string };
   memo?: string;
 }
-```css
+```
 
 ---
 
@@ -223,7 +228,7 @@ The provider automatically reconnects on page reload if the user was previously 
 // - stellar_wallet_id: wallet adapter ID
 // - stellar_wallet_address: public key
 // - stellar_wallet_name: wallet display name
-```css
+```
 
 ---
 
@@ -241,7 +246,7 @@ function useStellarBalances(publicKey, options = {}) {
 
   // ... rest of hook
 }
-```typescript
+```
 
 This means you can:
 
@@ -270,4 +275,3 @@ When child hooks fail, keep the provider state visible and let the child hook ow
 - [useStellarWallet](/docs/hooks/use-stellar-wallet) - Standalone wallet hook
 - [WalletConnectButton](/docs/components/wallet-connect-button) - Pre-built UI component
 - [useStellarBalances](/docs/hooks/use-stellar-balances) - Balance fetching
-````

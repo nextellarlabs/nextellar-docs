@@ -1,0 +1,42 @@
+---
+title: stellar-sdk Address Types
+description: A quick reference on the Address class in @stellar/stellar-sdk, its account/contract variants, and the helpers for converting between them.
+date: 2026-08-27
+---
+
+# stellar-sdk Address Types
+
+`Address` in `@stellar/stellar-sdk` represents either kind of value Soroban accepts as an address argument: a classic account (`G...`) or a contract (`C...`). It wraps the raw bytes and knows how to convert to and from the string and XDR forms each part of the SDK expects.
+
+## Address Variants
+
+| Variant | Encoded prefix | Constructed via |
+| --- | --- | --- |
+| Account address | `G...` | `Address.fromString(publicKey)` or `Address.account(rawBytes)` |
+| Contract address | `C...` | `Address.fromString(contractId)` or `Address.contract(rawBytes)` |
+
+## Conversion Helpers
+
+| Method | Description |
+| --- | --- |
+| `Address.fromString(str)` | Parses either a `G...` or `C...` string into an `Address`, detecting the variant automatically. |
+| `address.toString()` | Returns the encoded `G...`/`C...` string. |
+| `address.toScVal()` | Converts to an `xdr.ScVal`, ready to pass as a contract invocation argument. |
+| `address.toBuffer()` | Returns the raw underlying bytes. |
+
+## Example
+
+```typescript
+import { Address } from '@stellar/stellar-sdk';
+
+const accountAddress = Address.fromString('GACCOUNT...');
+const contractAddress = Address.fromString('CCONTRACT...');
+
+// Pass an account address as a contract call argument
+const scVal = accountAddress.toScVal();
+
+// Round-trip back to a string
+console.log(contractAddress.toString()); // 'CCONTRACT...'
+```
+
+Use `Address` any time a Soroban contract function expects an `Address` parameter (for example a token contract's `transfer(from, to, amount)`) — pass the `Address` instance's `.toScVal()` output rather than a raw string.

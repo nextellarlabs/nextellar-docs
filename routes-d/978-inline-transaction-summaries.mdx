@@ -1,0 +1,90 @@
+---
+title: Inline Transaction Summaries
+description: Show compact transaction summaries inside pending transaction UIs, with truncation rules and accessible copy patterns.
+date: 2026-08-26
+---
+
+# Inline Transaction Summaries
+
+Pending transactions should tell users what they are about to approve without forcing them to inspect raw XDR. A good inline summary is short, specific, and honest about what is known before ledger confirmation.
+
+---
+
+## What to Summarize
+
+Show the smallest set of details needed for a user to recognize the action:
+
+| Field | Why it matters |
+| --- | --- |
+| Action | Names the operation, such as payment, trustline, swap, or contract call |
+| Asset and amount | Confirms the value being moved or authorized |
+| Destination or counterparty | Helps users detect the wrong recipient before signing |
+| Network | Prevents testnet/mainnet confusion |
+| Fee | Sets expectations for the cost of submission |
+| Memo | Reveals attached payment context when present |
+
+For contract calls, include the contract alias, method name, and the user-facing effect. Avoid presenting decoded arguments as guaranteed outcomes until the transaction is confirmed.
+
+## Truncation Rules
+
+Use truncation for identifiers, not for value-critical fields.
+
+- Keep full amounts, asset codes, and network names visible.
+- Shorten public keys as `GABC...WXYZ` after showing the first 4 and last 4 characters.
+- Shorten transaction hashes as `abcd1234...ef90abcd` after confirmation.
+- Collapse long memos after 40 characters and provide the full value in a tooltip or details view.
+- Never truncate an error message so aggressively that the recovery action disappears.
+
+## Small Example
+
+```tsx
+function summarizePendingPayment(tx: {
+  amount: string;
+  assetCode: string;
+  destination: string;
+  fee: string;
+  network: 'testnet' | 'public';
+  memo?: string;
+}) {
+  const shortDestination = `${tx.destination.slice(0, 4)}...${tx.destination.slice(-4)}`;
+  const memo = tx.memo && tx.memo.length > 40
+    ? `${tx.memo.slice(0, 37)}...`
+    : tx.memo;
+
+  return {
+    title: `Send ${tx.amount} ${tx.assetCode}`,
+    description: `To ${shortDestination} on ${tx.network}`,
+    metadata: [
+      `Fee: ${tx.fee} stroops`,
+      memo ? `Memo: ${memo}` : 'No memo',
+    ],
+  };
+}
+```
+
+Render the result near the wallet confirmation button:
+
+```tsx
+<div role="status" aria-live="polite" className="rounded-lg border p-4">
+  <p className="text-sm font-semibold">Send 25 USDC</p>
+  <p className="text-xs text-muted-foreground">To GDQP...4XLA on testnet</p>
+  <p className="text-xs text-muted-foreground">Fee: 200 stroops</p>
+</div>
+```
+
+## Pending vs Confirmed Copy
+
+Before submission, use tentative language:
+
+| State | Copy pattern |
+| --- | --- |
+| Awaiting signature | "Review and approve this payment in your wallet." |
+| Submitted | "Transaction submitted. Waiting for ledger confirmation." |
+| Confirmed | "Transaction confirmed in ledger 123456." |
+| Failed | "Transaction failed. Review the message and try again." |
+
+## Related Docs
+
+- [Transaction Lifecycle](/docs/guides/transaction-lifecycle)
+- [Animated Transaction Status](/docs/guides/animated-transaction-status)
+- [Wallet UX Patterns](/docs/guides/wallet-ux-patterns)

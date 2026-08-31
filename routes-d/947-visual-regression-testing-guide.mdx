@@ -1,0 +1,1019 @@
+---
+title: Visual Regression Testing for Stellar Wallet UIs
+description: A comprehensive guide to implementing visual regression testing for Stellar dApp wallet interfaces — covering tool selection, baseline management, flakiness mitigation, and CI/CD integration with working examples.
+date: 2026-08-25
+---
+
+# Visual Regression Testing for Stellar Wallet UIs
+
+Wallet UIs demand pixel-perfect accuracy. A CSS refactor that shifts a decimal point, a modal that clips the user's balance, or a button that vanishes on mobile — any of these can erode trust or trigger a support flood. Visual regression testing catches layout breakage that unit tests miss. This guide shows you how to build a reliable visual testing pipeline for Stellar dApp wallet interfaces, with working examples using Playwright and strategies that apply to Percy, Chromatic, or any screenshot-based tool.
+
+---
+
+## 1. Why Visual Regression Testing Matters for Wallet UIs
+
+### The Problem Space
+
+Wallet interfaces have unique constraints:
+
+- **High-stakes data display**: Account balances, transaction amounts, asset codes. A formatting bug that swaps "1,000.00 XLM" with "1.00 XLM" is catastrophic.
+- **Responsive layout complexity**: Users check balances on desktop, sign transactions on mobile. Breakpoint logic must work across viewports without clipping critical UI.
+- **Multi-state flows**: Send → Confirm → Sign → Success. Each step shows different data (recipient, amount, fees) in different layouts. Visual tests catch state-specific regressions.
+- **Dynamic content**: Real-time prices, last-updated timestamps, transaction hashes. If not masked, these cause false positives.
+
+### What Visual Tests Catch
+
+- **CSS regressions**: A global style change that breaks the transaction history table.
+- **Responsive breakpoints**: A media query that hides the "Send" button on tablets.
+- **Truncation and overflow**: Long asset names or addresses that break out of containers.
+- **Modal and overlay positioning**: A confirmation dialog that renders off-screen on small viewports.
+- **Icon and logo rendering**: SVG changes that distort wallet provider logos or asset icons.
+
+Unit tests verify *logic*. Visual tests verify *what the user sees*.
+
+---
+
+## 2. Tool Selection
+
+### Option A: Playwright with Built-in Screenshot Comparison
+
+**Pros**:
+- No external service dependency.
+- Fast local execution.
+- Full control over masking and thresholds.
+- Works offline.
+
+**Cons**:
+- Baselines stored in your repo (can bloat Git history).
+- No hosted dashboard for visual diffs.
+
+**Best for**: Teams that want full control and already use Playwright for E2E tests.
+
+### Option B: Percy (by BrowserStack)
+
+**Pros**:
+- Hosted dashboard with side-by-side diffs.
+- Parallel rendering across browsers and viewports.
+- Commit-level snapshots for PR reviews.
+
+**Cons**:
+- Paid service (free tier available).
+- Network dependency (slower in CI).
+
+**Best for**: Teams that want a turnkey solution and visual diff review in PRs.
+
+### Option C: Chromatic (by Storybook)
+
+**Pros**:
+- Native Storybook integration.
+- Component-level visual testing (test wallet components in isolation).
+- UI review workflow for designers.
+
+**Cons**:
+- Requires Storybook setup.
+- Paid service (free tier for open source).
+
+**Best for**: Design-system-first teams that already maintain a Storybook.
+
+### Recommendation
+
+Start with **Playwright screenshot comparison**. It is the fastest path to value and costs nothing. Move to Percy or Chromatic if you need multi-browser coverage or a hosted review workflow.
+
+---
+
+## 3. Creating and Managing Baselines
+
+### What Are Baselines?
+
+Baselines are the "known good" screenshots your tests compare against. When a test runs, Playwright captures a new screenshot and diffs it against the baseline. If the difference exceeds a threshold, the test fails.
+
+Playwright provides two comparison APIs:
+
+- `expect(page).toHaveScreenshot(name, options)` — captures the full page (`expect(locator).toHaveScreenshot()` captures a single element) and is the primary tool for visual regression testing. It auto-hides the text caret and can disable animations.
+- `expect(value).toMatchSnapshot(name, options)` — compares arbitrary serializable values or buffers (e.g., an element screenshot buffer). Use it when you need custom diff targets outside the standard page-screenshot flow.
+
+This guide uses `toHaveScreenshot()` throughout.
+
+### Creating Baselines
+
+Run your tests with `--update-snapshots`:
+
+```bash
+npx playwright test --update-snapshots
+```
+
+Playwright saves baseline images in a `{testFileName}-snapshots/` directory next to your test file (note: this is Playwright's convention, not Jest's `__snapshots__/`):
+
+```text
+tests/
+  wallet.visual.spec.ts
+  wallet.visual.spec.ts-snapshots/
+    send-form-empty-state-chromium-linux.png
+    send-form-filled-chromium-linux.png
+    transaction-history-chromium-linux.png
+```
+
+The `-chromium-linux` suffix is appended automatically based on the test project name and platform, so baselines never collide across browsers or operating systems.
+
+### When to Update Baselines
+
+- **Intentional UI changes**: You refactor the Send form. Run tests, review the diff, update baselines if correct.
+- **New viewports or browsers**: You add mobile testing. Generate new baselines for `iPhone 13` alongside existing `Desktop Chrome`.
+- **Breaking changes in dependencies**: A Stellar SDK upgrade changes how asset codes render. Update baselines after manual verification.
+
+### Baseline Storage
+
+**Option 1: Store in Git** (recommended for small projects)
+- Commit baselines to your repo.
+- Pros: no external dependency, full history.
+- Cons: bloats repo size (use Git LFS if baselines exceed 10 MB).
+
+**Option 2: Store in cloud storage**
+- Upload baselines to S3 or GCS, fetch in CI.
+- Pros: keeps repo lean.
+- Cons: adds pipeline complexity.
+
+For most teams, Git storage is fine. Use `.gitattributes` to mark baselines as binary so Git does not try to merge them:
+
+```text
+**/*-snapshots/**/*.png binary
+```
+
+---
+
+## 4. Handling Updates and Approving Changes
+
+### The Review Workflow
+
+1. **Developer makes a UI change** (e.g., updates button color).
+2. **CI runs visual tests** and detects a diff.
+3. **CI fails** and outputs a diff image showing pixel differences.
+4. **Developer reviews the diff** locally:
+   ```bash
+   npx playwright show-report
+   ```
+   Playwright's HTML report shows before/after/diff side by side.
+5. **If correct**, developer updates baselines:
+   ```bash
+   npx playwright test --update-snapshots
+   ```
+   and commits the new baselines.
+6. **If incorrect**, developer fixes the bug and re-runs tests.
+
+### Approving Changes in CI
+
+**GitHub Actions example**:
+
+```yaml
+name: Visual Regression Tests
+
+on: [pull_request]
+
+jobs:
+  visual-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test tests/visual/
+
+      # Upload diff images on failure
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: visual-diffs
+          path: test-results/**/*-diff.png
+
+      # Comment on PR with diff artifact link
+      - name: Comment PR
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '❌ Visual regression tests failed. [Download diffs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})'
+            })
+```
+
+This workflow:
+- Runs visual tests on every PR.
+- Uploads diff images as artifacts if tests fail.
+- Posts a comment on the PR with a link to download diffs.
+
+---
+
+## 5. Flakiness Mitigation Strategies
+
+Visual tests are notorious for flakiness. Here is how to eliminate false positives.
+
+### 5.1 Consistent Viewport and Device Settings
+
+Always use the same viewport dimensions and device pixel ratio:
+
+```typescript
+import { test, expect } from '@playwright/test';
+
+test.use({
+  viewport: { width: 1280, height: 720 },
+  deviceScaleFactor: 1,
+});
+```
+
+**Why**: Different viewports produce different screenshots. Lock it down.
+
+### 5.2 Disable Animations and Wait for Stability
+
+Animations are the single biggest source of visual test flakiness. Do not screenshot mid-animation — disable them entirely with the `animations: 'disabled'` option, either per call or globally via `playwright.config.ts` (shown in Section 6):
+
+```typescript
+// Per call: fast-forwards CSS animations and transitions to their end state
+await expect(page).toHaveScreenshot('wallet-dashboard.png', {
+  animations: 'disabled',
+});
+```
+
+Also wait for the page to reach a stable state before capturing. `waitUntil: 'networkidle'` ensures in-flight requests (balance fetches, price feeds) have finished:
+
+```typescript
+await page.goto('http://localhost:3000/wallet', {
+  waitUntil: 'networkidle',
+});
+```
+
+For specific elements, wait until they are attached, visible, and stable:
+
+```typescript
+const sendButton = page.locator('[data-testid="send-button"]');
+await sendButton.waitFor({ state: 'visible' });
+await expect(sendButton).toBeVisible();
+```
+
+Avoid bare `waitForTimeout()` sleeps — they are a flakiness source themselves (too short on slow CI, wasted time locally). Prefer explicit waits on data test IDs.
+
+### 5.3 Mask Dynamic Content
+
+Dynamic data (timestamps, transaction hashes, live prices) changes on every run. Mask it:
+
+```typescript
+await expect(page).toHaveScreenshot('wallet-dashboard.png', {
+  mask: [
+    page.locator('[data-testid="last-updated-timestamp"]'),
+    page.locator('[data-testid="current-xlm-price"]'),
+    page.locator('[data-testid="tx-hash"]'),
+  ],
+});
+```
+
+Masked areas are filled with a solid color in the screenshot, so they never diff.
+
+**Masking strategy**:
+
+| Mask (dynamic, never deterministic) | Do NOT mask (what you are testing) |
+| --- | --- |
+| Timestamps and "last synced" labels | Account balances and amounts |
+| Transaction hashes and nonces | Asset codes and icons |
+| Live price feeds | Button labels and CTAs |
+| Randomized avatars or placeholders | Form fields and validation messages |
+
+### 5.4 Disable Font Anti-Aliasing Differences
+
+Font rendering varies slightly across OS and browser versions. Use a stable font stack and disable subpixel anti-aliasing:
+
+```css
+/* In your test CSS or global styles */
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+```
+
+Or use a web font with consistent rendering (e.g., `Roboto` from Google Fonts).
+
+### 5.5 Set Diff Thresholds
+
+Small pixel differences (1-2 pixels due to rounding) should not fail tests. Playwright offers two knobs:
+
+- `maxDiffPixels` — the absolute number of pixels allowed to differ before the test fails.
+- `threshold` — the per-pixel perceived color difference tolerance in the YIQ color space, from `0` (strictest) to `1` (loosest). Default is `0.2`. Higher values tolerate small anti-aliasing shifts on individual pixels.
+
+```typescript
+await expect(page).toHaveScreenshot('send-form.png', {
+  maxDiffPixels: 100, // Allow up to 100 pixels to differ in total
+  threshold: 0.2,     // Tolerate minor per-pixel color differences
+});
+```
+
+**Recommended starting points**:
+
+| Layout | `maxDiffPixels` | Notes |
+| --- | --- | --- |
+| Desktop (1280x720) | 50-100 | Larger surface, more anti-aliased text |
+| Mobile (375x667) | 20-50 | Smaller surface area |
+
+Tune these per test: start strict (`maxDiffPixels: 0`) and loosen only where flakiness is proven, not preemptively.
+
+### 5.6 Use a Stable Test Environment
+
+Run tests in Docker or a CI container to ensure identical rendering:
+
+```dockerfile
+# Dockerfile for visual tests
+FROM mcr.microsoft.com/playwright:v1.49.1-jammy
+
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+
+CMD ["npx", "playwright", "test", "tests/visual/"]
+```
+
+This guarantees the same OS, browser version, and font libraries on every run.
+
+---
+
+## 6. Complete Working Example: Stellar Wallet Visual Tests
+
+### Project Setup
+
+```bash
+npm init playwright@latest
+npm install --save-dev @playwright/test
+```
+
+### Test File: `tests/visual/wallet.visual.spec.ts`
+
+```typescript
+import { test, expect, Page } from '@playwright/test';
+
+// Configure viewport and device settings
+test.use({
+  viewport: { width: 1280, height: 720 },
+  deviceScaleFactor: 1,
+});
+
+// Helper: Mock Stellar account data
+async function mockWalletData(page: Page) {
+  await page.route('**/api/account/*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id: 'GABC...XYZ',
+        balances: [
+          { asset_code: 'XLM', balance: '1234.5678900' },
+          { asset_code: 'USDC', balance: '500.00', asset_issuer: 'GA...' },
+        ],
+        sequence: '123456789',
+      }),
+    });
+  });
+}
+
+test.describe('Wallet Dashboard', () => {
+  test('empty state', async ({ page }) => {
+    await page.goto('http://localhost:3000/wallet');
+    await page.waitForSelector('[data-testid="wallet-dashboard"]');
+    
+    await expect(page).toHaveScreenshot('dashboard-empty.png');
+  });
+
+  test('with account balances', async ({ page }) => {
+    await mockWalletData(page);
+    await page.goto('http://localhost:3000/wallet');
+    
+    // Wait for balances to load
+    await page.waitForSelector('[data-testid="balance-xlm"]');
+    
+    // Mask dynamic timestamp
+    await expect(page).toHaveScreenshot('dashboard-with-balances.png', {
+      mask: [page.locator('[data-testid="last-synced"]')],
+      maxDiffPixels: 50,
+    });
+  });
+
+  test('mobile viewport', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 667 }); // iPhone SE
+    await mockWalletData(page);
+    await page.goto('http://localhost:3000/wallet');
+    await page.waitForSelector('[data-testid="balance-xlm"]');
+    
+    await expect(page).toHaveScreenshot('dashboard-mobile.png', {
+      mask: [page.locator('[data-testid="last-synced"]')],
+      maxDiffPixels: 30,
+    });
+  });
+});
+
+test.describe('Send Flow', () => {
+  test('send form - initial state', async ({ page }) => {
+    await mockWalletData(page);
+    await page.goto('http://localhost:3000/wallet/send');
+    await page.waitForSelector('[data-testid="send-form"]');
+    
+    await expect(page).toHaveScreenshot('send-form-empty.png');
+  });
+
+  test('send form - filled', async ({ page }) => {
+    await mockWalletData(page);
+    await page.goto('http://localhost:3000/wallet/send');
+    
+    // Fill form
+    await page.fill('[data-testid="recipient-input"]', 'GDEF...ABC');
+    await page.fill('[data-testid="amount-input"]', '100');
+    await page.selectOption('[data-testid="asset-select"]', 'XLM');
+    
+    await expect(page).toHaveScreenshot('send-form-filled.png');
+  });
+
+  test('send form - validation error', async ({ page }) => {
+    await mockWalletData(page);
+    await page.goto('http://localhost:3000/wallet/send');
+    
+    // Fill invalid amount
+    await page.fill('[data-testid="amount-input"]', '9999999');
+    await page.click('[data-testid="send-button"]');
+    
+    // Wait for error message
+    await page.waitForSelector('[data-testid="error-insufficient-balance"]');
+    
+    await expect(page).toHaveScreenshot('send-form-error.png');
+  });
+
+  test('confirmation modal', async ({ page }) => {
+    await mockWalletData(page);
+    await page.goto('http://localhost:3000/wallet/send');
+    
+    await page.fill('[data-testid="recipient-input"]', 'GDEF...ABC');
+    await page.fill('[data-testid="amount-input"]', '100');
+    await page.click('[data-testid="send-button"]');
+    
+    // Wait for modal
+    await page.waitForSelector('[data-testid="confirm-modal"]');
+    
+    // Mask dynamic fee estimate (can vary)
+    await expect(page).toHaveScreenshot('send-confirm-modal.png', {
+      mask: [page.locator('[data-testid="estimated-fee"]')],
+    });
+  });
+});
+
+test.describe('Transaction History', () => {
+  test('transaction list', async ({ page }) => {
+    // Mock transaction history API
+    await page.route('**/api/transactions/*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          _embedded: {
+            records: [
+              {
+                id: 'tx1',
+                type: 'payment',
+                created_at: '2026-08-25T12:00:00Z',
+                from: 'GABC...XYZ',
+                to: 'GDEF...ABC',
+                amount: '100.0000000',
+                asset_code: 'XLM',
+              },
+              {
+                id: 'tx2',
+                type: 'payment',
+                created_at: '2026-08-24T10:00:00Z',
+                from: 'GDEF...ABC',
+                to: 'GABC...XYZ',
+                amount: '50.0000000',
+                asset_code: 'USDC',
+              },
+            ],
+          },
+        }),
+      });
+    });
+
+    await page.goto('http://localhost:3000/wallet/transactions');
+    await page.waitForSelector('[data-testid="transaction-list"]');
+    
+    // Mask transaction IDs and timestamps (dynamic)
+    await expect(page).toHaveScreenshot('transaction-history.png', {
+      mask: [
+        page.locator('[data-testid="tx-id"]'),
+        page.locator('[data-testid="tx-timestamp"]'),
+      ],
+      maxDiffPixels: 100,
+    });
+  });
+
+  test('empty transaction history', async ({ page }) => {
+    await page.route('**/api/transactions/*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ _embedded: { records: [] } }),
+      });
+    });
+
+    await page.goto('http://localhost:3000/wallet/transactions');
+    await page.waitForSelector('[data-testid="empty-state"]');
+    
+    await expect(page).toHaveScreenshot('transaction-history-empty.png');
+  });
+});
+
+test.describe('Asset Selection', () => {
+  test('asset dropdown - open', async ({ page }) => {
+    await mockWalletData(page);
+    await page.goto('http://localhost:3000/wallet/send');
+    
+    // Open asset dropdown
+    await page.click('[data-testid="asset-select"]');
+    await page.waitForSelector('[data-testid="asset-option-XLM"]');
+    
+    await expect(page).toHaveScreenshot('asset-dropdown-open.png');
+  });
+
+  test('asset with logo', async ({ page }) => {
+    await page.route('**/api/account/*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: 'GABC...XYZ',
+          balances: [
+            {
+              asset_code: 'AQUA',
+              balance: '1000.00',
+              asset_issuer: 'GA...',
+              // Mock TOML data would include logo
+            },
+          ],
+        }),
+      });
+    });
+
+    await page.goto('http://localhost:3000/wallet');
+    await page.waitForSelector('[data-testid="balance-AQUA"]');
+    
+    // Wait for asset logo to load
+    await page.waitForSelector('[data-testid="asset-logo-AQUA"]');
+    
+    await expect(page).toHaveScreenshot('asset-with-logo.png');
+  });
+});
+```
+
+### Playwright Configuration: `playwright.config.ts`
+
+```typescript
+import { defineConfig, devices } from '@playwright/test';
+
+export default defineConfig({
+  testDir: './tests/visual',
+
+  fullyParallel: true,
+  forbidOnly: !!process.env.CI,
+  // Playwright already defaults to a single worker on CI; keep retries for
+  // infrastructure flakes only. Visual diffs should never be retried away.
+  retries: process.env.CI ? 2 : 0,
+
+  reporter: process.env.CI ? 'github' : 'html',
+
+  // Global defaults applied to every expect(page).toHaveScreenshot() call.
+  // Individual tests can override any of these per call.
+  expect: {
+    toHaveScreenshot: {
+      animations: 'disabled',   // Fast-forward CSS animations/transitions
+      caret: 'hide',            // Hide the blinking text caret
+      maxDiffPixels: 100,       // Allow up to 100 differing pixels
+      threshold: 0.2,           // Per-pixel YIQ color tolerance (0-1)
+    },
+  },
+
+  use: {
+    baseURL: 'http://localhost:3000',
+    trace: 'on-first-retry',
+    screenshot: 'only-on-failure',
+  },
+
+  projects: [
+    {
+      name: 'chromium',
+      use: { 
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1280, height: 720 },
+        deviceScaleFactor: 1,
+      },
+    },
+    {
+      name: 'mobile-chrome',
+      use: { 
+        ...devices['Pixel 5'],
+        deviceScaleFactor: 1, // Override device default
+      },
+    },
+  ],
+
+  webServer: {
+    command: 'npm run dev',
+    url: 'http://localhost:3000',
+    reuseExistingServer: !process.env.CI,
+    timeout: 120_000,
+  },
+});
+```
+
+### Running Tests
+
+```bash
+# Run all visual tests
+npx playwright test tests/visual/
+
+# Run specific test
+npx playwright test tests/visual/wallet.visual.spec.ts
+
+# Update baselines (after verifying changes are correct)
+npx playwright test tests/visual/ --update-snapshots
+
+# Show HTML report with visual diffs
+npx playwright show-report
+```
+
+### Directory Structure
+
+```text
+my-stellar-wallet/
+├── tests/
+│   └── visual/
+│       ├── wallet.visual.spec.ts
+│       └── wallet.visual.spec.ts-snapshots/
+│           ├── dashboard-empty-chromium-linux.png
+│           ├── dashboard-empty-mobile-chrome-linux.png
+│           ├── dashboard-with-balances-chromium-linux.png
+│           ├── send-form-empty-chromium-linux.png
+│           └── ...
+├── playwright.config.ts
+└── package.json
+```
+
+---
+
+## 7. CI/CD Integration
+
+### GitHub Actions (Full Example)
+
+```yaml
+# .github/workflows/visual-regression.yml
+name: Visual Regression Tests
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main]
+
+jobs:
+  visual-tests:
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run visual regression tests
+        run: npx playwright test tests/visual/
+        env:
+          CI: true
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 30
+
+      - name: Upload visual diffs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-diffs
+          path: test-results/**/*-diff.png
+          retention-days: 7
+
+      - name: Comment on PR with results
+        if: failure() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const runUrl = `${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}`;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## ❌ Visual Regression Tests Failed\n\n` +
+                    `Visual differences detected. [View test results and diffs](${runUrl})\n\n` +
+                    `### Next Steps:\n` +
+                    `1. Download the \`visual-diffs\` artifact from the workflow run\n` +
+                    `2. Review each diff image\n` +
+                    `3. If changes are intentional, update baselines:\n` +
+                    `   \`\`\`bash\n   npx playwright test tests/visual/ --update-snapshots\n   \`\`\`\n` +
+                    `4. Commit the updated snapshots`
+            });
+```
+
+### GitLab CI
+
+```yaml
+# .gitlab-ci.yml
+visual-tests:
+  image: mcr.microsoft.com/playwright:v1.49.1-jammy
+  stage: test
+  script:
+    - npm ci
+    - npx playwright test tests/visual/
+  artifacts:
+    when: always
+    paths:
+      - playwright-report/
+      - test-results/
+    expire_in: 1 week
+  only:
+    - merge_requests
+    - main
+```
+
+### CircleCI
+
+```yaml
+# .circleci/config.yml
+version: 2.1
+
+orbs:
+  node: circleci/node@5.1.0
+
+jobs:
+  visual-tests:
+    docker:
+      - image: mcr.microsoft.com/playwright:v1.49.1-jammy
+    steps:
+      - checkout
+      - node/install-packages
+      - run:
+          name: Install Playwright
+          command: npx playwright install --with-deps chromium
+      - run:
+          name: Run visual tests
+          command: npx playwright test tests/visual/
+      - store_artifacts:
+          path: playwright-report
+      - store_artifacts:
+          path: test-results
+
+workflows:
+  test:
+    jobs:
+      - visual-tests
+```
+
+---
+
+## 8. Advanced Patterns
+
+### 8.1 Parameterized Visual Tests (Multiple Viewports)
+
+```typescript
+const viewports = [
+  { name: 'desktop', width: 1280, height: 720 },
+  { name: 'tablet', width: 768, height: 1024 },
+  { name: 'mobile', width: 375, height: 667 },
+];
+
+for (const viewport of viewports) {
+  test(`dashboard - ${viewport.name}`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await page.goto('http://localhost:3000/wallet');
+    await page.waitForSelector('[data-testid="wallet-dashboard"]');
+    
+    await expect(page).toHaveScreenshot(`dashboard-${viewport.name}.png`, {
+      maxDiffPixels: 50,
+    });
+  });
+}
+```
+
+### 8.2 Component-Level Visual Tests (Storybook)
+
+If you use Storybook, test components in isolation:
+
+```typescript
+// WalletBalance.stories.tsx
+import { Meta, StoryObj } from '@storybook/react';
+import { WalletBalance } from './WalletBalance';
+
+const meta: Meta<typeof WalletBalance> = {
+  component: WalletBalance,
+};
+export default meta;
+
+export const Default: StoryObj<typeof WalletBalance> = {
+  args: {
+    balance: '1234.5678900',
+    assetCode: 'XLM',
+  },
+};
+
+export const LongBalance: StoryObj<typeof WalletBalance> = {
+  args: {
+    balance: '123456789.1234567',
+    assetCode: 'XLM',
+  },
+};
+```
+
+Then run Playwright against Storybook:
+
+```typescript
+test('WalletBalance component', async ({ page }) => {
+  await page.goto('http://localhost:6006/iframe.html?id=walletbalance--default');
+  await page.waitForSelector('[data-testid="wallet-balance"]');
+  
+  await expect(page).toHaveScreenshot('wallet-balance-component.png');
+});
+```
+
+### 8.3 Percy Integration (Hosted Service)
+
+Install Percy SDK:
+
+```bash
+npm install --save-dev @percy/cli @percy/playwright
+```
+
+Update tests to use Percy snapshots:
+
+```typescript
+import percySnapshot from '@percy/playwright';
+
+test('dashboard with Percy', async ({ page }) => {
+  await page.goto('http://localhost:3000/wallet');
+  await page.waitForSelector('[data-testid="wallet-dashboard"]');
+  
+  // Percy snapshot (uploaded to Percy dashboard)
+  await percySnapshot(page, 'Wallet Dashboard');
+});
+```
+
+Run tests with Percy:
+
+```bash
+npx percy exec -- npx playwright test
+```
+
+Percy uploads screenshots to their cloud, where you review diffs in a web UI.
+
+### 8.4 Handling Theming (Light/Dark Mode)
+
+Test both themes:
+
+```typescript
+const themes = ['light', 'dark'];
+
+for (const theme of themes) {
+  test(`dashboard - ${theme} theme`, async ({ page }) => {
+    // Set theme via localStorage or cookie
+    await page.addInitScript((theme) => {
+      localStorage.setItem('theme', theme);
+    }, theme);
+    
+    await page.goto('http://localhost:3000/wallet');
+    await page.waitForSelector('[data-testid="wallet-dashboard"]');
+    
+    await expect(page).toHaveScreenshot(`dashboard-${theme}.png`);
+  });
+}
+```
+
+---
+
+## 9. Troubleshooting Common Issues
+
+### Issue: Tests pass locally but fail in CI
+
+**Cause**: Different OS/browser versions render fonts differently.
+
+**Solution**: Run tests in Docker locally with the same image as CI:
+
+```bash
+docker run --rm --network host -v $(pwd):/work -w /work -it \
+  mcr.microsoft.com/playwright:v1.49.1-jammy \
+  npx playwright test tests/visual/
+```
+
+### Issue: Flaky failures on dynamic content
+
+**Cause**: Timestamps, transaction hashes, or loading states not masked.
+
+**Solution**: Mask all dynamic content and wait for stable state:
+
+```typescript
+// Bad: screenshots mid-load
+await page.goto('http://localhost:3000/wallet');
+await expect(page).toHaveScreenshot('dashboard.png');
+
+// Good: wait for load + mask dynamic content
+await page.goto('http://localhost:3000/wallet', { waitUntil: 'networkidle' });
+await page.waitForSelector('[data-testid="balance-xlm"]');
+await expect(page).toHaveScreenshot('dashboard.png', {
+  mask: [
+    page.locator('[data-testid="last-synced"]'),
+    page.locator('[data-testid="tx-hash"]'),
+  ],
+});
+```
+
+### Issue: Diffs on anti-aliased text
+
+**Cause**: Subpixel rendering varies across machines.
+
+**Solution**: Use a stable font with `font-smoothing`:
+
+```css
+body {
+  font-family: 'Roboto', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+```
+
+### Issue: Large baseline file sizes
+
+**Cause**: Too many high-resolution screenshots.
+
+**Solution**:
+1. Use Git LFS for `*-snapshots/` directories.
+2. Test only critical paths (no need for every button state).
+3. Compress PNGs with `pngquant` in CI.
+
+---
+
+## 10. Best Practices Summary
+
+1. **Test critical paths only**: Dashboard, Send flow, Transaction history, Asset selection. Do not screenshot every pixel of your app.
+2. **Mask dynamic content**: Timestamps, hashes, prices, nonces.
+3. **Use consistent viewports**: Lock down `width`, `height`, and `deviceScaleFactor`.
+4. **Disable animations and wait for stable state**: `animations: 'disabled'` globally, plus `waitUntil: 'networkidle'` and explicit waits for data test IDs.
+5. **Set diff thresholds**: 50-100 pixels for desktop, 20-50 for mobile.
+6. **Run in Docker**: Use the same Playwright Docker image locally and in CI.
+7. **Review diffs before updating baselines**: Do not blindly accept changes.
+8. **Store baselines in Git**: Use Git LFS if they exceed 10 MB.
+9. **Fail fast in CI**: Post diff artifacts and links to PRs so reviewers can approve changes.
+10. **Keep tests fast**: Parallelize, reuse server instances, mock APIs.
+
+---
+
+## 11. Next Steps
+
+- **Add visual tests to your PR workflow**: Require passing visual tests before merge.
+- **Monitor baseline drift**: Track how often baselines change (high churn = unstable UI).
+- **Integrate with design reviews**: Share Percy/Chromatic links with designers for approval.
+- **Expand to E2E flows**: Add visual snapshots to existing E2E tests (sign transaction, swap assets).
+
+Visual regression testing is not a replacement for manual QA — it is a safety net that catches regressions before they reach users. Combine it with unit tests, E2E tests, and manual exploratory testing for full coverage.
+
+---
+
+## Resources
+
+### Internal
+
+- [Testing Guide](/docs/guides/testing) — repository test setup and conventions
+- [Screenshot Workflow](/docs/guides/screenshot-workflow) — capturing and maintaining docs screenshots
+
+### External
+
+- [Playwright Visual Comparisons](https://playwright.dev/docs/test-snapshots)
+- [Percy Documentation](https://docs.percy.io/)
+- [Chromatic Visual Testing](https://www.chromatic.com/docs/)
+- [Stellar SDK Testing Guide](https://developers.stellar.org/docs/building-apps/testing)
+- [Soroban dApp Testing Patterns](https://soroban.stellar.org/docs/how-to-guides/testing)

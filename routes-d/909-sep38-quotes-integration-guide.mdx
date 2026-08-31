@@ -1,0 +1,194 @@
+---
+title: SEP-38 Quotes Integration Guide
+description: A comprehensive guide to integrating SEP-38 anchor quotes — requesting indicative and firm quotes, honoring a quote through settlement, handling expiry, and a small worked example.
+date: 2026-08-26
+---
+
+# SEP-38 Quotes Integration Guide
+
+SEP-38 defines an API for requesting exchange-rate quotes from an anchor for converting between an off-chain asset (like a bank-rail currency) and a Stellar asset, or between two Stellar assets. It's the pricing layer that other SEPs — SEP-6, SEP-24, and SEP-31 — reference when a flow needs a firm, time-bound rate rather than an on-the-fly estimate. This guide covers the two kinds of quotes SEP-38 supports, how to request and then _honor_ a firm quote, expiry handling, and a small end-to-end example.
+
+---
+
+## 1. Indicative vs. Firm Quotes
+
+SEP-38 exposes two distinct operations, and mixing them up is the most common integration mistake:
+
+| Endpoint      | Purpose                                                                                              | Binding?                                                               |
+| ------------- | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `GET /prices` | Get indicative rates across all supported (sell, buy) asset pairs, or for one pair at a given amount | No — informational only, rate can move before you request a firm quote |
+| `POST /quote` | Request a firm, time-bound quote for one specific (sell, buy, amount) combination                    | Yes — the anchor commits to honoring `price` until `expires_at`        |
+
+Use `GET /prices` for UI display — showing a user "approximately X" before they commit to a flow — and reserve `POST /quote` for the moment right before you need a rate you can actually execute against. Calling `POST /quote` speculatively for every keystroke in an amount field burns the anchor's rate-lock capacity for quotes you'll never use; debounce or gate firm quote requests to an explicit user action.
+
+---
+
+## 2. Discovering Supported Pairs
+
+Firm quotes only work for pairs the anchor actually prices. Check first:
+
+```typescript
+import { StellarToml } from '@stellar/stellar-sdk';
+
+const toml = await StellarToml.Resolver.resolve('anchor.example.com');
+const quoteServer = toml.ANCHOR_QUOTE_SERVER;
+
+const infoRes = await fetch(`${quoteServer}/info`, {
+  headers: { Authorization: `Bearer ${sep10Token}` },
+});
+const { assets } = await infoRes.json();
+```
+
+`assets` lists each supported asset along with `sell_delivery_methods` / `buy_delivery_methods` (relevant when the off-chain side is a bank rail rather than a pure currency code) and country codes it's restricted to. An asset pair not listed here will be rejected by `POST /quote` — check `/info` once at startup or on a cache TTL, not on every quote request.
+
+---
+
+## 3. Requesting an Indicative Price
+
+```typescript
+const priceRes = await fetch(
+  `${quoteServer}/price?` +
+    new URLSearchParams({
+      context: 'sep31',
+      sell_asset: 'iso4217:NGN',
+      buy_asset:
+        'stellar:USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
+      sell_amount: '750000',
+    }),
+  { headers: { Authorization: `Bearer ${sep10Token}` } }
+);
+const indicative = await priceRes.json();
+// { total_price, price, sell_amount, buy_amount, fee: { total, asset, details? } }
+```
+
+`context` matters — it tells the anchor which regulatory/product flow this quote is for (`sep6`, `sep31`, or `sep24`), and anchors are allowed to price the same pair differently per context (a SEP-31 institutional corridor may get a tighter spread than a SEP-24 retail withdrawal). Always pass the context matching the flow you're actually integrating, not whichever one happens to be convenient.
+
+The distinction between `price` and `total_price`: `price` is the exchange rate before fees, `total_price` includes the anchor's fee baked into the effective rate. When displaying a rate to a user, `total_price` (or the derived `buy_amount`/`sell_amount` pair) is what they'll actually experience — `price` alone understates their real cost.
+
+---
+
+## 4. Requesting a Firm Quote
+
+Once the user commits (e.g., clicks "Confirm" on the indicative rate), lock it in:
+
+```typescript
+interface QuoteRequest {
+  context: 'sep6' | 'sep24' | 'sep31';
+  sell_asset: string;
+  buy_asset: string;
+  sell_amount?: string;
+  buy_amount?: string; // exactly one of sell_amount / buy_amount, not both
+  expire_after?: string; // ISO 8601, request a minimum validity window
+}
+
+async function requestFirmQuote(req: QuoteRequest, token: string) {
+  const res = await fetch(`${quoteServer}/quote`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(req),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(`Quote request failed: ${err.error ?? res.status}`);
+  }
+  return res.json();
+  // { id, expires_at, price, total_price, sell_asset, sell_amount, buy_asset, buy_amount, fee }
+}
+```
+
+Specify exactly one of `sell_amount` or `buy_amount` — the anchor computes the other side. Requesting both, or neither, is invalid per the spec and anchors will reject it with a 400. The response's `id` is what downstream flows (a SEP-31 `POST /transactions`, or a SEP-6/SEP-24 deposit/withdraw request) reference to bind the transaction to this exact rate.
+
+---
+
+## 5. Honoring the Quote
+
+"Honoring" a quote means the on-chain and off-chain legs of the transaction must match the amounts and assets the quote committed to — an anchor will reject or fail a transaction that references a `quote_id` but sends a different amount than `sell_amount` (or an incompatible asset). Concretely:
+
+```typescript
+async function executeAgainstQuote(quote: {
+  id: string;
+  sell_asset: string;
+  sell_amount: string;
+}) {
+  // The Stellar payment (or the fiat deposit, depending on direction) must move
+  // exactly quote.sell_amount of quote.sell_asset — not "close enough".
+  const [, code, issuer] = quote.sell_asset.split(':'); // "stellar:CODE:ISSUER"
+
+  const payment = Operation.payment({
+    destination: anchorDepositAddress,
+    asset: issuer ? new Asset(code, issuer) : Asset.native(),
+    amount: quote.sell_amount,
+  });
+
+  return payment;
+}
+```
+
+If the sell asset is off-chain (an `iso4217:` currency rather than a `stellar:` asset), the "execution" is the off-chain leg — e.g., completing a bank transfer for exactly that fiat amount — and the quote is instead honored by the anchor crediting the corresponding Stellar asset once that off-chain payment clears. Either direction, the contract is the same: **amount and asset must match the quote exactly**, and the quote's `id` must be threaded through to whichever SEP is orchestrating the transaction (a SEP-31 `POST /transactions` body's `quote_id` field, for instance) so the anchor can cross-reference the commitment.
+
+---
+
+## 6. Expiry Handling
+
+Every firm quote has an `expires_at`. Once past it, the anchor is no longer bound to `price`, and submitting against an expired quote fails at the orchestrating SEP's layer (e.g., SEP-31 rejects `POST /transactions` referencing an expired `quote_id`):
+
+```typescript
+function isQuoteExpired(quote: { expires_at: string }): boolean {
+  return new Date(quote.expires_at).getTime() <= Date.now();
+}
+
+async function getValidQuote(
+  req: QuoteRequest,
+  token: string,
+  cached?: { id: string; expires_at: string }
+) {
+  if (cached && !isQuoteExpired(cached)) {
+    return cached;
+  }
+  return requestFirmQuote(req, token);
+}
+```
+
+**Edge cases to handle explicitly:**
+
+- **Expiry during a multi-step flow.** If KYC (SEP-12) or user confirmation takes longer than the quote's validity window, re-quote before submitting rather than letting the transaction fail downstream — check `isQuoteExpired` immediately before the step that consumes the quote, not just when it was first fetched.
+- **Clock skew.** `expires_at` is the anchor's clock, not the client's. Build in a safety margin (treat a quote as expired 5-10 seconds before its literal `expires_at`) so a request that departs the client just before expiry doesn't arrive just after it.
+- **`expire_after` is a request, not a guarantee.** Passing `expire_after` in the quote request asks the anchor for at least that much validity; the anchor can return a shorter (or longer) window in `expires_at`. Always read the actual `expires_at` from the response — don't assume the requested duration was honored.
+- **Anchor doesn't support firm quotes for a pair.** Some anchors only implement `GET /price` and not `POST /quote` for certain corridors. Check `/info`'s per-asset capabilities before assuming `POST /quote` will succeed, and fall back to executing against the indicative price with wider slippage tolerance if firm quotes aren't offered.
+- **Quote amount doesn't match at settlement time.** If the off-chain or on-chain leg ends up sending a different amount than `sell_amount` (e.g., a bank wire arrives short due to intermediary fees), the anchor's reconciliation will flag the mismatch — this typically surfaces as the transaction stalling rather than an explicit error, so timeout-and-alert on transactions that don't progress within an expected window.
+
+---
+
+## 7. Worked Example: NGN to USDC Quote Lifecycle
+
+A sender wants to convert 750,000 NGN to USDC through an anchor that supports SEP-38:
+
+1. **Indicative check** — `GET /price?sell_asset=iso4217:NGN&buy_asset=stellar:USDC:...&sell_amount=750000` returns `total_price: "1550.00"`, i.e. roughly 483.87 USDC, shown to the user as an estimate.
+2. **User confirms** — client calls `POST /quote` with the same parameters plus `expire_after: "PT10M"` (request at least 10 minutes).
+3. **Anchor responds** — `{ id: "q-9f2b", expires_at: "2026-08-26T14:32:00Z", total_price: "1551.20", buy_amount: "483.51" }`. Note the rate moved slightly between the indicative check and the firm quote — this is expected and why the firm quote, not the earlier indicative one, is what gets executed against.
+4. **KYC completes** (via SEP-12, if this is part of a SEP-31 flow) with 6 minutes left before `expires_at`.
+5. **Transaction created** referencing `quote_id: "q-9f2b"` — the anchor validates the quote is still valid at creation time.
+6. **Settlement** — the fiat leg (750,000 NGN) is transferred off-chain; once confirmed, the anchor sends exactly 483.51 USDC to the sender's (or ultimate receiver's) Stellar account, matching the locked `buy_amount`.
+
+If step 4 had instead taken 11 minutes, the client should have detected `isQuoteExpired(quote)` returning true and requested a fresh quote before step 5, rather than letting the anchor reject the transaction creation call.
+
+---
+
+## Summary
+
+- `GET /price` is indicative and non-binding; `POST /quote` is firm and time-bound — don't treat them interchangeably.
+- Pass the correct `context` (`sep6`/`sep24`/`sep31`) since anchors may price the same pair differently per flow.
+- Specify exactly one of `sell_amount`/`buy_amount` per request; the anchor computes the other side.
+- Honoring a quote means matching its exact amount and asset at settlement — thread the `quote_id` through to whichever SEP orchestrates the transaction.
+- Always read the actual `expires_at` from the response, build in a clock-skew safety margin, and re-quote proactively if a multi-step flow risks running past expiry.
+
+---
+
+## Related
+
+- [Building a SEP-31 Sender Client](/routes-d/910-sep31-sender-client-tutorial) - Where SEP-38 quotes plug into a full transfer flow
+- [Anchor Onboarding with KYC](/docs/guides/anchor-onboarding-kyc) - SEP-6/SEP-12 fundamentals referenced alongside quotes
+- [Fiat Onramp Tutorial](/docs/guides/fiat-onramp-tutorial) - A deposit flow that can incorporate SEP-38 pricing

@@ -1,0 +1,113 @@
+---
+title: Stellar dApp Docs Review Workflow
+description: The end-to-end review workflow for documentation changes covering reviewer roles, approval gates, lifecycle stages, and response-time expectations.
+date: 2026-08-26
+---
+
+# Stellar dApp Docs Review Workflow
+
+Every docs change for a Stellar dApp goes through a structured review before merge. Because dApp documentation often describes wallet flows, transaction signing, or contract behavior, an incorrect sentence can send users into a failed transaction or an insecure setup.
+
+This guide defines who reviews what, which gates a change must pass, and how quickly each stage should move.
+
+---
+
+## Reviewer Roles
+
+1. **Author** — Writes the change, keeps the PR description factual, and responds to review feedback. The author owns correctness of the first draft and is responsible for running content builds and link checks before requesting review.
+2. **Technical reviewer / domain expert** — Verifies that the documented behavior matches the actual dApp, SDK, or protocol behavior. For example, someone who works with Freighter or Soroban RPC daily should review wallet-interaction pages.
+3. **Maintainer / editor** — Reviews structure, tone, terminology consistency, and adherence to the house style. Editors focus on clarity and conventions rather than technical depth.
+4. **Security reviewer** — Required whenever a page touches wallets, key handling, transaction signing, or smart contracts. This reviewer checks for guidance that could expose keys, encourage bypassing signature verification, or misstate trust boundaries.
+
+A single person may hold more than one role on small changes, but security-sensitive pages must always get a dedicated security sign-off.
+
+---
+
+## Approval Gates
+
+A PR passes through gates in this order. Each gate needs an explicit approval before the next one starts.
+
+| Gate                    | Owner               | What is checked                                                                                  |
+| ----------------------- | ------------------- | ------------------------------------------------------------------------------------------------ |
+| Technical accuracy gate | Technical reviewer  | Facts match real behavior; examples compile; network passphrases, fees, and timeouts are correct |
+| Editorial gate          | Maintainer / editor | Frontmatter, headings, tone, formatting conventions, internal links resolve                      |
+| Security gate           | Security reviewer   | Wallet, signing, and contract topics reviewed for unsafe advice                                  |
+| Final approval          | Maintainer          | All gates green, CI passing, ready to merge                                                      |
+
+**CODEOWNERS-based auto-assignment:** Files under `docs/guides/` are mapped in `CODEOWNERS` so that opening a PR automatically requests review from the right maintainers. Pages matching sensitive patterns (wallets, contracts, deployment) additionally request a security reviewer. If no one is auto-assigned within one business day, ping the maintainer channel.
+
+---
+
+## Review Lifecycle
+
+```
+Draft  →  In review  →  Changes requested  →  Approved  →  Merged
+```
+
+- **Draft** — Author pushes initial commits, marks the PR as draft, and self-reviews using the checklist below. Draft PRs skip formal review.
+- **In review** — Author marks the PR ready. Assigned reviewers begin their gate checks.
+- **Changes requested** — A reviewer blocks merge until concerns are addressed. The author pushes fixes and re-requests review; do not open a new PR for follow-up fixes.
+- **Approved** — All applicable gates have signed off. The author (or maintainer) merges.
+- **Merged** — Squash-merge by default. Delete the branch and verify the published page renders correctly.
+
+---
+
+## Response-Time Expectations (SLAs)
+
+These are targets, not hard limits, but reviewers should aim to keep docs changes moving.
+
+| Event                                         | Target                                         |
+| --------------------------------------------- | ---------------------------------------------- |
+| First review after PR marked ready            | Within 1 business day                          |
+| Security-gate review (wallet/contract topics) | Within 1 business day                          |
+| Re-review after author updates                | Within 1 business day                          |
+| Stale PR with no activity                     | Auto-pinged after 7 days, closed after 14 days |
+
+Authors should respond to review comments within 1 business day as well. If you will be unavailable, say so on the PR so it can be reassigned instead of stalling.
+
+---
+
+## Handling Disputes
+
+Disagreements about wording, scope, or technical claims happen. Resolve them this way:
+
+1. **Discuss on the PR first.** Keep the thread in one place so future readers see the reasoning.
+2. **State the user impact.** Prefer whichever option produces fewer user-facing mistakes, not the option that reads best.
+3. **Escalate once, briefly.** If two reviewers disagree after one round, bring it to the maintainer channel with a one-paragraph summary of both positions.
+4. **Record the decision.** Merge the agreed wording and note the rationale in the PR description so the decision survives after the thread is archived.
+5. **Do not force-merge.** An unresolved dispute always blocks final approval.
+
+---
+
+## Checklist
+
+Copy this into your PR description and tick items off before requesting review.
+
+For authors:
+
+- [ ] Frontmatter includes `title` and `description`
+- [ ] One H1 per page, matching the frontmatter title
+- [ ] Internal links use absolute paths like `/docs/...`
+- [ ] Code examples tested against testnet where applicable
+- [ ] Wallet, signing, or contract changes flagged for security review
+- [ ] `pnpm build:content` passes
+- [ ] `pnpm check:links` passes
+
+For reviewers:
+
+- [ ] Technical accuracy verified against actual dApp/SDK behavior
+- [ ] Tone and formatting consistent with existing guides
+- [ ] No unsafe key-handling or signing advice
+- [ ] Related docs section points only to existing pages
+- [ ] Gate approvals recorded before merging
+
+---
+
+## Related docs
+
+- [Contributing to Documentation](/docs/guides/contributing) — General contribution workflow
+- [Documentation Contributing Checklist](/docs/guides/contributing-checklist) — Pre-submission checklist
+- [Pull Request Template](/docs/guides/pull-request-template) — What each PR section means
+- [Issue Templates](/docs/guides/issue-templates) — Filing docs issues before writing
+- [Link Validation](/docs/guides/link-validation) — Keeping internal links working
+- [Formatting Conventions](/docs/guides/formatting-conventions) — Markdown and MDX style rules

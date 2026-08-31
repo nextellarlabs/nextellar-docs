@@ -72,6 +72,7 @@ export const sidebarNav: SidebarSection[] = [
       { title: 'Cheat Sheet', href: '/docs/cli/cheat-sheet' },
       { title: 'Flags & Options', href: '/docs/cli/flags' },
       { title: 'Scaffolding Templates', href: '/docs/cli/templates' },
+      { title: 'Template Comparison', href: '/docs/cli/template-comparison' },
     ],
   },
 
@@ -180,7 +181,7 @@ export const sidebarNav: SidebarSection[] = [
     icon: <Database className="h-5 w-5" />,
     defaultOpen: true,
     pages: [
-      { title: 'API Explorer', href: '/docs/api/explorer' },
+      { title: 'Hosted API (Roadmap)', href: '/docs/api' },
       { title: 'Overview', href: '/docs/sdk/overview' },
       { title: 'API Reference', href: '/docs/sdk/api-reference' },
       { title: 'Wallet Integration', href: '/docs/sdk/wallet-integration' },

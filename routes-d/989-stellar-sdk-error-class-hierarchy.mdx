@@ -1,0 +1,72 @@
+---
+title: Stellar SDK Error Class Hierarchy
+description: Overview of the error class hierarchy in @stellar/stellar-sdk, common error types, and where each error is thrown.
+date: 2026-08-26
+---
+
+# Stellar SDK Error Class Hierarchy
+
+The `@stellar/stellar-sdk` package exports a structured error hierarchy for handling network failures, server rejections, and validation issues. Understanding this hierarchy allows dApps to present clear user feedback and implement targeted retry logic.
+
+---
+
+## Class Hierarchy
+
+All SDK errors inherit from the native JavaScript `Error` class, branching into specialized error types depending on the failure origin:
+
+```
+Error (native JavaScript Error)
+ ├── NetworkError
+ │    ├── NotFoundError          (HTTP 404)
+ │    ├── BadRequestError        (HTTP 400)
+ │    └── BadResponseError       (HTTP 500/invalid response)
+ ├── TransactionFailedError     (Horizon submission failure)
+ └── AccountRequiresMemoError   (SEP-0029 memo requirement)
+```
+
+---
+
+## Common Error Types
+
+| Error Class | Origin / Thrown When | Key Properties |
+| --- | --- | --- |
+| `NetworkError` | Horizon or Soroban RPC network connectivity or transport failure | `response`, `status` |
+| `NotFoundError` | Resource missing on network (e.g. unfunded account, non-existent transaction hash) | `response` (HTTP 404) |
+| `BadRequestError` | Horizon rejects query parameters or malformed request payload | `response` (HTTP 400) |
+| `BadResponseError` | Horizon or RPC server returns HTTP 5xx or invalid non-JSON body | `response` (HTTP 500+) |
+| `TransactionFailedError` | Horizon rejects signed transaction submission (e.g. `op_underfunded`, `tx_bad_seq`) | `response.data.extras.result_codes` |
+| `AccountRequiresMemoError` | Target account requires a memo (SEP-0029) but none was provided | `accountId` |
+
+---
+
+## Catching & Handling Errors
+
+Use instance checks or error code inspection to handle specific error types:
+
+```typescript
+import {
+  NotFoundError,
+  TransactionFailedError,
+} from '@stellar/stellar-sdk';
+
+try {
+  const result = await server.submitTransaction(signedTx);
+} catch (error) {
+  if (error instanceof NotFoundError) {
+    console.error('Account or endpoint not found (404)');
+  } else if (error instanceof TransactionFailedError) {
+    const codes = error.response?.data?.extras?.result_codes;
+    console.error('Transaction failed on ledger:', codes?.transaction);
+  } else {
+    console.error('Unhandled SDK error:', error);
+  }
+}
+```
+
+---
+
+## Related Documentation
+
+- [SDK Overview](/docs/sdk/overview) — Core Nextellar SDK components
+- [API Reference](/docs/sdk/api-reference) — Types and clients reference
+- [Hook Error Handling](/docs/guides/hook-error-handling) — Error patterns in React hooks

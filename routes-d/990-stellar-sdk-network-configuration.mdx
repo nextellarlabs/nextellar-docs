@@ -1,0 +1,36 @@
+---
+title: Stellar-SDK Network Configuration
+description: Briefly document configuring the SDK network at import time and per-request overrides.
+date: 2026-08-27
+---
+
+# Stellar-SDK Network Configuration
+
+The `@stellar/stellar-sdk` library allows you to configure the default network passphrase at the global level, reducing the need to pass it to every transaction or operation.
+
+## Network Passphrase Set
+
+You can globally set the default network for the SDK at import time using `Networks`:
+
+```javascript
+import { Networks } from '@stellar/stellar-sdk';
+
+// Set the global network to TESTNET
+Networks.TESTNET; // You can use this constant globally
+```
+
+However, note that in `stellar-sdk` modern versions, it is often required to pass the explicit network passphrase to constructors such as the `TransactionBuilder`, as reliance on a hidden global state is discouraged in modular architecture.
+
+## Per-Request Overrides
+
+You can override the network configuration by explicitly passing the `networkPassphrase` argument when initializing your classes or making RPC calls.
+
+```javascript
+import { Networks, TransactionBuilder } from '@stellar/stellar-sdk';
+
+// Network is passed explicitly
+const tx = new TransactionBuilder(account, {
+  fee: '100',
+  networkPassphrase: Networks.PUBLIC,
+});
+```

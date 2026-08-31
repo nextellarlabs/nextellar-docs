@@ -8,6 +8,11 @@ date: 2026-06-02
 
 The `useStellarPayment` hook provides advanced utilities for building, signing, and submitting Stellar payment transactions. It offers more control than `useStellarWallet.sendPayment()` with separate methods for each step of the payment flow.
 
+<Note>
+  **Ships in:** default, js<br/>
+  Not in your scaffold? Run `nextellar add payments`
+</Note>
+
 ## Features
 
 - **Build Unsigned XDR**: Create transaction XDR for external wallet signing
@@ -18,7 +23,7 @@ The `useStellarPayment` hook provides advanced utilities for building, signing, 
 
 ## Basic Usage
 
-`````tsx
+```tsx
 import { useStellarPayment } from '@/hooks/useStellarPayment';
 
 export default function PaymentBuilder() {
@@ -51,12 +56,12 @@ export default function PaymentBuilder() {
 
 ### Parameters
 
-````typescript
+```typescript
 useStellarPayment(options?: {
   horizonUrl?: string;
   network?: 'TESTNET' | 'PUBLIC';
 }): PaymentHookReturn
-```css
+```
 
 | Parameter    | Type                    | Default                                 | Description        |
 | ------------ | ----------------------- | --------------------------------------- | ------------------ |
@@ -73,7 +78,7 @@ interface PaymentHookReturn {
     params: PaymentParams & { secret: string }
   ) => Promise<PaymentResult>;
 }
-`````
+```
 
 ### Types
 
@@ -124,7 +129,7 @@ console.log(xdr); // "AAAAAgAAAAC..."
 
 Submit a signed transaction XDR to the network.
 
-````tsx
+```tsx
 const result = await submitSignedXDR(signedXDR);
 
 if (result.success) {
@@ -132,7 +137,7 @@ if (result.success) {
 } else {
   console.error('Failed:', result.error);
 }
-```bash
+```
 
 **Returns:**
 
@@ -152,7 +157,7 @@ const result = await signAndSubmitWithSecret({
   amount: '10',
   secret: 'SABC123...', // Never use in production!
 });
-````
+```
 
 > **Warning**: Never use this method in production. Secret keys should never be handled in client-side code. Use external wallet signing instead.
 
@@ -319,7 +324,7 @@ await buildPaymentXDR({
 
 ### 4. Verify Before Submitting
 
-````tsx
+```tsx
 const xdr = await buildPaymentXDR(params);
 
 // Show confirmation to user
@@ -327,7 +332,7 @@ const confirmed = confirm(`Send ${params.amount} XLM to ${params.to}?`);
 if (!confirmed) return;
 
 // Then sign and submit
-```typescript
+```
 
 ## Related Hooks
 
@@ -360,4 +365,3 @@ if (!confirmed) return;
 <p className="text-sm text-center text-muted-foreground mt-8">
   <a href="#"> Back to top</a>
 </p>
-````

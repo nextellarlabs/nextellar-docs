@@ -8,6 +8,11 @@ date: 2026-06-02
 
 The `useStellarWallet` hook provides a complete solution for connecting to Stellar wallets, managing account state, and executing payments. It's the foundation of wallet integration in Nextellar apps.
 
+<Note>
+  **Ships in:** default, js<br/>
+  Not in your scaffold? Run `nextellar add wallet`
+</Note>
+
 ## Features
 
 - **Multi-Wallet Support**: Freighter, Albedo, Lobstr, xBull, Hana
@@ -19,7 +24,7 @@ The `useStellarWallet` hook provides a complete solution for connecting to Stell
 
 ## Basic Usage
 
-`````tsx
+```tsx
 import { useStellarWallet } from '@/hooks/useStellarWallet';
 
 export default function WalletDemo() {
@@ -46,12 +51,12 @@ export default function WalletDemo() {
 
 ### Parameters
 
-````typescript
+```typescript
 useStellarWallet(
   horizonUrl?: string,
   network?: string
 ): StellarWalletState
-```css
+```
 
 | Parameter    | Type     | Default                                 | Description                |
 | ------------ | -------- | --------------------------------------- | -------------------------- |
@@ -73,7 +78,7 @@ interface StellarWalletState {
     opts: PaymentOptions
   ) => Promise<HorizonApi.SubmitTransactionResponse>;
 }
-`````
+```
 
 #### Properties
 
@@ -81,11 +86,11 @@ interface StellarWalletState {
 
 Whether a wallet is currently connected.
 
-````tsx
+```tsx
 {
   connected && <p>Wallet is connected!</p>;
 }
-```css
+```
 
 ---
 
@@ -95,7 +100,7 @@ The connected wallet's Stellar public key (G-address).
 
 ```tsx
 <p>Your address: {publicKey}</p>
-```css
+```
 
 ---
 
@@ -105,7 +110,7 @@ Name of the connected wallet (e.g., "Freighter", "Albedo").
 
 ```tsx
 <p>Connected via {walletName}</p>
-```css
+```
 
 ---
 
@@ -120,7 +125,7 @@ interface Balance {
   asset_code?: string;
   asset_issuer?: string;
 }
-````
+```
 
 ```tsx
 {
@@ -138,7 +143,7 @@ interface Balance {
 
 Opens the wallet selection modal and connects to the chosen wallet.
 
-````tsx
+```tsx
 const handleConnect = async () => {
   try {
     await connect();
@@ -149,7 +154,7 @@ const handleConnect = async () => {
     }
   }
 };
-```css
+```
 
 ---
 
@@ -159,7 +164,7 @@ Disconnects the current wallet and clears all state.
 
 ```tsx
 <button onClick={disconnect}>Disconnect</button>
-```bash
+```
 
 ---
 
@@ -172,7 +177,7 @@ const handleRefresh = async () => {
   await refreshBalances();
   console.log('Balances updated!');
 };
-```css
+```
 
 ---
 
@@ -187,7 +192,7 @@ interface PaymentOptions {
   asset?: 'XLM' | { code: string; issuer: string };
   memo?: string;
 }
-````
+```
 
 ```tsx
 const result = await sendPayment({
@@ -235,7 +240,7 @@ await sendPayment({
 
 Show all assets the account holds:
 
-````tsx
+```tsx
 function BalanceList() {
   const { balances, connected } = useStellarWallet();
 
@@ -264,7 +269,7 @@ function BalanceList() {
     </div>
   );
 }
-```bash
+```
 
 ### Auto-Refresh Balances After Payment
 
@@ -290,7 +295,7 @@ function SendPaymentWithRefresh() {
 
   return <button onClick={handleSend}>Send 10 XLM</button>;
 }
-````
+```
 
 ### Handling Unfunded Accounts
 
@@ -503,10 +508,10 @@ const handleConnect = async () => {
 
 **Solution**:
 
-````tsx
+```tsx
 // Manually refresh after funding
 await refreshBalances();
-```bash
+```
 
 ### Payment Fails with "op_underfunded"
 
@@ -559,4 +564,3 @@ await refreshBalances();
 <p className="text-sm text-center text-muted-foreground mt-8">
   <a href="#"> Back to top</a>
 </p>
-````

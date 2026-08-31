@@ -1,0 +1,158 @@
+---
+title: SEP-30 Recovery Signer Service
+description: A tutorial for building a small SEP-30 recovery signer service — enrollment and recovery endpoints, trust considerations, and a working sample.
+date: 2026-08-25
+---
+
+# SEP-30 Recovery Signer Service
+
+[SEP-30](https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0030.md) defines an account recovery protocol where one or more independent recovery servers hold signatures that can be used to recover access to a Stellar account whose device key was lost. This guide walks through building a minimal recovery signer service: the enrollment endpoint, the recovery endpoint, and the trust model that keeps the service from becoming a custodian.
+
+---
+
+## Trust Model
+
+A SEP-30 recovery signer is **not** a custodian — it never holds the funds and never has unilateral authority to move them. Keep these boundaries in mind while implementing the service:
+
+- **No single point of failure.** A wallet should register with multiple independent recovery servers, each contributing one signer to the account's multisig configuration. No single server's signature should be enough to authorize a transaction — the account's signer weights and thresholds must require at least one other party (typically the device key, while it's still available, or a second recovery server).
+- **The server signs a specific transaction, not "on behalf of the user."** It should only ever countersign a transaction the account owner (or a verified identity flow) explicitly requested for recovery — never open-ended signing authority.
+- **Identity verification is the real security boundary.** The protocol delegates _how_ to authenticate account ownership (email, phone, SMS OTP, or third-party identity providers) to the implementer. Treat this as the most security-critical part of the service — a weak identity check turns the recovery signer into an account-takeover vector.
+- **Auth tokens are short-lived and scoped.** Every request after enrollment uses a JWT bound to that one Stellar `address`. Don't accept a token for one account when authorizing an action on another.
+
+---
+
+## Enrollment
+
+Enrollment registers an account with the recovery server and stores one or more identities that can later trigger recovery.
+
+```
+POST /accounts/{address}
+Authorization: Bearer <jwt>
+Content-Type: application/json
+
+{
+  "identities": [
+    {
+      "role": "owner",
+      "auth_methods": [
+        { "type": "stellar_address", "value": "GABCDEF...OWNER" }
+      ]
+    },
+    {
+      "role": "other",
+      "auth_methods": [
+        { "type": "phone_number", "value": "+15555550100" }
+      ]
+    }
+  ]
+}
+```
+
+The server should:
+
+1. Verify the bearer JWT matches `address` (the SEP-10 web auth flow is the typical way a wallet obtains this token before enrollment).
+2. Generate (or look up) a signing keypair dedicated to this account — never reuse one signer across unrelated accounts.
+3. Persist the identities and their auth methods. Each identity is a distinct way _someone_ can later prove they should be allowed to trigger recovery for this account (the owner via their still-working device key, a trusted contact via SMS, etc.).
+4. Return the account's recovery signer's public key so the wallet can add it to the account's signer list on-chain, with an appropriate weight.
+
+```json
+{
+  "address": "GABCDEF...OWNER",
+  "identities": [
+    { "role": "owner", "authenticated": false },
+    { "role": "other", "authenticated": false }
+  ],
+  "signers": [
+    { "key": "GRECOVERY...SIGNER", "added_at": "2026-08-25T00:00:00Z" }
+  ]
+}
+```
+
+## Recovery
+
+Recovery happens after the device key is lost. The user proves their identity through one of the registered auth methods, then asks the server to sign a specific transaction (typically one that swaps in a new device key).
+
+```
+POST /accounts/{address}/sign/{signing-address}
+Authorization: Bearer <jwt-for-recovery-identity>
+Content-Type: application/json
+
+{
+  "transaction": "AAAAAgAAAAA...<base64 envelope>"
+}
+```
+
+The server should:
+
+1. Verify the bearer token corresponds to one of the account's registered identities (not necessarily the owner — a trusted contact's identity is a valid path if that's how the wallet configured recovery).
+2. Decode the transaction and check that it does what a recovery transaction is expected to do for this integration (e.g. only touches the signer list, doesn't move funds, doesn't change the home domain). **Never blindly sign an arbitrary transaction** — an unconstrained signer is a bigger liability than no recovery signer at all.
+3. Sign with the account's dedicated recovery keypair and return the signature.
+
+```json
+{
+  "signature": "3Vg0...base64-sig",
+  "network_passphrase": "Public Global Stellar Network ; September 2015"
+}
+```
+
+The wallet then combines this signature with any other required signatures (e.g. from a second recovery server) and submits the transaction to Horizon or an RPC node.
+
+## Polling and Status
+
+Expose a read endpoint so a wallet can check enrollment status without re-triggering side effects:
+
+```
+GET /accounts/{address}
+Authorization: Bearer <jwt>
+```
+
+Returns the same shape as the enrollment response, with each identity's `authenticated` flag reflecting whether that identity has completed its auth method at least once.
+
+## Error Handling
+
+| Status | Meaning            | When to return it                                                   |
+| ------ | ------------------ | ------------------------------------------------------------------- |
+| `400`  | Malformed request  | Missing `identities`, invalid transaction XDR                       |
+| `401`  | Bad or expired JWT | Token doesn't decode, or is expired                                 |
+| `404`  | Unknown account    | `address` was never enrolled                                        |
+| `409`  | Already enrolled   | Enrollment called twice for the same address without an update flag |
+
+Return a JSON body with an `error` field describing the problem — don't leak internal identifiers (database IDs, stack traces) in the message.
+
+## Minimal Working Sample
+
+```ts
+// recovery-server.ts (sketch — swap the in-memory store for a real database)
+import { Keypair, Transaction, Networks } from '@stellar/stellar-sdk';
+
+const accounts = new Map<
+  string,
+  { signerSecret: string; identities: Identity[] }
+>();
+
+async function enroll(address: string, identities: Identity[]) {
+  const signer = Keypair.random();
+  accounts.set(address, { signerSecret: signer.secret(), identities });
+  return { address, signers: [{ key: signer.publicKey() }] };
+}
+
+async function sign(address: string, envelopeXdr: string) {
+  const account = accounts.get(address);
+  if (!account) throw new NotFoundError(address);
+
+  const tx = new Transaction(envelopeXdr, Networks.PUBLIC);
+  assertIsRecoveryTransaction(tx); // reject anything that isn't a signer-list change
+
+  const signer = Keypair.fromSecret(account.signerSecret);
+  tx.sign(signer);
+  return { signature: tx.signatures.at(-1)!.signature().toString('base64') };
+}
+```
+
+This is intentionally a sketch, not a production service — a real implementation needs persistent storage, real identity verification (SMS/email delivery, rate limiting), and audit logging of every sign request.
+
+## Verifying the Tutorial
+
+- Enroll a test account, confirm the returned signer key, and add it to the account with `setOptions` at a weight that requires cooperation with another signer.
+- Simulate losing the device key: build a recovery transaction that installs a new device key, request a signature from the recovery server, combine signatures, and submit to testnet.
+- Confirm the server rejects a transaction that tries to do anything other than the expected recovery operation.

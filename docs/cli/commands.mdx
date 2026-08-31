@@ -47,12 +47,13 @@ nextellar my-app --package-manager pnpm
 # Skip installation
 nextellar my-app --skip-install
 
-# Full customization
+# Full customization (with custom wallet selection)
 nextellar my-app \
   --package-manager yarn \
   --horizon-url https://horizon.stellar.org \
   --wallets freighter,xbull \
   --skip-install
+# Note: freighter,xbull is a custom wallet selection. See [Wallet Configuration](/docs/cli/flags#wallet-configuration-wallets) for defaults and options.
 ```
 
 ### Overwriting an existing directory
@@ -177,9 +178,20 @@ nextellar doctor [options]
 
 **Options:**
 
-| Option   | Description                               |
-| -------- | ----------------------------------------- |
-| `--json` | Output results as JSON for CI integration |
+| Option                   | Description                                                          |
+| ------------------------ | -------------------------------------------------------------------- |
+| `--json`                 | Output results as JSON for CI integration                            |
+| `--horizon-url <url>`    | Override the Horizon endpoint used for the connectivity check        |
+| `--soroban-url <url>`    | Override the Soroban RPC endpoint used for the connectivity check    |
+
+By default `doctor` resolves endpoints from your project config, falling back to the testnet URLs (`https://horizon-testnet.stellar.org` and `https://soroban-testnet.stellar.org`). Pass `--horizon-url` or `--soroban-url` to check a custom or mainnet endpoint instead:
+
+```bash
+# Check against mainnet endpoints
+nextellar doctor \
+  --horizon-url https://horizon.stellar.org \
+  --soroban-url https://soroban-rpc.stellar.org
+```
 
 **What it checks:**
 
@@ -235,6 +247,9 @@ nextellar doctor --json
 
 ```json
 {
+  "schemaVersion": 2,
+  "horizonUrl": "https://horizon-testnet.stellar.org",
+  "sorobanUrl": "https://soroban-testnet.stellar.org",
   "checks": [
     {
       "id": "node",
@@ -242,6 +257,13 @@ nextellar doctor --json
       "required": true,
       "ok": true,
       "detail": "v20.18.0 (>= 20.0.0 required)"
+    },
+    {
+      "id": "horizon",
+      "name": "Horizon API",
+      "required": true,
+      "ok": true,
+      "detail": "https://horizon-testnet.stellar.org (200)"
     }
   ],
   "passed": 10,
@@ -250,7 +272,89 @@ nextellar doctor --json
 }
 ```
 
-The command exits with code `0` when all required checks pass, or `1` when one or more required checks fail. Optional check failures are reported but do not affect the exit code.
+The `checks` array is truncated above for brevity — it contains one entry per check (`node`, `npm`, `yarn`, `pnpm`, `git`, `rustc`, `stellar-cli`, `wasm32`, `horizon`, `soroban`, `disk`).
+
+**Top-level fields:**
+
+| Field              | Type   | Description                                                          |
+| ------------------ | ------ | ------------------------------------------------------------------- |
+| `schemaVersion`    | number | Output schema version (currently `2`). Bumped on breaking changes.  |
+| `horizonUrl`       | string | Horizon endpoint that was checked                                   |
+| `sorobanUrl`       | string | Soroban RPC endpoint that was checked                               |
+| `checks`           | array  | One result object per diagnostic (see below)                        |
+| `passed`           | number | Number of checks that passed                                        |
+| `failed`           | number | Number of checks that failed (required **and** optional)            |
+| `requiredFailures` | number | Number of **required** checks that failed — drives the exit code    |
+
+**`checks[]` fields:**
+
+| Field      | Type    | Description                                                            |
+| ---------- | ------- | --------------------------------------------------------------------- |
+| `id`       | string  | Stable machine-readable identifier (e.g. `node`, `horizon`)           |
+| `name`     | string  | Human-readable check name                                             |
+| `required` | boolean | Whether a failure counts toward `requiredFailures` / the exit code    |
+| `ok`       | boolean | Whether the check passed                                              |
+| `detail`   | string  | Human-readable detail (version found, endpoint status, etc.)          |
+| `fix`      | string  | Optional remediation hint, present on some failed checks              |
+| `link`     | string  | Optional documentation link, present on some failed checks            |
+
+**Exit codes:**
+
+The command exits with code `0` when all required checks pass, or `1` when one or more required checks fail (`requiredFailures > 0`). Optional check failures are reported but do not affect the exit code.
+
+| Exit code | Meaning                            |
+| --------- | ---------------------------------- |
+| `0`       | All required checks passed         |
+| `1`       | One or more required checks failed |
+
+#### Using `doctor --json` in CI/CD
+
+Because `nextellar doctor --json` exits non-zero when a required check fails, you can gate a pipeline on it directly, and parse the JSON for detail. Read the top-level `requiredFailures` field (there is no nested `summary` object).
+
+**GitHub Actions**
+
+```yaml
+- name: Verify Nextellar environment
+  run: |
+    npx nextellar doctor --json | tee doctor.json
+    if [ "$(jq '.requiredFailures' doctor.json)" -gt 0 ]; then
+      echo "Required checks failed:"
+      jq -r '.checks[] | select(.required and (.ok | not)) | "  - \(.name): \(.detail)"' doctor.json
+      exit 1
+    fi
+```
+
+**GitLab CI**
+
+```yaml
+doctor:
+  script:
+    - npx nextellar doctor --json > doctor.json
+    - test "$(jq '.requiredFailures' doctor.json)" -eq 0
+```
+
+**CircleCI**
+
+```yaml
+- run:
+    name: Nextellar doctor
+    command: |
+      npx nextellar doctor --json > doctor.json
+      jq -e '.requiredFailures == 0' doctor.json
+```
+
+**Parsing with `jq`**
+
+```bash
+# List every failed check (required and optional)
+jq -r '.checks[] | select(.ok | not) | "\(.name): \(.detail)"' doctor.json
+
+# Check whether a specific check passed
+jq -e '.checks[] | select(.id == "horizon") | .ok' doctor.json
+
+# One-line summary
+jq -r '"\(.passed) passed, \(.failed) failed, \(.requiredFailures) required failed"' doctor.json
+```
 
 ### nextellar upgrade
 
@@ -264,16 +368,25 @@ Run this command from the root of an existing Nextellar project. Use a dry run f
 
 **Options:**
 
-| Option      | Description                                         |
-| ----------- | --------------------------------------------------- |
-| `--dry-run` | Show what would change without applying the upgrade |
-| `--yes`     | Apply changes without prompting for confirmation    |
+| Option      | Description                                                                 |
+| ----------- | --------------------------------------------------------------------------- |
+| `--dry-run` | Show which template files would change without applying the upgrade         |
+| `--check`   | Show a changelog-style diff preview with upgrade notes; exits non-zero if updates are available |
+| `--yes`     | Apply changes without prompting for confirmation                            |
+
+**`--check` vs `--dry-run`:**
+
+- `--dry-run` lists the files that would be modified and shows a unified diff of the changes.
+- `--check` shows the same file-level diff plus human-readable upgrade notes (changelogs, breaking changes, migration hints from the template). It also exits with a non-zero code when updates are available, making it suitable for CI gates.
 
 **Examples:**
 
 ```bash
-# Preview upgrade changes
+# Preview upgrade changes (file diff only)
 nextellar upgrade --dry-run
+
+# Preview with changelog notes; exits non-zero if outdated (useful in CI)
+nextellar upgrade --check
 
 # Apply the upgrade interactively
 nextellar upgrade
@@ -292,9 +405,10 @@ nextellar deploy [options]
 
 **Options:**
 
-| Option      | Description                                                                |
-| ----------- | -------------------------------------------------------------------------- |
-| `--dry-run` | Validate configuration and build process without producing a deploy bundle |
+| Option                        | Description                                                                |
+| ----------------------------- | -------------------------------------------------------------------------- |
+| `--dry-run`                   | Validate configuration and build process without producing a deploy bundle |
+| `--size-threshold <bytes>`    | Fail the deploy if the production bundle exceeds this size in bytes (default: `52428800` — 50 MB) |
 
 **Examples:**
 
@@ -304,6 +418,12 @@ nextellar deploy
 
 # Run a dry-run validation without actual deployment
 nextellar deploy --dry-run
+
+# Fail if bundle exceeds 20 MB
+nextellar deploy --size-threshold 20971520
+
+# Raise the threshold to 100 MB for large projects
+nextellar deploy --size-threshold 104857600
 ```
 
 ### nextellar telemetry

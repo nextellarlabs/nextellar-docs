@@ -1,0 +1,440 @@
+---
+title: Comprehensive Soroban Token Contract Implementation Guide
+description: End-to-end guide to implementing a Soroban token contract — balance, transfer, and approve — with SEP-41 compatibility notes and a working sample.
+date: 2026-08-25
+---
+
+# Comprehensive Soroban Token Contract Implementation Guide
+
+A **token contract** is the Soroban equivalent of an ERC-20 contract: it tracks balances for a set of addresses and exposes `balance`, `transfer`, and `approve`/`transfer_from` so other contracts and wallets can move value in and out of it. This guide implements a token contract from scratch, end to end, and calls out where it aligns with — and diverges from — the Stellar **SEP-41** token interface standard.
+
+---
+
+## Why SEP-41 Compatibility Matters
+
+Any contract that wants to be usable by wallets, DEXs, and other Soroban contracts (including `soroban-sdk`'s own `token::Client`) should implement the **SEP-41** interface — the standard token contract interface for Soroban. Implementing SEP-41 means:
+
+- Wallets like Freighter can display balances without custom integration code.
+- Other contracts (vaults, AMMs, escrow) can call your token through the generic `token::Client` rather than a bespoke client.
+- Standard tooling (block explorers, indexers) can classify and display transfers correctly.
+
+<Note type="info">
+  SEP-41 does not mandate an implementation — only a function signature
+  contract. You are free to add extra functions (minting, pausing, blacklists)
+  as long as the required functions keep their exact signatures.
+</Note>
+
+---
+
+## Contract Design
+
+```
+Holder ──transfer(to, amount)────────► Token Contract
+                                         │
+                                         ├── require_auth() on `from`
+                                         ├── debit balance[from]
+                                         └── credit balance[to]
+
+Spender ──transfer_from(from, to, amt)─► Token Contract
+                                         │
+                                         ├── require_auth() on `spender`
+                                         ├── check & debit allowance[from][spender]
+                                         ├── debit balance[from]
+                                         └── credit balance[to]
+```
+
+Balances and allowances are stored in **persistent** storage (they must survive indefinitely, unlike transient contract-call state), keyed by address (and by `(owner, spender)` pair for allowances).
+
+---
+
+## Project Layout
+
+```
+my-token-contract/
+├── Cargo.toml
+└── contracts/
+    └── token/
+        ├── Cargo.toml
+        └── src/
+            ├── lib.rs
+            ├── contract.rs
+            ├── storage.rs
+            └── test.rs
+```
+
+### Contract Cargo.toml
+
+```toml
+[package]
+name = "soroban-token-contract"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+soroban-sdk = "21.0.0"
+
+[dev-dependencies]
+soroban-sdk = { version = "21.0.0", features = ["testutils"] }
+
+[profile.release]
+opt-level = "z"
+overflow-checks = true
+debug = false
+panic = "abort"
+codegen-units = 1
+```
+
+---
+
+## Storage Layout
+
+```rust
+// contracts/token/src/storage.rs
+use soroban_sdk::{contracttype, Address, Env};
+
+#[derive(Clone)]
+#[contracttype]
+pub enum DataKey {
+    Admin,
+    TotalSupply,
+    Balance(Address),
+    Allowance(Address, Address), // (owner, spender)
+    AllowanceExpiry(Address, Address),
+}
+
+pub fn read_balance(env: &Env, addr: &Address) -> i128 {
+    env.storage()
+        .persistent()
+        .get(&DataKey::Balance(addr.clone()))
+        .unwrap_or(0)
+}
+
+pub fn write_balance(env: &Env, addr: &Address, amount: i128) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::Balance(addr.clone()), &amount);
+    // Refresh TTL every write so an active balance never expires unexpectedly.
+    env.storage().persistent().extend_ttl(
+        &DataKey::Balance(addr.clone()),
+        100_000,
+        100_000,
+    );
+}
+
+pub fn read_allowance(env: &Env, owner: &Address, spender: &Address) -> i128 {
+    env.storage()
+        .persistent()
+        .get(&DataKey::Allowance(owner.clone(), spender.clone()))
+        .unwrap_or(0)
+}
+
+pub fn write_allowance(env: &Env, owner: &Address, spender: &Address, amount: i128, expiration_ledger: u32) {
+    let key = DataKey::Allowance(owner.clone(), spender.clone());
+    env.storage().temporary().set(&key, &amount);
+    env.storage().temporary().set(
+        &DataKey::AllowanceExpiry(owner.clone(), spender.clone()),
+        &expiration_ledger,
+    );
+}
+```
+
+<Note type="warning">
+  Allowances use **temporary** storage keyed to an explicit `expiration_ledger`,
+  matching the SEP-41 `approve` signature. This prevents a stale, forgotten
+  approval from remaining spendable forever — it simply expires with the ledger
+  entry.
+</Note>
+
+---
+
+## Contract Implementation
+
+```rust
+// contracts/token/src/contract.rs
+#![no_std]
+use soroban_sdk::{contract, contractimpl, Address, Env, String};
+use crate::storage::{
+    read_allowance, read_balance, write_allowance, write_balance, DataKey,
+};
+
+#[contract]
+pub struct TokenContract;
+
+#[contractimpl]
+impl TokenContract {
+    /// One-time setup. Mints the initial supply to `admin`.
+    pub fn initialize(env: Env, admin: Address, decimal: u32, name: String, symbol: String) {
+        if env.storage().instance().has(&DataKey::Admin) {
+            panic!("already initialized");
+        }
+        admin.require_auth();
+        env.storage().instance().set(&DataKey::Admin, &admin);
+        env.storage().instance().set(&DataKey::TotalSupply, &0i128);
+        let _ = (decimal, name, symbol); // stored via a Metadata struct in production
+    }
+
+    // ---- SEP-41 required interface ----
+
+    pub fn balance(env: Env, id: Address) -> i128 {
+        read_balance(&env, &id)
+    }
+
+    pub fn transfer(env: Env, from: Address, to: Address, amount: i128) {
+        from.require_auth();
+        assert!(amount > 0, "amount must be positive");
+
+        let from_balance = read_balance(&env, &from);
+        assert!(from_balance >= amount, "insufficient balance");
+
+        write_balance(&env, &from, from_balance - amount);
+        let to_balance = read_balance(&env, &to);
+        write_balance(&env, &to, to_balance + amount);
+
+        env.events()
+            .publish((soroban_sdk::symbol_short!("transfer"), from, to), amount);
+    }
+
+    pub fn transfer_from(env: Env, spender: Address, from: Address, to: Address, amount: i128) {
+        spender.require_auth();
+        assert!(amount > 0, "amount must be positive");
+
+        let allowance = read_allowance(&env, &from, &spender);
+        assert!(allowance >= amount, "insufficient allowance");
+
+        let from_balance = read_balance(&env, &from);
+        assert!(from_balance >= amount, "insufficient balance");
+
+        write_allowance(&env, &from, &spender, allowance - amount, 0);
+        write_balance(&env, &from, from_balance - amount);
+        let to_balance = read_balance(&env, &to);
+        write_balance(&env, &to, to_balance + amount);
+
+        env.events().publish(
+            (soroban_sdk::symbol_short!("transfer"), from, to),
+            amount,
+        );
+    }
+
+    pub fn approve(env: Env, from: Address, spender: Address, amount: i128, expiration_ledger: u32) {
+        from.require_auth();
+        assert!(amount >= 0, "amount must be non-negative");
+
+        write_allowance(&env, &from, &spender, amount, expiration_ledger);
+
+        env.events().publish(
+            (soroban_sdk::symbol_short!("approve"), from, spender),
+            (amount, expiration_ledger),
+        );
+    }
+
+    pub fn allowance(env: Env, from: Address, spender: Address) -> i128 {
+        read_allowance(&env, &from, &spender)
+    }
+
+    // ---- Admin-only extensions (not part of SEP-41) ----
+
+    pub fn mint(env: Env, admin: Address, to: Address, amount: i128) {
+        let stored_admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
+        assert_eq!(admin, stored_admin, "unauthorized");
+        admin.require_auth();
+        assert!(amount > 0, "amount must be positive");
+
+        let balance = read_balance(&env, &to);
+        write_balance(&env, &to, balance + amount);
+
+        let total: i128 = env.storage().instance().get(&DataKey::TotalSupply).unwrap_or(0);
+        env.storage().instance().set(&DataKey::TotalSupply, &(total + amount));
+    }
+}
+```
+
+---
+
+## Test Suite
+
+```rust
+// contracts/token/src/test.rs
+#![cfg(test)]
+use super::*;
+use soroban_sdk::testutils::Address as _;
+use soroban_sdk::{Env, Address};
+
+#[test]
+fn test_mint_and_transfer() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(TokenContract, ());
+    let client = TokenContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let alice = Address::generate(&env);
+    let bob = Address::generate(&env);
+
+    client.initialize(&admin, &7, &String::from_str(&env, "Nextellar Token"), &String::from_str(&env, "NXT"));
+    client.mint(&admin, &alice, &1_000);
+    assert_eq!(client.balance(&alice), 1_000);
+
+    client.transfer(&alice, &bob, &400);
+    assert_eq!(client.balance(&alice), 600);
+    assert_eq!(client.balance(&bob), 400);
+}
+
+#[test]
+fn test_approve_and_transfer_from() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(TokenContract, ());
+    let client = TokenContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let alice = Address::generate(&env);
+    let bob = Address::generate(&env);
+    let carol = Address::generate(&env);
+
+    client.initialize(&admin, &7, &String::from_str(&env, "Nextellar Token"), &String::from_str(&env, "NXT"));
+    client.mint(&admin, &alice, &1_000);
+
+    client.approve(&alice, &bob, &300, &(env.ledger().sequence() + 1000));
+    assert_eq!(client.allowance(&alice, &bob), 300);
+
+    client.transfer_from(&bob, &alice, &carol, &200);
+    assert_eq!(client.balance(&alice), 800);
+    assert_eq!(client.balance(&carol), 200);
+    assert_eq!(client.allowance(&alice, &bob), 100);
+}
+
+#[test]
+#[should_panic(expected = "insufficient balance")]
+fn test_transfer_insufficient_balance_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(TokenContract, ());
+    let client = TokenContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let alice = Address::generate(&env);
+    let bob = Address::generate(&env);
+
+    client.initialize(&admin, &7, &String::from_str(&env, "Nextellar Token"), &String::from_str(&env, "NXT"));
+    client.transfer(&alice, &bob, &1);
+}
+```
+
+---
+
+## Client Integration
+
+```ts
+// lib/token.ts
+import {
+  Contract,
+  Networks,
+  TransactionBuilder,
+  BASE_FEE,
+  rpc,
+  nativeToScVal,
+  Address,
+  scValToNative,
+} from '@stellar/stellar-sdk';
+
+const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL!;
+const TOKEN_ID = process.env.NEXT_PUBLIC_TOKEN_CONTRACT!;
+
+export async function getBalance(owner: string): Promise<bigint> {
+  const server = new rpc.Server(RPC_URL);
+  const contract = new Contract(TOKEN_ID);
+  const account = await server.getAccount(owner).catch(
+    () =>
+      // Falls back to a throwaway sequence-0 account for read-only simulation
+      new (require('@stellar/stellar-sdk').Account)(owner, '0')
+  );
+
+  const tx = new TransactionBuilder(account, {
+    fee: BASE_FEE,
+    networkPassphrase: Networks.MAINNET,
+  })
+    .addOperation(contract.call('balance', new Address(owner).toScVal()))
+    .setTimeout(5)
+    .build();
+
+  const sim = (await server.simulateTransaction(
+    tx
+  )) as rpc.SimulateTransactionSuccessResponse;
+  return BigInt(scValToNative(sim.result!.retval).toString());
+}
+
+export async function transfer(
+  fromKeypair: { publicKey(): string; sign(tx: any): void },
+  to: string,
+  amount: bigint
+): Promise<void> {
+  const server = new rpc.Server(RPC_URL);
+  const account = await server.getAccount(fromKeypair.publicKey());
+  const contract = new Contract(TOKEN_ID);
+
+  const tx = new TransactionBuilder(account, {
+    fee: BASE_FEE,
+    networkPassphrase: Networks.MAINNET,
+  })
+    .addOperation(
+      contract.call(
+        'transfer',
+        new Address(fromKeypair.publicKey()).toScVal(),
+        new Address(to).toScVal(),
+        nativeToScVal(amount, { type: 'i128' })
+      )
+    )
+    .setTimeout(30)
+    .build();
+
+  const prepared = await server.prepareTransaction(tx);
+  fromKeypair.sign(prepared);
+  await server.sendTransaction(prepared);
+}
+```
+
+---
+
+## SEP-41 Compatibility Notes
+
+| Function                                            | SEP-41 required | Notes                                                                     |
+| --------------------------------------------------- | --------------- | ------------------------------------------------------------------------- |
+| `balance(id) -> i128`                               | Yes             | Matches exactly.                                                          |
+| `transfer(from, to, amount)`                        | Yes             | `from.require_auth()` is mandatory — do not skip it.                      |
+| `transfer_from(spender, from, to, amount)`          | Yes             | Signature order matters: `spender` first, matching `token::Client`.       |
+| `approve(from, spender, amount, expiration_ledger)` | Yes             | The `expiration_ledger` param is part of the standard signature.          |
+| `allowance(from, spender) -> i128`                  | Yes             | Returns `0` for both non-existent and expired allowances.                 |
+| `decimals`, `name`, `symbol`                        | Yes             | Read-only metadata; store in a dedicated `Metadata` struct.               |
+| `mint`, admin controls                              | No              | Not part of SEP-41 — safe to add, but keep required signatures untouched. |
+
+Because the signatures match `soroban-sdk`'s built-in `token::Client`, any contract in your codebase (a vault, an escrow, a staking pool) can call your custom token exactly like it would call the native Stellar Asset Contract:
+
+```rust
+let client = token::Client::new(&env, &your_token_contract_address);
+client.transfer(&from, &to, &amount);
+```
+
+---
+
+## Deploying & Invoking with the CLI
+
+```bash
+stellar contract build
+stellar contract deploy \
+  --wasm target/wasm32-unknown-unknown/release/soroban_token_contract.wasm \
+  --source alice --network testnet
+
+stellar contract invoke --id <CONTRACT_ID> --source alice --network testnet -- \
+  initialize --admin alice --decimal 7 --name "Nextellar Token" --symbol NXT
+```
+
+---
+
+## Related docs
+
+- [Comprehensive Soroban Vault Contract Guide](/docs/guides/soroban-vault-contract-guide) — build a vault on top of a SEP-41-compatible token
+- [Comprehensive Soroban Smart Contract Authoring Guide](/docs/guides/soroban-contract-authoring) — project layout, build, and deploy fundamentals
+- [Soroban Host Functions](/docs/guides/soroban-host-functions) — storage, auth, and cross-contract call primitives
