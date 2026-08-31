@@ -1,0 +1,115 @@
+---
+title: WalletConnectButton
+description: Pre-built Stellar wallet connection button with loading states and theme support
+date: 2026-07-31
+---
+
+# WalletConnectButton
+
+`WalletConnectButton` is the pre-built, production-ready connect button shipped by every Nextellar template. It renders a single toggle button that connects to a Stellar wallet, shows the connected wallet name, and disconnects on the next click.
+
+The component is the same across the `default`, `minimal`, and `defi` templates — the API described below applies to all of them.
+
+## Requirements
+
+The component reads wallet state from the `useWallet()` hook, so it **must** be rendered inside a [`WalletProvider`](/docs/hooks/wallet-provider). Calling `useWallet()` outside the provider throws `useWallet must be used within a WalletProvider`, which breaks the button.
+
+```tsx
+// app/layout.tsx
+import { WalletProvider } from '@/contexts';
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html>
+      <body>
+        <WalletProvider>{children}</WalletProvider>
+      </body>
+    </html>
+  );
+}
+```
+
+## Basic Usage
+
+Import the component and drop it anywhere under the provider:
+
+```tsx
+import WalletConnectButton from '@/components/WalletConnectButton';
+
+export default function Header() {
+  return (
+    <header>
+      <WalletConnectButton />
+    </header>
+  );
+}
+```
+
+## Props
+
+```typescript
+interface WalletConnectButtonProps {
+  theme?: 'light' | 'dark';
+}
+```
+
+| Prop    | Type                | Default   | Description                                                                                                  |
+| ------- | ------------------- | --------- | ------------------------------------------------------------------------------------------------------------ |
+| `theme` | `'light' \| 'dark'` | `'light'` | Color scheme. `light` renders a black button with white text; `dark` renders a white button with black text. |
+
+## Button States
+
+The button label changes based on the connection state:
+
+| State         | Button Text               | Behavior                               |
+| ------------- | ------------------------- | -------------------------------------- |
+| Disconnected  | `Connect Wallet`          | Click opens the wallet selection modal |
+| Connecting    | `Connecting...`           | Disabled while the connection resolves |
+| Connected     | `Disconnect {walletName}` | Click disconnects the wallet           |
+| Disconnecting | `Disconnecting...`        | Disabled while disconnecting           |
+
+## Theme Variants
+
+```tsx
+<WalletConnectButton theme="light" />
+<WalletConnectButton theme="dark" />
+```
+
+The `theme` prop swaps the button colors:
+
+- `light` (default) — black background, white text
+- `dark` — white background, black text
+
+While loading, the button is `disabled` and rendered at reduced opacity.
+
+## How It Works
+
+The component is a thin wrapper around the `useWallet()` hook:
+
+1. **Disconnected** — clicking calls `connect()`, which opens the wallet selection modal.
+2. **Connected** — the label becomes `Disconnect {walletName}` (e.g. `Disconnect Freighter`) and clicking calls `disconnect()`.
+3. **Loading** — during either operation the button disables itself and shows a spinner.
+4. **Errors** — failures are caught and logged with `console.error`; the button remains interactive so the user can retry.
+
+Session persistence, balance loading, and auto-reconnect are handled by `WalletProvider`, not by this component. See the [WalletProvider](/docs/hooks/wallet-provider) docs for the full state shape.
+
+## Template Coverage
+
+| Template       | File                                     | Notes                                                           |
+| -------------- | ---------------------------------------- | --------------------------------------------------------------- |
+| `default`      | `src/components/WalletConnectButton.tsx` | Identical API                                                   |
+| `minimal`      | `src/components/WalletConnectButton.tsx` | Identical API                                                   |
+| `defi`         | `src/components/WalletConnectButton.tsx` | Identical API                                                   |
+| `--javascript` | `src/components/WalletConnectButton.jsx` | Same props; also strips the wallet-kit modal's educational copy |
+
+All variants expose the same `theme` prop and button states. The JavaScript variant additionally hides the "Learn more"/"What is a Wallet" sections inside the wallet selection modal and appends a short custom message.
+
+## Related
+
+- [WalletProvider](/docs/hooks/wallet-provider) — required context provider
+- [useStellarWallet](/docs/hooks/use-stellar-wallet) — standalone wallet hook
+- [Wallet Integration](/docs/sdk/wallet-integration) — full wallet setup guide
