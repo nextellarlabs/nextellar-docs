@@ -20,13 +20,17 @@ Use the table below to find the exact flag name, alias, default, and a short des
 | Wallet       | `--wallets <list>`       | `-w`  | `freighter,albedo,lobstr`             | Comma-separated list of supported wallet adapters to include. See [Wallet Configuration](#wallet-configuration-wallets) below.                          |
 | Template     | `--example <name>`       | `-e`  | none                                  | Use a named example template for the generated project.                      |
 | Installation | `--skip-install`         |       | `false`                               | Generate files but skip automatic dependency installation.                   |
-| Installation | `--package-manager <pm>` |       | Auto-detected                         | Choose `npm`, `yarn`, or `pnpm` for install.                                 |
+| Installation | `--package-manager <pm>` |       | Auto-detected                         | Choose `npm`, `yarn`, `pnpm`, or `bun` for install.                         |
 | Installation | `--install-timeout <ms>` |       | `1200000`                             | Set dependency install timeout in milliseconds.                              |
-| Automation   | `--defaults`             | `-d`  | `false`                               | Skip prompts and use default settings.                                       |
+| Automation   | `--defaults`             | `-d, -y` | `false`                            | Skip prompts and use default settings. `--yes` / `-y` is an alias.          |
 | Scaffold     | `--force`                |       | `false`                               | Overwrite an existing project directory. See warning below.                  |
+| Scaffold     | `--git-init`             |       | `true`                                | Initialize a git repository in the scaffolded project (default).             |
+| Scaffold     | `--no-git`               |       | `false`                               | Skip git initialization when scaffolding.                                    |
 | Telemetry    | `--no-telemetry`         |       | `false`                               | Disable telemetry for the current scaffold invocation.                       |
 | Feature Add  | `--list`                 | `-l`  | `false`                               | List available features for `nextellar add`.                                 |
 | Feature Add  | `--force`                | `-f`  | `false`                               | Force feature addition, overwriting existing files.                          |
+| Feature Add  | `--skip-install`         |       | `false`                               | Add feature files but skip running the package manager install step.         |
+| Feature Add  | `--package-manager <pm>` |       | Auto-detected                         | Choose `npm`, `yarn`, `pnpm`, or `bun` for the post-add install step.       |
 | Deployment   | `--dry-run`              |       | `false`                               | Validate deployment without creating a final bundle.                         |
 | Information  | `--help`                 | `-h`  | `false`                               | Show CLI help text.                                                          |
 | Information  | `--version`              | `-v`  | `false`                               | Print the installed Nextellar CLI version.                                   |
@@ -79,13 +83,38 @@ npx nextellar my-app --force
 Feature add options are used with `nextellar add`:
 
 ```bash
+# Force-overwrite existing files and choose a package manager
 nextellar add freighter --force --package-manager pnpm
+
+# Add feature files without running install
+nextellar add freighter --skip-install
+
+# Use bun as the package manager
+nextellar add freighter --package-manager bun
 ```
 
 Deployment options are used with `nextellar deploy`:
 
 ```bash
 nextellar deploy --dry-run
+```
+
+Skip git initialization with `--no-git`:
+
+```bash
+npx nextellar my-app --no-git
+# Scaffolds project without running `git init`
+```
+
+Git is initialized by default (`--git-init` is `true`). Pass `--no-git` to opt out.
+
+Skip all prompts with `--defaults` (also `-y` / `--yes`):
+
+```bash
+npx nextellar my-app --defaults
+# or equivalently:
+npx nextellar my-app --yes
+npx nextellar my-app -y
 ```
 
 Telemetry can be disabled for a single scaffold command:

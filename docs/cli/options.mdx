@@ -146,13 +146,13 @@ nextellar my-app --package-manager pnpm
 
 **Default:** Auto-detected
 **Type:** String
-**Options:** `npm`, `yarn`, `pnpm`
+**Options:** `npm`, `yarn`, `pnpm`, `bun`
 
 **Detection Priority:**
 
 1. Explicit `--package-manager` flag
 2. `npm_config_user_agent` environment variable
-3. Lockfile presence (pnpm-lock.yaml, yarn.lock, package-lock.json)
+3. Lockfile presence (bun.lockb, pnpm-lock.yaml, yarn.lock, package-lock.json)
 4. Fallback to `npm`
 
 ### --install-timeout
@@ -181,20 +181,72 @@ nextellar my-app --install-timeout 3600000
 - 30 minutes: `1800000`
 - 1 hour: `3600000`
 
+## Scaffold Options
+
+The following options control git initialization behavior during `nextellar` scaffolding.
+
+### --git-init
+
+Initialize a git repository in the scaffolded project. This is the default behavior.
+
+```bash
+npx nextellar my-app --git-init
+```
+
+**Default:** `true`
+**Type:** Boolean
+**Status:** Supported
+
+Git init runs automatically unless `--no-git` is passed. This flag is useful when you want to be explicit in scripts.
+
+---
+
+### --no-git
+
+Skip git initialization when scaffolding.
+
+```bash
+npx nextellar my-app --no-git
+```
+
+**Default:** `false`
+**Type:** Boolean
+**Status:** Supported
+
+**Use Cases:**
+
+- You intend to move the project into an existing git repository.
+- Your CI scaffold step does not need a git history.
+- You want to initialize git yourself with custom config.
+
+```bash
+npx nextellar my-app --no-git
+cd my-app
+git init --initial-branch=main
+git remote add origin git@github.com:you/my-app.git
+```
+
+---
+
 ## Behavior Options
 
-### --defaults, -d
+### --defaults, -d, --yes, -y
 
-Skip prompts and use default values.
+Skip prompts and use default values. `--yes` and `-y` are accepted aliases for `--defaults`.
 
 ```bash
 nextellar my-app --defaults
 # or
 nextellar my-app -d
-```css
+# or
+nextellar my-app --yes
+# or
+nextellar my-app -y
+```
 
 **Default:** `false`
 **Type:** Boolean
+**Aliases:** `-d`, `--yes`, `-y`
 
 **Use Cases:**
 
@@ -203,7 +255,7 @@ nextellar my-app -d
 - Quick testing
 - Non-interactive environments
 
-> **Note:** In an interactive terminal, Nextellar can prompt for scaffold configuration. Use `--defaults` to skip prompts and apply default values instead.
+> **Note:** In an interactive terminal, Nextellar can prompt for scaffold configuration. Use `--defaults` (or `--yes` / `-y`) to skip prompts and apply default values instead.
 
 ## Feature Add Options
 
@@ -237,6 +289,50 @@ nextellar add freighter -f
 **Default:** `false`
 **Type:** Boolean
 **Status:** Supported
+
+---
+
+### --skip-install
+
+Add the feature's files without running the package manager install step.
+
+```bash
+nextellar add freighter --skip-install
+```
+
+**Default:** `false`
+**Type:** Boolean
+**Status:** Supported
+
+Useful when you want to batch several `nextellar add` calls and install once at the end:
+
+```bash
+nextellar add freighter --skip-install
+nextellar add xbull --skip-install
+npm install
+```
+
+---
+
+### --package-manager (add)
+
+Choose which package manager to use for the post-add install step.
+
+```bash
+nextellar add freighter --package-manager pnpm
+nextellar add freighter --package-manager bun
+```
+
+**Default:** Auto-detected
+**Type:** String
+**Options:** `npm`, `yarn`, `pnpm`, `bun`
+**Status:** Supported
+
+Combine with `--force` to overwrite files and install with a specific package manager:
+
+```bash
+nextellar add freighter --force --package-manager bun
+```
 
 ---
 
