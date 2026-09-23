@@ -8,8 +8,10 @@ date: 2026-06-02
 
 The `useOfferBook` hook queries Stellar's decentralized exchange (DEX) order books, enabling trading interfaces and price discovery.
 
+**Available in templates:** `default`, `defi`, `js`
+
 <Note>
-  **Ships in:** default, js
+  **Ships in:** default, defi, js
   <br />
   Not in your scaffold? Run `nextellar add defi`
 </Note>
@@ -20,18 +22,17 @@ The `useOfferBook` hook queries Stellar's decentralized exchange (DEX) order boo
 - **Price Discovery**: Get current market prices
 - **Depth Analysis**: Analyze order book depth
 - **Real-Time Updates**: Optional live order book updates
-- **Multiple Pairs**: Query multiple trading pairs
 
 ## Basic Usage
 
-`````tsx
+```tsx
 import { useOfferBook } from '@/hooks/useOfferBook';
 
 export default function OrderBook() {
-  const { bids, asks, loading } = useOfferBook({
-    selling: { code: 'XLM', type: 'native' },
-    buying: { code: 'USDC', issuer: 'GA5Z...' },
-  });
+  const { bids, asks, loading } = useOfferBook(
+    { code: 'XLM' },
+    { code: 'USDC', issuer: 'GA5Z...' }
+  );
 
   if (loading) return <div>Loading order book...</div>;
 
@@ -59,45 +60,50 @@ export default function OrderBook() {
 
 ### Parameters
 
-````typescript
-useOfferBook(options: {
-  selling: Asset;
-  buying: Asset;
-  limit?: number;
-  horizonUrl?: string;
-}): OfferBookState
-```css
+```typescript
+useOfferBook(
+  sellingAsset: { code: string; issuer?: string },
+  buyingAsset: { code: string; issuer?: string },
+  options?: {
+    horizonUrl?: string;
+    refreshIntervalMs?: number;
+  }
+): OfferBookState
+```
 
-| Parameter    | Type     | Default      | Description               |
-| ------------ | -------- | ------------ | ------------------------- |
-| `selling`    | `Asset`  | **Required** | Asset being sold          |
-| `buying`     | `Asset`  | **Required** | Asset being bought        |
-| `limit`      | `number` | `20`         | Number of offers per side |
-| `horizonUrl` | `string` | Testnet      | Horizon URL               |
+| Parameter           | Type                                | Default                          | Description                                                               |
+| ------------------- | ----------------------------------- | -------------------------------- | ------------------------------------------------------------------------- |
+| `sellingAsset`      | `{ code: string; issuer?: string }` | **Required**                     | Asset being sold (native assets have no `issuer`; no `type` field is used) |
+| `buyingAsset`       | `{ code: string; issuer?: string }` | **Required**                     | Asset being bought (native assets have no `issuer`; no `type` field is used) |
+| `horizonUrl`        | `string`                            | WalletProvider config or testnet | Horizon URL                                                               |
+| `refreshIntervalMs` | `number`                            | — (no polling by default)        | Poll interval in milliseconds for built-in auto-refresh                   |
 
 ### Return Value
 
 ```typescript
 interface OfferBookState {
-  bids: Offer[];
-  asks: Offer[];
-  spread: number;
-  midPrice: number;
+  bids: Array<{ price: string; amount: string }>;
+  asks: Array<{ price: string; amount: string }>;
   loading: boolean;
   error: Error | null;
   refresh: () => Promise<void>;
 }
-`````
+```
 
 ## Examples
 
 ### Get Current Price
 
 ```tsx
-const { midPrice, spread } = useOfferBook({
-  selling: { code: 'XLM', type: 'native' },
-  buying: { code: 'USDC', issuer: 'GA5Z...' },
-});
+const { bids, asks } = useOfferBook(
+  { code: 'XLM' },
+  { code: 'USDC', issuer: 'GA5Z...' }
+);
+
+const bestBid = bids[0] ? parseFloat(bids[0].price) : 0;
+const bestAsk = asks[0] ? parseFloat(asks[0].price) : 0;
+const midPrice = bestBid && bestAsk ? (bestBid + bestAsk) / 2 : 0;
+const spread = bestBid ? ((bestAsk - bestBid) / bestBid) * 100 : 0;
 
 return (
   <div>
@@ -110,7 +116,10 @@ return (
 ### Calculate Order Book Depth
 
 ```tsx
-const { bids, asks } = useOfferBook({ selling, buying });
+const { bids, asks } = useOfferBook(
+  { code: 'XLM' },
+  { code: 'USDC', issuer: 'GA5Z...' }
+);
 
 const totalBidVolume = bids.reduce(
   (sum, bid) => sum + parseFloat(bid.amount),
@@ -127,17 +136,17 @@ console.log('Sell pressure:', totalAskVolume);
 
 ### Live Updates
 
-Refresh the order book on an interval and clean up the timer when the component unmounts:
+Refresh the order book on an interval and clean up the timer when the component unmounts (or pass `refreshIntervalMs` in options for built-in polling):
 
 ```tsx
 import { useEffect } from 'react';
 import { useOfferBook } from '@/hooks/useOfferBook';
 
 export function LiveOrderBook({ selling, buying }) {
-  const { bids, asks, loading, error, refresh } = useOfferBook({
+  const { bids, asks, loading, error, refresh } = useOfferBook(
     selling,
-    buying,
-  });
+    buying
+  );
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -171,7 +180,7 @@ An empty bid or ask side is a valid state. Render the book with zero depth inste
 
 ### Invalid Pair
 
-Validate the assets before querying the order book so malformed pairs fail before the request is sent.
+Validate the assets before querying the order book so malformed pairs fail before the request is sent. Native assets are shaped `{ code: 'XLM' }` (no `issuer`, no `type` field); non-native assets require both `code` and `issuer`.
 
 ### Network Failures
 
