@@ -12,7 +12,8 @@ This repository is configured for testing with **Vitest** and **jsdom**. The tes
 
 The repository test configuration includes:
 
-- `pnpm test:unit` — runs Vitest in the project root
+- `pnpm test` — runs Vitest in the project root (recommended entry point)
+- `pnpm test:unit` — also runs Vitest (equivalent to `pnpm test`)
 - `vitest.config.ts` — configures the test environment and React plugin
 - `jsdom` — simulates browser APIs when testing React components
 - `@vitejs/plugin-react` — enables JSX/TSX syntax during test execution
@@ -41,19 +42,19 @@ export default defineConfig({
 
 ## Running tests
 
-Use the configured unit test command:
-
-```bash
-pnpm test:unit
-```
-
-This runs all tests using Vitest. The root `test` script is a placeholder and should not be used for actual test execution.
+Use the `test` command to run all unit tests:
 
 ```bash
 pnpm test
 ```
 
-> This command prints a generic message and exits successfully, but it does not run unit tests.
+This runs all tests using Vitest. You can also use the explicit `test:unit` command:
+
+```bash
+pnpm test:unit
+```
+
+Both commands are equivalent and run all tests using Vitest.
 
 ### Watch mode
 
@@ -76,7 +77,7 @@ pnpm exec vitest run --coverage
 ## Current status
 
 - The repository includes test tooling and configuration, but there are currently no active test files under the source tree.
-- The `pnpm test:unit` command is the correct entry point for adding and running tests.
+- The `pnpm test` command is the correct entry point for running tests.
 - Test coverage is not enforced today and should be added when tests are introduced.
 
 ## Notes

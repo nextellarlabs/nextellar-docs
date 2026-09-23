@@ -26,7 +26,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "prepare": "husky",
-    "test": "echo \"No tests configured\" && exit 0",
+    "test": "npm run test:unit",
     "test:unit": "vitest run",
     "validate:sidebar": "node scripts/validate-sidebar.cjs",
     "check:links": "node scripts/check-links.cjs"
