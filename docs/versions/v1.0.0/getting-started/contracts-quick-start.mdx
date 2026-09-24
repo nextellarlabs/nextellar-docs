@@ -1,0 +1,242 @@
+---
+title: Contracts Quick Start
+description: Scaffold, build, test, deploy, and invoke a Soroban smart contract with Nextellar
+date: 2026-07-28
+---
+
+# Contracts Quick Start
+
+Nextellar can scaffold a full Soroban smart contract alongside your frontend. This tutorial takes you from a fresh project to invoking a deployed contract from React, using the `--with-contracts` flag.
+
+## What We'll Build
+
+- A Next.js app scaffolded with a Rust Soroban contract (`hello_world`).
+- A built and tested contract WASM binary.
+- A contract deployed to Testnet.
+- A frontend page that invokes the deployed contract with `useSorobanContract` and listens for events with `useSorobanEvents`.
+
+## Prerequisites
+
+Run the doctor command to check your machine is ready:
+
+```bash
+npx nextellar doctor
+```
+
+Contract development needs two things beyond the base Nextellar prerequisites:
+
+- **Rust** with the `wasm32-unknown-unknown` target: `rustup target add wasm32-unknown-unknown`
+- **Stellar CLI**: [install instructions](https://developers.stellar.org/docs/build/smart-contracts/getting-started/setup#install-the-stellar-cli)
+
+`nextellar doctor` reports both as optional checks — they only block the contract steps below, not the base frontend.
+
+## Step 1: Scaffold with Contracts
+
+```bash
+npx nextellar my-dapp --with-contracts
+cd my-dapp
+```
+
+Alongside the usual Next.js starter, this adds a `contracts/` Rust workspace, two npm scripts (`contracts:build`, `contracts:test`), and a `NEXT_PUBLIC_HELLO_WORLD_CONTRACT_ID` placeholder appended to `.env.example`.
+
+## Step 2: Tour the Generated `contracts/` Tree
+
+<FolderTree>
+  <Folder element="contracts" defaultOpen={true}>
+    <File>
+      <p>Cargo.toml — workspace manifest</p>
+    </File>
+    <File>
+      <p>README.md — build/test/deploy commands</p>
+    </File>
+    <Folder element="hello_world" defaultOpen={true}>
+      <File>
+        <p>Cargo.toml — contract package manifest</p>
+      </File>
+      <Folder element="src">
+        <File>
+          <p>lib.rs — the contract itself</p>
+        </File>
+      </Folder>
+    </Folder>
+  </Folder>
+</FolderTree>
+
+`contracts/hello_world/src/lib.rs` contains a minimal contract:
+
+```rust
+#![no_std]
+use soroban_sdk::{contract, contractimpl, symbol_short, vec, Env, Symbol, Vec};
+
+#[contract]
+pub struct HelloContract;
+
+#[contractimpl]
+impl HelloContract {
+    pub fn hello(env: Env, to: Symbol) -> Vec<Symbol> {
+        vec![&env, symbol_short!("Hello"), to]
+    }
+}
+```
+
+`src/lib/contracts/index.ts` on the frontend side exports a `CONTRACTS` map that reads the contract ID from `NEXT_PUBLIC_HELLO_WORLD_CONTRACT_ID`, so you have one place to update once it's deployed.
+
+## Step 3: Build the Contract
+
+```bash
+npm run contracts:build
+```
+
+This runs `stellar contract build` from inside `contracts/`, producing a WASM binary at `contracts/target/wasm32-unknown-unknown/release/hello_world.wasm`.
+
+## Step 4: Test the Contract
+
+```bash
+npm run contracts:test
+```
+
+This runs `cargo test` from inside `contracts/`. The generated `hello_world` contract ships without a test module, so this should pass with zero tests — add your own `#[test]` functions as you extend the contract.
+
+## Step 5: Create and Fund a Testnet Identity
+
+```bash
+stellar keys generate alice --network testnet --fund
+```
+
+This generates a keypair, stores it locally under the identity name `alice`, and funds it with test XLM via Friendbot.
+
+## Step 6: Deploy to Testnet
+
+```bash
+cd contracts
+stellar contract deploy \
+  --wasm target/wasm32-unknown-unknown/release/hello_world.wasm \
+  --source alice \
+  --network testnet
+cd ..
+```
+
+On success, the CLI prints the deployed contract ID (starts with `C`). Copy it.
+
+## Step 7: Wire the Contract ID Into the Frontend
+
+Copy `.env.example` to `.env.local` if you haven't already, then set the contract ID you just deployed:
+
+```bash
+NEXT_PUBLIC_HELLO_WORLD_CONTRACT_ID=<paste your deployed contract ID>
+```
+
+Restart `npm run dev` so Next.js picks up the new environment variable.
+
+## Step 8: Invoke It From the Frontend
+
+Create `src/app/hello-contract/page.tsx`:
+
+```tsx
+'use client';
+
+import { useState } from 'react';
+import { useSorobanContract } from '@/hooks/useSorobanContract';
+
+export default function HelloContractDemo() {
+  const { callFunction, loading, error } = useSorobanContract({
+    contractId: process.env.NEXT_PUBLIC_HELLO_WORLD_CONTRACT_ID!,
+  });
+  const [greeting, setGreeting] = useState('');
+
+  const handleInvoke = async () => {
+    const result = (await callFunction('hello', [
+      { value: 'friend', type: 'symbol' },
+    ])) as string[];
+    setGreeting(result.join(' '));
+  };
+
+  return (
+    <div>
+      <button onClick={handleInvoke} disabled={loading}>
+        {loading ? 'Calling...' : 'Say Hello'}
+      </button>
+      {greeting && <p>{greeting}</p>}
+      {error && <p>Error: {error.message}</p>}
+    </div>
+  );
+}
+```
+
+<Note type="warning">
+  The contract's `hello` function takes a Soroban `Symbol`, not a string. Pass `{ value: 'friend',
+  type: 'symbol' }` rather than a bare `'friend'` — a bare string auto-converts to `ScvString`,
+  which the contract will reject.
+</Note>
+
+Visit `/hello-contract` and click the button — you should see `Hello friend`.
+
+## Step 9: Listen for Contract Events
+
+```tsx
+'use client';
+
+import { useSorobanEvents } from '@/hooks/useSorobanEvents';
+
+export default function HelloContractEvents() {
+  const { events, loading, error, isRecovering } = useSorobanEvents(
+    process.env.NEXT_PUBLIC_HELLO_WORLD_CONTRACT_ID!,
+    { pollIntervalMs: 5000 }
+  );
+
+  return (
+    <div>
+      {isRecovering && <p>Reconnecting...</p>}
+      {loading && events.length === 0 && <p>Watching for events...</p>}
+      {error && <p>Error: {error.message}</p>}
+      {events.map((event) => (
+        <div key={event.id}>
+          Ledger {event.ledger}: {event.type}
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+The stock `hello_world` contract doesn't publish any events on its own, so this list stays empty until you add an `env.events().publish(...)` call to your contract logic and redeploy — this step wires up the listener so it's ready when you do.
+
+## What You've Learned
+
+- Scaffolding a project with a Rust Soroban contract using `--with-contracts`.
+- Building and testing the contract with the generated npm scripts.
+- Creating a funded Testnet identity and deploying with the Stellar CLI.
+- Wiring a deployed contract ID into the frontend.
+- Invoking a contract function with `useSorobanContract`, including the `symbol` type hint.
+- Listening for contract events with `useSorobanEvents`.
+
+## Tested With
+
+- Nextellar CLI 1.1.0
+- Rust (stable) with the `wasm32-unknown-unknown` target
+- Stellar CLI v27.0.0
+
+## Troubleshooting
+
+### `stellar: command not found`
+
+Install the Stellar CLI, then re-run `npx nextellar doctor` to confirm it's on your `PATH`.
+
+### `error[E0463]: can't find crate` or a missing `wasm32-unknown-unknown` target
+
+Run `rustup target add wasm32-unknown-unknown` and re-run `npm run contracts:build`.
+
+### Deploy fails with an underfunded source account
+
+Testnet identities created without `--fund` (or reused across many deploys) can run out of test XLM. Generate a fresh funded identity with `stellar keys generate <name> --network testnet --fund` and deploy with `--source <name>`.
+
+### The frontend still shows the placeholder contract ID
+
+`NEXT_PUBLIC_*` variables are inlined at build/start time — confirm `.env.local` has the correct value and restart `npm run dev`.
+
+## Related
+
+- [Quick Start](/docs/getting-started/quick-start) - Build a payments dApp
+- [CLI Flags & Options](/docs/cli/flags) - `--with-contracts` reference
+- [useSorobanContract](/docs/hooks/use-soroban-contract) - Full hook API
+- [useSorobanEvents](/docs/hooks/use-soroban-events) - Full hook API

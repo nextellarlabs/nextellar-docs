@@ -1,0 +1,228 @@
+---
+title: Soroban Host Functions
+description: A thorough guide to Soroban host functions — what they are, the categories available, and how to use them correctly in Stellar smart contracts.
+date: 2026-06-25
+---
+
+# Soroban Host Functions
+
+Soroban smart contracts run in a WebAssembly (Wasm) sandbox. They cannot call the operating system or network directly. Instead, they call **host functions** — a stable ABI exposed by the Soroban host environment that gives contracts access to Stellar primitives, storage, cryptography, and more.
+
+Understanding host functions is essential for writing efficient, correct Soroban contracts.
+
+---
+
+## The Host Function Model
+
+```
+┌──────────────────────┐
+│   Contract (Wasm)    │  ← your Rust code compiles to this
+│                      │
+│  calls host_fn(...)  │
+└──────────┬───────────┘
+           │ import (wasm boundary)
+┌──────────▼───────────┐
+│   Soroban Host       │  ← runs on every validator
+│   (in stellar-core)  │
+│                      │
+│  executes host_fn    │
+│  charges budget      │
+└──────────────────────┘
+```
+
+Every host function call costs **compute units (CPU)** and **memory bytes** against the contract's execution budget. Exceeding budget causes immediate transaction failure with `invoke_host_function` error.
+
+---
+
+## Category 1 — Ledger / Storage
+
+The most commonly used host functions in contracts.
+
+### `env.storage().instance()`
+
+Stores data tied to the contract's lifecycle. Lives as long as the contract is alive. Best for global config like admin keys, token addresses, and flags.
+
+```rust
+env.storage().instance().set(&DataKey::Admin, &admin_address);
+let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
+```
+
+### `env.storage().persistent()`
+
+Stores data that can expire but is restored (via fees) before expiry. Best for user-specific records.
+
+```rust
+env.storage().persistent().set(&DataKey::Balance(user.clone()), &amount);
+let balance: i128 = env.storage().persistent()
+    .get(&DataKey::Balance(user))
+    .unwrap_or(0);
+```
+
+### `env.storage().temporary()`
+
+Data that expires after one ledger. Best for nonces, one-time proofs, and rate-limit tokens.
+
+```rust
+env.storage().temporary().set(&DataKey::Nonce(user.clone()), &true);
+// Expires next ledger — no manual cleanup needed
+```
+
+---
+
+## Category 2 — Ledger Info
+
+Access current ledger state without external queries.
+
+```rust
+let seq:       u32 = env.ledger().sequence();       // current ledger number
+let timestamp: u64 = env.ledger().timestamp();      // Unix seconds at ledger close
+let network:   Bytes = env.ledger().network_id();   // network passphrase hash
+```
+
+Use `ledger().sequence()` for time-based logic (vesting, timeouts). Use `ledger().timestamp()` when you need wall-clock time but accept ~5s granularity.
+
+---
+
+## Category 3 — Authentication
+
+### `address.require_auth()`
+
+The most important security primitive in Soroban. Verifies that the given address signed the current transaction (or an auth entry authorising this invocation).
+
+```rust
+pub fn withdraw(env: Env, caller: Address, amount: i128) {
+    caller.require_auth(); // panics if caller did not sign
+    // safe to proceed
+}
+```
+
+Never skip `require_auth()` for state-mutating functions.
+
+### `address.require_auth_for_args(args)`
+
+For fine-grained authorisation where the caller approves a specific set of arguments, not just the function name:
+
+```rust
+caller.require_auth_for_args((amount, recipient).into_val(&env));
+```
+
+---
+
+## Category 4 — Cryptography
+
+### SHA-256
+
+```rust
+use soroban_sdk::crypto::Hash;
+
+let hash: Hash<32> = env.crypto().sha256(&data);
+```
+
+### Keccak-256 (for EVM compatibility)
+
+```rust
+let hash = env.crypto().keccak256(&data);
+```
+
+### Ed25519 Signature Verification
+
+Verify an off-chain signature without requiring the signer to have a Stellar account:
+
+```rust
+env.crypto().ed25519_verify(
+    &public_key,  // BytesN<32>
+    &message,     // Bytes
+    &signature,   // BytesN<64>
+);
+// panics if signature is invalid
+```
+
+### Secp256k1 (for EVM key compatibility)
+
+```rust
+let recovered_key = env.crypto().secp256k1_recover(
+    &msg_hash,   // BytesN<32>
+    &signature,  // BytesN<64>
+    recovery_id, // u32
+);
+```
+
+---
+
+## Category 5 — Events
+
+Events are emitted to the ledger and indexed by Horizon/Mercury. They do not affect contract state.
+
+```rust
+// Two-topic event (topic1, topic2) with a data value
+env.events().publish(
+    (Symbol::new(&env, "transfer"), from.clone()),
+    (to.clone(), amount),
+);
+```
+
+Keep events lean — they cost budget. Use them for indexers, not for state that the contract itself needs.
+
+---
+
+## Category 6 — Contract Invocation
+
+### Call another contract
+
+```rust
+use soroban_sdk::invoke_contract;
+
+let result: i128 = env.invoke_contract(
+    &other_contract_address,
+    &Symbol::new(&env, "get_price"),
+    vec![&env, asset.into_val(&env)],
+);
+```
+
+### Token interface shortcut
+
+The `token::Client` is a generated host-function wrapper for the standard Stellar token contract:
+
+```rust
+use soroban_sdk::token;
+
+let client = token::Client::new(&env, &token_address);
+client.transfer(&from, &to, &amount);
+let balance: i128 = client.balance(&account);
+```
+
+---
+
+## Budget Awareness
+
+Each host function call has a cost. Exceeding the budget aborts the transaction.
+
+| Operation            | Rough CPU cost       |
+| -------------------- | -------------------- |
+| Storage get/set      | ~400–800 units       |
+| SHA-256 per 64 bytes | ~250 units           |
+| Ed25519 verify       | ~2,500 units         |
+| Cross-contract call  | ~1,000 + callee cost |
+| Event publish        | ~200 units           |
+
+Check remaining budget in tests:
+
+```rust
+#[test]
+fn check_budget() {
+    let env = Env::default();
+    // ... setup ...
+    env.budget().print(); // prints CPU and memory usage
+    assert!(env.budget().cpu_instruction_cost() < 100_000_000);
+}
+```
+
+---
+
+## Acceptance Checklist
+
+- [ ] Guide renders without build errors (`pnpm build:content`)
+- [ ] Internal links resolve (`pnpm check:links`)
+- [ ] All 6 host function categories covered with Rust examples
+- [ ] `require_auth` security guidance prominent
+- [ ] Budget awareness section with cost table

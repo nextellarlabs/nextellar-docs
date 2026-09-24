@@ -1,0 +1,519 @@
+---
+title: Testing Horizon and Soroban Interactions
+description: A comprehensive testing strategy for Nextellar apps — mocking Horizon and Soroban RPC, integration test setup, hook testing with Vitest, and a starter example.
+date: 2026-07-27
+---
+
+# Testing Horizon and Soroban Interactions
+
+Stellar apps have two external dependencies that must be handled carefully in tests: the **Horizon HTTP API** (account data, payments, transaction history) and the **Soroban RPC** (contract simulation and invocation). This guide covers mocking strategies for both, how to set up a real integration environment, and a starter test file you can adapt immediately.
+
+---
+
+## Testing philosophy
+
+| Layer | What to test | Recommended approach |
+|---|---|---|
+| Unit | Hook logic, validation, normalisation | Mock `fetch` / MSW; no real network |
+| Component | Rendered output given hook state | Mock hooks or use MSW in jsdom |
+| Integration | Full request → response → UI flow | MSW handlers against `localhost` |
+| E2E | Real wallet + real testnet transaction | Stellar Quickstart Docker + Vitest or Playwright |
+
+**Mock at the network boundary, not inside the SDK.** Let the Stellar SDK build and parse XDR normally — intercept only the HTTP requests it makes. This keeps tests close to real behaviour while removing flakiness from network latency and testnet state.
+
+---
+
+## Mocking Horizon with MSW
+
+The project already depends on MSW for component-level testing (see [Testing (MSW)](/docs/integrations/testing)). Use the same setup for Horizon calls.
+
+### Install
+
+MSW is a `devDependency` in the repo. No additional install needed.
+
+### Define handlers
+
+Create a handler file for Horizon endpoints your tests rely on:
+
+```typescript
+// tests/mocks/horizon-handlers.ts
+import { http, HttpResponse } from 'msw';
+
+const HORIZON = 'https://horizon-testnet.stellar.org';
+
+export const horizonHandlers = [
+  // Load account
+  http.get(`${HORIZON}/accounts/:id`, ({ params }) => {
+    return HttpResponse.json({
+      id: params.id,
+      account_id: params.id,
+      sequence: '123456789',
+      balances: [
+        {
+          balance: '100.0000000',
+          asset_type: 'native',
+        },
+      ],
+      signers: [{ key: params.id, weight: 1 }],
+      thresholds: { low_threshold: 0, med_threshold: 0, high_threshold: 0 },
+    });
+  }),
+
+  // Submit transaction — always succeeds
+  http.post(`${HORIZON}/transactions`, () => {
+    return HttpResponse.json({
+      hash: 'aabbcc0011223344aabbcc0011223344aabbcc0011223344aabbcc0011223344',
+      ledger: 50001,
+      envelope_xdr: 'AAAAAQ==',
+      result_xdr: 'AAAAAAAAAGQ=',
+      result_meta_xdr: '',
+    });
+  }),
+
+  // Transaction by hash
+  http.get(`${HORIZON}/transactions/:hash`, ({ params }) => {
+    return HttpResponse.json({
+      hash: params.hash,
+      ledger: 50001,
+      created_at: '2026-07-27T10:00:00Z',
+      source_account: 'GABC1234567890123456789012345678901234567890123456789012',
+      fee_charged: '200',
+      operation_count: 1,
+      memo_type: 'none',
+      successful: true,
+      envelope_xdr: 'AAAAAQ==',
+      result_xdr: 'AAAAAAAAAGQ=',
+    });
+  }),
+
+  // Payments for account
+  http.get(`${HORIZON}/accounts/:id/payments`, () => {
+    return HttpResponse.json({
+      _embedded: { records: [] },
+    });
+  }),
+];
+```
+
+### Wire up the server
+
+```typescript
+// tests/setup.ts  (referenced in vitest.config.ts → test.setupFiles)
+import { setupServer } from 'msw/node';
+import { horizonHandlers } from './mocks/horizon-handlers';
+
+export const server = setupServer(...horizonHandlers);
+
+beforeAll(() => server.listen({ onUnhandledRequest: 'warn' }));
+afterEach(() => server.resetHandlers());
+afterAll(() => server.close());
+```
+
+```typescript
+// vitest.config.ts (existing file — add setupFiles)
+import { defineConfig } from 'vitest/config';
+import react from '@vitejs/plugin-react';
+
+export default defineConfig({
+  plugins: [react()],
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    setupFiles: ['./tests/setup.ts'],
+  },
+});
+```
+
+### Override handlers per test
+
+Use `server.use()` to return error responses for specific tests without affecting others:
+
+```typescript
+import { http, HttpResponse } from 'msw';
+import { server } from '../setup';
+
+it('shows an error when the account is not found', async () => {
+  server.use(
+    http.get('https://horizon-testnet.stellar.org/accounts/:id', () => {
+      return HttpResponse.json({ type: 'https://stellar.org/horizon-errors/not_found' }, { status: 404 });
+    })
+  );
+
+  // ... render component and assert error state
+});
+```
+
+---
+
+## Mocking Soroban RPC
+
+Soroban uses a JSON-RPC endpoint rather than REST. MSW can intercept `POST` requests to the RPC URL.
+
+```typescript
+// tests/mocks/soroban-handlers.ts
+import { http, HttpResponse } from 'msw';
+
+const SOROBAN_RPC = 'https://soroban-testnet.stellar.org';
+
+export const sorobanHandlers = [
+  http.post(SOROBAN_RPC, async ({ request }) => {
+    const body = await request.json() as { method: string };
+
+    if (body.method === 'simulateTransaction') {
+      return HttpResponse.json({
+        jsonrpc: '2.0',
+        id: 1,
+        result: {
+          results: [{ xdr: 'AAAAAQAAAA==', type: 'ScvI128' }],
+          cost: { cpuInsns: '1000000', memBytes: '2048' },
+          latestLedger: 100,
+        },
+      });
+    }
+
+    if (body.method === 'sendTransaction') {
+      return HttpResponse.json({
+        jsonrpc: '2.0',
+        id: 1,
+        result: {
+          hash: 'aabbcc0011223344aabbcc0011223344aabbcc0011223344aabbcc0011223344',
+          status: 'PENDING',
+          latestLedger: 100,
+          latestLedgerCloseTime: '1722074400',
+        },
+      });
+    }
+
+    if (body.method === 'getTransaction') {
+      return HttpResponse.json({
+        jsonrpc: '2.0',
+        id: 1,
+        result: {
+          status: 'SUCCESS',
+          ledger: 100,
+          createdAt: '1722074400',
+          envelopeXdr: 'AAAAAQ==',
+          resultXdr: 'AAAAAAAAAGQ=',
+          resultMetaXdr: '',
+        },
+      });
+    }
+
+    return HttpResponse.json({ jsonrpc: '2.0', id: 1, error: { code: -32601, message: 'Method not found' } }, { status: 404 });
+  }),
+];
+```
+
+Add `sorobanHandlers` to the server setup:
+
+```typescript
+export const server = setupServer(...horizonHandlers, ...sorobanHandlers);
+```
+
+---
+
+## Testing Nextellar hooks
+
+Nextellar hooks wrap the Stellar SDK. Test them with `renderHook` from `@testing-library/react`.
+
+### Testing useStellarWallet
+
+```typescript
+import { renderHook, act, waitFor } from '@testing-library/react';
+import { useStellarWallet } from '@/hooks/useStellarWallet';
+
+describe('useStellarWallet', () => {
+  it('loads balances for a connected account', async () => {
+    const { result } = renderHook(() =>
+      useStellarWallet('https://horizon-testnet.stellar.org', 'Test SDF Network ; September 2015')
+    );
+
+    // MSW handler returns 100 XLM for any account
+    await waitFor(() => {
+      expect(result.current.balances.length).toBeGreaterThan(0);
+    });
+
+    expect(result.current.balances[0].asset_type).toBe('native');
+    expect(result.current.balances[0].balance).toBe('100.0000000');
+  });
+});
+```
+
+### Testing useStellarPayment
+
+```typescript
+import { renderHook } from '@testing-library/react';
+import { useStellarPayment } from '@/hooks/useStellarPayment';
+
+const SENDER   = 'GABC1234567890123456789012345678901234567890123456789012';
+const RECEIVER = 'GDEF1234567890123456789012345678901234567890123456789012';
+
+describe('useStellarPayment', () => {
+  it('builds a payment XDR without submitting', async () => {
+    const { result } = renderHook(() => useStellarPayment());
+
+    const xdr = await result.current.buildPaymentXDR({
+      from: SENDER,
+      to: RECEIVER,
+      amount: '5',
+      asset: 'XLM',
+    });
+
+    expect(typeof xdr).toBe('string');
+    expect(xdr.length).toBeGreaterThan(10);
+  });
+
+  it('submits and returns a transaction hash', async () => {
+    const { result } = renderHook(() => useStellarPayment());
+
+    const xdr = await result.current.buildPaymentXDR({
+      from: SENDER,
+      to: RECEIVER,
+      amount: '5',
+      asset: 'XLM',
+    });
+
+    // MSW intercepts the POST /transactions call
+    const submitResult = await result.current.submitSignedXDR(xdr);
+
+    expect(submitResult.success).toBe(true);
+    expect(submitResult.txHash).toBe(
+      'aabbcc0011223344aabbcc0011223344aabbcc0011223344aabbcc0011223344'
+    );
+  });
+
+  it('returns success: false on a 400 error', async () => {
+    server.use(
+      http.post('https://horizon-testnet.stellar.org/transactions', () => {
+        return HttpResponse.json(
+          {
+            extras: {
+              result_codes: { transaction: 'tx_bad_seq', operations: [] },
+            },
+          },
+          { status: 400 }
+        );
+      })
+    );
+
+    const { result } = renderHook(() => useStellarPayment());
+    const xdr = await result.current.buildPaymentXDR({
+      from: SENDER, to: RECEIVER, amount: '5', asset: 'XLM',
+    });
+
+    const submitResult = await result.current.submitSignedXDR(xdr);
+    expect(submitResult.success).toBe(false);
+    expect(submitResult.error).toMatch(/tx_bad_seq/);
+  });
+});
+```
+
+### Testing useSorobanContract
+
+```typescript
+import { renderHook, waitFor } from '@testing-library/react';
+import { useSorobanContract } from '@/hooks/useSorobanContract';
+
+const CONTRACT_ID = 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQAHHXK3AWCM';
+
+describe('useSorobanContract', () => {
+  it('calls a read-only function and returns the result', async () => {
+    const { result } = renderHook(() =>
+      useSorobanContract({ contractId: CONTRACT_ID, network: 'TESTNET' })
+    );
+
+    let value: unknown;
+    await waitFor(async () => {
+      value = await result.current.callFunction('balance', [
+        'GABC1234567890123456789012345678901234567890123456789012',
+      ]);
+      expect(value).toBeDefined();
+    });
+  });
+});
+```
+
+---
+
+## Integration test setup
+
+For tests that need real Horizon and Soroban responses, run a local Stellar network with the [Stellar Quickstart Docker image](https://github.com/stellar/quickstart):
+
+```bash
+docker run --rm -it \
+  -p 8000:8000 \
+  stellar/quickstart:latest \
+  --standalone \
+  --enable-soroban-rpc
+```
+
+Once running:
+
+| Service | URL |
+|---|---|
+| Horizon | `http://localhost:8000` |
+| Soroban RPC | `http://localhost:8000/soroban/rpc` |
+| Friendbot | `http://localhost:8000/friendbot?addr=<public_key>` |
+
+Point hooks at the local instance in your integration tests:
+
+```typescript
+const HORIZON_LOCAL   = 'http://localhost:8000';
+const SOROBAN_LOCAL   = 'http://localhost:8000/soroban/rpc';
+
+const { result } = renderHook(() =>
+  useStellarPayment({ horizonUrl: HORIZON_LOCAL, network: 'TESTNET' })
+);
+```
+
+Fund test accounts with Friendbot before running assertions:
+
+```typescript
+async function fundAccount(publicKey: string) {
+  const res = await fetch(
+    `http://localhost:8000/friendbot?addr=${publicKey}`
+  );
+  if (!res.ok) throw new Error('Friendbot failed');
+}
+
+beforeAll(async () => {
+  await fundAccount(SENDER_PUBLIC_KEY);
+  await fundAccount(RECEIVER_PUBLIC_KEY);
+});
+```
+
+> Integration tests that hit a local Docker network are much slower than MSW unit tests. Keep them in a separate `tests/integration/` folder and run them explicitly (`vitest run tests/integration`) rather than in the default `pnpm test:unit` pass.
+
+---
+
+## Starter example
+
+A complete test file for a XLM payment flow — copy, drop into `tests/`, and run with `pnpm test:unit`:
+
+```typescript
+// tests/payment-flow.test.ts
+import { renderHook, waitFor } from '@testing-library/react';
+import { http, HttpResponse } from 'msw';
+import { setupServer } from 'msw/node';
+import { useStellarPayment } from '@/hooks/useStellarPayment';
+
+// ── Fixtures ──────────────────────────────────────────────────────────────
+const HORIZON = 'https://horizon-testnet.stellar.org';
+const SENDER   = 'GABC1234567890123456789012345678901234567890123456789012';
+const RECEIVER = 'GDEF1234567890123456789012345678901234567890123456789012';
+const TX_HASH  = 'aabbcc0011223344aabbcc0011223344aabbcc0011223344aabbcc0011223344';
+
+// ── MSW server ────────────────────────────────────────────────────────────
+const server = setupServer(
+  http.get(`${HORIZON}/accounts/${SENDER}`, () =>
+    HttpResponse.json({
+      id: SENDER,
+      account_id: SENDER,
+      sequence: '123456789',
+      balances: [{ balance: '100.0000000', asset_type: 'native' }],
+      signers: [{ key: SENDER, weight: 1 }],
+      thresholds: { low_threshold: 0, med_threshold: 0, high_threshold: 0 },
+    })
+  ),
+  http.post(`${HORIZON}/transactions`, () =>
+    HttpResponse.json({
+      hash: TX_HASH,
+      ledger: 50001,
+      envelope_xdr: 'AAAAAQ==',
+      result_xdr: 'AAAAAAAAAGQ=',
+      result_meta_xdr: '',
+    })
+  )
+);
+
+beforeAll(() => server.listen({ onUnhandledRequest: 'warn' }));
+afterEach(() => server.resetHandlers());
+afterAll(() => server.close());
+
+// ── Tests ─────────────────────────────────────────────────────────────────
+describe('Payment flow', () => {
+  it('builds a valid XDR envelope', async () => {
+    const { result } = renderHook(() => useStellarPayment());
+
+    const xdr = await result.current.buildPaymentXDR({
+      from: SENDER,
+      to: RECEIVER,
+      amount: '10',
+      asset: 'XLM',
+    });
+
+    expect(typeof xdr).toBe('string');
+    expect(xdr.length).toBeGreaterThan(0);
+  });
+
+  it('submits and returns the transaction hash', async () => {
+    const { result } = renderHook(() => useStellarPayment());
+
+    const xdr = await result.current.buildPaymentXDR({
+      from: SENDER,
+      to: RECEIVER,
+      amount: '10',
+      asset: 'XLM',
+    });
+
+    const res = await result.current.submitSignedXDR(xdr);
+
+    expect(res.success).toBe(true);
+    expect(res.txHash).toBe(TX_HASH);
+  });
+
+  it('handles a sequence number error gracefully', async () => {
+    server.use(
+      http.post(`${HORIZON}/transactions`, () =>
+        HttpResponse.json(
+          { extras: { result_codes: { transaction: 'tx_bad_seq' } } },
+          { status: 400 }
+        )
+      )
+    );
+
+    const { result } = renderHook(() => useStellarPayment());
+
+    const xdr = await result.current.buildPaymentXDR({
+      from: SENDER,
+      to: RECEIVER,
+      amount: '10',
+      asset: 'XLM',
+    });
+
+    const res = await result.current.submitSignedXDR(xdr);
+
+    expect(res.success).toBe(false);
+    expect(res.error).toMatch(/tx_bad_seq/);
+  });
+});
+```
+
+Run it:
+
+```bash
+pnpm test:unit
+```
+
+---
+
+## CI considerations
+
+- Run `pnpm test:unit` on every PR — fast, no Docker needed, MSW handles all network calls.
+- Keep Docker-based integration tests in a separate job or opt-in script (`pnpm test:integration`) to avoid slowing down the standard PR check.
+- Set `onUnhandledRequest: 'error'` in production CI to catch missing MSW handlers early — use `'warn'` locally while building out coverage.
+- Seed deterministic keypairs in tests rather than generating new ones each run — makes failures easier to reproduce.
+
+---
+
+## Related docs
+
+- [useStellarPayment](/docs/hooks/use-stellar-payment) — build, sign, and submit API
+- [useStellarWallet](/docs/hooks/use-stellar-wallet) — wallet connection and `sendPayment` shortcut
+- [useSorobanContract](/docs/hooks/use-soroban-contract) — contract invocation and simulation
+- [Testing (MSW)](/docs/integrations/testing) — MSW integration overview for this project
+- [Soroban Integration](/docs/integrations/soroban) — Soroban RPC endpoints and patterns
+- [Stellar Horizon](/docs/integrations/horizon) — Horizon API and account management
+- [Transaction Lifecycle](/docs/guides/transaction-lifecycle) — build → sign → submit → confirm walkthrough
+- [Hook Error Handling](/docs/guides/hook-error-handling) — recovery patterns for submission failures
+- [Glossary](/docs/guides/glossary) — XDR, Horizon, Soroban RPC, and other key terms

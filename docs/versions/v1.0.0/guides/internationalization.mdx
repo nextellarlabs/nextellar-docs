@@ -1,0 +1,233 @@
+---
+title: Internationalization Readiness
+description: Understanding what's needed to make Nextellar documentation translation-ready for multiple languages and locales.
+date: 2026-06-02
+---
+
+# Internationalization Readiness
+
+This guide documents the current state of internationalization (i18n) support in Nextellar documentation and outlines the steps needed to make it translation-ready.
+
+## Current Limitations
+
+The Nextellar documentation currently has several limitations that prevent easy translation:
+
+### Content Structure
+
+- **Single Language**: All content is written in English only
+- **Hard-coded Strings**: UI elements and navigation contain hard-coded English text
+- **Mixed Content**: Presentation and content are tightly coupled in some components
+
+### Technical Infrastructure
+
+- **No i18n Framework**: No internationalization framework is currently integrated
+- **Static Routing**: URL structure doesn't support locale-specific paths
+- **No Locale Detection**: No automatic language detection or switching
+- **RTL Support**: No right-to-left language support for Arabic, Hebrew, etc.
+
+### Content Management
+
+- **No Translation Workflow**: No established process for managing translations
+- **Version Synchronization**: No system to keep translations in sync with source content
+- **Quality Assurance**: No validation for translated content completeness
+
+## Steps Toward Translation Readiness
+
+### 1. Content Structure Improvements
+
+**Separate Content from Presentation**
+
+```bash
+# Current structure
+docs/
+  guides/
+    deployment.mdx  # Mixed content and UI
+
+# Improved structure
+content/
+  en/
+    guides/
+      deployment.md  # Pure content
+  es/
+    guides/
+      deployment.md  # Spanish translation
+```
+
+**Structured Frontmatter**
+
+```yaml
+---
+title: 'Deployment Guide'
+description: 'Deploy your Stellar dApp to production'
+locale: 'en'
+translationKey: 'guides.deployment'
+lastUpdated: '2024-01-15'
+---
+```
+
+### 2. Technical Implementation
+
+**Next.js i18n Integration**
+
+```javascript
+// next.config.js
+module.exports = {
+  i18n: {
+    locales: ['en', 'es', 'fr', 'de', 'ja'],
+    defaultLocale: 'en',
+    localeDetection: true,
+  },
+};
+```
+
+**String Externalization**
+
+```typescript
+// Before: Hard-coded strings
+<button>Get Started</button>
+
+// After: Internationalized
+import { useTranslation } from 'next-intl'
+const { t } = useTranslation()
+<button>{t('common.getStarted')}</button>
+```
+
+**Locale-aware Routing**
+
+```bash
+# URL structure
+/en/guides/deployment     # English
+/es/guides/deployment     # Spanish
+/fr/guides/deployment     # French
+```
+
+### 3. Required Tooling
+
+**Translation Management System**
+
+- **Crowdin** or **Lokalise** for collaborative translation
+- **Weblate** for open-source community translations
+- **GitHub integration** for automated pull requests
+
+**Build Pipeline Enhancements**
+
+```json
+{
+  "scripts": {
+    "build:content": "contentlayer2 build",
+    "build:i18n": "next-intl extract && contentlayer2 build --locales",
+    "validate:translations": "node scripts/validate-translations.js"
+  }
+}
+```
+
+**Content Validation Tools**
+
+- Translation completeness checker
+- Link validation for all locales
+- Frontmatter consistency validation
+- Image and asset localization verification
+
+### 4. Implementation Phases
+
+**Phase 1: Foundation (2-3 weeks)**
+
+- Install and configure Next.js i18n
+- Extract hard-coded strings
+- Set up basic locale routing
+- Create translation key structure
+
+**Phase 2: Content Pipeline (3-4 weeks)**
+
+- Integrate translation management system
+- Set up automated content synchronization
+- Implement build pipeline for multiple locales
+- Create contributor guidelines for i18n
+
+**Phase 3: Quality & Optimization (2-3 weeks)**
+
+- Add translation validation tools
+- Implement RTL language support
+- Optimize bundle sizes for locale-specific builds
+- Set up automated translation quality checks
+
+## Recommended Tools & Libraries
+
+### Core i18n Framework
+
+- **next-intl**: Modern i18n for Next.js with TypeScript support
+- **react-intl**: Mature internationalization library
+- **i18next**: Comprehensive i18n framework with extensive ecosystem
+
+### Content Management
+
+- **Contentlayer**: Already in use, supports locale-aware content processing
+- **MDX**: Continue using for rich content with component integration
+- **Gray Matter**: For frontmatter parsing and validation
+
+### Translation Services
+
+- **Crowdin**: Professional translation management
+- **Lokalise**: Developer-focused translation platform
+- **Weblate**: Open-source translation management
+
+## Migration Strategy
+
+### Backward Compatibility
+
+- Maintain existing English URLs during transition
+- Implement redirects for legacy links
+- Preserve existing content structure initially
+
+### Gradual Rollout
+
+1. **Start with high-traffic pages**: Installation, Quick Start
+2. **Add core languages**: Spanish, French, German
+3. **Expand based on community demand**: Japanese, Chinese, Portuguese
+4. **Community contributions**: Enable community-driven translations
+
+### Content Prioritization
+
+- **Critical Path**: Installation → Quick Start → CLI Commands
+- **Developer Resources**: Hooks documentation → API reference
+- **Community Content**: Guides → Examples → Advanced topics
+
+## Success Metrics
+
+### Technical Metrics
+
+- **Build Performance**: No significant increase in build times
+- **Bundle Size**: Locale-specific bundles under size budgets
+- **SEO**: Proper hreflang implementation and locale-specific sitemaps
+
+### Content Metrics
+
+- **Translation Coverage**: Target 90%+ for core languages
+- **Update Lag**: Translations updated within 1 week of source changes
+- **Quality Score**: Community feedback and professional review scores
+
+### User Experience
+
+- **Locale Detection**: Accurate automatic language detection
+- **Navigation**: Seamless language switching
+- **Performance**: No degradation in page load times
+
+## Getting Started
+
+For contributors interested in internationalization:
+
+1. **Review Current Structure**: Understand existing content organization
+2. **Identify Hard-coded Strings**: Help catalog strings that need extraction
+3. **Propose Language Priorities**: Suggest which languages to support first
+4. **Translation Contributions**: Volunteer for specific language translations
+
+## Related Resources
+
+- [Next.js Internationalization](https://nextjs.org/docs/advanced-features/i18n-routing)
+- [MDX with i18n](https://mdxjs.com/guides/internationalization/)
+- [Contentlayer Locale Support](https://contentlayer.dev/docs/reference/source-files/define-document-type#locale)
+- [Web Accessibility for i18n](https://www.w3.org/WAI/WCAG21/Understanding/language-of-page.html)
+
+---
+
+**Note**: This is a planning document. Implementation of internationalization features requires significant development effort and should be prioritized based on community needs and available resources.

@@ -1,0 +1,251 @@
+---
+title: Wallet Integration
+description: Multi-wallet support with Stellar Wallets Kit - Freighter, Albedo, Lobstr, xBull, Hana
+date: 2026-06-02
+---
+
+# Wallet Integration
+
+Nextellar uses [@creit.tech/stellar-wallets-kit](https://github.com/AhaLabs/stellar-wallets-kit) to provide seamless multi-wallet support. This guide covers wallet configuration, supported wallets, and customization options.
+
+## Supported Wallets
+
+Out of the box, Nextellar supports:
+
+| Wallet        | Type              | Network Support  |
+| ------------- | ----------------- | ---------------- |
+| **Freighter** | Browser Extension | Mainnet, Testnet |
+| **Albedo**    | Web-based         | Mainnet, Testnet |
+| **Lobstr**    | Browser Extension | Mainnet, Testnet |
+| **xBull**     | Browser Extension | Mainnet, Testnet |
+| **Hana**      | Browser Extension | Mainnet, Testnet |
+
+## How It Works
+
+### Wallet Kit Configuration
+
+The wallet kit is configured in `src/lib/stellar-wallet-kit.ts`:
+
+```typescript
+import {
+  StellarWalletsKit,
+  FREIGHTER_ID,
+  FreighterModule,
+  AlbedoModule,
+  LobstrModule,
+  xBullModule,
+  HanaModule,
+  WalletNetwork,
+} from '@creit.tech/stellar-wallets-kit';
+
+const kit = new StellarWalletsKit({
+  network: WalletNetwork.TESTNET,
+  selectedWalletId: FREIGHTER_ID,
+  modules: [
+    new FreighterModule(),
+    new AlbedoModule(),
+    new LobstrModule(),
+    new xBullModule(),
+    new HanaModule(),
+  ],
+});
+```
+
+### Connection Flow
+
+1. User clicks "Connect Wallet"
+2. Wallet selection modal opens
+3. User selects their preferred wallet
+4. Wallet extension prompts for approval
+5. Public key is retrieved and stored
+6. Balances are fetched automatically
+
+```tsx
+import { useWallet } from '@/contexts';
+
+function ConnectButton() {
+  const { connect, connected, publicKey } = useWallet();
+
+  return (
+    <button onClick={connect}>
+      {connected ? publicKey?.slice(0, 8) + '...' : 'Connect'}
+    </button>
+  );
+}
+```
+
+## Adding More Wallets
+
+To add additional wallet support, update the wallet kit configuration:
+
+```typescript
+// src/lib/stellar-wallet-kit.ts
+import {
+  StellarWalletsKit,
+  FreighterModule,
+  AlbedoModule,
+  LobstrModule,
+  xBullModule, // Add new module
+  WalletNetwork,
+} from '@creit.tech/stellar-wallets-kit';
+
+const kit = new StellarWalletsKit({
+  network: WalletNetwork.TESTNET,
+  selectedWalletId: FREIGHTER_ID,
+  modules: [
+    new FreighterModule(),
+    new AlbedoModule(),
+    new LobstrModule(),
+    new xBullModule(), // Add to modules array
+  ],
+});
+```
+
+## Transaction Signing
+
+When a transaction needs to be signed, the wallet kit handles the communication with the user's wallet:
+
+```tsx
+import { kit, signTransaction } from '@/lib/stellar-wallet-kit';
+
+// Option 1: Use the kit directly
+const { signedTxXdr } = await kit().signTransaction(unsignedXdr, {
+  address: publicKey,
+});
+
+// Option 2: Use the signTransaction helper
+const signedXdr = await signTransaction({
+  unsignedTransaction: unsignedXdr,
+  address: publicKey,
+});
+```
+
+Most hooks handle this automatically. For example, `useStellarWallet` includes a `sendPayment` function that builds, signs, and submits transactions.
+
+## Network Configuration
+
+### Testnet (Default)
+
+```typescript
+const kit = new StellarWalletsKit({
+  network: WalletNetwork.TESTNET,
+  // ...
+});
+```
+
+### Mainnet
+
+```typescript
+const kit = new StellarWalletsKit({
+  network: WalletNetwork.PUBLIC,
+  // ...
+});
+```
+
+### Dynamic Network Switching
+
+For apps that support both networks:
+
+```typescript
+// Store network preference
+localStorage.setItem('network', 'mainnet');
+
+// Read and apply
+const network =
+  localStorage.getItem('network') === 'mainnet'
+    ? WalletNetwork.PUBLIC
+    : WalletNetwork.TESTNET;
+```
+
+## Session Persistence
+
+Wallet connections are persisted in localStorage:
+
+```typescript
+// Stored keys
+localStorage.getItem('stellar_wallet_connected'); // 'true' | 'false'
+localStorage.getItem('stellar_wallet_id'); // wallet adapter ID
+localStorage.getItem('stellar_wallet_address'); // public key
+localStorage.getItem('stellar_wallet_name'); // display name
+```
+
+On page reload, the `WalletProvider` or `useStellarWallet` hook automatically reconnects if a previous session exists.
+
+## Wallet Event Handling
+
+### Connection Success
+
+```tsx
+const { connect } = useWallet();
+
+const handleConnect = async () => {
+  try {
+    await connect();
+    console.log('Wallet connected successfully');
+  } catch (error) {
+    console.error('Connection failed:', error);
+  }
+};
+```
+
+### Disconnection
+
+```tsx
+const { disconnect } = useWallet();
+
+const handleDisconnect = () => {
+  disconnect();
+  // localStorage is cleared automatically
+};
+```
+
+## Testing Without a Wallet
+
+For development, you can use the `signAndSubmitWithSecret` methods available on payment hooks:
+
+> [!CAUTION]
+> This is for development/testing only. Never use secret keys in production.
+
+```tsx
+const { signAndSubmitWithSecret } = useStellarPayment();
+
+// DEV ONLY
+const result = await signAndSubmitWithSecret({
+  from: 'GABC...',
+  to: 'GDEF...',
+  amount: '10',
+  secret: 'SABC...', // Never do this in production!
+});
+```
+
+## Common Issues
+
+### Wallet Not Detected
+
+If a wallet extension isn't detected:
+
+1. Ensure the extension is installed
+2. Refresh the page after installation
+3. Check that the extension is enabled for the current site
+
+### Transaction Rejected
+
+If transactions are being rejected:
+
+1. Verify the user has sufficient XLM for fees
+2. Check that trustlines exist for custom assets
+3. Ensure the correct network is selected in the wallet
+
+### Connection Lost
+
+If the connection is lost unexpectedly:
+
+1. The wallet extension may have been disabled
+2. The user may have disconnected from the wallet side
+3. Clear localStorage and reconnect
+
+## Related
+
+- [WalletProvider](/docs/hooks/wallet-provider) - Global wallet context
+- [useStellarWallet](/docs/hooks/use-stellar-wallet) - Wallet connection hook
+- [WalletConnectButton](/docs/hooks/wallet-connect-button) - Pre-built UI component

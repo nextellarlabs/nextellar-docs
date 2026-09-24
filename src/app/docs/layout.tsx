@@ -25,6 +25,7 @@ import Header from '@/components/header';
 import { ModeToggle } from '@/components/mode-toggle';
 import { Button } from '@/components/button';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { VersionSwitcher } from '@/components/version-switcher';
 
 export default function DocsLayout({
   children,
@@ -127,6 +128,7 @@ export default function DocsLayout({
               </h1>
             </div>
             <div className="flex gap-1 md:gap-2 items-center shrink-0">
+              <VersionSwitcher />
               <SearchDialog searchData={allDocs} />
               <ModeToggle />
               <Button

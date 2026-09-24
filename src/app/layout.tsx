@@ -1,39 +1,9 @@
-import { Inter } from 'next/font/google';
-import './globals.css';
-import { ThemeProvider } from '@/components/theme-provider';
-import { Metadata } from 'next';
-import { meta } from '../../config/meta';
+import { ReactNode } from 'react';
 
-const interSans = Inter({
-  variable: '--font-inter-sans',
-  subsets: ['latin'],
-  weight: ['400', '500', '600'],
-});
-
-export const metadata: Metadata = meta;
-
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
-  return (
-    <html lang="en" suppressHydrationWarning>
-      <body
-        className={`
-          ${interSans.className}
-          text-sm
-          font-regular tracking-wide antialiased`}
-      >
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          {children}
-        </ThemeProvider>
-      </body>
-    </html>
-  );
+/**
+ * Root layout - minimal wrapper for locale routing
+ * The actual layout with styles is in [locale]/layout.tsx
+ */
+export default function RootLayout({ children }: { children: ReactNode }) {
+  return children;
 }

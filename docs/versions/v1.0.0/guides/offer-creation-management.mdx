@@ -1,0 +1,178 @@
+---
+title: Creating and Managing DEX Offers
+description: Create, update, and cancel offers on Stellar's built-in decentralized exchange, including how offer pricing works and a small end-to-end example.
+date: 2026-07-28
+---
+
+# Creating and Managing DEX Offers
+
+Stellar's ledger includes a built-in decentralized exchange (DEX): any account can post a limit offer to buy or sell one asset for another, and the network matches it against the order book automatically. Offers are created, updated, and cancelled with the same operation — `manageSellOffer` (or `manageBuyOffer`) — by changing the `offerId` and `amount` you pass in. This guide covers all three, plus how offer pricing works.
+
+For reading order book state (bids, asks, spread), see [useOfferBook](/docs/hooks/use-offer-book).
+
+---
+
+## Creating an offer
+
+Pass `offerId: '0'` to create a new offer. `selling`/`buying` set the trading pair, `amount` is how much of `selling` you're offering, and `price` is the exchange rate.
+
+```typescript
+import {
+  TransactionBuilder,
+  Operation,
+  Asset,
+  Networks,
+} from '@stellar/stellar-sdk';
+
+const sourceAccount = await horizon.loadAccount(publicKey);
+
+const transaction = new TransactionBuilder(sourceAccount, {
+  fee: '100',
+  networkPassphrase: Networks.TESTNET,
+})
+  .addOperation(
+    Operation.manageSellOffer({
+      selling: Asset.native(),
+      buying: new Asset(
+        'USDC',
+        'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN'
+      ),
+      amount: '100', // sell up to 100 XLM
+      price: '0.10', // 0.10 USDC per XLM
+      offerId: '0', // 0 = create a new offer
+    })
+  )
+  .setTimeout(30)
+  .build();
+```
+
+If the offer's price immediately crosses an existing offer on the other side of the book, it fills (fully or partially) instead of resting on the ledger — creating an offer is also how you take an existing one.
+
+An open offer holds part of the account's [minimum balance reserve](/docs/guides/glossary), same as a trustline, until it's filled or cancelled.
+
+## Updating an offer
+
+Reuse the same operation with the existing `offerId` and a new `amount` and/or `price`. Stellar has no separate "update" operation — changing an offer is replacing it in place.
+
+```typescript
+Operation.manageSellOffer({
+  selling: Asset.native(),
+  buying: new Asset(
+    'USDC',
+    'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN'
+  ),
+  amount: '150', // revised amount
+  price: '0.12', // revised price
+  offerId: existingOfferId, // must match a live offer you own
+});
+```
+
+## Cancelling an offer
+
+Set `amount: '0'` on the existing `offerId`. The offer is removed from the book and its reserve is released.
+
+```typescript
+Operation.manageSellOffer({
+  selling: Asset.native(),
+  buying: new Asset(
+    'USDC',
+    'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN'
+  ),
+  amount: '0',
+  price: '0.12', // price is ignored when amount is 0, but still required by the SDK
+  offerId: existingOfferId,
+});
+```
+
+## Pricing semantics
+
+- For `manageSellOffer`, `price` is the price of **1 unit of `selling` in terms of `buying`** — how much `buying` you receive per unit of `selling`.
+- For `manageBuyOffer`, `price` is the price of **1 unit of `buying` in terms of `selling`** — how much `selling` you pay per unit of `buying`.
+- `price` accepts a decimal string (`'0.10'`) or an explicit rational `{ n, d }` (`{ n: 1, d: 10 }`). Use the rational form when a repeating decimal would otherwise round (e.g. a `1/3` price).
+- Offers rest at their given price and are matched against better-or-equal offers on the opposite side first, so a newly created offer can fill immediately rather than resting.
+
+## Finding an offer's ID
+
+`manageSellOffer` doesn't return the created `offerId` directly in the built transaction — look it up from Horizon after submission:
+
+```typescript
+const { records } = await horizon
+  .offers()
+  .forAccount(publicKey)
+  .order('desc')
+  .limit(1)
+  .call();
+
+const offerId = records[0]?.id;
+```
+
+## Small example: full lifecycle
+
+```typescript
+async function manageOffer(
+  horizon: Server,
+  sourceAccount: Account,
+  offerId: string
+) {
+  const usdc = new Asset(
+    'USDC',
+    'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN'
+  );
+
+  const buildAndSubmit = (op: ReturnType<typeof Operation.manageSellOffer>) =>
+    horizon.submitTransaction(
+      new TransactionBuilder(sourceAccount, {
+        fee: '100',
+        networkPassphrase: Networks.TESTNET,
+      })
+        .addOperation(op)
+        .setTimeout(30)
+        .build()
+    );
+
+  // 1. Create
+  await buildAndSubmit(
+    Operation.manageSellOffer({
+      selling: Asset.native(),
+      buying: usdc,
+      amount: '100',
+      price: '0.10',
+      offerId: '0',
+    })
+  );
+
+  // 2. Update price
+  await buildAndSubmit(
+    Operation.manageSellOffer({
+      selling: Asset.native(),
+      buying: usdc,
+      amount: '100',
+      price: '0.12',
+      offerId,
+    })
+  );
+
+  // 3. Cancel
+  await buildAndSubmit(
+    Operation.manageSellOffer({
+      selling: Asset.native(),
+      buying: usdc,
+      amount: '0',
+      price: '0.12',
+      offerId,
+    })
+  );
+}
+```
+
+Each step must be signed and submitted as its own transaction; the account's sequence number must be reloaded between submissions.
+
+---
+
+## Related docs
+
+- [useOfferBook](/docs/hooks/use-offer-book) — query order books and trading pairs
+- [useTrustlines](/docs/hooks/use-trustlines) — a trustline is required before offering or receiving a non-native asset
+- [Horizon vs Soroban RPC](/docs/guides/horizon-vs-soroban-rpc) — the DEX and order book are Horizon-only; Soroban RPC has no order book API
+- [Transaction Lifecycle](/docs/guides/transaction-lifecycle) — build, sign, submit, and confirm walkthrough
+- [Glossary](/docs/guides/glossary) — reserve, trustline, and DEX terminology

@@ -1,0 +1,186 @@
+---
+title: Bug Bounty Program Tutorial
+description: 'Launch a responsible disclosure program for your Stellar dApp — covering scope, payouts, reporting, and a starter template.'
+date: 2026-08-26
+---
+
+# Bug Bounty Program Tutorial
+
+Smart contracts deployed on Stellar are immutable. A bug discovered after deployment cannot be patched with a server-side hotfix — it may require a contract migration or, in the worst case, result in permanent fund loss. A bug bounty program incentivises the security community to find and report vulnerabilities before malicious actors can exploit them.
+
+This tutorial covers how to define scope, set payout tiers, establish reporting channels, and provides a program-rules template you can adapt for your dApp.
+
+## Why Run a Bug Bounty?
+
+- **Prevention over remediation** — on a public blockchain, you cannot silently patch a vulnerability. Early disclosure gives you time to migrate or warn users.
+- **Community trust** — a transparent bounty program signals that you take security seriously, which matters to users and institutional partners.
+- **Cost efficiency** — paying a bounty for a critical find is almost always cheaper than the cost of a hack.
+
+## Step 1 — Define Your Scope
+
+A clearly scoped program attracts focused, high-quality reports and prevents researchers from wasting time on assets you do not control.
+
+### In-Scope Assets
+
+| Asset | Notes |
+| --- | --- |
+| Stellar smart contracts (Soroban) | All contract addresses listed at `[your-site]/security` |
+| Backend API | `api.[your-domain].com` — authenticated endpoints only |
+| Web frontend | `[your-domain].com` — XSS, CSRF, auth bypass |
+| Stellar transaction construction | Logic errors in XDR building |
+
+### Out-of-Scope
+
+- Third-party services (Stellar network, Horizon, Freighter wallet)
+- Social engineering attacks against your team
+- Denial-of-service attacks that require large XLM balances
+- Known issues listed in your public audit reports
+- Issues that require physical access to a user's device
+- Findings in dependencies outside your control (report these upstream)
+
+### Clarifying the Boundary
+
+Add a note explaining that any finding affecting the **Stellar network itself** should be reported to the Stellar Development Foundation, not to your program.
+
+## Step 2 — Set Payout Tiers
+
+Map payouts to CVSS v3 severity scores so researchers know what to expect before they submit.
+
+| Severity | CVSS Score | Example Vulnerabilities | Payout Range |
+| --- | --- | --- | --- |
+| Critical | 9.0 – 10.0 | Direct fund drain, privilege escalation, total contract compromise | 5 000 – 50 000 XLM |
+| High | 7.0 – 8.9 | Partial fund drain, bypass of key access controls | 1 000 – 5 000 XLM |
+| Medium | 4.0 – 6.9 | Logic errors that cause incorrect state, denial-of-service against a single user | 100 – 1 000 XLM |
+| Low | 0.1 – 3.9 | Minor information disclosure, non-exploitable misconfigurations | 10 – 100 XLM |
+| Informational | N/A | Best-practice recommendations, no direct security impact | None (acknowledgement only) |
+
+### Payout Considerations
+
+- Pay in XLM or stablecoins (USDC on Stellar) so payouts are on-chain and verifiable.
+- Reserve the right to adjust payout within the tier based on exploitability and impact.
+- State whether payouts are subject to KYC or tax reporting requirements in your jurisdiction.
+
+## Step 3 — Establish Reporting Channels
+
+Researchers need a clear, confidential channel to submit reports.
+
+### Recommended Channels
+
+**GitHub Security Advisories (preferred)**
+
+Enable private vulnerability reporting in your repository settings. Researchers can submit a report without publicly disclosing the vulnerability. You can communicate privately until a fix or mitigation is in place.
+
+**Dedicated security email**
+
+Set up `security@[your-domain].com` and configure GPG encryption so researchers can send sensitive details securely. Publish your GPG public key at `[your-domain]/.well-known/security.txt`.
+
+**security.txt**
+
+Add a `public/security.txt` (or `.well-known/security.txt`) to your site:
+
+```txt
+Contact: mailto:security@[your-domain].com
+Encryption: https://[your-domain]/pgp-key.txt
+Acknowledgments: https://[your-domain]/security/hall-of-fame
+Scope: https://[your-domain]/security/scope
+Preferred-Languages: en
+```
+
+### Response SLAs
+
+Set expectations for how quickly you will respond:
+
+| Milestone | Target |
+| --- | --- |
+| Initial acknowledgement | 2 business days |
+| Triage and severity assessment | 7 business days |
+| Status update to researcher | Every 14 days |
+| Payout after fix / mitigation | 30 days |
+
+## Step 4 — Publish and Maintain the Program
+
+1. **Publish a `/security` page** on your site with your program rules, scope, and contact information.
+2. **Keep audit reports public** and link them from your security page. Researchers need to know what has already been audited.
+3. **Maintain a hall of fame** — acknowledge researchers who report valid findings (with their consent).
+4. **Review scope periodically** — update in-scope assets as you deploy new contracts or add features.
+
+## Program Rules Template
+
+```markdown
+# [DAPP NAME] Bug Bounty Program
+
+**Effective date:** [DATE]
+**Contact:** security@[your-domain].com
+**Response target:** 2 business days for acknowledgement
+
+---
+
+## Scope
+
+### In Scope
+
+- Soroban smart contracts deployed at addresses listed on our security page
+- Backend API at api.[your-domain].com
+- Web frontend at [your-domain].com
+
+### Out of Scope
+
+- The Stellar network and Horizon API (report to the SDF)
+- Social engineering
+- Denial-of-service requiring significant resources
+- Findings in unmodified third-party libraries
+
+---
+
+## Payout Tiers
+
+| Severity | Payout |
+| --- | --- |
+| Critical (CVSS 9–10) | [AMOUNT] XLM |
+| High (CVSS 7–8.9) | [AMOUNT] XLM |
+| Medium (CVSS 4–6.9) | [AMOUNT] XLM |
+| Low (CVSS 0.1–3.9) | [AMOUNT] XLM |
+
+Payouts are made in XLM to the Stellar address you provide. Amounts within
+each tier are determined at our discretion based on exploitability and impact.
+
+---
+
+## Reporting
+
+Submit reports via GitHub Security Advisories or by email to
+security@[your-domain].com. Encrypt sensitive reports with our PGP key
+published at [your-domain]/pgp-key.txt.
+
+Please include:
+1. A description of the vulnerability and affected component
+2. Step-by-step reproduction instructions or a proof-of-concept
+3. CVSS score and vector string (if known)
+4. Your Stellar public key for payout
+
+---
+
+## Rules of Engagement
+
+- Do not access, modify, or delete data belonging to other users.
+- Do not perform denial-of-service attacks.
+- Do not publicly disclose a finding before we have confirmed a fix or
+  mitigation (90-day disclosure deadline applies).
+- Test only against Testnet accounts you control; never use Mainnet.
+
+---
+
+## Safe Harbour
+
+We will not pursue legal action against researchers who:
+- Act in good faith and follow these program rules.
+- Report findings promptly and confidentially.
+- Do not exploit a vulnerability beyond what is necessary to demonstrate it.
+
+---
+
+## Hall of Fame
+
+We publicly thank researchers who report valid findings (with their consent)
+at [your-domain]/security/hall-of-fame.
+```

@@ -1,0 +1,318 @@
+---
+title: Recommended Editor Setup
+description: Optimize your development environment for contributing to Nextellar documentation with recommended extensions and configurations.
+date: 2026-06-02
+---
+
+# Recommended Editor Setup
+
+This guide provides recommended editor configurations and extensions to enhance your experience when contributing to Nextellar documentation.
+
+> **Note**: These recommendations are optional but will significantly improve your development workflow and help maintain code quality standards.
+
+## Visual Studio Code (Recommended)
+
+VS Code is the recommended editor for Nextellar documentation development due to its excellent TypeScript, MDX, and Next.js support.
+
+### Essential Extensions
+
+**Code Quality & Formatting**
+
+- **[ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint)**: Real-time linting and error detection
+- **[Prettier](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode)**: Automatic code formatting on save
+- **[Code Spell Checker](https://marketplace.visualstudio.com/items?itemName=streetsidesoftware.code-spell-checker)**: Catch typos in documentation
+
+**Language Support**
+
+- **[MDX](https://marketplace.visualstudio.com/items?itemName=unifiedjs.vscode-mdx)**: Syntax highlighting and IntelliSense for MDX files
+- **[TypeScript Importer](https://marketplace.visualstudio.com/items?itemName=pmneo.tsimporter)**: Auto-import TypeScript modules
+- **[Path Intellisense](https://marketplace.visualstudio.com/items?itemName=christian-kohler.path-intellisense)**: Autocomplete for file paths
+
+**Styling & UI**
+
+- **[Tailwind CSS IntelliSense](https://marketplace.visualstudio.com/items?itemName=bradlc.vscode-tailwindcss)**: Autocomplete and hover info for Tailwind classes
+- **[CSS Peek](https://marketplace.visualstudio.com/items?itemName=pranaygp.vscode-css-peek)**: Navigate to CSS definitions
+
+**Git & Collaboration**
+
+- **[GitLens](https://marketplace.visualstudio.com/items?itemName=eamodio.gitlens)**: Enhanced Git capabilities
+- **[GitHub Pull Requests](https://marketplace.visualstudio.com/items?itemName=GitHub.vscode-pull-request-github)**: Manage PRs from VS Code
+
+### Workspace Settings
+
+Create or update `.vscode/settings.json` in the project root:
+
+```json
+{
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+  "files.associations": {
+    "*.mdx": "mdx"
+  },
+  "emmet.includeLanguages": {
+    "mdx": "html"
+  },
+  "tailwindCSS.includeLanguages": {
+    "mdx": "html"
+  },
+  "mdx.validate.enabled": true,
+  "typescript.preferences.importModuleSpecifier": "relative",
+  "editor.rulers": [80, 120],
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true
+}
+```
+
+### Recommended Keybindings
+
+Add to your `keybindings.json`:
+
+```json
+[
+  {
+    "key": "ctrl+shift+f",
+    "command": "prettier.forceFormatDocument"
+  },
+  {
+    "key": "ctrl+shift+l",
+    "command": "eslint.executeAutofix"
+  }
+]
+```
+
+## Alternative Editors
+
+### WebStorm / IntelliJ IDEA
+
+**Plugins**
+
+- **Prettier**: Built-in formatting support
+- **ESLint**: Built-in linting integration
+- **MDX**: Syntax highlighting for MDX files
+- **Tailwind CSS**: Autocomplete and validation
+
+**Configuration**
+
+```javascript
+// .idea/prettier.xml
+<component name="PrettierConfiguration">
+  <option name="myRunOnSave" value="true" />
+  <option name="myFilesPattern" value="{**/*,*}.{js,ts,jsx,tsx,mdx,json,css}" />
+</component>
+```
+
+### Vim/Neovim
+
+**Essential Plugins**
+
+```lua
+-- Using lazy.nvim
+{
+  'neovim/nvim-lspconfig',
+  'jose-elias-alvarez/null-ls.nvim',
+  'davidmh/mdx.nvim',
+  'nvim-treesitter/nvim-treesitter'
+}
+```
+
+**Configuration Example**
+
+```lua
+-- LSP setup for TypeScript and ESLint
+require('lspconfig').tsserver.setup{}
+require('lspconfig').eslint.setup{}
+
+-- Auto-format on save
+vim.api.nvim_create_autocmd("BufWritePre", {
+  pattern = "*.{js,ts,jsx,tsx,mdx}",
+  callback = function()
+    vim.lsp.buf.format()
+  end,
+})
+```
+
+### Sublime Text
+
+**Packages**
+
+- **LSP**: Language Server Protocol support
+- **Prettier**: Code formatting
+- **MDX**: Syntax highlighting
+- **SublimeLinter-eslint**: ESLint integration
+
+## Editor Configuration Files
+
+The project includes several configuration files that your editor should automatically detect:
+
+### Prettier Configuration
+
+```json
+// .prettierrc
+{
+  "semi": true,
+  "trailingComma": "es5",
+  "singleQuote": true,
+  "printWidth": 80,
+  "tabWidth": 2,
+  "useTabs": false
+}
+```
+
+### ESLint Configuration
+
+```javascript
+// eslint.config.mjs
+export default [
+  {
+    files: ['**/*.{js,jsx,ts,tsx,mdx}'],
+    rules: {
+      'no-unused-vars': 'warn',
+      'prefer-const': 'error',
+    },
+  },
+];
+```
+
+### EditorConfig
+
+```ini
+# .editorconfig
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+```
+
+## Development Workflow Integration
+
+### Format on Save
+
+Ensure your editor is configured to:
+
+- Run Prettier formatting on save.
+- Apply ESLint auto-fixes on save.
+- Trim trailing whitespace.
+- Insert final newline.
+
+### Live Validation
+
+Your editor should provide:
+
+- Real-time TypeScript error checking
+- ESLint rule violations highlighting
+- Spell checking for documentation
+- Broken link detection (with appropriate extensions)
+
+### Git Integration
+
+Recommended git workflow features:
+
+- Inline blame annotations
+- Diff viewing in editor
+- Commit message templates
+- Pre-commit hook integration
+
+## Troubleshooting
+
+### Common Issues
+
+**Prettier not formatting MDX files**
+
+```json
+// Add to VS Code settings.json
+{
+  "prettier.documentSelectors": ["**/*.mdx"]
+}
+```
+
+**ESLint not working with MDX**
+
+```javascript
+// eslint.config.mjs
+export default [
+  {
+    files: ['**/*.mdx'],
+    processor: '@mdx-js/eslint/processor',
+  },
+];
+```
+
+**Tailwind classes not autocompleting**
+
+```json
+// VS Code settings.json
+{
+  "tailwindCSS.includeLanguages": {
+    "mdx": "html"
+  },
+  "tailwindCSS.classAttributes": ["class", "className"]
+}
+```
+
+### Performance Optimization
+
+**Large Project Performance**
+
+- Exclude `node_modules` from file watching
+- Disable unused language features
+- Use workspace-specific settings.
+- Configure appropriate file associations.
+
+```json
+{
+  "files.watcherExclude": {
+    "**/node_modules/**": true,
+    "**/.git/**": true,
+    "**/dist/**": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/dist": true
+  }
+}
+```
+
+## Validation Commands
+
+Before submitting contributions, run these commands to ensure quality:
+
+```bash
+# Format all files
+pnpm format
+
+# Check formatting
+pnpm format:check
+
+# Lint code
+pnpm lint
+
+# Build content
+pnpm build:content
+
+# Validate links
+pnpm check:links
+```
+
+## Getting Help
+
+If you encounter issues with your editor setup:
+
+1. **Check Extension Logs**: Most editors provide extension-specific logs
+2. **Verify Configuration**: Ensure config files are in the correct locations
+3. **Restart Language Server**: Reload the TypeScript/ESLint language server
+4. **Community Support**: Ask in the [Nextellar Discussions](https://github.com/nextellarlabs/nextellar/discussions)
+
+---
+
+**Remember**: A well-configured editor significantly improves productivity and helps maintain consistent code quality across the project. Take time to set up these tools properly!

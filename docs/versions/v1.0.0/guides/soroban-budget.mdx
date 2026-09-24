@@ -1,0 +1,23 @@
+---
+title: Soroban Budget and Resource Fees
+description: Understanding the resource budget and fee structure in Soroban.
+---
+
+# Soroban Budget and Resource Fees
+
+Soroban enforces a resource budget to ensure that smart contract execution is predictable and affordable. 
+The network limits resources such as CPU instructions, RAM, and ledger reads/writes per transaction.
+
+## Resource Categories
+
+- **Instructions**: CPU operations performed by the contract.
+- **Read Bytes**: The amount of data read from the ledger.
+- **Write Bytes**: The amount of data written to the ledger.
+- **Read Ledger Entries**: The number of entries accessed.
+- **Write Ledger Entries**: The number of entries modified or created.
+
+## Fee Structure
+
+Fees in Soroban are dynamically adjusted based on network demand but are calculated using the resource metrics. Each resource type has a predefined base fee rate.
+
+To estimate your contract's resource usage, you can use the `simulateTransaction` endpoint before submitting a transaction to the network.

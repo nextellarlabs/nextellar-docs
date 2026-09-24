@@ -1,0 +1,215 @@
+---
+title: Mock Horizon Reference Guide
+description: 'Use a local mock Horizon server for deterministic, offline Stellar dApp development and testing.'
+date: 2026-08-26
+---
+
+# Mock Horizon Reference Guide
+
+Running your dApp against the live Stellar Testnet works for manual checks, but CI pipelines need reproducible, offline responses. A mock Horizon server replaces the real HTTP API with a local process that returns pre-seeded fixture data so your tests never depend on network availability or shared testnet state.
+
+## Why Use a Mock Server?
+
+| Concern | Live Testnet | Mock Horizon |
+| --- | --- | --- |
+| Network required | Yes | No |
+| Deterministic responses | No | Yes |
+| Test isolation | Shared global state | Per-run fixture |
+| Speed | 200–2 000 ms | < 5 ms |
+| Friendbot rate limits | Yes | No |
+
+## Endpoint Fidelity
+
+A typical mock Horizon implementation covers the endpoints that Nextellar and the Stellar SDK call most often. The table below lists common endpoints and their mock support level.
+
+### Fully Supported
+
+| Endpoint | Method | Notes |
+| --- | --- | --- |
+| `/accounts/{account_id}` | GET | Returns seeded account, balances, sequence number |
+| `/transactions` | POST | Accepts signed XDR; records it in in-memory ledger |
+| `/transactions/{hash}` | GET | Returns transaction by hash |
+| `/accounts/{id}/transactions` | GET | Returns transactions for account |
+| `/accounts/{id}/payments` | GET | Filters transaction list to payment operations |
+| `/fee_stats` | GET | Returns configurable fee stats |
+| `/ledgers/latest` | GET | Returns current mock ledger sequence |
+
+### Partially Supported
+
+| Endpoint | Limitation |
+| --- | --- |
+| `/order_book` | Static snapshot only — no live matching |
+| `/paths` | Returns a single static path; no real pathfinding |
+| `/offers` | Read-only; offer creation not reflected in order book |
+
+### Not Supported
+
+- `/claimable_balances` — return 404 in most mocks
+- Real-time SSE streams (`/accounts/{id}/transactions?stream=true`)
+- Multi-horizon federation queries
+
+If your dApp uses unsupported endpoints, add a `jest.fn()` override or intercept the request with `msw` (see [Working Sample](#working-sample) below).
+
+## Fixture Management
+
+Fixtures define the initial on-chain state your tests assume. Good fixture management means each test suite starts from a known baseline and cleans up after itself.
+
+### Seeding Accounts
+
+Create a fixture file that declares the accounts and balances the mock server should return:
+
+```json
+// fixtures/accounts.json
+[
+  {
+    "account_id": "GABC...XYZ",
+    "sequence": "1000",
+    "balances": [
+      { "asset_type": "native", "balance": "10000.0000000" }
+    ],
+    "thresholds": { "low_threshold": 0, "med_threshold": 0, "high_threshold": 0 },
+    "flags": { "auth_required": false, "auth_revocable": false }
+  }
+]
+```
+
+Load this file when the mock server starts:
+
+```ts
+import { createMockHorizon } from '@stellar-mock/horizon';
+import accounts from './fixtures/accounts.json';
+
+const mock = createMockHorizon({ port: 8000 });
+mock.seed({ accounts });
+await mock.start();
+```
+
+### Seeding Transactions
+
+```ts
+mock.seed({
+  accounts,
+  transactions: [
+    {
+      hash: 'abc123...',
+      source_account: 'GABC...XYZ',
+      created_at: '2026-01-01T00:00:00Z',
+      envelope_xdr: '<base64-xdr>',
+    },
+  ],
+});
+```
+
+### Resetting State Between Tests
+
+Call `mock.reset()` in your test framework's `afterEach` / `afterAll` hook to restore the server to its seeded state:
+
+```ts
+afterEach(() => mock.reset());
+afterAll(() => mock.stop());
+```
+
+This prevents one test's submitted transactions from polluting the next test's expectations.
+
+## Working Sample
+
+The following example uses `msw` (Mock Service Worker / Node) to intercept Horizon calls in a Jest/Vitest environment. No separate server process is needed.
+
+### Install dependencies
+
+```bash
+pnpm add -D msw @stellar/stellar-sdk
+```
+
+### Set up the handler
+
+```ts
+// tests/mocks/horizon.ts
+import { http, HttpResponse } from 'msw';
+
+export const horizonHandlers = [
+  http.get('https://horizon-testnet.stellar.org/accounts/:id', ({ params }) => {
+    return HttpResponse.json({
+      account_id: params.id,
+      sequence: '1000',
+      balances: [{ asset_type: 'native', balance: '10000.0000000' }],
+    });
+  }),
+
+  http.get('https://horizon-testnet.stellar.org/fee_stats', () => {
+    return HttpResponse.json({
+      last_ledger_base_fee: '100',
+      fee_charged: { p50: '100', p99: '1000' },
+    });
+  }),
+];
+```
+
+### Configure the test server
+
+```ts
+// tests/setup.ts
+import { setupServer } from 'msw/node';
+import { horizonHandlers } from './mocks/horizon';
+
+export const server = setupServer(...horizonHandlers);
+
+beforeAll(() => server.listen({ onUnhandledRequest: 'warn' }));
+afterEach(() => server.resetHandlers());
+afterAll(() => server.close());
+```
+
+### Write a test
+
+```ts
+import { Horizon } from '@stellar/stellar-sdk';
+
+const horizonServer = new Horizon.Server(
+  'https://horizon-testnet.stellar.org'
+);
+
+test('fetches account balance', async () => {
+  const account = await horizonServer.loadAccount(
+    'GABC...XYZ'
+  );
+  expect(account.balances[0].balance).toBe('10000.0000000');
+});
+```
+
+### Override a handler for a single test
+
+```ts
+import { http, HttpResponse } from 'msw';
+
+test('handles account not found', async () => {
+  server.use(
+    http.get('https://horizon-testnet.stellar.org/accounts/:id', () => {
+      return HttpResponse.json({ type: 'not_found' }, { status: 404 });
+    })
+  );
+
+  await expect(
+    horizonServer.loadAccount('GNOT...FOUND')
+  ).rejects.toThrow();
+});
+```
+
+## Configuring the SDK to Use a Local Server
+
+If you prefer a real local mock process (e.g. `stellar-mock-horizon` npm package), point the SDK at it:
+
+```ts
+import { Horizon } from '@stellar/stellar-sdk';
+
+const horizonServer = new Horizon.Server('http://localhost:8000', {
+  allowHttp: true, // required for non-HTTPS local server
+});
+```
+
+Set `HORIZON_URL=http://localhost:8000` in your `.env.test` so Nextellar hooks pick it up automatically.
+
+## Known Limitations
+
+- **Sequence number management** — mock servers auto-increment the sequence number on each POST but do not validate XDR signatures by default. Add signature validation only if your tests exercise auth logic.
+- **Streaming endpoints** — SSE is not supported by `msw`. Use polling or skip stream-specific tests in CI.
+- **Claimable balances and DEX** — stub these endpoints manually if your dApp uses them.

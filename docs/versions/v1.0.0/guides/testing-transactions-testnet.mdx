@@ -1,0 +1,102 @@
+---
+title: Testing Transactions on Testnet
+description: A practical flow for funding testnet accounts, verifying transactions, and running a pre-mainnet smoke test before switching a Nextellar app to production.
+date: 2026-07-28
+---
+
+# Testing Transactions on Testnet
+
+Testnet runs the same protocol and SDK as mainnet, so it's the best place to exercise a full transaction flow — funding, building, signing, submitting, confirming — before pointing a Nextellar app at real funds. This guide covers funding and verifying testnet transactions, a smoke test checklist to run before switching, and the environment variables involved.
+
+This guide is about exercising real testnet transactions end to end. For mocking Horizon/Soroban and unit-testing hooks locally, see [Testing Horizon and Soroban Interactions](/docs/guides/testing-horizon-soroban) instead.
+
+---
+
+## 1. Point your app at testnet
+
+Nextellar apps read network configuration from environment variables — see the [Environment Options Reference](/docs/cli/environment-options) for the full list and [Network Switching](/docs/cli/configuration#network-switching) for the switch procedure. The testnet defaults:
+
+```bash
+# .env.local
+NEXT_PUBLIC_HORIZON_URL=https://horizon-testnet.stellar.org
+NEXT_PUBLIC_SOROBAN_RPC=https://soroban-testnet.stellar.org
+NEXT_PUBLIC_NETWORK=TESTNET
+```
+
+Horizon, Soroban RPC, and `NEXT_PUBLIC_NETWORK` must all agree — a testnet Horizon URL paired with a `PUBLIC` network passphrase produces `tx_bad_auth` on every submission, since the signed transaction's network passphrase won't match what the server expects.
+
+## 2. Fund a testnet account with Friendbot
+
+Testnet accounts don't exist on the ledger until they're funded. Friendbot creates the account and sends it test XLM in one call:
+
+```bash
+curl "https://friendbot.stellar.org/?addr=<PUBLIC_KEY>"
+```
+
+Or from a script:
+
+```typescript
+async function fundTestnetAccount(publicKey: string) {
+  const res = await fetch(`https://friendbot.stellar.org/?addr=${publicKey}`);
+  if (!res.ok) throw new Error('Friendbot funding failed');
+}
+```
+
+## 3. Verify the account before transacting
+
+Confirm the account funded successfully and read its current sequence number before building a transaction — a stale sequence number is the most common cause of `tx_bad_seq` in testnet runs.
+
+```typescript
+const { balances } = useStellarBalances(publicKey);
+// or directly:
+const account = await horizon.loadAccount(publicKey);
+console.log(account.balances, account.sequenceNumber());
+```
+
+## 4. Build, sign, submit, and confirm
+
+Use [`useStellarPayment`](/docs/hooks/use-stellar-payment) (or the raw SDK, per [Transaction Lifecycle](/docs/guides/transaction-lifecycle)) to run a payment through the full flow, then verify it lands in history:
+
+```typescript
+const { buildPaymentXDR, submitSignedXDR } = useStellarPayment();
+
+const xdr = await buildPaymentXDR({ from, to, amount: '10', asset: 'XLM' });
+const signedXdr = await wallet.signTransaction(xdr);
+const result = await submitSignedXDR(signedXdr);
+
+if (result.success) {
+  console.log('Confirmed:', result.txHash);
+}
+```
+
+Cross-check the hash against Horizon directly, or with [`useTransactionHistory`](/docs/hooks/use-transaction-history), to confirm it's visible outside your own app state.
+
+---
+
+## Smoke test checklist
+
+Run through this before switching an app from testnet to mainnet:
+
+- [ ] Account funds successfully via Friendbot and the new balance is visible from Horizon within one ledger close (~5s)
+- [ ] A native XLM payment builds, signs, and submits successfully, and appears in transaction history
+- [ ] Trustline creation succeeds for every custom asset the app uses
+- [ ] A custom-asset payment succeeds once trusted, and fails with a readable error if the trustline is missing
+- [ ] Any Soroban contract calls simulate successfully before signing, and the invocation confirms via `getTransaction`
+- [ ] A wallet-rejected (declined) signature is handled without leaving the UI stuck in a loading state
+- [ ] An intentionally bad transaction (stale sequence number, insufficient balance) surfaces a readable error instead of crashing
+- [ ] The app's network indicator matches reality — correct passphrase, correct Horizon/Soroban URLs, no requests leaking to the other network
+
+## Switching to mainnet
+
+Once the checklist passes, flip the environment variables per [Network Switching](/docs/cli/configuration#network-switching). Testnet's fee market and ledger load don't mirror mainnet, so re-run at least the payment smoke test on mainnet with a small real-value transaction before considering the switch complete.
+
+---
+
+## Related docs
+
+- [Environment Options Reference](/docs/cli/environment-options) — full variable list, defaults, and valid values
+- [CLI Configuration — Network Switching](/docs/cli/configuration#network-switching) — switching between testnet and mainnet
+- [Transaction Lifecycle](/docs/guides/transaction-lifecycle) — build → sign → submit → confirm walkthrough
+- [Testing Horizon and Soroban Interactions](/docs/guides/testing-horizon-soroban) — mocking and unit-testing hooks locally
+- [Hook Error Handling](/docs/guides/hook-error-handling) — recovery patterns for submission failures
+- [Glossary](/docs/guides/glossary) — Friendbot, sequence number, and other key terms

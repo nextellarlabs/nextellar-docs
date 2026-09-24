@@ -1,0 +1,26 @@
+---
+title: Parsing Operation XDR
+description: Learn how to parse Stellar Operation XDR strings.
+---
+
+# Parsing Operation XDR
+
+Stellar transactions and operations are serialized into XDR (External Data Representation). When working with the Stellar network, you will often encounter base64 encoded XDR strings.
+
+## Using the Stellar SDK
+
+The easiest way to parse XDR is to use the official Stellar SDKs, which provide built-in decoders.
+
+### JavaScript Example
+
+```javascript
+import { xdr } from '@stellar/stellar-sdk';
+
+// A base64 encoded XDR string
+const xdrString = 'AAAAAQAAA...';
+
+const parsed = xdr.Operation.fromXDR(xdrString, 'base64');
+console.log(parsed);
+```
+
+This will convert the raw XDR bytes into a readable JSON-like object where you can inspect the operation type, source account, and parameters.

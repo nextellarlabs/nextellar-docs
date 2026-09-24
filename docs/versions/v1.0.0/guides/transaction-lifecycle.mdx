@@ -1,0 +1,363 @@
+---
+title: Transaction Lifecycle
+description: A complete walkthrough of a Stellar transaction from construction through ledger confirmation, with timing, error handling, and a worked TypeScript example.
+date: 2026-07-27
+---
+
+# Transaction Lifecycle
+
+Every change to Stellar network state — a payment, a trustline, a smart contract invocation — travels through four phases before it is permanent. Understanding each phase makes it easier to build reliable flows, handle errors in the right place, and know when it is safe to update your UI.
+
+```
+Build  →  Sign  →  Submit  →  Confirm
+```
+
+---
+
+## Phase 1 — Build
+
+Building a transaction means constructing an XDR envelope that describes exactly what should happen on-chain. The key inputs are:
+
+| Input | Why it matters |
+|---|---|
+| Source account | Determines which account's sequence number is consumed |
+| Sequence number | Must be exactly `current + 1`; fetched fresh from Horizon before building |
+| Operations | The actions to execute (payment, changeTrust, invokeHostFunction, etc.) |
+| Fee | Stroops per operation; higher fee improves inclusion during congestion |
+| Timeout | Seconds until the transaction is invalid; prevents stuck pending txs |
+| Network passphrase | Binds the transaction to testnet or mainnet; signing with the wrong network fails |
+
+```typescript
+import {
+  TransactionBuilder,
+  Networks,
+  Operation,
+  Asset,
+  Server,
+} from '@stellar/stellar-sdk';
+
+const server = new Server('https://horizon-testnet.stellar.org');
+
+// Always load a fresh account — sequence number must be current
+const sourceAccount = await server.loadAccount(senderPublicKey);
+
+const tx = new TransactionBuilder(sourceAccount, {
+  fee: '200',                          // stroops per operation
+  networkPassphrase: Networks.TESTNET,
+})
+  .addOperation(
+    Operation.payment({
+      destination: recipientPublicKey,
+      asset: Asset.native(),
+      amount: '10',
+    })
+  )
+  .setTimeout(30)                      // reject if not submitted within 30 s
+  .build();
+```
+
+### Sequence number rules
+
+The sequence number on the source account increments by one for each submitted transaction, regardless of whether it succeeded. If you build two transactions from the same loaded account object and submit them both, the second will fail with `tx_bad_seq` because the first already consumed the sequence slot.
+
+**Always reload the account before building a new transaction** if another transaction from the same source may have landed since the last load.
+
+### Timeout
+
+`setTimeout(30)` sets a `timeBounds.maxTime` 30 seconds in the future. Horizon rejects the transaction after that window. Use a tight timeout (15–30 seconds) for interactive flows so users are not left waiting on a transaction that will never land.
+
+---
+
+## Phase 2 — Sign
+
+A transaction is not valid until it carries the required signatures. Each operation's source account must sign, plus the envelope source account.
+
+### Single signer
+
+```typescript
+import { Keypair } from '@stellar/stellar-sdk';
+
+tx.sign(Keypair.fromSecret(senderSecret));
+```
+
+### Wallet signing (browser)
+
+In a browser app, never handle secret keys directly. Use a wallet extension to sign:
+
+```typescript
+// Freighter example
+import { signTransaction } from '@stellar/freighter-api';
+
+const signedXDR = await signTransaction(tx.toXDR(), {
+  networkPassphrase: Networks.TESTNET,
+});
+```
+
+The wallet returns a base64-encoded signed XDR string that can be decoded and submitted.
+
+### Multisig
+
+If the source account requires multiple signatures (threshold > weight of one key), collect signatures from each signer before submitting. Each signer calls `.sign()` on the same transaction object, or you collect XDR strings and merge them:
+
+```typescript
+tx.sign(signerAKeypair);
+tx.sign(signerBKeypair);
+// Both signatures are now in the envelope
+```
+
+> A transaction with missing signatures is not rejected at build time — it fails at submission with `tx_bad_auth`. Verify your account's signing requirements with `server.loadAccount()` before building.
+
+---
+
+## Phase 3 — Submit
+
+Submission sends the signed XDR to Horizon, which validates it and forwards it to a Stellar core node for inclusion in the next ledger.
+
+```typescript
+let result;
+try {
+  result = await server.submitTransaction(tx);
+  console.log('Included in ledger:', result.ledger);
+  console.log('Transaction hash:', result.hash);
+} catch (err: any) {
+  const codes = err.response?.data?.extras?.result_codes;
+  console.error('Transaction failed:', codes);
+}
+```
+
+### What Horizon returns on success
+
+```typescript
+{
+  hash: string;          // transaction hash — use this to look up the tx later
+  ledger: number;        // ledger sequence number the tx was included in
+  envelope_xdr: string;  // the signed envelope
+  result_xdr: string;    // encoded operation results
+  result_meta_xdr: string;
+}
+```
+
+### Submission is synchronous to inclusion
+
+`server.submitTransaction()` does **not** return until the transaction is either included in a ledger or rejected. You do not need to poll after a successful return — if it resolved without throwing, the transaction is already on-chain.
+
+### Common submission errors
+
+| Result code | Cause | Fix |
+|---|---|---|
+| `tx_bad_seq` | Sequence number mismatch | Reload account and rebuild |
+| `tx_bad_auth` | Missing or wrong signature | Check signing keys and thresholds |
+| `tx_insufficient_fee` | Fee too low during surge | Increase fee and resubmit |
+| `tx_too_late` | Submitted after `timeBounds.maxTime` | Rebuild with a fresh timeout |
+| `op_underfunded` | Sender balance too low | Verify balance before building |
+| `op_no_trust` | Recipient lacks trustline | Open trustline first |
+
+---
+
+## Phase 4 — Confirm
+
+Once Horizon returns a `ledger` number, the transaction is confirmed. Stellar ledgers close every **~5 seconds** — there is no concept of "waiting for more confirmations" as in proof-of-work chains. A transaction included in ledger N is final when ledger N closes.
+
+### Ledger close timing
+
+| Network | Average ledger close | Notes |
+|---|---|---|
+| Testnet | ~5 s | Can be slower under load |
+| Mainnet | ~5 s | SCP consensus; rarely varies |
+
+### Checking confirmation status
+
+If you need to verify a transaction after the fact (for example, after a page reload), fetch it by hash:
+
+```typescript
+const tx = await server.transactions()
+  .transaction(txHash)
+  .call();
+
+console.log('Successful:', tx.successful);
+console.log('Ledger:', tx.ledger);
+console.log('Created at:', tx.created_at);
+```
+
+### Streaming new transactions
+
+To watch for incoming transactions in real time without polling:
+
+```typescript
+server
+  .transactions()
+  .forAccount(recipientPublicKey)
+  .cursor('now')
+  .stream({
+    onmessage: (tx) => {
+      console.log('New transaction:', tx.hash);
+    },
+    onerror: (err) => {
+      console.error('Stream error:', err);
+    },
+  });
+```
+
+The stream reconnects automatically on transient errors. Close it when the component unmounts to avoid memory leaks.
+
+---
+
+## Worked example
+
+A complete end-to-end flow: build a payment, sign it with a keypair, submit it, and confirm:
+
+```typescript
+import {
+  Keypair,
+  Networks,
+  TransactionBuilder,
+  Operation,
+  Asset,
+  Server,
+} from '@stellar/stellar-sdk';
+import { useStellarPayment } from '@/hooks/useStellarPayment';
+
+const HORIZON = 'https://horizon-testnet.stellar.org';
+const server = new Server(HORIZON);
+
+async function sendAndConfirm(
+  senderSecret: string,
+  recipientPublicKey: string,
+  amount: string
+) {
+  const sender = Keypair.fromSecret(senderSecret);
+
+  // ── Phase 1: Build ──────────────────────────────────────────────────────
+  const sourceAccount = await server.loadAccount(sender.publicKey());
+
+  const tx = new TransactionBuilder(sourceAccount, {
+    fee: '200',
+    networkPassphrase: Networks.TESTNET,
+  })
+    .addOperation(
+      Operation.payment({
+        destination: recipientPublicKey,
+        asset: Asset.native(),
+        amount,
+      })
+    )
+    .setTimeout(30)
+    .build();
+
+  // ── Phase 2: Sign ───────────────────────────────────────────────────────
+  tx.sign(sender);
+
+  // ── Phase 3: Submit ─────────────────────────────────────────────────────
+  let result;
+  try {
+    result = await server.submitTransaction(tx);
+  } catch (err: any) {
+    const codes = err.response?.data?.extras?.result_codes;
+    throw new Error(`Submission failed: ${JSON.stringify(codes)}`);
+  }
+
+  // ── Phase 4: Confirm ────────────────────────────────────────────────────
+  // submitTransaction already waited for inclusion — result.ledger is set.
+  // Optionally verify the final state by fetching the transaction record:
+  const confirmed = await server.transactions()
+    .transaction(result.hash)
+    .call();
+
+  console.log(`✅ Confirmed in ledger ${confirmed.ledger}`);
+  console.log(`   Hash: ${confirmed.hash}`);
+  console.log(`   Successful: ${confirmed.successful}`);
+
+  return confirmed;
+}
+```
+
+### Using Nextellar hooks
+
+The `useStellarPayment` hook wraps the build → sign → submit flow in a single call. Use it in React components instead of calling the SDK directly:
+
+```typescript
+import { useStellarPayment } from '@/hooks/useStellarPayment';
+
+const { buildPaymentXDR, submitSignedXDR } = useStellarPayment();
+
+// Build
+const xdr = await buildPaymentXDR({
+  from: senderPublicKey,
+  to: recipientPublicKey,
+  amount: '10',
+  asset: 'XLM',
+});
+
+// Sign (wallet)
+const signedXDR = await wallet.signTransaction(xdr);
+
+// Submit + confirm
+const result = await submitSignedXDR(signedXDR);
+if (result.success) {
+  console.log('Confirmed:', result.txHash);
+}
+```
+
+See [useStellarPayment](/docs/hooks/use-stellar-payment) for the full API and [useStellarWallet](/docs/hooks/use-stellar-wallet) for the simpler `sendPayment` shortcut.
+
+---
+
+## Error handling by phase
+
+For full hook-level recovery patterns see [Hook Error Handling](/docs/guides/hook-error-handling).
+
+| Phase | What can fail | Recovery |
+|---|---|---|
+| Build | Stale sequence number | Reload account; rebuild |
+| Build | Invalid address or amount | Validate inputs before calling `TransactionBuilder` |
+| Sign | Wrong network passphrase | Confirm `Networks.TESTNET` vs `Networks.PUBLIC` |
+| Sign | User rejects in wallet | Catch the rejection and let the user retry |
+| Submit | `tx_bad_seq` | Reload account and rebuild — do not resubmit the old XDR |
+| Submit | `tx_too_late` | Rebuild with a fresh `setTimeout` |
+| Submit | `tx_insufficient_fee` | Increase fee; consider fee-bump transactions for stuck txs |
+| Confirm | Transaction not found | Hash may be from a different network; verify passphrase |
+
+---
+
+## Lifecycle summary
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Build                                                      │
+│  • Load fresh account (sequence number)                     │
+│  • Add operations                                           │
+│  • Set fee and timeout                                      │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+┌──────────────────────────▼──────────────────────────────────┐
+│  Sign                                                       │
+│  • Each required signer calls tx.sign() / wallet.sign()     │
+│  • Verify threshold met before submitting                   │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+┌──────────────────────────▼──────────────────────────────────┐
+│  Submit                                                     │
+│  • server.submitTransaction(tx)                             │
+│  • Returns when included in a ledger OR rejected            │
+│  • On success: result.hash and result.ledger are set        │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+┌──────────────────────────▼──────────────────────────────────┐
+│  Confirm                                                    │
+│  • Ledger closes ~5 s after inclusion — transaction final   │
+│  • Fetch by hash to verify result or stream for real-time   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Related docs
+
+- [useStellarPayment](/docs/hooks/use-stellar-payment) — hook-level build, sign, and submit API
+- [useStellarWallet](/docs/hooks/use-stellar-wallet) — simple sendPayment shortcut
+- [useTransactionHistory](/docs/hooks/use-transaction-history) — streaming and querying past transactions
+- [Transaction Batching](/docs/guides/transaction-batching) — packing multiple operations into one envelope
+- [Optimizing Transaction Sizes](/docs/guides/optimizing-transaction-sizes) — fee and size efficiency
+- [Hook Error Handling](/docs/guides/hook-error-handling) — recovery patterns for each failure mode
+- [Stellar Horizon](/docs/integrations/horizon) — Horizon API endpoints and configuration
+- [Glossary](/docs/guides/glossary) — XDR, sequence number, ledger, stroop, and other key terms

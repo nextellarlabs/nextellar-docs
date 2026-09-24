@@ -1,0 +1,211 @@
+---
+title: Approximating a Mempool for Stellar Analytics
+description: Stellar has no public mempool — learn how to approximate pending-transaction visibility for analytics using submission observation, a practical data model, and a working example.
+date: 2026-08-28
+---
+
+# Approximating a Mempool for Stellar Analytics
+
+Stellar's consensus protocol (SCP) does not expose a public mempool the way Ethereum or Bitcoin do. Validators gossip transactions during the nomination phase, but there is no standard RPC endpoint that lets you list "all transactions currently pending, network-wide." For analytics — fee estimation, congestion detection, front-running research — you need an approximation built from what you _can_ observe: transactions your own infrastructure submits, and transactions as they appear in closed ledgers.
+
+This guide covers what a mempool analog can and cannot tell you on Stellar, a data model for tracking submission-to-confirmation state, and a working example that instruments the gap.
+
+---
+
+## Why Stellar Has No Public Mempool
+
+|                       | Ethereum / Bitcoin                                          | Stellar                                                        |
+| --------------------- | ----------------------------------------------------------- | -------------------------------------------------------------- |
+| Pending tx visibility | Public mempool (`eth_getBlock('pending')`, `getrawmempool`) | None — no equivalent endpoint                                  |
+| Propagation model     | Gossip to all peers, broadly observable                     | Gossip during SCP nomination; not exposed via Horizon          |
+| Confirmation latency  | Blocks (~12s ETH, ~10min BTC)                               | ~5s ledger close                                               |
+| Practical implication | Can watch transactions race for block inclusion             | Can only observe submission (client-side) and closure (ledger) |
+
+Because ledger close is fast (~5 seconds) and validators don't expose their transaction queues, the "mempool" window on Stellar is both shorter and largely invisible to outside observers. What you _can_ build is a **submission-to-confirmation tracker**: instrument every transaction your own systems submit, and correlate it against Horizon's confirmed-ledger stream.
+
+<Note type="info">
+  This is an approximation of your own submitted traffic, not a view of the
+  network-wide pending set. You cannot see other parties' unconfirmed
+  transactions on Stellar — there is no endpoint for that.
+</Note>
+
+---
+
+## Transaction Submission Observation
+
+The two events you can reliably timestamp are:
+
+1. **Submission** — when your client calls `server.submitTransaction()` (Horizon) or a Soroban RPC `sendTransaction` call.
+2. **Closure** — when the transaction appears in a closed ledger, either via the synchronous Horizon response or an asynchronous `getTransaction` poll.
+
+The gap between these two timestamps is your only window into "how long did this transaction sit unconfirmed," and it's the closest analog to mempool dwell time available on Stellar.
+
+```ts
+// lib/submission-tracker.ts
+import { Horizon } from '@stellar/stellar-sdk';
+
+export type SubmissionStatus = 'pending' | 'confirmed' | 'failed' | 'timeout';
+
+export interface SubmissionRecord {
+  txHash: string;
+  submittedAt: number; // ms epoch, client-side
+  confirmedAt?: number; // ms epoch, from ledger close_time
+  status: SubmissionStatus;
+  ledgerSequence?: number;
+  resultCode?: string;
+}
+
+const inFlight = new Map<string, SubmissionRecord>();
+
+export function recordSubmission(txHash: string): void {
+  inFlight.set(txHash, {
+    txHash,
+    submittedAt: Date.now(),
+    status: 'pending',
+  });
+}
+
+export function recordConfirmation(
+  txHash: string,
+  ledgerSequence: number,
+  ledgerCloseTime: string,
+  resultCode: string
+): SubmissionRecord | undefined {
+  const record = inFlight.get(txHash);
+  if (!record) return undefined;
+
+  record.confirmedAt = new Date(ledgerCloseTime).getTime();
+  record.ledgerSequence = ledgerSequence;
+  record.resultCode = resultCode;
+  record.status = resultCode === 'tx_success' ? 'confirmed' : 'failed';
+
+  inFlight.delete(txHash);
+  return record;
+}
+
+/** Dwell time in ms — the closest Stellar analog to "time in mempool". */
+export function dwellTimeMs(record: SubmissionRecord): number | undefined {
+  if (!record.confirmedAt) return undefined;
+  return record.confirmedAt - record.submittedAt;
+}
+```
+
+---
+
+## Sample Data Model
+
+A minimal schema for storing submission-to-confirmation observations:
+
+```sql
+CREATE TABLE tx_submissions (
+  tx_hash          TEXT PRIMARY KEY,
+  submitted_at     TIMESTAMPTZ NOT NULL,
+  confirmed_at     TIMESTAMPTZ,
+  status           TEXT NOT NULL DEFAULT 'pending', -- pending | confirmed | failed | timeout
+  ledger_sequence  BIGINT,
+  result_code      TEXT,
+  fee_charged      BIGINT,
+  source_account   TEXT NOT NULL,
+  operation_count  SMALLINT NOT NULL,
+  dwell_ms         INTEGER GENERATED ALWAYS AS (
+    EXTRACT(EPOCH FROM (confirmed_at - submitted_at)) * 1000
+  ) STORED
+);
+
+CREATE INDEX idx_tx_submissions_status ON tx_submissions (status);
+CREATE INDEX idx_tx_submissions_submitted_at ON tx_submissions (submitted_at);
+```
+
+This lets you answer the questions a real mempool view would normally answer for your own traffic:
+
+| Question                                | Query                                                          |
+| --------------------------------------- | -------------------------------------------------------------- |
+| What's the current unconfirmed backlog? | `SELECT count(*) FROM tx_submissions WHERE status = 'pending'` |
+| What's p50/p95 dwell time this hour?    | `percentile_cont(0.5\|0.95) WITHIN GROUP (ORDER BY dwell_ms)`  |
+| Is congestion rising?                   | Rolling dwell-time average over 5-minute buckets               |
+| Which fee tier clears fastest?          | `GROUP BY fee_charged ORDER BY avg(dwell_ms)`                  |
+
+---
+
+## Working Example: End-to-End Tracker
+
+```ts
+// lib/mempool-analog.ts
+import { Horizon, TransactionBuilder } from '@stellar/stellar-sdk';
+import {
+  recordSubmission,
+  recordConfirmation,
+  type SubmissionRecord,
+} from './submission-tracker';
+
+const PENDING_TIMEOUT_MS = 30_000;
+
+export async function submitAndTrack(
+  server: Horizon.Server,
+  builtTx: ReturnType<TransactionBuilder['build']>
+): Promise<SubmissionRecord> {
+  const txHash = builtTx.hash().toString('hex');
+  recordSubmission(txHash);
+
+  try {
+    const response = await server.submitTransaction(builtTx);
+    // Horizon's submitTransaction resolves only once the tx is in a
+    // closed ledger — the synchronous response already carries closure data.
+    const confirmed = recordConfirmation(
+      txHash,
+      response.ledger,
+      // Horizon's TransactionResponse doesn't include close_time directly;
+      // fetch the ledger record for an accurate close timestamp.
+      (await server.ledgers().ledger(response.ledger).call()).closed_at,
+      response.successful ? 'tx_success' : 'tx_failed'
+    );
+    if (!confirmed) throw new Error(`Lost tracking record for ${txHash}`);
+    return confirmed;
+  } catch (err) {
+    return {
+      txHash,
+      submittedAt: Date.now(),
+      status: 'failed',
+      resultCode: err instanceof Error ? err.message : 'unknown_error',
+    };
+  }
+}
+
+/** Sweep pending records older than the timeout — Horizon submission
+ * failures (network drop, client crash) can otherwise leave orphans. */
+export function sweepTimedOutSubmissions(
+  records: Map<string, SubmissionRecord>,
+  now = Date.now()
+): SubmissionRecord[] {
+  const timedOut: SubmissionRecord[] = [];
+  for (const record of records.values()) {
+    if (
+      record.status === 'pending' &&
+      now - record.submittedAt > PENDING_TIMEOUT_MS
+    ) {
+      record.status = 'timeout';
+      timedOut.push(record);
+      records.delete(record.txHash);
+    }
+  }
+  return timedOut;
+}
+```
+
+<Note type="warning">
+  Horizon's `submitTransaction` blocks until the transaction closes or the
+  request times out, so in the common case you never observe a truly "pending"
+  state client-side — the dwell time you measure is mostly submission round-trip
+  latency, not queue time. For visibility into actual queueing under load,
+  submit asynchronously against Soroban RPC's `sendTransaction` and poll
+  `getTransaction`, which separates the two phases explicitly.
+</Note>
+
+---
+
+## Acceptance Checklist
+
+- [ ] Guide renders without build errors (`pnpm build:content`)
+- [ ] Internal links resolve (`pnpm check:links`)
+- [ ] Code samples are copy-pasteable without modification
+- [ ] Terminology (mempool, dwell time, submission vs. closure) is used consistently

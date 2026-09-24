@@ -1,0 +1,167 @@
+---
+title: 'Hooks'
+description: 'Explore all React hooks available in Nextellar with clear summaries and usage guidance.'
+date: 2026-06-02
+---
+
+# Hooks Overview
+
+Nextellar provides a set of powerful, typed React hooks that simplify working with Stellar accounts, balances, payments, smart contracts, wallets, and DEX data. These hooks are lightweight, composable, and designed to fit naturally into modern Next.js applications.
+
+---
+
+## Why Hooks in Nextellar?
+
+### Reactive Stellar data
+
+Live updates for accounts, balances, transactions, and contract values.
+
+### Cleaner UI components
+
+Hooks keep UI components free from networking and blockchain logic.
+
+### Built-in loading & error states
+
+Every hook exposes a consistent, predictable return shape.
+
+### Full TypeScript support
+
+Strong types for Stellar responses ensure correctness and better DX.
+
+### Auto-consume provider config
+
+Hooks automatically use `WalletProvider` settings when available.
+
+---
+
+## Available Hooks
+
+Below is the complete list of hooks included in Nextellar projects. These React hooks abstract away the complexities of the Stellar SDK, providing a seamless developer experience. Browse the categories below to find the specific tools for your integration needs.
+
+---
+
+## **Wallet & Account Hooks**
+
+### [useStellarWallet](/docs/hooks/use-stellar-wallet)
+
+Complete wallet connection and account management. Supports multi-wallet (Freighter, Albedo, Lobstr, xBull, Hana), auto-reconnect, balance fetching, and payment sending.
+
+### [useStellarBalances](/docs/hooks/use-stellar-balances)
+
+Fetch and track XLM and custom asset balances with optional polling. Handles unfunded accounts gracefully.
+
+### [useTrustlines](/docs/hooks/use-trustlines)
+
+Manage asset trustlines - query existing trustlines and build change-trust transactions for wallet signing.
+
+### [useTransactionHistory](/docs/hooks/use-transaction-history)
+
+Load and paginate account transaction/operation history with cursor-based pagination.
+
+---
+
+## **Transaction Hooks**
+
+### [useStellarPayment](/docs/hooks/use-stellar-payment)
+
+Build and submit Stellar payment transactions. Provides XDR building for wallet signing and dev-only secret key methods.
+
+### [useOfferBook](/docs/hooks/use-offer-book)
+
+Query Stellar DEX orderbook data for asset pairs (bids/asks) with optional polling.
+
+---
+
+## **Soroban (Smart Contract) Hooks**
+
+### [useSorobanContract](/docs/hooks/use-soroban-contract)
+
+Interact with Soroban smart contracts. Read contract state via simulation and build invoke transactions for signing.
+
+### [useSorobanEvents](/docs/hooks/use-soroban-events)
+
+Subscribe to Soroban contract events with cursor-based pagination and optional polling.
+
+---
+
+## How Nextellar Hooks Work
+
+Nextellar's hooks are designed to stay out of your way and let you build fast. Each hook sits on top of the Stellar SDK and wallet adapters, turning complex blockchain logic into simple, predictable React APIs.
+
+### Auto-Consume Pattern
+
+All hooks automatically consume configuration from `WalletProvider` when available:
+
+```tsx
+// Provider sets global config
+<WalletProvider horizonUrl="https://horizon.stellar.org">
+  <App />
+</WalletProvider>;
+
+// Hooks auto-consume the horizonUrl
+function MyComponent() {
+  const { balances } = useStellarBalances(publicKey);
+  // Uses mainnet automatically!
+}
+```
+
+### Override Per-Component
+
+You can always override the provider config:
+
+```tsx
+const { balances } = useStellarBalances(publicKey, {
+  horizonUrl: 'https://horizon-testnet.stellar.org',
+});
+```
+
+### Standalone Usage
+
+Hooks work without a provider too:
+
+```tsx
+// No WalletProvider needed
+const { balances } = useStellarBalances(publicKey, {
+  horizonUrl: 'https://horizon-testnet.stellar.org',
+});
+```
+
+---
+
+## Common Patterns
+
+### Loading States
+
+All hooks provide consistent loading and error states:
+
+```tsx
+const { data, loading, error, refresh } = useSomeHook();
+
+if (loading) return <Spinner />;
+if (error) return <button onClick={refresh}>Retry</button>;
+return <DisplayData data={data} />;
+```
+
+### XDR Building Pattern
+
+Transaction hooks follow a consistent pattern for wallet integration:
+
+```tsx
+// 1. Build unsigned XDR
+const xdr = await buildPaymentXDR({ from, to, amount });
+
+// 2. Sign with external wallet (Freighter, etc.)
+const signedXdr = await wallet.signTransaction(xdr);
+
+// 3. Submit signed transaction
+const result = await submitSignedXDR(signedXdr);
+```
+
+---
+
+## Quick Links
+
+- [Getting Started](/docs/getting-started/quick-start) — Build your first dApp
+- [CLI Commands](/docs/cli/commands) — Scaffold options
+- [WalletProvider](/docs/hooks/wallet-provider) — Global wallet context
+- [Hook Error Handling](/docs/guides/hook-error-handling) — Shared recovery patterns and common failures

@@ -1,0 +1,269 @@
+---
+title: Peer-to-Peer Escrow Tutorial
+description: Build a trustless P2P escrow on Stellar using Soroban — locking funds, dispute handling, and release conditions with full TypeScript integration.
+date: 2026-06-25
+---
+
+# Peer-to-Peer Escrow Tutorial
+
+A peer-to-peer escrow holds a buyer's funds in a Soroban contract until the seller fulfils delivery conditions. Neither party can access the funds unilaterally — release requires either the buyer's confirmation or an arbiter's ruling. This tutorial builds the contract and the TypeScript client from scratch.
+
+---
+
+## Escrow Lifecycle
+
+```
+Buyer deposits → LOCKED
+  ↓ (seller delivers)
+Buyer confirms → RELEASED → seller receives funds
+  ↓ (dispute)
+Either party disputes → DISPUTED
+  ↓
+Arbiter rules → RELEASED (seller) or REFUNDED (buyer)
+  ↓ (timeout, no confirmation)
+Timeout reached → REFUNDED → buyer receives funds
+```
+
+---
+
+## Soroban Contract
+
+```rust
+// contracts/p2p-escrow/src/lib.rs
+#![no_std]
+use soroban_sdk::{contract, contractimpl, contracttype, token, Address, Env};
+
+#[contracttype]
+#[derive(Clone, PartialEq)]
+pub enum EscrowState {
+    Locked,
+    Released,
+    Refunded,
+    Disputed,
+}
+
+#[contracttype]
+pub struct Escrow {
+    pub buyer:          Address,
+    pub seller:         Address,
+    pub arbiter:        Address,
+    pub token:          Address,
+    pub amount:         i128,
+    pub state:          EscrowState,
+    pub timeout_ledger: u32,
+}
+
+#[contracttype]
+pub enum DataKey {
+    Escrow(u32),
+    Counter,
+}
+
+#[contract]
+pub struct EscrowContract;
+
+#[contractimpl]
+impl EscrowContract {
+    /// Buyer creates and funds the escrow.
+    pub fn create(
+        env: Env,
+        buyer: Address,
+        seller: Address,
+        arbiter: Address,
+        token: Address,
+        amount: i128,
+        timeout_ledgers: u32,
+    ) -> u32 {
+        buyer.require_auth();
+
+        // Transfer funds from buyer into the contract
+        token::Client::new(&env, &token).transfer(
+            &buyer,
+            &env.current_contract_address(),
+            &amount,
+        );
+
+        let id: u32 = env.storage().instance().get(&DataKey::Counter).unwrap_or(0);
+        env.storage().instance().set(&DataKey::Counter, &(id + 1));
+
+        let escrow = Escrow {
+            buyer,
+            seller,
+            arbiter,
+            token,
+            amount,
+            state: EscrowState::Locked,
+            timeout_ledger: env.ledger().sequence() + timeout_ledgers,
+        };
+        env.storage().persistent().set(&DataKey::Escrow(id), &escrow);
+        id
+    }
+
+    /// Buyer confirms delivery — releases funds to seller.
+    pub fn confirm(env: Env, buyer: Address, escrow_id: u32) {
+        buyer.require_auth();
+        let mut e: Escrow = Self::get_escrow(&env, escrow_id);
+        assert!(e.buyer == buyer, "not buyer");
+        assert!(e.state == EscrowState::Locked, "not locked");
+
+        token::Client::new(&env, &e.token).transfer(
+            &env.current_contract_address(),
+            &e.seller,
+            &e.amount,
+        );
+        e.state = EscrowState::Released;
+        env.storage().persistent().set(&DataKey::Escrow(escrow_id), &e);
+    }
+
+    /// Buyer or seller opens a dispute.
+    pub fn dispute(env: Env, caller: Address, escrow_id: u32) {
+        caller.require_auth();
+        let mut e: Escrow = Self::get_escrow(&env, escrow_id);
+        assert!(caller == e.buyer || caller == e.seller, "not a party");
+        assert!(e.state == EscrowState::Locked, "not locked");
+        e.state = EscrowState::Disputed;
+        env.storage().persistent().set(&DataKey::Escrow(escrow_id), &e);
+    }
+
+    /// Arbiter resolves a dispute.
+    pub fn resolve(env: Env, arbiter: Address, escrow_id: u32, release_to_seller: bool) {
+        arbiter.require_auth();
+        let mut e: Escrow = Self::get_escrow(&env, escrow_id);
+        assert!(e.arbiter == arbiter, "not arbiter");
+        assert!(e.state == EscrowState::Disputed, "not disputed");
+
+        let recipient = if release_to_seller { e.seller.clone() } else { e.buyer.clone() };
+        token::Client::new(&env, &e.token).transfer(
+            &env.current_contract_address(),
+            &recipient,
+            &e.amount,
+        );
+        e.state = if release_to_seller { EscrowState::Released } else { EscrowState::Refunded };
+        env.storage().persistent().set(&DataKey::Escrow(escrow_id), &e);
+    }
+
+    /// Anyone can trigger a refund once the timeout has passed.
+    pub fn timeout_refund(env: Env, escrow_id: u32) {
+        let mut e: Escrow = Self::get_escrow(&env, escrow_id);
+        assert!(e.state == EscrowState::Locked, "not locked");
+        assert!(env.ledger().sequence() >= e.timeout_ledger, "not timed out");
+
+        token::Client::new(&env, &e.token).transfer(
+            &env.current_contract_address(),
+            &e.buyer,
+            &e.amount,
+        );
+        e.state = EscrowState::Refunded;
+        env.storage().persistent().set(&DataKey::Escrow(escrow_id), &e);
+    }
+
+    fn get_escrow(env: &Env, id: u32) -> Escrow {
+        env.storage().persistent().get(&DataKey::Escrow(id)).expect("escrow not found")
+    }
+}
+```
+
+---
+
+## TypeScript Client
+
+```ts
+// lib/escrow.ts
+import {
+  rpc,
+  Contract,
+  TransactionBuilder,
+  Networks,
+  BASE_FEE,
+  nativeToScVal,
+  Address,
+} from '@stellar/stellar-sdk';
+
+const server = new rpc.Server(process.env.NEXT_PUBLIC_RPC_URL!);
+const contract = new Contract(process.env.NEXT_PUBLIC_ESCROW_CONTRACT!);
+
+async function buildAndSubmit(
+  sourceAddress: string,
+  method: string,
+  args: unknown[]
+) {
+  const account = await server.getAccount(sourceAddress);
+  const tx = new TransactionBuilder(account, {
+    fee: BASE_FEE,
+    networkPassphrase: Networks.TESTNET,
+  })
+    .addOperation(contract.call(method, ...(args as any)))
+    .setTimeout(30)
+    .build();
+  // Sign with wallet kit then submit
+  return tx;
+}
+
+export async function createEscrow(
+  buyer: string,
+  seller: string,
+  arbiter: string,
+  tokenAddress: string,
+  amount: bigint,
+  timeoutLedgers: number
+) {
+  return buildAndSubmit(buyer, 'create', [
+    new Address(buyer).toScVal(),
+    new Address(seller).toScVal(),
+    new Address(arbiter).toScVal(),
+    new Address(tokenAddress).toScVal(),
+    nativeToScVal(amount, { type: 'i128' }),
+    nativeToScVal(timeoutLedgers, { type: 'u32' }),
+  ]);
+}
+
+export async function confirmDelivery(buyer: string, escrowId: number) {
+  return buildAndSubmit(buyer, 'confirm', [
+    new Address(buyer).toScVal(),
+    nativeToScVal(escrowId, { type: 'u32' }),
+  ]);
+}
+
+export async function openDispute(caller: string, escrowId: number) {
+  return buildAndSubmit(caller, 'dispute', [
+    new Address(caller).toScVal(),
+    nativeToScVal(escrowId, { type: 'u32' }),
+  ]);
+}
+```
+
+---
+
+## UI Flow
+
+```
+1. Buyer enters: seller address, amount, token, arbiter, timeout days
+2. Buyer connects wallet → signs createEscrow tx
+3. Show escrow ID + shareable link to seller
+4. Seller delivers goods/service off-chain
+5. Buyer clicks "Confirm Delivery" → signs confirm tx → funds released
+   OR
+5b. Either party clicks "Dispute" → arbiter notified
+6. Arbiter reviews evidence → calls resolve(release_to_seller: true/false)
+```
+
+---
+
+## Arbiter Selection Patterns
+
+| Pattern                | Description                                      | Tradeoff                        |
+| ---------------------- | ------------------------------------------------ | ------------------------------- |
+| Fixed platform arbiter | Your backend key acts as arbiter for all escrows | Simple; centralised             |
+| Nominated at creation  | Buyer and seller agree on an arbiter address     | Flexible; requires coordination |
+| DAO multisig           | A community multisig account arbitrates          | Decentralised; slow             |
+| Oracle-based           | Auto-resolve based on delivery proof oracle      | Trustless; complex              |
+
+---
+
+## Acceptance Checklist
+
+- [ ] Guide renders without build errors (`pnpm build:content`)
+- [ ] Internal links resolve (`pnpm check:links`)
+- [ ] Full Soroban contract compiles against current SDK
+- [ ] All lifecycle transitions covered (confirm, dispute, resolve, timeout)
+- [ ] TypeScript client functions for each contract method

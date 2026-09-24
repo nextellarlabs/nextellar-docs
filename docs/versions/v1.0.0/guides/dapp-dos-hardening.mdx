@@ -1,0 +1,213 @@
+---
+title: dApp Denial of Service Hardening
+description: Protect your Stellar dApp from DoS attacks at the API, contract, and infrastructure layers — rate limiting, fee-based deterrence, circuit breakers, and CDN configuration.
+date: 2026-06-25
+---
+
+# dApp Denial of Service Hardening
+
+A denial-of-service (DoS) attack overwhelms your dApp's API, frontend, or Soroban contract until it becomes unresponsive. On Stellar, the ledger itself is protected by the fee market — attacking the network is expensive — but your backend API, Horizon relay, and frontend can still be targeted. This guide covers hardening at every layer.
+
+---
+
+## Layer 1 — Soroban Contract: Fee-Based Deterrence
+
+Every Soroban invocation costs real XLM fees. This is your first line of defence: attacking the contract on-chain is inherently expensive for the attacker.
+
+However, you should still protect against cheap state-bloat attacks:
+
+### Limit Per-User State Size
+
+Reject writes that would bloat storage beyond a per-user cap:
+
+```rust
+pub fn add_item(env: Env, user: Address, item: Item) {
+    user.require_auth();
+    let mut items: Vec<Item> = env.storage().persistent()
+        .get(&DataKey::Items(user.clone()))
+        .unwrap_or(Vec::new(&env));
+    assert!(items.len() < 100, "item limit reached");
+    items.push_back(item);
+    env.storage().persistent().set(&DataKey::Items(user), &items);
+}
+```
+
+### Require Minimum Balance for Participation
+
+Gate expensive contract actions behind a minimum XLM or token balance check to raise the cost of Sybil flooding:
+
+```rust
+// Off-chain: verify account balance before allowing contract invocation
+// (Soroban cannot read native XLM balance directly — enforce this in your backend)
+```
+
+---
+
+## Layer 2 — API Rate Limiting
+
+### Per-IP Rate Limiting (Next.js + Upstash Redis)
+
+```ts
+// lib/rate-limit.ts
+import { Ratelimit } from '@upstash/ratelimit';
+import { Redis } from '@upstash/redis';
+
+const ratelimit = new Ratelimit({
+  redis: Redis.fromEnv(),
+  limiter: Ratelimit.slidingWindow(20, '10 s'), // 20 req / 10 seconds
+  analytics: true,
+});
+
+export async function checkRateLimit(identifier: string) {
+  const { success, limit, remaining, reset } =
+    await ratelimit.limit(identifier);
+  return { success, limit, remaining, reset };
+}
+```
+
+```ts
+// app/api/submit-tx/route.ts
+import { checkRateLimit } from '@/lib/rate-limit';
+
+export async function POST(req: Request) {
+  const ip = req.headers.get('x-forwarded-for') ?? 'unknown';
+  const { success } = await checkRateLimit(ip);
+
+  if (!success) {
+    return new Response('Too many requests', {
+      status: 429,
+      headers: { 'Retry-After': '10' },
+    });
+  }
+  // proceed with tx submission
+}
+```
+
+### Per-Wallet Rate Limiting
+
+Supplement IP limiting with wallet-address limiting to prevent VPN bypass:
+
+```ts
+const { success } = await checkRateLimit(`wallet:${walletAddress}`);
+```
+
+---
+
+## Layer 3 — Circuit Breaker
+
+When Horizon is slow or erroring, stop hammering it and fail fast:
+
+```ts
+// lib/circuit-breaker.ts
+type State = 'closed' | 'open' | 'half-open';
+
+export class CircuitBreaker {
+  private state: State = 'closed';
+  private failures: number = 0;
+  private lastFailedAt: number = 0;
+
+  constructor(
+    private threshold: number = 5,
+    private timeoutMs: number = 30_000
+  ) {}
+
+  async call<T>(fn: () => Promise<T>): Promise<T> {
+    if (this.state === 'open') {
+      if (Date.now() - this.lastFailedAt > this.timeoutMs) {
+        this.state = 'half-open';
+      } else {
+        throw new Error('Circuit open — service unavailable');
+      }
+    }
+    try {
+      const result = await fn();
+      this.onSuccess();
+      return result;
+    } catch (err) {
+      this.onFailure();
+      throw err;
+    }
+  }
+
+  private onSuccess() {
+    this.failures = 0;
+    this.state = 'closed';
+  }
+
+  private onFailure() {
+    this.failures++;
+    this.lastFailedAt = Date.now();
+    if (this.failures >= this.threshold) this.state = 'open';
+  }
+}
+
+export const horizonBreaker = new CircuitBreaker(5, 30_000);
+```
+
+Usage:
+
+```ts
+const result = await horizonBreaker.call(() => server.submitTransaction(tx));
+```
+
+---
+
+## Layer 4 — CDN and Infrastructure
+
+### Cloudflare / CDN Rules
+
+Configure your CDN to:
+
+- Block requests from known Tor exit nodes and data-centre IP ranges for wallet-sensitive endpoints.
+- Apply bot challenge (CAPTCHA or JS challenge) on `/api/*` after 50 requests/minute from a single IP.
+- Cache static assets aggressively (`Cache-Control: public, max-age=31536000`) to reduce origin load.
+
+### Minimum Response Headers
+
+```ts
+// next.config.js
+const securityHeaders = [
+  { key: 'X-Content-Type-Options', value: 'nosniff' },
+  { key: 'X-Frame-Options', value: 'DENY' },
+  { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+  {
+    key: 'Permissions-Policy',
+    value: 'camera=(), microphone=(), geolocation=()',
+  },
+];
+```
+
+### Request Size Limits
+
+Reject oversized payloads before they reach your handler:
+
+```ts
+// app/api/submit-tx/route.ts
+export async function POST(req: Request) {
+  const contentLength = req.headers.get('content-length');
+  if (contentLength && parseInt(contentLength) > 10_000) {
+    return new Response('Payload too large', { status: 413 });
+  }
+}
+```
+
+---
+
+## Layer 5 — Monitoring and Auto-Response
+
+| Signal                    | Threshold        | Auto-response                            |
+| ------------------------- | ---------------- | ---------------------------------------- |
+| 429 rate from any IP      | > 100/min        | Add to temporary blocklist (1 hour)      |
+| API error rate            | > 20% over 2 min | Activate circuit breaker                 |
+| Horizon latency p99       | > 5s for 5 min   | Switch to backup Horizon                 |
+| Contract invocation spike | > 10× baseline   | Alert on-call; consider pausing contract |
+
+---
+
+## Acceptance Checklist
+
+- [ ] Guide renders without build errors (`pnpm build:content`)
+- [ ] Internal links resolve (`pnpm check:links`)
+- [ ] All 5 layers covered: contract, API rate limiting, circuit breaker, CDN, monitoring
+- [ ] TypeScript snippets are runnable
+- [ ] Monitoring table with auto-response actions

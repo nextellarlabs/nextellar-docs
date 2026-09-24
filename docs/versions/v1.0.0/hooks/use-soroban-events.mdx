@@ -1,0 +1,123 @@
+---
+title: useSorobanEvents
+description: Poll Soroban smart contract events with automatic retry and backoff
+date: 2026-07-28
+---
+
+# useSorobanEvents
+
+The `useSorobanEvents` hook polls a Soroban contract for events, retrying transient RPC failures with exponential backoff and continuing at a reduced rate instead of giving up.
+
+## Availability
+
+Ships with the `default` template (TypeScript and `--javascript`). Not included in `minimal` or `defi` — see [Scaffolding Templates](/docs/cli/templates).
+
+## Features
+
+- **Polling with retry**: each poll retries up to 3 times with exponential backoff before surfacing an error
+- **Degrades, doesn't stop**: after exhausting retries it keeps polling at a reduced frequency instead of stopping
+- **Auto-recovery**: returns to the normal poll interval as soon as a fetch succeeds
+- **Topic filtering**: optional XDR-encoded topic filters, up to 4 segments
+- **Deduplication**: events already seen (by `id`) are filtered out of new pages
+- **Project-configured RPC**: uses the Soroban RPC URL from your `WalletProvider` config, not a hardcoded endpoint
+
+## Basic Usage
+
+```tsx
+import { useSorobanEvents } from '@/hooks/useSorobanEvents';
+
+function EventFeed({ contractId }: { contractId: string }) {
+  const { events, loading, error, isRecovering, refresh, stopPolling } =
+    useSorobanEvents(contractId, {
+      pollIntervalMs: 5000,
+      topics: [['AAAADgAAAAh0cmFuc2Zlcg==']],
+    });
+
+  return (
+    <div>
+      {isRecovering && <p>Connection issue – retrying…</p>}
+      {loading && <p>Fetching events…</p>}
+      {error && (
+        <p>
+          Error: {error.message} <button onClick={refresh}>Retry</button>
+        </p>
+      )}
+      {events.map((e) => (
+        <div key={e.id}>
+          {e.type} @ ledger {e.ledger}
+        </div>
+      ))}
+      <button onClick={stopPolling}>Stop</button>
+    </div>
+  );
+}
+```
+
+## API Reference
+
+### Signature
+
+```typescript
+useSorobanEvents(contractId: string, opts?: Options): UseSorobanEventsReturn
+```
+
+`contractId` is positional, not part of an options object.
+
+### Options
+
+| Option           | Type             | Default                                                                               | Description                                                                                                       |
+| ---------------- | ---------------- | ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `sorobanRpc`     | `string`         | `WalletProvider`'s configured Soroban URL, else `https://soroban-testnet.stellar.org` | Soroban RPC endpoint                                                                                              |
+| `fromCursor`     | `string`         | none                                                                                  | Starting cursor. If omitted, the first request uses `startLedger: 1`; later polls advance via the response cursor |
+| `pollIntervalMs` | `number \| null` | `10000`                                                                               | Poll interval in ms. Pass `null` to disable polling (only the initial fetch runs)                                 |
+| `topics`         | `string[][]`     | none                                                                                  | XDR-encoded topic filters, one array per segment (max 4)                                                          |
+| `limit`          | `number`         | `100`                                                                                 | Max events per poll                                                                                               |
+
+### Return value
+
+```typescript
+interface UseSorobanEventsReturn {
+  events: SorobanEvent[];
+  loading: boolean;
+  refresh: () => Promise<void>; // manual fetch, respects retry logic
+  stopPolling: () => void;
+  error: Error | null;
+  isRecovering: boolean; // true while polling at reduced speed after exhausted retries
+}
+
+interface SorobanEvent {
+  id: string;
+  type: string;
+  ledger: number;
+  ledgerClosedAt: string;
+  contractId: string;
+  topic: string[]; // base64 XDR
+  value: unknown; // base64 XDR
+  txHash: string;
+  inSuccessfulContractCall: boolean;
+}
+```
+
+## Retry and backoff behavior
+
+Each poll attempt calls the RPC up to **3 times** before giving up for that cycle, waiting between attempts with exponential backoff: **1s → 3s → 9s**.
+
+If all 3 attempts fail:
+
+- `error` is set to the last failure and `isRecovering` becomes `true`.
+- Polling continues, but at `pollIntervalMs * 2` (capped at 30s), instead of stopping.
+
+As soon as a later poll succeeds, `error` clears, `isRecovering` returns to `false`, and polling resumes at the normal `pollIntervalMs`.
+
+## RPC endpoint configuration
+
+`sorobanRpc` is **not hardcoded**. If you don't pass it explicitly, the hook reads it from the surrounding `WalletProvider`'s config (set at scaffold time via `--soroban-url` or `NEXT_PUBLIC_SOROBAN_URL`). The literal testnet URL in the table above is only the last-resort fallback when no provider config is present.
+
+## Cleanup
+
+`useSorobanEvents` clears its poll timer and any in-flight retry timer on unmount — no manual cleanup needed. To stop polling early without unmounting, call `stopPolling()`; `refresh()` can still be called afterward to resume.
+
+## Related Hooks
+
+- [`useSorobanContract`](/docs/hooks/use-soroban-contract) - Call contract functions
+- [Contracts Quick Start](/docs/getting-started/contracts-quick-start) - Scaffold, deploy, and invoke a Soroban contract end to end

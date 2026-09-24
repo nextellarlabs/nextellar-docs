@@ -1,0 +1,106 @@
+---
+title: Husky Pre-commit Hooks
+description: Understand the Husky pre-commit hook, what it runs, how to skip it when necessary, and how to fix common failures.
+---
+
+# Husky Pre-commit Hooks
+
+This project uses Husky to run a lightweight quality check before each commit.
+The hook keeps staged documentation and source files formatted without running the
+full docs build on every commit.
+
+## Hook summary
+
+| Hook         | File                | Command            | Purpose                                  |
+| ------------ | ------------------- | ------------------ | ---------------------------------------- |
+| `pre-commit` | `.husky/pre-commit` | `pnpm lint-staged` | Formats staged files through lint-staged |
+
+## What the pre-commit hook runs
+
+The `pre-commit` hook runs before Git creates a commit:
+
+```bash
+pnpm lint-staged
+```
+
+`lint-staged` reads its configuration from `package.json`:
+
+```json
+{
+  "*.{js,jsx,ts,tsx,json,css,md,mdx}": ["prettier --write"]
+}
+```
+
+This means staged files with the listed extensions are passed to Prettier and
+rewritten in place. After the hook finishes, review the formatting changes and
+stage any files that Prettier updated before committing again.
+
+The hook does not run `pnpm build:content`, `pnpm check:links`, or the full
+Next.js build. Run those commands manually before opening a pull request. See
+[Testing Documentation Changes](/docs/guides/testing-docs-changes) for the full
+docs validation checklist.
+
+## Skipping the hook only when needed
+
+Prefer fixing hook failures instead of skipping the hook. If you need to create a
+commit while the hook is temporarily blocked, use Git's no-verify flag:
+
+```bash
+git commit --no-verify -m "docs: update draft"
+```
+
+Use this only for exceptional cases, such as:
+
+- saving work before switching machines or branches
+- committing while a local dependency install is broken
+- creating a temporary checkpoint that will be cleaned up before review
+
+After skipping the hook, run the skipped check manually before pushing:
+
+```bash
+pnpm lint-staged
+```
+
+If Prettier changes files, stage those changes and amend or create a follow-up
+commit before requesting review.
+
+## Common failures and fixes
+
+| Failure                                      | Likely cause                                              | Fix                                                            |
+| -------------------------------------------- | --------------------------------------------------------- | -------------------------------------------------------------- |
+| `pnpm: command not found`                    | pnpm is not installed or is not on your shell path        | Enable pnpm with Corepack or install pnpm, then retry          |
+| `Cannot find module ...`                     | dependencies are missing after cloning or pulling         | Run `pnpm install` from the repository root                    |
+| `lint-staged could not find any staged files` | no matching staged files are included in the commit       | Confirm the expected files are staged with `git status --short` |
+| `prettier --write` changes files             | staged files needed formatting                            | Review the diff, stage the updated files, and commit again     |
+| Prettier reports an MDX parse error          | the MDX file has invalid syntax or unclosed JSX           | Fix the reported line, then run `pnpm lint-staged` again       |
+| The hook works locally but CI fails          | the hook formats only, while CI runs broader checks       | Run `pnpm build:content` and `pnpm check:links` before pushing |
+
+## Manual verification
+
+Use these commands from the repository root when changing documentation:
+
+```bash
+pnpm lint-staged
+pnpm build:content
+```
+
+For link validation, start the local docs server in one terminal:
+
+```bash
+pnpm dev
+```
+
+Then run the link checker in another terminal:
+
+```bash
+pnpm check:links
+```
+
+Open the changed page in the browser and confirm the title, tables, code blocks,
+and internal links render correctly.
+
+## Related
+
+- [Contributing to Documentation](/docs/guides/contributing)
+- [Testing Documentation Changes](/docs/guides/testing-docs-changes)
+- [Editor Setup](/docs/guides/editor-setup)

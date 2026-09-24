@@ -1,0 +1,240 @@
+---
+title: Treasury Management Patterns on Stellar
+description: Design patterns for managing on-chain treasuries in Stellar dApps — multisig controls, spending limits, reserve management, and audit trails.
+date: 2026-06-25
+---
+
+# Treasury Management Patterns on Stellar
+
+A dApp treasury holds protocol-owned funds: fee revenue, grant allocations, insurance reserves. Managing this on Stellar requires deliberate architecture — who can spend, how much, with what approval, and how is it audited. This guide covers the key patterns.
+
+---
+
+## Pattern 1 — Multisig Treasury Account
+
+The simplest treasury is a Stellar account with raised signing thresholds. No contract required.
+
+```
+Treasury account: GABC...TREASURY
+  low threshold:  2
+  med threshold:  2
+  high threshold: 3
+
+Signers:
+  GCFO...KEY  weight=1  (CFO's Ledger hardware wallet)
+  GDEV...KEY  weight=1  (dev ops service account)
+  GESC...KEY  weight=1  (escrow agent / board member)
+```
+
+With this setup:
+
+- Any payment (medium threshold) requires CFO + devops or CFO + escrow.
+- Account changes (high threshold) require all three.
+
+### Setting Up
+
+```ts
+import { Operation, Keypair } from '@stellar/stellar-sdk';
+
+const setThresholds = Operation.setOptions({
+  lowThreshold: 2,
+  medThreshold: 2,
+  highThreshold: 3,
+  signer: { ed25519PublicKey: cfoKey, weight: 1 },
+});
+
+// Submit signed by current master key (weight=3 initially)
+```
+
+---
+
+## Pattern 2 — Soroban Treasury Contract with Spending Limits
+
+For more complex rules (daily limits, per-recipient caps, category budgets), a Soroban contract gives you programmable enforcement.
+
+```rust
+// contracts/treasury/src/lib.rs
+#![no_std]
+use soroban_sdk::{contract, contractimpl, contracttype, token, Address, Env};
+
+#[contracttype]
+pub enum DataKey {
+    Admin,
+    DailyLimit,
+    SpentToday,
+    LastResetLedger,
+    Token,
+}
+
+#[contract]
+pub struct TreasuryContract;
+
+#[contractimpl]
+impl TreasuryContract {
+    pub fn init(env: Env, admin: Address, token: Address, daily_limit: i128) {
+        assert!(!env.storage().instance().has(&DataKey::Admin), "already init");
+        admin.require_auth();
+        env.storage().instance().set(&DataKey::Admin,      &admin);
+        env.storage().instance().set(&DataKey::Token,      &token);
+        env.storage().instance().set(&DataKey::DailyLimit, &daily_limit);
+        env.storage().instance().set(&DataKey::SpentToday, &0i128);
+        env.storage().instance().set(&DataKey::LastResetLedger, &env.ledger().sequence());
+    }
+
+    pub fn spend(env: Env, admin: Address, recipient: Address, amount: i128) {
+        Self::require_admin(&env, &admin);
+        admin.require_auth();
+        Self::maybe_reset_daily(&env);
+
+        let spent: i128 = env.storage().instance().get(&DataKey::SpentToday).unwrap_or(0);
+        let limit: i128 = env.storage().instance().get(&DataKey::DailyLimit).unwrap();
+        assert!(spent + amount <= limit, "daily spending limit exceeded");
+
+        let token: Address = env.storage().instance().get(&DataKey::Token).unwrap();
+        token::Client::new(&env, &token).transfer(
+            &env.current_contract_address(),
+            &recipient,
+            &amount,
+        );
+
+        env.storage().instance().set(&DataKey::SpentToday, &(spent + amount));
+    }
+
+    fn maybe_reset_daily(env: &Env) {
+        let last: u32  = env.storage().instance().get(&DataKey::LastResetLedger).unwrap_or(0);
+        let now:  u32  = env.ledger().sequence();
+        // ~17280 ledgers per day (5-second ledger time)
+        if now - last >= 17280 {
+            env.storage().instance().set(&DataKey::SpentToday, &0i128);
+            env.storage().instance().set(&DataKey::LastResetLedger, &now);
+        }
+    }
+
+    fn require_admin(env: &Env, caller: &Address) {
+        let admin: Address = env.storage().instance().get(&DataKey::Admin).expect("not init");
+        assert!(*caller == admin, "not admin");
+    }
+}
+```
+
+---
+
+## Pattern 3 — Reserve Management
+
+Treasuries should maintain minimum reserves for operational continuity.
+
+### Reserve Tiers
+
+| Tier              | Size                 | Purpose                               | Liquidity              |
+| ----------------- | -------------------- | ------------------------------------- | ---------------------- |
+| Operating reserve | 3 months of expenses | Pay ongoing costs without fundraising | High — liquid XLM/USDC |
+| Insurance reserve | 10% of TVL           | Cover exploit losses                  | Medium — stable assets |
+| Strategic reserve | Remaining            | Long-term grants, runway              | Low — can be illiquid  |
+
+### On-Chain Reserve Enforcement
+
+Add a reserve check to any withdrawal function:
+
+```rust
+pub fn withdraw(env: Env, admin: Address, amount: i128) {
+    Self::require_admin(&env, &admin);
+    admin.require_auth();
+
+    let token: Address = env.storage().instance().get(&DataKey::Token).unwrap();
+    let client = token::Client::new(&env, &token);
+    let balance = client.balance(&env.current_contract_address());
+    let reserve: i128 = env.storage().instance().get(&DataKey::MinReserve).unwrap_or(0);
+
+    assert!(balance - amount >= reserve, "withdrawal would breach minimum reserve");
+    client.transfer(&env.current_contract_address(), &admin, &amount);
+}
+```
+
+---
+
+## Pattern 4 — Time-Locked Disbursements
+
+For vesting schedules or grant payments, use ledger sequence as a time proxy:
+
+```rust
+#[contracttype]
+pub struct Disbursement {
+    pub recipient:    Address,
+    pub amount:       i128,
+    pub unlock_ledger: u32,
+    pub claimed:      bool,
+}
+
+pub fn claim(env: Env, recipient: Address, disbursement_id: u32) {
+    recipient.require_auth();
+    let mut d: Disbursement = env.storage().persistent()
+        .get(&disbursement_id).expect("not found");
+    assert!(!d.claimed, "already claimed");
+    assert!(env.ledger().sequence() >= d.unlock_ledger, "not yet unlocked");
+    d.claimed = true;
+    // transfer to recipient
+    env.storage().persistent().set(&disbursement_id, &d);
+}
+```
+
+At 5-second ledger close times: 1 day ≈ 17,280 ledgers, 1 month ≈ 518,400 ledgers.
+
+---
+
+## Pattern 5 — Audit Trail via Soroban Events
+
+Every treasury action should emit an event for off-chain indexing:
+
+```rust
+// In spend():
+env.events().publish(
+    (Symbol::new(&env, "treasury"), Symbol::new(&env, "spend")),
+    (recipient.clone(), amount),
+);
+```
+
+Index these events with Mercury or your own Horizon SSE consumer:
+
+```ts
+// lib/treasury-audit.ts
+const server = new Horizon.Server(process.env.HORIZON_URL!);
+
+export async function getTreasuryHistory(contractId: string) {
+  const ops = await server
+    .operations()
+    .forAccount(contractId)
+    .limit(200)
+    .order('desc')
+    .call();
+  return ops.records.map((op) => ({
+    type: op.type,
+    amount: (op as any).amount,
+    to: (op as any).to,
+    createdAt: op.created_at,
+  }));
+}
+```
+
+---
+
+## Governance Checklist
+
+| Control                      | Implementation                             |
+| ---------------------------- | ------------------------------------------ |
+| Multisig on treasury account | `setOptions` with thresholds ≥ 2           |
+| Daily spending cap           | Soroban contract with ledger-based reset   |
+| Minimum reserve floor        | Contract assertion before every withdrawal |
+| Time-locked disbursements    | `unlock_ledger` check in claim function    |
+| Audit trail                  | Soroban events + Horizon indexer           |
+| Emergency pause              | Admin `set_paused` flag in contract        |
+| Key rotation schedule        | Calendar reminder; 90-day max key age      |
+
+---
+
+## Acceptance Checklist
+
+- [ ] Guide renders without build errors (`pnpm build:content`)
+- [ ] Internal links resolve (`pnpm check:links`)
+- [ ] All 5 patterns covered with working Rust/TypeScript code
+- [ ] Reserve tiers table present
+- [ ] Governance checklist included

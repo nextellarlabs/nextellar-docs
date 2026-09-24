@@ -1,0 +1,300 @@
+---
+title: CLI Overview
+description: Complete guide to the Nextellar command-line interface
+date: 2026-06-02
+---
+
+# CLI Overview
+
+The Nextellar CLI is a powerful command-line tool for scaffolding production-ready Stellar dApps. This guide covers all CLI features, commands, and configuration options.
+
+## What is the Nextellar CLI?
+
+Nextellar CLI is a one-command solution that:
+
+- Scaffolds complete Next.js 16 applications.
+- Configures Stellar SDK and wallet adapters.
+- Installs all dependencies automatically.
+- Sets up TypeScript, Tailwind CSS, and ESLint.
+- Creates 8 production-ready React hooks.
+
+## Quick Start
+
+````bash
+npx nextellar my-stellar-app
+```bash
+
+That's it! Your Stellar dApp is ready in under 2 minutes.
+
+## Installation Methods
+
+### Terminal Support
+
+The Nextellar CLI works with all standard terminal emulators:
+
+- **bash** (Linux, macOS, Windows via WSL/Git Bash)
+- **zsh** (macOS default, Linux)
+- **fish** (Linux, macOS)
+- **PowerShell** (Windows)
+- **Command Prompt** (Windows - limited support)
+- **nu** (Nushell)
+
+**Caveats:**
+
+- Windows Command Prompt has limited support for some CLI features; use PowerShell or Git Bash for full functionality
+- Terminal color output requires ANSI support (most modern terminals support this)
+- Interactive prompts work best in terminals with full UTF-8 support
+
+### Interactive Prompting
+
+When the CLI runs in a suitable terminal, it can prompt for scaffold settings such as project configuration, network endpoints, wallet adapters, package manager, and whether to skip dependency installation.
+
+Prompting is enabled only when standard input and output are both TTYs, the `CI` environment variable is not set, and `--defaults` is not provided. In CI, scripted, or redirected environments, Nextellar uses explicit flags and default values instead. Any flag you pass keeps that setting fixed and skips prompting for it.
+
+### Method 1: npx (Recommended)
+
+No installation required. Run directly:
+
+```bash
+npx nextellar my-app
+````
+
+**Pros:**
+
+- Always uses latest version.
+- No global installation needed.
+- Works immediately.
+
+**Cons:**
+
+- Slightly slower first run (downloads package).
+
+### Method 2: Global Installation
+
+Install once, use everywhere:
+
+````bash
+npm install -g nextellar
+nextellar my-app
+```bash
+
+**Pros:**
+
+- Faster execution.
+- Works offline (after first install).
+- Convenient for multiple projects.
+
+**Cons:**
+
+- Requires manual updates (`npm update -g nextellar`).
+- Takes up global npm space.
+
+### Method 3: Package Manager Specific
+
+**Yarn:**
+
+```bash
+yarn global add nextellar
+nextellar my-app
+````
+
+**pnpm:**
+
+```bash
+pnpm add -g nextellar
+nextellar my-app
+```
+
+## CLI Architecture
+
+```bash
+nextellar CLI
+Argument Parser (Commander.js)
+Scaffolding Engine
+  Template Copier
+  Variable Substitution
+  Configuration Generator
+Installation Manager
+  Package Manager Detection
+  Dependency Installation
+  Error Handling
+User Feedback
+    Progress Indicators
+    Success Messages
+    Error Reporting
+```
+
+## Command Structure
+
+```bash
+nextellar <project-name> [options]
+```
+
+**Components:**
+
+- `nextellar` - The CLI command
+- `<project-name>` - Your project directory name (required)
+- `[options]` - Optional flags to customize scaffolding
+
+## Common Workflows
+
+### Create and Run
+
+```bash
+npx nextellar my-app
+cd my-app
+npm run dev
+```
+
+### Custom Configuration
+
+```bash
+npx nextellar my-app \
+  --package-manager pnpm \
+  --horizon-url https://horizon.stellar.org \
+  --wallets freighter,xbull
+```
+
+### Skip Installation
+
+````bash
+npx nextellar my-app --skip-install
+cd my-app
+pnpm install  # Install with your preferred package manager
+```css
+
+### Verify Environment
+
+Before scaffolding, confirm your machine meets the requirements:
+
+```bash
+npx nextellar doctor
+````
+
+Use `nextellar doctor --json` in CI pipelines. See [CLI Commands](/docs/cli/commands) for full output examples.
+
+## Environment Variables
+
+Nextellar respects these environment variables:
+
+| Variable                | Description               | Default       |
+| ----------------------- | ------------------------- | ------------- |
+| `npm_config_user_agent` | Package manager detection | Auto-detected |
+| `NODE_ENV`              | Environment mode          | `development` |
+
+## Version Management
+
+### Check Version
+
+````bash
+npx nextellar --version
+# or
+nextellar -v
+```bash
+
+### Update to Latest
+
+**npx (automatic):**
+
+```bash
+npx nextellar@latest my-app
+````
+
+**Global install:**
+
+```bash
+npm update -g nextellar
+```
+
+## Troubleshooting
+
+### Command Not Found
+
+**Issue:** `nextellar: command not found`
+
+**Solution:**
+
+```bash
+# Use npx instead
+npx nextellar my-app
+
+# Or reinstall globally
+npm install -g nextellar
+```
+
+### Permission Errors
+
+**Issue:** `EACCES: permission denied`
+
+**Solution:**
+
+```bash
+# Use npx (no permissions needed)
+npx nextellar my-app
+
+# Or fix npm permissions
+sudo chown -R $(whoami) ~/.npm
+```
+
+### Slow Installation
+
+**Issue:** Installation takes too long
+
+**Solution:**
+
+````bash
+# Increase timeout
+npx nextellar my-app --install-timeout 3600000
+
+# Or skip and install manually
+npx nextellar my-app --skip-install
+cd my-app
+npm install
+```bash
+
+## Next Steps
+
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-6">
+  <a
+    href="/cli/commands"
+    className="block p-4 border rounded-lg hover:border-primary transition-colors"
+  >
+    <h4 className="font-semibold mb-2">CLI Commands</h4>
+    <span className="text-sm text-muted-foreground block">Detailed command reference</span>
+  </a>
+
+<a
+  href="/cli/options"
+  className="block p-4 border rounded-lg hover:border-primary transition-colors"
+>
+  <h4 className="font-semibold mb-2">CLI Options</h4>
+  <span className="text-sm text-muted-foreground block">
+    All available flags and parameters
+  </span>
+</a>
+
+<a
+  href="/cli/configuration"
+  className="block p-4 border rounded-lg hover:border-primary transition-colors"
+>
+  <h4 className="font-semibold mb-2">Configuration</h4>
+  <span className="text-sm text-muted-foreground block">
+    Customize your setup
+  </span>
+</a>
+
+  <a
+    href="/troubleshooting/installation-issues"
+    className="block p-4 border rounded-lg hover:border-primary transition-colors"
+  >
+    <h4 className="font-semibold mb-2">Troubleshooting</h4>
+    <span className="text-sm text-muted-foreground block">Common issues and solutions</span>
+  </a>
+</div>
+
+## Related Documentation
+
+- [Installation Guide](/docs/getting-started/installation) - Detailed installation instructions
+- [Quick Start](/docs/getting-started/quick-start) - Build your first app
+- [Project Structure](/docs/getting-started/project-structure) - Understand the generated code
+````

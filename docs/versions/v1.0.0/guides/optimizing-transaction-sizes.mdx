@@ -1,0 +1,223 @@
+---
+title: Optimizing Transaction Sizes
+description: Strategies for keeping Stellar and Soroban transaction sizes small, efficient, and within network limits.
+date: 2026-06-24
+---
+
+# Optimizing Transaction Sizes
+
+Stellar transactions are compact by design, but it is still easy to hit size limits or accumulate unnecessary bytes when building payment flows or invoking Soroban contracts. This guide explains the relevant constraints, practical batching tactics, and a minimal example that puts them together.
+
+---
+
+## Size constraints
+
+### Classic Stellar transactions
+
+| Limit                              | Value                                   | Notes                                                                            |
+| ---------------------------------- | --------------------------------------- | -------------------------------------------------------------------------------- |
+| Maximum operations per transaction | 100                                     | Each operation adds ~100–300 bytes to the XDR envelope                           |
+| Maximum transaction XDR size       | ~64 KB                                  | Enforced by validators; in practice keep envelopes well under 10 KB              |
+| Memo field                         | 28 bytes (text), 32 bytes (hash/return) | Longer memos must use hash or return memo types                                  |
+| Base fee per operation             | 100 stroops (0.0001 XLM)                | Fee scales linearly with operation count; use fee bumps for priority             |
+| Sequence number                    | 64-bit integer                          | One transaction per sequence slot; parallel submissions require managed accounts |
+
+The encoded XDR grows with every operation, signer, and data field you include. Signing alone adds ~64 bytes per signature. A transaction with 10 operations and 2 signers is already several hundred bytes larger than a single-operation envelope.
+
+### Soroban (smart contract) transactions
+
+Soroban transactions carry a **resource footprint** that is metered separately from the XDR size:
+
+| Resource                  | Testnet default limit | What it covers                           |
+| ------------------------- | --------------------- | ---------------------------------------- |
+| Instructions              | 100 million / tx      | WASM CPU instructions executed           |
+| Read bytes                | 200 KB / tx           | Ledger entries read during simulation    |
+| Write bytes               | 66 KB / tx            | Ledger entries written during simulation |
+| Read-only ledger entries  | 40 / tx               | Unique keys accessed as read-only        |
+| Read-write ledger entries | 25 / tx               | Unique keys written                      |
+| Transaction size (XDR)    | 71 KB / tx            | Entire envelope including WASM arguments |
+
+These limits are network-configured and can change between protocol versions. Always simulate first and inspect the returned `SorobanTransactionData` to confirm your transaction stays within the current fee and footprint budget before submitting.
+
+> **Note:** Exceeding any single resource limit causes the entire transaction to fail, even if the XDR byte size is fine. Instructions and write bytes are the most commonly exceeded limits.
+
+---
+
+## Operation batching tactics
+
+### 1. Combine operations into a single envelope
+
+A single Stellar transaction can carry up to 100 operations. Grouping logically related operations reduces the per-transaction overhead (base fee, sequence number, signature bytes) compared to submitting them separately.
+
+**When to batch:**
+
+- Creating a trustline and sending an asset in the same envelope
+- Establishing multiple trustlines at account creation
+- Distributing tokens to several recipients in one submission
+
+**When not to batch:**
+
+- Operations that depend on the success of a preceding transaction (use sequential submissions)
+- Operations that need different source accounts without a fee-bump envelope
+
+### 2. Use path payments to replace multi-step flows
+
+A `pathPayment` operation converts and delivers an asset in one step instead of three separate operations (send asset A → convert → send asset B). This cuts both operation count and fee by eliminating the intermediate transactions.
+
+### 3. Use claimable balances for async distribution
+
+Instead of sending payments to many accounts directly (100 operations × n transactions), create claimable balances once. Recipients claim on their own schedule, and you pay only for the creation operations.
+
+### 4. Trim memo fields
+
+Use a text memo only when the receiving service requires it (for example, exchange deposit routing). A memo adds 30–60 bytes per transaction. If you are sending to a self-custodied wallet, omit it. If you need a longer reference, switch to a hash memo (32 bytes, any payload).
+
+### 5. Minimize signers
+
+Each additional signer on a transaction envelope adds a signature (~64 bytes) and increases the required base fee. For multisig flows, consider using pre-authorized transactions (`setOptions` with `AUTH_REQUIRED`) so that the final submitter carries only a single signature.
+
+---
+
+## Soroban batching patterns
+
+### 1. Simulate before you submit
+
+The Soroban RPC `simulateTransaction` call returns the exact resource footprint your invocation will consume. Always simulate and inspect the result before broadcasting:
+
+```typescript
+import { SorobanRpc } from '@stellar/stellar-sdk';
+
+const server = new SorobanRpc.Server('https://soroban-testnet.stellar.org');
+const sim = await server.simulateTransaction(tx);
+
+if (SorobanRpc.Api.isSimulationSuccess(sim)) {
+  console.log('Instructions:', sim.cost.cpuInsns);
+  console.log('Read bytes:', sim.cost.memBytes);
+}
+```
+
+Catching oversized footprints here — before they are rejected on-chain — saves fee and latency.
+
+### 2. Minimise ledger entry footprint
+
+Each ledger entry your contract reads or writes counts against the footprint limits. Common reductions:
+
+- Pass computed values as arguments instead of reading them from contract storage when possible.
+- Combine multiple small storage keys into a single `ScvMap` entry.
+- Avoid reading entries you do not need; prefer targeted key lookups over iteration.
+
+### 3. Prefer read-only simulation for view calls
+
+Read-only contract functions (`balance`, `get_admin`) do not change state. Use `simulateTransaction` directly instead of building a full invocation envelope — it is cheaper, faster, and does not consume sequence numbers.
+
+### 4. Batch multiple invocations in one envelope
+
+If your contract supports it, expose a batch entry point that accepts a vector of operations and processes them in a single invocation. This keeps the per-transaction overhead constant while the useful work scales with the batch size.
+
+---
+
+## Minimal example
+
+The following example builds a payment that combines a trustline operation and an asset transfer in a single envelope, keeping the operation count and fee to a minimum.
+
+```typescript
+import {
+  Keypair,
+  Networks,
+  TransactionBuilder,
+  Operation,
+  Asset,
+  Memo,
+} from '@stellar/stellar-sdk';
+import { useStellarPayment } from '@/hooks/useStellarPayment';
+
+// Example asset issued on testnet
+const USDC = new Asset(
+  'USDC',
+  'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN'
+);
+
+/**
+ * Builds a single-envelope transaction that:
+ * 1. Opens a trustline for USDC on the recipient account
+ * 2. Sends the USDC payment
+ *
+ * Two operations → one fee, one sequence number, one signature.
+ */
+async function trustlineAndSend(
+  senderKeypair: Keypair,
+  recipientPublicKey: string,
+  recipientKeypair: Keypair,
+  amount: string
+) {
+  const { buildPaymentXDR, submitSignedXDR } = useStellarPayment();
+
+  // Step 1 — build the raw transaction with two operations
+  const baseFee = '200'; // stroops per operation; 2 ops = 400 stroops total
+  const tx = new TransactionBuilder(
+    await loadAccount(senderKeypair.publicKey()),
+    {
+      fee: baseFee,
+      networkPassphrase: Networks.TESTNET,
+    }
+  )
+    // Operation 1: recipient establishes trustline
+    .addOperation(
+      Operation.changeTrust({
+        asset: USDC,
+        source: recipientPublicKey, // signed by recipient below
+      })
+    )
+    // Operation 2: sender transfers USDC
+    .addOperation(
+      Operation.payment({
+        destination: recipientPublicKey,
+        asset: USDC,
+        amount,
+      })
+    )
+    // Omit memo — recipient is a self-custodied wallet, not an exchange
+    .setTimeout(30)
+    .build();
+
+  // Step 2 — both parties sign; no extra signature bytes beyond these two
+  tx.sign(senderKeypair);
+  tx.sign(recipientKeypair);
+
+  // Step 3 — submit
+  const xdr = tx.toXDR();
+  const result = await submitSignedXDR(xdr);
+
+  if (result.success) {
+    console.log('Sent', amount, 'USDC in a single envelope:', result.txHash);
+  }
+}
+```
+
+This pattern keeps the fee proportional to the actual work (2 × 200 stroops = 400 stroops) rather than paying two separate base fees. The XDR envelope with two operations and two signatures is still well under 1 KB.
+
+---
+
+## Quick reference
+
+| Tactic                                        | Savings                                                    |
+| --------------------------------------------- | ---------------------------------------------------------- |
+| Batch operations into one envelope            | One fee + sequence slot per batch                          |
+| Use path payments instead of multi-step flows | Removes 2 intermediate operations                          |
+| Use claimable balances for distribution       | One creation per recipient instead of one tx per recipient |
+| Omit optional memo                            | ~30–60 bytes per transaction                               |
+| Minimize multisig signers                     | ~64 bytes per removed signature                            |
+| Simulate Soroban calls before submitting      | Avoids fee loss on oversized footprints                    |
+| Combine storage keys in Soroban               | Reduces ledger entry footprint                             |
+
+---
+
+## Related docs
+
+- [useStellarPayment](/docs/hooks/use-stellar-payment) — building and submitting payment transactions
+- [useSorobanContract](/docs/hooks/use-soroban-contract) — invoking smart contracts and inspecting simulation results
+- [Soroban Integration](/docs/integrations/soroban) — RPC endpoints, type conversion, and contract patterns
+- [Stellar Horizon](/docs/integrations/horizon) — Horizon API and account management
+- [Hook Error Handling](/docs/guides/hook-error-handling) — handling submission and simulation failures
+- [Performance Budget Guide](/docs/guides/performance-budget-guide) — site-level performance budgets
+- [Glossary](/docs/guides/glossary) — XDR, XLM, trustline, and other key terms

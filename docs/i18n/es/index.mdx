@@ -1,0 +1,213 @@
+---
+title: Bienvenido a Nextellar
+description: Construye dApps de Stellar listas para producción en minutos con Nextellar CLI - la forma más rápida de crear aplicaciones Next.js con integración de blockchain Stellar.
+date: 2026-06-02
+---
+
+# Bienvenido a la Documentación de Nextellar
+
+**Nextellar** es un toolkit CLI de un solo paso que proporciona aplicaciones Next.js + TypeScript listas para producción con soporte integrado para blockchain Stellar. Ve de la idea a una dApp funcional en menos de 2 minutos.
+
+## Inicio Rápido
+
+```bash
+npx nextellar mi-app-stellar
+cd mi-app-stellar
+npm run dev
+```
+
+¡Eso es todo! Ahora tienes una dApp Stellar completamente funcional con conexión de billeteras, hooks de pago e integración de contratos inteligentes.
+
+## Qué Obtienes
+
+<div className="grid grid-cols-1 md:grid-cols-2 gap-6 my-8">
+  <div className="border rounded-lg p-6">
+    <h3 className="text-lg font-semibold mb-2">8 Hooks Listos para Producción</h3>
+    <p className="text-sm text-muted-foreground">
+      Hooks React completos para conexión de billeteras, pagos, saldos, líneas de confianza, 
+      historial de transacciones, contratos inteligentes y más.
+    </p>
+  </div>
+
+  <div className="border rounded-lg p-6">
+    <h3 className="text-lg font-semibold mb-2">Soporte Multi-Billetera</h3>
+    <p className="text-sm text-muted-foreground">
+      Integración preconfigurada con billeteras Freighter, Albedo, Lobstr, xBull y Ledger 
+      lista para usar.
+    </p>
+  </div>
+
+  <div className="border rounded-lg p-6">
+    <h3 className="text-lg font-semibold mb-2">Stack Moderno</h3>
+    <p className="text-sm text-muted-foreground">
+      Next.js 16, React 19, TypeScript, Tailwind CSS 4 y el último SDK de Stellar 
+      - todo configurado y listo para usar.
+    </p>
+  </div>
+
+  <div className="border rounded-lg p-6">
+    <h3 className="text-lg font-semibold mb-2">Listo para Producción</h3>
+    <p className="text-sm text-muted-foreground">
+      No es solo una plantilla inicial - incluye configuración de pruebas, flujos de trabajo 
+      CI/CD y configuraciones de despliegue.
+    </p>
+  </div>
+</div>
+
+## ¿Por Qué Nextellar?
+
+### Experiencia del Desarrollador Primero
+
+Nextellar elimina semanas de configuración de boilerplate. En lugar de configurar SDK de Stellar, adaptadores de billeteras, constructores de transacciones y manejo de errores desde cero, obtienes:
+
+- **Configuración Instantánea**: Un comando para estructurar una dApp completa.
+- **Seguridad de Tipos**: Soporte completo de TypeScript con definiciones de tipos exhaustivas.
+- **Mejores Prácticas**: Arquitectura opinada siguiendo estándares de la industria.
+- **Cero Configuración**: Todo funciona lista para usar.
+
+### Código de Calidad Empresarial
+
+Cada hook y componente está listo para producción:
+
+- Manejo exhaustivo de errores.
+- Estados de carga y retroalimentación al usuario.
+- Persistencia de conexión de billetera.
+- Soporte para cambio de red.
+- Lógica de reintento de transacciones.
+- Mejores prácticas de seguridad.
+
+### Integración Completa de Stellar
+
+- **Horizon API**: Consultas de cuenta, historial de pagos, gestión de activos.
+- **Soroban RPC**: Invocación de contratos inteligentes y escucha de eventos.
+- **Kit de Billeteras**: Interfaz unificada para todas las billeteras principales de Stellar.
+- **Manejo XDR**: Conversión automática entre tipos JavaScript y Stellar.
+
+## Guías Populares
+
+<div className="grid grid-cols-1 md:grid-cols-3 gap-4 my-8">
+  <a
+    href="/getting-started/installation"
+    className="block p-4 border rounded-lg hover:border-primary transition-colors"
+  >
+    <h4 className="font-semibold mb-2">Instalación</h4>
+    <span className="text-sm text-muted-foreground block">Instala Nextellar y crea tu primer proyecto</span>
+  </a>
+
+  <a
+    href="/getting-started/quick-start"
+    className="block p-4 border rounded-lg hover:border-primary transition-colors"
+  >
+    <h4 className="font-semibold mb-2">Inicio Rápido</h4>
+    <span className="text-sm text-muted-foreground block">
+      Construye tu primera aplicación de pago Stellar en 10 minutos
+    </span>
+  </a>
+
+  <a
+    href="/cli/commands"
+    className="block p-4 border rounded-lg hover:border-primary transition-colors"
+  >
+    <h4 className="font-semibold mb-2">Referencia CLI</h4>
+    <span className="text-sm text-muted-foreground block">
+      Documentación completa de la interfaz de línea de comandos
+    </span>
+  </a>
+
+  <a
+    href="/hooks/use-stellar-wallet"
+    className="block p-4 border rounded-lg hover:border-primary transition-colors"
+  >
+    <h4 className="font-semibold mb-2">Hook de Billetera</h4>
+    <span className="text-sm text-muted-foreground block">
+      Conecta a billeteras de Stellar y gestiona cuentas
+    </span>
+  </a>
+
+  <a
+    href="/hooks/use-soroban-contract"
+    className="block p-4 border rounded-lg hover:border-primary transition-colors"
+  >
+    <h4 className="font-semibold mb-2">Contratos Inteligentes</h4>
+    <span className="text-sm text-muted-foreground block">
+      Interactúa con contratos inteligentes de Soroban
+    </span>
+  </a>
+
+  <a
+    href="/guides/deployment"
+    className="block p-4 border rounded-lg hover:border-primary transition-colors"
+  >
+    <h4 className="font-semibold mb-2">Despliegue</h4>
+    <span className="text-sm text-muted-foreground block">Despliega tu dApp a producción</span>
+  </a>
+</div>
+
+## Ejemplo: Flujo de Pago
+
+Aquí se ve lo fácil que es enviar un pago con Nextellar:
+
+```tsx
+import { useStellarWallet } from '@/hooks/useStellarWallet';
+
+export default function SendPayment() {
+  const { connected, sendPayment } = useStellarWallet();
+
+  const handleSend = async () => {
+    try {
+      const result = await sendPayment({
+        to: 'GDEF456...',
+        amount: '10.5',
+        asset: 'XLM',
+        memo: 'Pago por servicios',
+      });
+
+      console.log('¡Éxito!', result.hash);
+    } catch (error) {
+      console.error('El pago falló:', error);
+    }
+  };
+
+  return (
+    <button onClick={handleSend} disabled={!connected}>
+      Enviar 10.5 XLM
+    </button>
+  );
+}
+```
+
+¡Eso es todo! Sin construir transacciones manuales, sin codificación XDR, sin configuración de adaptador de billetera - simplemente funciona.
+
+## Comunidad y Soporte
+
+- **GitHub**: [nextellarlabs/nextellar](https://github.com/nextellarlabs/nextellar)
+- **npm**: [nextellar](https://www.npmjs.com/package/nextellar)
+- **Problemas**: [Reporta un error](https://github.com/nextellarlabs/nextellar/issues)
+- **Discusiones**: [Haz preguntas](https://github.com/nextellarlabs/nextellar/discussions)
+- **Seguridad**: [Reporta una vulnerabilidad](/guides/security-policy)
+
+## ¿Qué Sigue?
+
+<div className="bg-muted p-6 rounded-lg my-8">
+  <h3 className="text-lg font-semibold mb-4">
+    ¿Listo para construir tu dApp de Stellar?
+  </h3>
+  <div className="flex flex-col sm:flex-row gap-4">
+    <a
+      href="/getting-started/installation"
+      className="inline-flex items-center justify-center px-6 py-3 bg-primary text-primary-foreground rounded-md font-medium hover:opacity-90 transition-opacity"
+    >
+      Comenzar →
+    </a>
+    <a
+      href="/examples"
+      className="inline-flex items-center justify-center px-6 py-3 border rounded-md font-medium hover:bg-muted transition-colors"
+    >
+      Ver Ejemplos
+    </a>
+  </div>
+</div>
+
+---
+
+**Construido para la comunidad de desarrolladores de Stellar**

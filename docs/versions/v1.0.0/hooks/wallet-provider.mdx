@@ -1,0 +1,272 @@
+---
+title: WalletProvider
+description: Global wallet context provider for Stellar wallet state management
+date: 2026-06-02
+---
+
+# WalletProvider
+
+The `WalletProvider` component wraps your application to provide global wallet functionality throughout the component tree. It handles wallet connection, state persistence, and exposes its configuration to all Nextellar hooks.
+
+## Features
+
+- **Global Wallet State**: Share connection status across all components
+- **Persistence**: Auto-reconnect on page reload via localStorage
+- **Config Sharing**: Hooks auto-consume `horizonUrl` and `network` settings
+- **Multi-Wallet**: Supports Freighter, Albedo, Lobstr, xBull, Hana
+- **Payment Ready**: Built-in payment functionality
+
+## Quick Setup
+
+Wrap your app with `WalletProvider`:
+
+```tsx
+// app/layout.tsx or _app.tsx
+import { WalletProvider } from '@/contexts';
+
+export default function RootLayout({ children }) {
+  return (
+    <html>
+      <body>
+        <WalletProvider>{children}</WalletProvider>
+      </body>
+    </html>
+  );
+}
+```
+
+## Configuration
+
+### Props
+
+```typescript
+interface WalletProviderProps {
+  children: ReactNode;
+  horizonUrl?: string; // Default: 'https://horizon-testnet.stellar.org'
+  network?: string; // Default: Networks.TESTNET
+}
+```
+
+### Networks
+
+```tsx
+// Testnet (default)
+<WalletProvider>
+  <App />
+</WalletProvider>
+
+// Mainnet
+<WalletProvider
+  horizonUrl="https://horizon.stellar.org"
+  network={Networks.PUBLIC}
+>
+  <App />
+</WalletProvider>
+```
+
+---
+
+## useWallet Hook
+
+Access wallet state from any component within the provider:
+
+```tsx
+import { useWallet } from '@/contexts';
+
+function WalletStatus() {
+  const {
+    connected,
+    publicKey,
+    walletName,
+    balances,
+    connect,
+    disconnect,
+    refreshBalances,
+    sendPayment,
+  } = useWallet();
+
+  if (!connected) {
+    return <button onClick={connect}>Connect Wallet</button>;
+  }
+
+  return (
+    <div>
+      <p>Connected: {walletName}</p>
+      <p>Address: {publicKey}</p>
+      <p>XLM: {balances.find((b) => b.asset_type === 'native')?.balance}</p>
+      <button onClick={disconnect}>Disconnect</button>
+    </div>
+  );
+}
+```
+
+### Return Value
+
+```typescript
+interface WalletContextState {
+  connected: boolean;
+  publicKey?: string;
+  walletName?: string;
+  balances: Balance[];
+  connect: () => Promise<void>;
+  disconnect: () => void;
+  refreshBalances: () => Promise<void>;
+  sendPayment?: (opts: PaymentOptions) => Promise<TransactionResponse>;
+}
+```
+
+> [!NOTE]
+> `sendPayment` is only available when a wallet is connected.
+
+---
+
+## useWalletConfig Hook
+
+Access the provider's configuration from standalone hooks:
+
+```tsx
+import { useWalletConfig } from '@/contexts';
+import { useStellarBalances } from '@/hooks/useStellarBalances';
+
+function MultiNetworkComponent() {
+  const config = useWalletConfig();
+
+  // Use provider's config
+  const { balances } = useStellarBalances(publicKey, {
+    horizonUrl: config?.horizonUrl,
+  });
+
+  return <div>...</div>;
+}
+```
+
+### Return Value
+
+```typescript
+interface WalletConfigContextState {
+  horizonUrl: string;
+  network: string;
+}
+```
+
+Returns `undefined` when used outside a `WalletProvider`.
+
+---
+
+## Sending Payments
+
+```tsx
+function PaymentForm() {
+  const { connected, sendPayment } = useWallet();
+  const [recipient, setRecipient] = useState('');
+  const [amount, setAmount] = useState('');
+
+  const handleSend = async () => {
+    try {
+      const result = await sendPayment({
+        to: recipient,
+        amount: amount,
+        asset: 'XLM',
+        memo: 'Payment from my dApp',
+      });
+      console.log('Success:', result.hash);
+    } catch (error) {
+      console.error('Payment failed:', error);
+    }
+  };
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        handleSend();
+      }}
+    >
+      <input
+        placeholder="Recipient address"
+        value={recipient}
+        onChange={(e) => setRecipient(e.target.value)}
+      />
+      <input
+        placeholder="Amount"
+        value={amount}
+        onChange={(e) => setAmount(e.target.value)}
+      />
+      <button type="submit" disabled={!connected}>
+        Send XLM
+      </button>
+    </form>
+  );
+}
+```
+
+### PaymentOptions
+
+```typescript
+interface PaymentOptions {
+  to: string;
+  amount: string;
+  asset?: 'XLM' | { code: string; issuer: string };
+  memo?: string;
+}
+```
+
+---
+
+## Auto-Reconnect
+
+The provider automatically reconnects on page reload if the user was previously connected:
+
+```typescript
+// Stored in localStorage:
+// - stellar_wallet_connected: 'true' | 'false'
+// - stellar_wallet_id: wallet adapter ID
+// - stellar_wallet_address: public key
+// - stellar_wallet_name: wallet display name
+```
+
+---
+
+## How Hooks Consume Config
+
+All Nextellar hooks automatically use `WalletProvider` config as a fallback:
+
+```tsx
+// Inside useStellarBalances (simplified)
+function useStellarBalances(publicKey, options = {}) {
+  const providerConfig = useWalletConfig();
+
+  const horizonUrl =
+    options.horizonUrl ?? providerConfig?.horizonUrl ?? DEFAULT_HORIZON_URL;
+
+  // ... rest of hook
+}
+```
+
+This means you can:
+
+1. **Use provider config** - Just call the hook, it auto-consumes
+2. **Override per-component** - Pass custom `horizonUrl` in options
+3. **Use standalone** - Works without provider (uses defaults)
+
+## Error Handling
+
+### Missing Network Configuration
+
+If `horizonUrl` or the network passphrase is missing, fail fast with a configuration message instead of guessing defaults.
+
+### Reconnect Failures
+
+If auto-reconnect fails after a reload or storage clear, surface the state clearly and let the user reconnect manually.
+
+### Downstream Hook Errors
+
+When child hooks fail, keep the provider state visible and let the child hook own its retry controls.
+
+---
+
+## Related
+
+- [useStellarWallet](/docs/hooks/use-stellar-wallet) - Standalone wallet hook
+- [WalletConnectButton](/docs/hooks/wallet-connect-button) - Pre-built UI component
+- [useStellarBalances](/docs/hooks/use-stellar-balances) - Balance fetching
