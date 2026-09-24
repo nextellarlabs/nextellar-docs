@@ -29,7 +29,8 @@
     "test": "npm run test:unit",
     "test:unit": "vitest run",
     "validate:sidebar": "node scripts/validate-sidebar.cjs",
-    "check:links": "node scripts/check-links.cjs"
+    "check:links": "node scripts/check-links.cjs",
+    "audit:frontmatter": "node scripts/audit-frontmatter-comprehensive.cjs"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx,json,css,md,mdx}": [
