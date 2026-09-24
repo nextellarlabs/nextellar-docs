@@ -38,33 +38,141 @@ The **Tabs** component is a customizable tab system that supports multiple sizes
     </Preview>
   </TabsContent>
   <TabsContent value="code">
-    ```tsx
-    import { Tabs, TabsContent, TabsList, Tab } from "@/components/tabs";
 
-    export default function Example() {
-      return (
-        <Tabs defaultValue="account" size="sm" className="w-full">
-          <TabsList className="grid grid-cols-2">
-            <Tab value="account">Account</Tab>
-            <Tab value="password">Password</Tab>
-          </TabsList>
-          <TabsContent value="account">
-            <div className="p-4 border border-[var(--color-border)] rounded-md mt-2">
-              <h3 className="text-lg font-medium">Account Settings</h3>
-              <p className="text-sm text-gray-500 mt-1">Manage your account settings and preferences.</p>
-            </div>
-          </TabsContent>
-          <TabsContent value="password">
-            <div className="p-4 border border-[var(--color-border)] rounded-md mt-2">
-              <h3 className="text-lg font-medium">Password Settings</h3>
-              <p className="text-sm text-gray-500 mt-1">Change your password and security settings.</p>
-            </div>
-          </TabsContent>
-        </Tabs>
-      );
-    }
+```tsx
+import { Tab, Tabs, TabsContent, TabsList } from '@/components/tabs';
 
+export default function Example() {
+  return (
+    <Tabs defaultValue="account" className="w-full">
+      <TabsList className="grid grid-cols-2">
+        <Tab value="account">Account</Tab>
+        <Tab value="password">Password</Tab>
+      </TabsList>
+      <TabsContent value="account">
+        <div className="mt-2 rounded-md border border-[var(--color-border)] p-4">
+          <h3 className="text-lg font-medium">Account Settings</h3>
+          <p className="mt-1 text-sm text-gray-500">
+            Manage your account settings and preferences.
+          </p>
+        </div>
+      </TabsContent>
+      <TabsContent value="password">
+        <div className="mt-2 rounded-md border border-[var(--color-border)] p-4">
+          <h3 className="text-lg font-medium">Password Settings</h3>
+          <p className="mt-1 text-sm text-gray-500">
+            Change your password and security settings.
+          </p>
+        </div>
+      </TabsContent>
+    </Tabs>
+  );
+}
 ```
+
+  </TabsContent>
+</Tabs>
+
+## Synced Tabs
+
+Control multiple `Tabs` instances with the same value to keep their selections synchronized. Selecting a tab in either group updates both groups.
+
+<Tabs defaultValue="preview" className="w-full">
+  <TabsList className="grid w-full grid-cols-2 md:w-[30%]">
+    <Tab value="preview">Preview</Tab>
+    <Tab value="code">Code</Tab>
+  </TabsList>
+  <TabsContent value="preview">
+    <Preview>
+      {(() => {
+        const SyncedTabsExample = () => {
+          const [activeTab, setActiveTab] = React.useState('overview');
+
+          return (
+            <div className="space-y-8">
+              <Tabs
+                defaultValue="overview"
+                value={activeTab}
+                onValueChange={setActiveTab}
+              >
+                <TabsList>
+                  <Tab value="overview">Overview</Tab>
+                  <Tab value="activity">Activity</Tab>
+                </TabsList>
+                <TabsContent value="overview">
+                  The account overview is selected.
+                </TabsContent>
+                <TabsContent value="activity">
+                  The account activity is selected.
+                </TabsContent>
+              </Tabs>
+
+              <Tabs
+                defaultValue="overview"
+                value={activeTab}
+                onValueChange={setActiveTab}
+              >
+                <TabsList>
+                  <Tab value="overview">Overview</Tab>
+                  <Tab value="activity">Activity</Tab>
+                </TabsList>
+                <TabsContent value="overview">
+                  This second tab group follows the overview selection.
+                </TabsContent>
+                <TabsContent value="activity">
+                  This second tab group follows the activity selection.
+                </TabsContent>
+              </Tabs>
+            </div>
+          );
+        };
+
+        return <SyncedTabsExample />;
+      })()}
+    </Preview>
+
+  </TabsContent>
+  <TabsContent value="code">
+
+```tsx
+import { useState } from 'react';
+import { Tab, Tabs, TabsContent, TabsList } from '@/components/tabs';
+
+export default function SyncedTabsExample() {
+  const [activeTab, setActiveTab] = useState('overview');
+
+  return (
+    <div className="space-y-8">
+      <Tabs
+        defaultValue="overview"
+        value={activeTab}
+        onValueChange={setActiveTab}
+      >
+        <TabsList>
+          <Tab value="overview">Overview</Tab>
+          <Tab value="activity">Activity</Tab>
+        </TabsList>
+        <TabsContent value="overview">Account overview</TabsContent>
+        <TabsContent value="activity">Account activity</TabsContent>
+      </Tabs>
+
+      <Tabs
+        defaultValue="overview"
+        value={activeTab}
+        onValueChange={setActiveTab}
+      >
+        <TabsList>
+          <Tab value="overview">Overview</Tab>
+          <Tab value="activity">Activity</Tab>
+        </TabsList>
+        <TabsContent value="overview">Synced overview</TabsContent>
+        <TabsContent value="activity">Synced activity</TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+```
+
   </TabsContent>
 </Tabs>
 
@@ -78,4 +186,3 @@ The **Tabs** component is a customizable tab system that supports multiple sizes
 | `onTabClick`    | `(value: string) => void`              | `undefined` | Callback function when a tab is clicked.          |
 | `size`          | `"xs" \| "sm" \| "md" \| "lg" \| "xl"` | `"md"`      | Controls the size of the tab buttons.             |
 | `...props`      | `React.HTMLAttributes<HTMLDivElement>` |             | Supports all standard `div` attributes.           |
-```

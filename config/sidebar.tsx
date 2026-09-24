@@ -73,6 +73,7 @@ export const sidebarNav: SidebarSection[] = [
       { title: 'Flags & Options', href: '/docs/cli/flags' },
       { title: 'Scaffolding Templates', href: '/docs/cli/templates' },
       { title: 'Template Comparison', href: '/docs/cli/template-comparison' },
+      { title: 'JavaScript Default Template', href: '/docs/cli/js-template' },
       { title: 'JavaScript DeFi Template', href: '/docs/cli/js-defi' },
       { title: 'Clean Build Artifacts', href: '/docs/cli/clean' },
     ],

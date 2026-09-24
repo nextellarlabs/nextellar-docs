@@ -11,12 +11,31 @@ const TabsContext = createContext<TabsContextValue | undefined>(undefined);
 
 interface TabsProps {
   defaultValue: string;
+  value?: string;
+  onValueChange?: (value: string) => void;
+  onTabClick?: (value: string) => void;
   children: ReactNode;
   className?: string;
 }
 
-export function Tabs({ defaultValue, children, className = '' }: TabsProps) {
-  const [activeTab, setActiveTab] = useState(defaultValue);
+export function Tabs({
+  defaultValue,
+  value,
+  onValueChange,
+  onTabClick,
+  children,
+  className = '',
+}: TabsProps) {
+  const [internalValue, setInternalValue] = useState(defaultValue);
+  const activeTab = value ?? internalValue;
+
+  const setActiveTab = (nextValue: string) => {
+    if (value === undefined) {
+      setInternalValue(nextValue);
+    }
+    onValueChange?.(nextValue);
+    onTabClick?.(nextValue);
+  };
 
   return (
     <TabsContext.Provider value={{ activeTab, setActiveTab }}>
@@ -85,3 +104,5 @@ export function TabsContent({
 
   return <div className={`pt-4 ${className}`}>{children}</div>;
 }
+
+export { TabsTrigger as Tab };
