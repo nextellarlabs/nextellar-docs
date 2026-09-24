@@ -140,6 +140,27 @@ await callFunction('transfer', [
 
 ## Configuration
 
+### RPC Endpoint Configuration
+
+Configure the Soroban RPC endpoint when scaffolding your project using the `--soroban-url` flag:
+
+```bash
+# Use mainnet Soroban RPC endpoint
+npx nextellar my-app --soroban-url https://soroban-rpc.stellar.org
+
+# Use testnet (default)
+npx nextellar my-app --soroban-url https://soroban-testnet.stellar.org
+
+# Use a custom RPC endpoint
+npx nextellar my-app --soroban-url https://custom-soroban-rpc.example.com
+```
+
+The `--soroban-url` flag sets the default Soroban RPC endpoint for your project. You can verify or check the current endpoint from the CLI using:
+
+```bash
+nextellar doctor --soroban-url https://soroban-rpc.stellar.org
+```
+
 ### With WalletProvider
 
 ```tsx
