@@ -53,6 +53,35 @@ Open [http://localhost:3000](http://localhost:3000) to view the documentation.
 
 **Note**: This project uses `pnpm` as the package manager. If you don't have it installed, run `npm install -g pnpm` first.
 
+## Search Index Pipeline
+
+This project includes an **automated client-side search index pipeline** that builds and validates a searchable index of all documentation.
+
+### How It Works
+
+- **Build:** `npm run build:search-index` crawls docs and generates `public/search-index.json`
+- **Validate:** `npm run validate:search-index` runs comprehensive validation checks (size, schema, doc count, paths, content)
+- **Test:** `npm run test:validation` runs unit tests for validation logic
+- **CI:** Automatically runs on every PR and push; fails if validation fails
+
+### Local Testing
+
+```bash
+# Build the index
+npm run build:search-index
+
+# Validate it
+npm run validate:search-index
+
+# Run tests
+npm run test:validation
+
+# Or use the full build (includes all steps)
+npm run build
+```
+
+For detailed documentation, see [SEARCH_INDEX_PIPELINE.md](./SEARCH_INDEX_PIPELINE.md).
+
 ## Contributing
 
 We welcome contributions! See our [Contributing Guide](./CONTRIBUTING.md) for details.
@@ -63,6 +92,7 @@ We welcome contributions! See our [Contributing Guide](./CONTRIBUTING.md) for de
 2. Add frontmatter with `title` and `description`
 3. Write your content using MDX
 4. The page will automatically appear in navigation
+5. The search index will be built and validated in CI
 
 Example:
 

@@ -1,0 +1,159 @@
+name: Build & Validate Search Index
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'docs/**'
+      - 'docs/**/*.mdx'
+      - 'docs/**/*.md'
+      - 'scripts/build-search-index.cjs'
+      - 'scripts/validate-search-index.cjs'
+      - 'contentlayer.config.ts'
+      - '.github/workflows/search-index-ci.yml'
+      - 'package.json'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'docs/**'
+      - 'docs/**/*.mdx'
+      - 'docs/**/*.md'
+      - 'scripts/build-search-index.cjs'
+      - 'scripts/validate-search-index.cjs'
+      - 'contentlayer.config.ts'
+      - '.github/workflows/search-index-ci.yml'
+      - 'package.json'
+
+jobs:
+  build-and-validate-search-index:
+    name: Build & Validate Search Index
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    strategy:
+      matrix:
+        node-version: [18.x]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 9.15.4
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build content with Contentlayer
+        run: pnpm build:content
+
+      - name: Build search index
+        run: pnpm build:search-index
+        continue-on-error: false
+
+      - name: Validate search index
+        run: pnpm validate:search-index
+        continue-on-error: false
+
+      - name: Run search index unit tests
+        run: pnpm test:validation
+        continue-on-error: false
+
+      - name: Upload search index artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: search-index
+          path: public/search-index.json
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Comment on PR with results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const indexPath = 'public/search-index.json';
+            
+            if (fs.existsSync(indexPath)) {
+              const index = JSON.parse(fs.readFileSync(indexPath, 'utf8'));
+              const stats = fs.statSync(indexPath);
+              
+              const comment = `## ✅ Search Index CI Report
+              
+              ### Index Statistics
+              - **Documents Indexed**: ${index.documentCount}
+              - **File Size**: ${(stats.size / 1024).toFixed(2)} KB
+              - **Generated At**: ${index.generatedAt}
+              - **Index Version**: ${index.version}
+              
+              ### Validation Status
+              ✅ All checks passed:
+              - Index file exists and has valid size
+              - Schema validation passed
+              - Document count meets minimum threshold
+              - All documents have required fields
+              - All paths are correctly formatted
+              - Content validation passed
+              - Unit tests passed
+              
+              The search index is ready for production.`;
+              
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: comment
+              });
+            }
+        continue-on-error: true
+
+      - name: Report failure on PR
+        if: failure() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const comment = `## ❌ Search Index CI Report
+            
+            ### Validation Failed
+            The search index pipeline encountered errors:
+            
+            - **Build Step**: Check logs for details
+            - **Validation Step**: The generated index failed validation checks
+            - **Unit Tests**: Some tests may have failed
+            
+            Please check the logs and ensure:
+            1. All MDX/MD files have proper frontmatter with \`title\` field
+            2. The content layer is generating valid documents
+            3. No recent changes broke the content structure
+            
+            See the workflow logs for detailed error messages.`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+        continue-on-error: true

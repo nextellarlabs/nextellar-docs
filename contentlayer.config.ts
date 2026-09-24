@@ -46,6 +46,14 @@ export const Post = defineDocumentType(() => ({
       type: 'string',
       resolve: (doc) => doc._raw.flattenedPath,
     },
+    locale: {
+      type: 'string',
+      resolve: (doc) => {
+        // Extract locale from i18n path: i18n/es/... -> es, default to en
+        const match = doc._raw.sourceFilePath.match(/^i18n\/([\w-]+)\//);
+        return match ? match[1] : 'en';
+      },
+    },
   },
 }));
 
