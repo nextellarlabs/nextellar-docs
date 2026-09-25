@@ -242,6 +242,8 @@ export const sidebarNav: SidebarSection[] = [
       },
       { title: 'Documentation Roadmap', href: '/docs/guides/roadmap' },
       {
+        title: 'Documentation Roadmap',
+        href: '/docs/guides/roadmap',
         title: 'Security Hardening',
         href: '/docs/guides/security-hardening',
       },
@@ -405,6 +407,10 @@ export const sidebarNav: SidebarSection[] = [
         href: '/docs/guides/horizon-vs-soroban-rpc',
       },
       {
+        title: 'Security Policy',
+        href: '/docs/guides/security-policy',
+      },
+      {
         title: 'Internationalization',
         href: '/docs/guides/internationalization',
       },
@@ -420,8 +426,8 @@ export const sidebarNav: SidebarSection[] = [
     defaultOpen: false,
     pages: [
       {
-        title: 'ConnectWalletButton',
-        href: '/docs/components/connect-wallet-button',
+        title: 'WalletConnectButton',
+        href: '/docs/components/wallet-connect-button',
       },
       { title: 'useWindowSize', href: '/docs/components/use-window-size' },
     ],
