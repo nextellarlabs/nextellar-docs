@@ -1,0 +1,469 @@
+---
+title: 'Internationalization (i18n) Guide'
+description: 'Learn how to implement internationalization in your Nextellar dApp and documentation'
+---
+
+import { Note } from '@/components/note';
+
+# Internationalization (i18n) Guide
+
+Internationalization (i18n) enables your Nextellar dApp and documentation to support multiple languages and locales, making your application accessible to a global audience.
+
+## Overview
+
+This guide covers implementing i18n in:
+
+- **Next.js applications** built with Nextellar scaffolding
+- **Documentation sites** using Nextellar Docs
+- **Smart contract interfaces** and user-facing text
+
+<Note>
+  For Stellar blockchain transactions, always ensure proper locale handling for
+  dates, numbers, and currency amounts to maintain accuracy across regions.
+</Note>
+
+## Getting Started with i18n
+
+### Choose an i18n Library
+
+Popular options for Next.js applications:
+
+#### 1. **next-i18next** (Recommended for Full-Stack Apps)
+
+```bash
+npm install next-i18next i18next react-i18next
+```
+
+**Why:** Integrates seamlessly with Next.js, supports SSR/SSG, and has excellent community support.
+
+#### 2. **next-intl** (Recommended for App Router)
+
+```bash
+npm install next-intl
+```
+
+**Why:** Built for Next.js 13+ App Router, provides TypeScript support, and handles routing elegantly.
+
+#### 3. **i18next** (Flexible Standalone)
+
+```bash
+npm install i18next react-i18next
+```
+
+**Why:** Most flexible, works with any framework, comprehensive ecosystem.
+
+## Implementation Patterns
+
+### Pattern 1: Using next-intl with App Router
+
+#### Step 1: Configure i18n Routing
+
+Create `i18n.ts` in your project root:
+
+```typescript
+import { getRequestConfig } from 'next-intl/server';
+
+export default getRequestConfig(async ({ locale }) => ({
+  messages: (await import(`./messages/${locale}.json`)).default,
+}));
+```
+
+#### Step 2: Set Up Message Files
+
+Create a `messages/` directory with JSON files for each language:
+
+```
+messages/
+├── en.json
+├── es.json
+├── fr.json
+└── de.json
+```
+
+Example `messages/en.json`:
+
+```json
+{
+  "navigation": {
+    "home": "Home",
+    "docs": "Documentation",
+    "features": "Features"
+  },
+  "wallet": {
+    "connect": "Connect Wallet",
+    "connected": "Wallet Connected",
+    "disconnect": "Disconnect"
+  }
+}
+```
+
+#### Step 3: Configure next.config.ts
+
+```typescript
+import createNextIntlPlugin from 'next-intl/plugin';
+
+const withNextIntl = createNextIntlPlugin();
+
+export default withNextIntl({
+  // Your other Next.js config
+});
+```
+
+#### Step 4: Update Middleware
+
+Create `middleware.ts`:
+
+```typescript
+import createMiddleware from 'next-intl/middleware';
+
+export default createMiddleware({
+  locales: ['en', 'es', 'fr', 'de'],
+  defaultLocale: 'en',
+  localePrefix: 'as-needed',
+});
+
+export const config = {
+  matcher: ['/((?!api|_next|.*\\..*).*)'],
+};
+```
+
+#### Step 5: Use in Components
+
+```typescript
+'use client';
+
+import { useTranslations } from 'next-intl';
+
+export default function Navbar() {
+  const t = useTranslations('navigation');
+
+  return (
+    <nav>
+      <a href="/docs">{t('docs')}</a>
+      <a href="/features">{t('features')}</a>
+    </nav>
+  );
+}
+```
+
+### Pattern 2: Dynamic Content Translation
+
+For dynamic content like smart contract names or user-generated text:
+
+```typescript
+import { createI18n } from 'i18next';
+
+const i18n = createI18n({
+  resources: {
+    en: { translation: messagesEn },
+    es: { translation: messagesEs },
+  },
+  lng: 'en',
+  fallbackLng: 'en',
+  interpolation: { escapeValue: false },
+});
+
+export default i18n;
+```
+
+Use it in your component:
+
+```typescript
+import { useTranslation } from 'react-i18next';
+
+export function SmartContractStatus() {
+  const { i18n } = useTranslation();
+
+  const getStatusMessage = (status: string) => {
+    const messages: Record<string, Record<string, string>> = {
+      en: { pending: 'Transaction Pending', success: 'Success' },
+      es: { pending: 'Transacción Pendiente', success: 'Éxito' },
+    };
+    return messages[i18n.language][status] || status;
+  };
+
+  return <div>{getStatusMessage('success')}</div>;
+}
+```
+
+## Locale-Specific Formatting
+
+### Dates and Times
+
+```typescript
+const formatter = new Intl.DateTimeFormat('es-ES', {
+  year: 'numeric',
+  month: 'long',
+  day: 'numeric',
+});
+
+console.log(formatter.format(new Date())); // 15 de enero de 2025
+```
+
+### Numbers and Currency
+
+```typescript
+const currencyFormatter = new Intl.NumberFormat('de-DE', {
+  style: 'currency',
+  currency: 'EUR',
+});
+
+console.log(currencyFormatter.format(1000)); // 1.000,00 € (German format)
+```
+
+### Stellar Amounts
+
+For Stellar blockchain amounts, always use proper formatting:
+
+```typescript
+export function formatStellarAmount(
+  amount: string,
+  locale: string = 'en-US'
+): string {
+  const numericAmount = parseFloat(amount);
+  return new Intl.NumberFormat(locale, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 7,
+  }).format(numericAmount);
+}
+
+// Usage
+console.log(formatStellarAmount('100.123456789', 'de-DE')); // 100,123456789
+```
+
+## RTL Language Support
+
+For right-to-left languages like Arabic and Hebrew:
+
+```typescript
+const rtlLanguages = ['ar', 'he', 'fa', 'ur'];
+
+export function getTextDirection(locale: string): 'ltr' | 'rtl' {
+  return rtlLanguages.includes(locale) ? 'rtl' : 'ltr';
+}
+```
+
+Update your layout:
+
+```typescript
+<html dir={getTextDirection(locale)} lang={locale}>
+  <body>{children}</body>
+</html>
+```
+
+## Documentation Site i18n
+
+For Nextellar Docs using Contentlayer:
+
+### Step 1: Organize Content by Locale
+
+```
+docs/
+├── en/
+│   ├── getting-started/
+│   ├── guides/
+│   └── api/
+├── es/
+│   ├── getting-started/
+│   ├── guides/
+│   └── api/
+└── fr/
+    ├── getting-started/
+    ├── guides/
+    └── api/
+```
+
+### Step 2: Configure Contentlayer
+
+Update `contentlayer.config.ts`:
+
+```typescript
+import { defineDocumentType, makeSource } from 'contentlayer2/source-files';
+
+export const Doc = defineDocumentType(() => ({
+  name: 'Doc',
+  filePathPattern: 'docs/**/*.mdx',
+  fields: {
+    title: { type: 'string', required: true },
+    locale: {
+      type: 'string',
+      default: 'en',
+      description: 'Language locale (en, es, fr, etc.)',
+    },
+  },
+}));
+
+export default makeSource({
+  documentTypes: [Doc],
+  contentDirPath: './content',
+});
+```
+
+### Step 3: Update Navigation
+
+```typescript
+export const sidebarNav = (locale: string): SidebarSection[] => {
+  const translations: Record<string, Record<string, string>> = {
+    en: { 'Getting Started': 'Getting Started', Guides: 'Guides' },
+    es: { 'Getting Started': 'Comenzando', Guides: 'Guías' },
+  };
+
+  return [
+    {
+      title: translations[locale]['Getting Started'],
+      pages: [{ title: 'Introduction', href: `/${locale}/docs/intro` }],
+    },
+  ];
+};
+```
+
+## Best Practices
+
+### 1. **Use Namespaces**
+
+Organize translations by feature:
+
+```json
+{
+  "wallet": { "connect": "Connect Wallet" },
+  "transaction": { "pending": "Transaction Pending" },
+  "errors": { "insufficientBalance": "Insufficient Balance" }
+}
+```
+
+### 2. **Plan for Pluralization**
+
+```json
+{
+  "items": "{{count}} item",
+  "items_plural": "{{count}} items"
+}
+```
+
+### 3. **Handle Interpolation Safely**
+
+```typescript
+// Safe: user input is escaped
+t('welcome', { name: userInput });
+
+// Unsafe: allows HTML injection
+t('welcome', { defaultValue: userHtml });
+```
+
+### 4. **Set Up Language Switcher**
+
+```typescript
+export function LanguageSwitcher() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const currentLocale = useLocale();
+
+  const languages = [
+    { code: 'en', name: 'English' },
+    { code: 'es', name: 'Español' },
+    { code: 'fr', name: 'Français' },
+  ];
+
+  return (
+    <select
+      value={currentLocale}
+      onChange={(e) => {
+        router.push(pathname.replace(`/${currentLocale}`, `/${e.target.value}`));
+      }}
+    >
+      {languages.map(lang => (
+        <option key={lang.code} value={lang.code}>{lang.name}</option>
+      ))}
+    </select>
+  );
+}
+```
+
+### 5. **Default to English**
+
+Always fallback to English for missing translations:
+
+```typescript
+fallbackLng: 'en',
+fallbackNS: 'translation',
+```
+
+## Testing i18n
+
+### Unit Tests
+
+```typescript
+import { describe, it, expect } from 'vitest';
+import i18n from '@/i18n';
+
+describe('i18n', () => {
+  it('should translate to Spanish', () => {
+    i18n.changeLanguage('es');
+    expect(i18n.t('wallet.connect')).toBe('Conectar Billetera');
+  });
+});
+```
+
+### E2E Tests
+
+```typescript
+// With Playwright
+test('should display translated content', async ({ page }) => {
+  await page.goto('/es/docs');
+  const title = page.locator('h1');
+  await expect(title).toContainText('Documentación');
+});
+```
+
+## Common Patterns for Stellar dApps
+
+### Multi-Language Error Messages
+
+```typescript
+export const errorMessages: Record<string, Record<string, string>> = {
+  en: {
+    INSUFFICIENT_BALANCE: 'Insufficient XLM balance',
+    INVALID_DESTINATION: 'Invalid destination address',
+  },
+  es: {
+    INSUFFICIENT_BALANCE: 'Saldo XLM insuficiente',
+    INVALID_DESTINATION: 'Dirección de destino inválida',
+  },
+};
+
+export function getErrorMessage(code: string, locale: string): string {
+  return errorMessages[locale]?.[code] || errorMessages['en'][code];
+}
+```
+
+### Transaction Localization
+
+```typescript
+export function formatTransaction(tx: Transaction, locale: string) {
+  return {
+    type: t(`transaction.type.${tx.type}`, { lng: locale }),
+    amount: formatStellarAmount(tx.amount, locale),
+    timestamp: new Intl.DateTimeFormat(locale).format(new Date(tx.timestamp)),
+  };
+}
+```
+
+## Deployment Considerations
+
+- **Build time:** Pre-compile all language variants during build for better performance
+- **SEO:** Use `hreflang` tags for language variants
+- **CDN:** Cache translated content per language prefix
+- **Monitoring:** Track which language versions are most used
+- **Analytics:** Include locale in analytics events
+
+## Resources
+
+- [next-intl Documentation](https://next-intl-docs.vercel.app)
+- [next-i18next Documentation](https://next-i18next.github.io)
+- [Intl Web API](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl)
+- [Unicode CLDR](http://cldr.unicode.org/) — Locale data for languages
+- [Stellar Documentation - Internationalization](https://developers.stellar.org)
+
+## Summary
+
+i18n transforms your Nextellar dApp into a truly global application. Start by choosing a library that fits your architecture, then gradually expand language support based on user demand. Remember to test translations thoroughly and maintain consistency across your codebase.
