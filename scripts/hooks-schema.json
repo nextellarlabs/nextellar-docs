@@ -1,0 +1,88 @@
+{
+  "hooks": [
+    {
+      "name": "useStellarWallet",
+      "signature": "function useStellarWallet(options?: WalletOptions): UseStellarWalletReturn",
+      "requiredParams": [],
+      "optionalParams": ["options"],
+      "requiredReturns": ["publicKey", "isConnected", "isConnecting", "walletType", "connect", "disconnect", "signTransaction", "error"]
+    },
+    {
+      "name": "useStellarBalances",
+      "signature": "function useStellarBalances(address: string | null, options?: BalancesOptions): UseStellarBalancesReturn",
+      "requiredParams": ["address"],
+      "optionalParams": ["options"],
+      "requiredReturns": ["balances", "nativeBalance", "loading", "error", "refetch"]
+    },
+    {
+      "name": "useStellarPayment",
+      "signature": "function useStellarPayment(options?: PaymentOptions): UseStellarPaymentReturn",
+      "requiredParams": [],
+      "optionalParams": ["options"],
+      "requiredReturns": ["submitPayment", "buildPaymentXDR", "isSubmitting", "txHash", "error", "reset"]
+    },
+    {
+      "name": "useTrustlines",
+      "signature": "function useTrustlines(address: string | null, options?: TrustlinesOptions): UseTrustlinesReturn",
+      "requiredParams": ["address"],
+      "optionalParams": ["options"],
+      "requiredReturns": ["trustlines", "hasTrustline", "buildChangeTrustXDR", "loading", "error"]
+    },
+    {
+      "name": "useTransactionHistory",
+      "signature": "function useTransactionHistory(address: string | null, options?: HistoryOptions): UseTransactionHistoryReturn",
+      "requiredParams": ["address"],
+      "optionalParams": ["options"],
+      "requiredReturns": ["transactions", "loading", "hasMore", "nextPage", "error"]
+    },
+    {
+      "name": "useOfferBook",
+      "signature": "function useOfferBook(params: OfferBookParams): UseOfferBookReturn",
+      "requiredParams": ["params"],
+      "optionalParams": [],
+      "requiredReturns": ["bids", "asks", "spread", "loading", "error"]
+    },
+    {
+      "name": "useSorobanContract",
+      "signature": "function useSorobanContract(contractId: string, options?: SorobanContractOptions): UseSorobanContractReturn",
+      "requiredParams": ["contractId"],
+      "optionalParams": ["options"],
+      "requiredReturns": ["simulate", "invokeContract", "isSimulating", "isSubmitting", "error"]
+    },
+    {
+      "name": "useSorobanEvents",
+      "signature": "function useSorobanEvents(options: SorobanEventsOptions): UseSorobanEventsReturn",
+      "requiredParams": ["options"],
+      "optionalParams": [],
+      "requiredReturns": ["events", "latestLedger", "loading", "error"]
+    },
+    {
+      "name": "useWalletContext",
+      "signature": "function useWalletContext(): WalletContextValue",
+      "requiredParams": [],
+      "optionalParams": [],
+      "requiredReturns": ["network", "horizonUrl", "sorobanRpcUrl", "wallets"]
+    },
+    {
+      "name": "useNetworkGuard",
+      "signature": "function useNetworkGuard(expectedNetwork?: string): UseNetworkGuardReturn",
+      "requiredParams": [],
+      "optionalParams": ["expectedNetwork"],
+      "requiredReturns": ["isMismatch", "currentNetwork", "expectedNetwork", "promptNetworkSwitch"]
+    },
+    {
+      "name": "useStellarAssetPrice",
+      "signature": "function useStellarAssetPrice(baseAsset: AssetSpecifier, counterAsset: AssetSpecifier): UseStellarAssetPriceReturn",
+      "requiredParams": ["baseAsset", "counterAsset"],
+      "optionalParams": [],
+      "requiredReturns": ["price", "change24h", "loading", "error"]
+    },
+    {
+      "name": "useWindowSize",
+      "signature": "function useWindowSize(): UseWindowSizeReturn",
+      "requiredParams": [],
+      "optionalParams": [],
+      "requiredReturns": ["width", "height", "isMobile", "isTablet", "isDesktop"]
+    }
+  ]
+}
