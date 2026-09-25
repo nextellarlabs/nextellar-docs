@@ -22,7 +22,7 @@ There are three common isolation strategies, in increasing order of infrastructu
 
 For a Stellar wallet SaaS specifically, the isolation boundary that matters most is **key material**, not just application data — a tenant-isolation bug that only leaks row data is bad; one that lets Tenant A sign a transaction with Tenant B's key is catastrophic. Treat key custody as its own isolation layer regardless of which database strategy you pick.
 
-```
+```text
                     ┌─────────────────────────────────┐
                     │         API Gateway              │
                     │   (resolves tenant from API key)  │

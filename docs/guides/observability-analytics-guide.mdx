@@ -1,0 +1,685 @@
+---
+title: Observability & Analytics Pipeline Guide
+description: Build a production-grade observability and analytics system for your Stellar dApp. Covers event capture, privacy-preserving storage, querying, and real-time dashboards.
+date: 2026-09-25
+tags: [observability, analytics, monitoring, events, dashboards, privacy]
+---
+
+# Observability & Analytics Pipeline Guide
+
+A robust observability system lets you measure dApp health, understand user behavior, optimize contract performance, and debug production issues. This guide covers building a privacy-first analytics pipeline from contract events to dashboards.
+
+---
+
+## Why Observability Matters
+
+**User Insights**: Track active users, transaction volume, contract method popularity
+**Revenue Tracking**: Measure fees collected, transaction value, user lifetime value
+**Performance Monitoring**: Identify slow contract operations, RPC latency, frontend metrics
+**Debugging**: Correlate on-chain events with off-chain user actions to diagnose issues
+**Compliance**: Log audit trails for regulatory reporting
+
+---
+
+## Architecture Overview
+
+```text
+┌──────────────────────────────────────┐
+│ Data Sources                         │
+├──────────────────────────────────────┤
+│ ├─ Soroban Contract Events (RPC)     │
+│ ├─ Horizon Operation Stream          │
+│ ├─ Frontend User Actions (Client)    │
+│ └─ Wallet Connection Events          │
+└────────────────────┬─────────────────┘
+                     │
+                     ▼
+        ┌────────────────────────┐
+        │ Collection Layer       │
+        │ ├─ Event Validation    │
+        │ ├─ PII Sanitization    │
+        │ └─ Deduplication       │
+        └────────────┬───────────┘
+                     │
+                     ▼
+        ┌────────────────────────┐
+        │ Processing Pipeline    │
+        │ ├─ Enrichment          │
+        │ ├─ Aggregation         │
+        │ └─ Transformation      │
+        └────────────┬───────────┘
+                     │
+        ┌────────────┴────────────┐
+        │                         │
+        ▼                         ▼
+   ┌─────────────┐        ┌──────────────┐
+   │ Time Series │        │ Fact Table   │
+   │ Database    │        │ (Warehouse)  │
+   │ (Metrics)   │        │ (Analytics)  │
+   └─────────────┘        └──────────────┘
+        │                         │
+        ├─────────────┬───────────┤
+        │             │           │
+        ▼             ▼           ▼
+   ┌─────────┐ ┌──────────┐ ┌──────────┐
+   │ Grafana │ │ Metabase │ │ PostHog  │
+   │Dashbrd │ │ Reports  │ │ Product  │
+   └─────────┘ └──────────┘ └──────────┘
+```
+
+---
+
+## Part 1: On-Chain Event Capture
+
+### Soroban Contract Events
+
+Every contract method can emit events. Capture them with Stellar SDK:
+
+```typescript
+import { rpc, Networks } from '@stellar/stellar-sdk';
+
+const rpcServer = new rpc.Server('https://soroban-mainnet.stellar.org:443');
+
+async function captureContractEvents(contractId: string) {
+  const response = await rpcServer.getEvents({
+    limit: 100,
+    filters: [
+      {
+        type: 'contract',
+        contractIds: [contractId],
+      },
+    ],
+  });
+
+  for (const event of response.events) {
+    const topics = event.topic;
+    const eventData = event.value;
+
+    // Transform into analytics event
+    const analyticsEvent = {
+      eventId: event.id,
+      eventType: topics[0], // First topic is typically event type
+      contractId: contractId,
+      ledger: event.ledger,
+      timestamp: new Date(event.ledgerCloseTime),
+      payload: eventData,
+    };
+
+    // Store in database
+    await storeAnalyticsEvent(analyticsEvent);
+  }
+}
+```
+
+### Horizon Operation Stream
+
+Capture all payments and trustline changes:
+
+```typescript
+import { Server } from '@stellar/stellar-sdk';
+
+const horizon = new Server('https://horizon.stellar.org');
+
+// Stream payments in real-time
+const paymentStream = horizon
+  .payments()
+  .cursor('now')
+  .stream({
+    onmessage: async (payment) => {
+      if (payment.type !== 'payment') return;
+
+      // Hash public keys for privacy
+      const sourceHash = hashPublicKey(payment.source_account);
+      const destHash = hashPublicKey(payment.to);
+
+      const analyticsEvent = {
+        eventId: payment.id,
+        eventType: 'payment',
+        sourceHash,
+        destHash,
+        asset: payment.asset_code || 'XLM',
+        amount: payment.amount,
+        ledger: payment.ledger_attr,
+        timestamp: payment.created_at,
+      };
+
+      await storeAnalyticsEvent(analyticsEvent);
+    },
+  });
+```
+
+---
+
+## Part 2: Privacy-Preserving Data Collection
+
+### Address Hashing Strategy
+
+Never store raw public keys in product analytics. Hash them with a rotating salt:
+
+```typescript
+import { createHash, randomBytes } from 'crypto';
+
+class PrivacyPreservingAnalytics {
+  private salt: string;
+  private saltRotation: Date;
+
+  constructor() {
+    this.salt = randomBytes(32).toString('hex');
+    this.saltRotation = new Date(Date.now() + 86400000); // Rotate daily
+  }
+
+  public hashAddress(publicKey: string): string {
+    if (new Date() > this.saltRotation) {
+      this.salt = randomBytes(32).toString('hex');
+      this.saltRotation = new Date(Date.now() + 86400000);
+    }
+
+    return createHash('sha256')
+      .update(publicKey + this.salt)
+      .digest('hex')
+      .substring(0, 16); // Truncate to 16 chars
+  }
+
+  public sanitizeEvent(event: any): any {
+    // Remove PII before storage
+    const sanitized = { ...event };
+
+    if (sanitized.publicKey) {
+      sanitized.hashedAccount = this.hashAddress(sanitized.publicKey);
+      delete sanitized.publicKey;
+    }
+
+    // Remove any suspicious fields
+    delete sanitized.ipAddress;
+    delete sanitized.email;
+    delete sanitized.name;
+    delete sanitized.location;
+
+    return sanitized;
+  }
+}
+
+export const privacy = new PrivacyPreservingAnalytics();
+```
+
+### Consent Tracking
+
+Implement explicit user consent before collecting analytics:
+
+```typescript
+// lib/consent.ts
+export async function trackEventIfConsented(
+  userId: string,
+  event: AnalyticsEvent
+): Promise<void> {
+  const consent = await getUserConsent(userId);
+
+  if (
+    consent?.analytics === true &&
+    consent?.updatedAt > Date.now() - 30 * 24 * 60 * 60 * 1000 // 30 days
+  ) {
+    await storeAnalyticsEvent(event);
+  }
+}
+```
+
+---
+
+## Part 3: Client-Side Event Tracking
+
+### Frontend Analytics Hook
+
+Track user interactions with a React hook:
+
+```typescript
+// hooks/useAnalytics.ts
+import { useCallback } from 'react';
+import { privacy } from '@/lib/privacy';
+
+interface AnalyticsEvent {
+  name: string;
+  properties: Record<string, any>;
+}
+
+export function useAnalytics() {
+  const track = useCallback(async (event: AnalyticsEvent) => {
+    try {
+      // Sanitize before sending
+      const sanitized = privacy.sanitizeEvent(event.properties);
+
+      // Send to backend ingestion endpoint
+      const response = await fetch('/api/analytics/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: event.name,
+          properties: sanitized,
+          timestamp: new Date().toISOString(),
+          sessionId: getSessionId(),
+        }),
+      });
+
+      if (!response.ok) {
+        console.warn('Analytics event not recorded');
+      }
+    } catch (err) {
+      console.error('Failed to track event:', err);
+      // Fail silently — never let analytics break user experience
+    }
+  }, []);
+
+  return { track };
+}
+```
+
+### Tracking Key dApp Events
+
+```typescript
+export function useContractInvocation() {
+  const { track } = useAnalytics();
+  const { publicKey } = useStellarWallet();
+
+  const invokeContract = useCallback(
+    async (contractId: string, method: string, args: any[]) => {
+      const startTime = performance.now();
+
+      try {
+        const result = await invokeContractMethod(contractId, method, args);
+
+        const duration = performance.now() - startTime;
+
+        track({
+          name: 'contract_invoked',
+          properties: {
+            contractId,
+            method,
+            duration,
+            status: 'success',
+          },
+        });
+
+        return result;
+      } catch (error) {
+        const duration = performance.now() - startTime;
+
+        track({
+          name: 'contract_invoked',
+          properties: {
+            contractId,
+            method,
+            duration,
+            status: 'error',
+            errorMessage: error?.message,
+          },
+        });
+
+        throw error;
+      }
+    },
+    [publicKey, track]
+  );
+
+  return { invokeContract };
+}
+```
+
+---
+
+## Part 4: Backend Ingestion Service
+
+### Event Ingestion Endpoint
+
+```typescript
+// pages/api/analytics/events.ts
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { privacy } from '@/lib/privacy';
+import { db } from '@/lib/db';
+
+interface IncomingEvent {
+  name: string;
+  properties: Record<string, any>;
+  timestamp: string;
+  sessionId: string;
+}
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  try {
+    const event: IncomingEvent = req.body;
+
+    // Validate event structure
+    if (!event.name || !event.properties || !event.timestamp) {
+      return res.status(400).json({ error: 'Invalid event format' });
+    }
+
+    // Rate limit per session
+    const isRateLimited = await checkRateLimit(
+      event.sessionId,
+      100, // 100 events per minute
+      60000
+    );
+    if (isRateLimited) {
+      return res.status(429).json({ error: 'Too many requests' });
+    }
+
+    // Sanitize and store
+    const sanitized = privacy.sanitizeEvent(event.properties);
+
+    await db.query(
+      `INSERT INTO analytics_events 
+       (event_name, properties, session_id, created_at) 
+       VALUES ($1, $2, $3, $4)`,
+      [event.name, sanitized, event.sessionId, new Date(event.timestamp)]
+    );
+
+    res.status(202).json({ received: true });
+  } catch (error) {
+    console.error('Ingestion error:', error);
+    res.status(500).json({ error: 'Ingestion failed' });
+  }
+}
+
+async function checkRateLimit(
+  sessionId: string,
+  limit: number,
+  window: number
+): Promise<boolean> {
+  // Use Redis or in-memory cache
+  // Return true if rate limit exceeded
+  return false;
+}
+```
+
+---
+
+## Part 5: Database Schema for Analytics
+
+### Time Series Database (Metrics)
+
+```sql
+CREATE TABLE analytics_events (
+  id SERIAL PRIMARY KEY,
+  event_name VARCHAR(100) NOT NULL,
+  properties JSONB NOT NULL,
+  session_id VARCHAR(64),
+  hashed_account VARCHAR(16),
+  contract_id VARCHAR(56),
+  ledger_height BIGINT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_event_name (event_name),
+  INDEX idx_created_at (created_at),
+  INDEX idx_contract_id (contract_id)
+);
+
+CREATE TABLE daily_metrics (
+  date DATE PRIMARY KEY,
+  active_users INT,
+  total_transactions BIGINT,
+  total_volume DECIMAL(20, 7),
+  avg_tx_fee DECIMAL(10, 7),
+  error_rate FLOAT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Aggregate daily metrics
+INSERT INTO daily_metrics (date, active_users, total_transactions, created_at)
+SELECT
+  DATE(created_at),
+  COUNT(DISTINCT hashed_account),
+  COUNT(*),
+  CURRENT_TIMESTAMP
+FROM analytics_events
+WHERE event_name = 'payment'
+GROUP BY DATE(created_at);
+```
+
+### Query Examples
+
+```sql
+-- Active users in last 7 days
+SELECT COUNT(DISTINCT hashed_account)
+FROM analytics_events
+WHERE created_at > NOW() - INTERVAL '7 days';
+
+-- Top contract methods
+SELECT
+  properties->>'method' AS method,
+  COUNT(*) AS call_count
+FROM analytics_events
+WHERE event_name = 'contract_invoked'
+GROUP BY properties->>'method'
+ORDER BY call_count DESC
+LIMIT 10;
+
+-- Transaction failure rate
+SELECT
+  properties->>'status' AS status,
+  COUNT(*) * 100.0 / SUM(COUNT(*)) OVER () AS percentage
+FROM analytics_events
+WHERE event_name = 'contract_invoked'
+GROUP BY properties->>'status';
+```
+
+---
+
+## Part 6: Real-Time Dashboards
+
+### Grafana Setup for Metrics
+
+```yaml
+# dashboards/dapp-metrics.json
+{
+  'dashboard':
+    {
+      'title': 'dApp Health Dashboard',
+      'panels':
+        [
+          {
+            'title': 'Active Users (24h)',
+            'targets':
+              [
+                {
+                  'expr': "SELECT COUNT(DISTINCT hashed_account) FROM analytics_events WHERE created_at > NOW() - '24 hours'",
+                },
+              ],
+          },
+          {
+            'title': 'Transaction Throughput',
+            'targets':
+              [
+                {
+                  'expr': "SELECT DATE_TRUNC('minute', created_at), COUNT(*) FROM analytics_events GROUP BY DATE_TRUNC('minute', created_at)",
+                },
+              ],
+          },
+          {
+            'title': 'Error Rate (%)',
+            'targets':
+              [
+                {
+                  'expr': "SELECT 100 * SUM(CASE WHEN properties->>'status' = 'error' THEN 1 ELSE 0 END) / COUNT(*) FROM analytics_events WHERE created_at > NOW() - '1 hour'",
+                },
+              ],
+          },
+        ],
+    },
+}
+```
+
+### Metabase for Business Analytics
+
+1. Connect Metabase to your analytics database
+2. Create pre-built questions:
+   - "Revenue by Day" (sum of fees)
+   - "Top Users by Transaction Count"
+   - "Contract Method Popularity"
+3. Combine into dashboard for stakeholders
+
+---
+
+## Part 7: Alerting & Anomaly Detection
+
+### Alert Thresholds
+
+```typescript
+// lib/alerts.ts
+interface AlertThreshold {
+  metric: string;
+  threshold: number;
+  window: number; // seconds
+  severity: 'info' | 'warning' | 'critical';
+}
+
+const alerts: AlertThreshold[] = [
+  {
+    metric: 'error_rate',
+    threshold: 0.05, // 5%
+    window: 300, // 5 minutes
+    severity: 'critical',
+  },
+  {
+    metric: 'avg_transaction_time',
+    threshold: 5000, // 5 seconds
+    window: 600,
+    severity: 'warning',
+  },
+  {
+    metric: 'active_users',
+    threshold: 0, // Detect if no users active
+    window: 3600,
+    severity: 'critical',
+  },
+];
+
+export async function checkAlerts() {
+  for (const alert of alerts) {
+    const value = await getMetricValue(alert.metric, alert.window);
+
+    if (value > alert.threshold) {
+      await notifyOps({
+        severity: alert.severity,
+        message: `${alert.metric} exceeds threshold: ${value}`,
+      });
+    }
+  }
+}
+```
+
+### Notifying via Slack
+
+```typescript
+async function notifyOps(notification: { severity: string; message: string }) {
+  const color =
+    {
+      info: '#36a64f',
+      warning: '#ff9900',
+      critical: '#ff0000',
+    }[notification.severity] || '#000000';
+
+  await fetch(process.env.SLACK_WEBHOOK_URL, {
+    method: 'POST',
+    body: JSON.stringify({
+      attachments: [
+        {
+          color,
+          title: `[${notification.severity.toUpperCase()}]`,
+          text: notification.message,
+          ts: Math.floor(Date.now() / 1000),
+        },
+      ],
+    }),
+  });
+}
+```
+
+---
+
+## Part 8: GDPR & Privacy Compliance
+
+### Data Retention Policy
+
+```typescript
+// Automatically delete events older than 90 days
+const DATA_RETENTION_DAYS = 90;
+
+export async function enforceRetention() {
+  await db.query(
+    `DELETE FROM analytics_events 
+     WHERE created_at < NOW() - INTERVAL '${DATA_RETENTION_DAYS} days'`
+  );
+}
+
+// Schedule daily:
+// 0 2 * * * npx ts-node scripts/enforce-retention.ts
+```
+
+### User Data Export (GDPR Article 20)
+
+```typescript
+// pages/api/user/data-export.ts
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
+  const { publicKey } = req.query;
+  const hashedAccount = privacy.hashAddress(publicKey as string);
+
+  // Find all events associated with this user
+  const events = await db.query(
+    `SELECT * FROM analytics_events 
+     WHERE hashed_account = $1 
+     ORDER BY created_at DESC`,
+    [hashedAccount]
+  );
+
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader(
+    'Content-Disposition',
+    'attachment; filename="analytics-export.json"'
+  );
+
+  res.status(200).json({
+    exportDate: new Date().toISOString(),
+    events: events.rows,
+  });
+}
+```
+
+---
+
+## Part 9: Troubleshooting
+
+### Events Not Appearing in Dashboard
+
+1. Check ingestion endpoint logs: `tail -f logs/api.log`
+2. Verify rate limit not exceeded: `SELECT COUNT(*) FROM analytics_events WHERE created_at > NOW() - '1 hour'`
+3. Confirm hashed account matches: `SELECT DISTINCT hashed_account FROM analytics_events`
+
+### High Database Load
+
+- Add indexes on frequently queried columns
+- Implement materialized views for pre-aggregated data
+- Use time-series database (ClickHouse) instead of PostgreSQL for very high volume
+
+### Privacy Concerns
+
+- Rotate salt daily: randomBytes(32)
+- Never log raw public keys
+- Enforce data retention: Auto-delete > 90 days
+- Audit access logs quarterly
+
+---
+
+## Related
+
+- [Stellar dApp Analytics Pipeline Tutorial](/docs/guides/stellar-dapp-analytics-pipeline) — Deeper implementation guide
+- [Production Deployment Guide](/docs/guides/production-deployment-vercel-nextellar-cloud) — Deploy the analytics backend
+- [Security Hardening](/docs/guides/security-hardening) — Protect analytics infrastructure
+- [Incident Response Runbook](/docs/guides/incident-response-runbook) — Respond to analytics anomalies
+- [GDPR Compliance](/docs/guides/gdpr-compliance) — Privacy regulations for analytics

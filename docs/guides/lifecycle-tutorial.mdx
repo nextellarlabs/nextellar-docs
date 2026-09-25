@@ -1,0 +1,475 @@
+---
+title: Complete Lifecycle Tutorial — Scaffold, Add Features, and Deploy
+description: End-to-end guide walking through scaffolding a new Stellar dApp with Nextellar, adding custom features, and deploying to production.
+date: 2026-09-24
+tags: [scaffold, add, deploy, lifecycle, production, tutorial]
+---
+
+# Complete Lifecycle Tutorial: Scaffold → Add Features → Deploy
+
+This comprehensive guide walks through the **complete lifecycle** of building a Stellar dApp with Nextellar: scaffolding a project, incrementally adding features, testing locally, and deploying to production.
+
+---
+
+## What You'll Learn
+
+By the end of this tutorial, you'll have:
+
+- ✅ Created a new Stellar dApp project using `nextellar scaffold`
+- ✅ Added custom features (wallet adapters, Soroban support) with `nextellar add`
+- ✅ Tested the application locally
+- ✅ Prepared and deployed to production
+
+**Time estimate:** ~30 minutes  
+**Prerequisites:** Node.js 18+, pnpm or npm, a GitHub account (for deployment)
+
+---
+
+## Phase 1: Scaffold Your Project
+
+### Step 1: Create a New Stellar dApp
+
+The simplest way to start is with a single command:
+
+```bash
+npx nextellar my-stellar-app
+cd my-stellar-app
+```
+
+The CLI will prompt you for configuration (if running interactively):
+
+- **Template selection**: Choose between `default`, `minimal`, or `defi`
+- **Package manager**: npm, yarn, or pnpm
+- **Network**: Testnet (development) or Mainnet (production)
+- **Wallets**: Select which wallet adapters to include (Freighter, Albedo, Lobstr, xBull, Hana)
+- **Dependencies**: Install now or later?
+
+<Note type="info">
+In CI/CD environments or when using `--defaults`, the CLI skips prompts and uses sensible defaults (Testnet, Freighter wallet, pnpm).
+</Note>
+
+### Step 2: Verify the Scaffold
+
+After scaffolding completes, verify the project structure:
+
+```bash
+ls -la my-stellar-app
+
+# Expected structure:
+# ├── src/
+# │   ├── app/          # Next.js app directory
+# │   ├── components/   # Reusable React components
+# │   ├── hooks/        # Custom Nextellar hooks
+# │   ├── lib/          # Utilities and helpers
+# │   └── styles/       # Tailwind CSS
+# ├── public/           # Static assets
+# ├── .nextellar/       # Nextellar config and generated files
+# ├── next.config.ts    # Next.js configuration
+# ├── tailwind.config.ts # Tailwind CSS config
+# ├── tsconfig.json     # TypeScript config
+# └── package.json      # Dependencies
+```
+
+### Step 3: Start Development Server
+
+Launch the local development server:
+
+```bash
+npm run dev
+# or
+pnpm dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) in your browser. You should see the Nextellar starter page with a wallet connection button.
+
+---
+
+## Phase 2: Add Custom Features
+
+The `nextellar add` command lets you incrementally add features to your existing project without rebuilding from scratch.
+
+### Step 1: List Available Features
+
+See what you can add:
+
+```bash
+nextellar add
+# or see available features with
+nextellar add --list
+```
+
+Common features include:
+
+- `soroban`: Add Soroban smart contract support
+- `wallets`: Add additional wallet adapters
+- `ui-components`: Add pre-built Nextellar UI components
+- `testing`: Add Vitest and React Testing Library setup
+
+### Step 2: Add Soroban Smart Contract Support
+
+To add smart contract capabilities:
+
+```bash
+nextellar add soroban
+```
+
+This command will:
+
+1. Install Soroban dependencies (stellar-sdk, soroban-cli)
+2. Add Soroban RPC configuration to `.nextellar/config.ts`
+3. Create example contract invocation hooks
+4. Add Soroban-specific utilities to `src/lib/soroban/`
+
+After adding Soroban, update your `.env.local` with a Soroban RPC endpoint:
+
+```bash
+# .env.local
+NEXT_PUBLIC_SOROBAN_RPC_URL=https://soroban-testnet.stellar.org/
+```
+
+### Step 3: Add Testing Infrastructure
+
+Add Vitest and React Testing Library:
+
+```bash
+nextellar add testing
+```
+
+This creates:
+
+- `vitest.config.ts` — Test runner configuration
+- `src/__tests__/` — Example test directory
+- npm script: `npm run test`
+
+### Step 4: Verify Added Features
+
+After adding features, restart the dev server:
+
+```bash
+npm run dev
+```
+
+The new features are now available in your project. You can import and use Soroban hooks, components, and testing utilities.
+
+---
+
+## Phase 3: Develop Your Application
+
+### Example: Build a Soroban Token Transfer dApp
+
+Combine the scaffold with Soroban features to build a complete dApp:
+
+```tsx
+// src/app/page.tsx
+'use client';
+
+import { useState } from 'react';
+import { useStellarWallet } from '@/hooks/useStellarWallet';
+import { useSorobanContract } from '@/hooks/useSorobanContract';
+import WalletConnectButton from '@/components/WalletConnectButton';
+
+const CONTRACT_ID = 'CCW67TSBXS2A5GUXI25IKWCQXWOHOXTYUX22EC56GDK4E2D3FBAZ4Y2V';
+
+export default function Home() {
+  const { connected, publicKey } = useStellarWallet();
+  const { invokeContract, contractState, loading } = useSorobanContract(CONTRACT_ID);
+  const [amount, setAmount] = useState('100');
+  const [txHash, setTxHash] = useState('');
+
+  const handleTransfer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const result = await invokeContract('transfer', {
+        from: publicKey,
+        to: 'GA7NNBQCL3DQFS32JPGV4ZTOJCABDP3PMQXJR3C3EPXK5JZ2DGNZ2KM',
+        amount: BigInt(amount),
+      });
+      setTxHash(result.hash);
+    } catch (error) {
+      console.error('Transfer failed:', error);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 p-8">
+      <div className="max-w-2xl mx-auto">
+        <h1 className="text-4xl font-bold text-white mb-8">Soroban Token Transfer</h1>
+
+        {!connected ? (
+          <WalletConnectButton />
+        ) : (
+          <div className="bg-white rounded-lg shadow-lg p-6 space-y-6">
+            <p className="text-sm text-gray-600">Connected: {publicKey}</p>
+
+            <form onSubmit={handleTransfer} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">Amount</label>
+                <input
+                  type="number"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md"
+                  placeholder="100"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full px-4 py-2 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 disabled:opacity-50"
+              >
+                {loading ? 'Processing...' : 'Transfer'}
+              </button>
+            </form>
+
+            {txHash && (
+              <div className="p-4 bg-green-50 border border-green-200 rounded-md">
+                <p className="text-sm text-green-800">
+                  ✓ Transfer successful!
+                </p>
+                <p className="text-xs text-gray-600 mt-1 font-mono break-all">{txHash}</p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+```
+
+Test this locally:
+
+```bash
+npm run dev
+```
+
+---
+
+## Phase 4: Prepare for Production Deployment
+
+### Step 1: Run the Doctor Command
+
+Validate your project setup:
+
+```bash
+nextellar doctor
+```
+
+This checks:
+
+- ✓ Node.js version compatibility
+- ✓ Required dependencies installed
+- ✓ Environment variables configured
+- ✓ Stellar network connectivity
+- ✓ TypeScript configuration
+
+### Step 2: Build Your Application
+
+Create an optimized production build:
+
+```bash
+npm run build
+```
+
+This command:
+
+1. Runs TypeScript compilation
+2. Bundles and minifies your code
+3. Optimizes assets and images
+4. Verifies no build errors exist
+
+If the build fails, fix errors and re-run.
+
+### Step 3: Test the Production Build Locally
+
+Before deploying, test the production build locally:
+
+```bash
+npm run build
+npm run start
+```
+
+Open [http://localhost:3000](http://localhost:3000) and verify all features work.
+
+### Step 4: Configure Environment for Mainnet (Optional)
+
+If deploying to production with real assets, update environment variables:
+
+```bash
+# .env.production
+NEXT_PUBLIC_NETWORK=MAINNET
+NEXT_PUBLIC_HORIZON_URL=https://horizon.stellar.org/
+NEXT_PUBLIC_SOROBAN_RPC_URL=https://soroban-mainnet.stellar.org/
+```
+
+<Note type="warning">
+Only use Mainnet credentials after thorough testing on Testnet. Production deployments handle real assets—never compromise on security.
+</Note>
+
+---
+
+## Phase 5: Deploy to Production
+
+### Option 1: Deploy to Vercel (Recommended)
+
+Vercel has first-class Next.js support and automatic GitHub integration.
+
+1. **Push to GitHub:**
+
+```bash
+git add .
+git commit -m "Initial Stellar dApp with Soroban"
+git push origin main
+```
+
+2. **Connect to Vercel:**
+
+- Go to [vercel.com](https://vercel.com)
+- Click "New Project"
+- Select your GitHub repository
+- Vercel auto-detects Next.js and configures build settings
+- Click "Deploy"
+
+3. **Add Environment Variables:**
+
+In Vercel Dashboard → Settings → Environment Variables:
+
+```
+NEXT_PUBLIC_NETWORK=TESTNET
+NEXT_PUBLIC_HORIZON_URL=https://horizon-testnet.stellar.org/
+NEXT_PUBLIC_SOROBAN_RPC_URL=https://soroban-testnet.stellar.org/
+```
+
+4. **Your app is live!**
+
+Vercel provides a `.vercel.app` URL. Share and monitor deployments from the dashboard.
+
+### Option 2: Deploy to Netlify
+
+1. **Connect GitHub:**
+
+- Go to [netlify.com](https://netlify.com)
+- Click "New site from Git"
+- Select your GitHub repository
+
+2. **Configure Build:**
+
+```
+Build command: npm run build
+Publish directory: .next
+```
+
+3. **Add Environment Variables:**
+
+In Site Settings → Build & Deploy → Environment:
+
+```
+NEXT_PUBLIC_NETWORK=TESTNET
+NEXT_PUBLIC_SOROBAN_RPC_URL=https://soroban-testnet.stellar.org/
+```
+
+4. **Deploy is triggered automatically**
+
+Every push to main triggers a new deployment.
+
+### Option 3: Self-Hosted (Docker)
+
+For advanced deployments, containerize your app:
+
+```dockerfile
+# Dockerfile
+FROM node:20-alpine
+
+WORKDIR /app
+
+COPY package.json pnpm-lock.yaml ./
+RUN npm install -g pnpm && pnpm install --frozen-lockfile
+
+COPY . .
+RUN pnpm build
+
+EXPOSE 3000
+CMD ["pnpm", "start"]
+```
+
+Build and deploy:
+
+```bash
+docker build -t my-stellar-app .
+docker run -p 3000:3000 -e NEXT_PUBLIC_NETWORK=TESTNET my-stellar-app
+```
+
+---
+
+## Phase 6: Monitor and Maintain
+
+### Enable Telemetry (Optional)
+
+Nextellar collects anonymous usage data to improve the CLI. To opt in:
+
+```bash
+nextellar telemetry --enable
+```
+
+To disable:
+
+```bash
+nextellar telemetry --disable
+```
+
+### Keep Dependencies Updated
+
+Regularly update Nextellar and dependencies:
+
+```bash
+nextellar upgrade
+npm update
+```
+
+### Set Up CI/CD
+
+Add automated tests to your GitHub workflow:
+
+```yaml
+# .github/workflows/test.yml
+name: Test
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+      - run: npm install
+      - run: npm run lint
+      - run: npm run test
+      - run: npm run build
+```
+
+---
+
+## Summary
+
+You've now completed the **full lifecycle** of a Stellar dApp:
+
+1. ✅ **Scaffolded** a production-ready Next.js + Stellar project
+2. ✅ **Added** Soroban and testing features incrementally
+3. ✅ **Developed** a working Soroban contract integration
+4. ✅ **Built** an optimized production bundle
+5. ✅ **Deployed** to Vercel or Netlify with one click
+6. ✅ **Monitored** and maintained your live application
+
+---
+
+## Next Steps
+
+- [Extending the CLI](/docs/guides/extending-the-cli) — Create custom feature packages
+- [Testing Guide](/docs/guides/testing) — Write tests for your dApp
+- [Soroban Index](/docs/guides/soroban-index) — Deep dive into smart contracts
+- [Deployment Options](/docs/guides/deployment) — Explore advanced hosting
+- [Transaction Lifecycle](/docs/guides/transaction-lifecycle) — Understand Stellar transactions in detail
+

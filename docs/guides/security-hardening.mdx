@@ -1,0 +1,330 @@
+---
+title: Security Hardening Guide for Scaffolded dApps
+description: Production security checklist, threat models, and hardening mitigations for Nextellar Stellar dApps.
+date: 2026-09-24
+---
+
+# Security Hardening Guide for Scaffolded dApps
+
+Building decentralized applications (dApps) on Stellar and Soroban requires a multi-layered security approach. While Nextellar scaffolds a production-ready application structure with built-in wallet integrations and React hooks, securing user funds and sensitive operations requires understanding the threat landscape and implementing rigorous defenses across the frontend, backend, and smart contract boundaries.
+
+This guide provides a comprehensive security hardening framework for scaffolded Nextellar dApps, identifying critical threats and detailing actionable mitigations.
+
+---
+
+## Security Model Overview
+
+A Nextellar dApp interacts across four distinct security domains:
+
+1. **Client Browser / UI**: Executes React components, communicates with browser wallet extensions (e.g., Freighter), and initiates transactions.
+2. **Server Environment (Next.js)**: Runs API routes, Server Actions, and handles backend tasks without exposing secrets to the client.
+3. **RPC & Horizon Layer**: Relays account data, simulates Soroban transactions, and submits signed envelopes to the network.
+4. **On-Chain Soroban Environment**: Executes smart contract logic and enforces cryptographic authorizations.
+
+Defense-in-depth requires that no single layer assumes the other layers are infallible.
+
+---
+
+## Threat Model
+
+When deploying a scaffolded Stellar dApp, consider the following primary threat vectors:
+
+### 1. Client-Side Secret Key Leakage
+
+- **Description**: Storing private keys, seed phrases, or sensitive API credentials in client-side code, localStorage, sessionStorage, or client-accessible environment variables.
+- **Attack Vector**: Any variable prefixed with `NEXT_PUBLIC_` is bundled into client-side JavaScript. Attackers inspect client bundles, memory dumps, or browser storage to extract credentials and drain accounts.
+- **Impact**: Irreversible loss of funds and complete account compromise.
+
+### 2. Malicious Transaction Injection & Phishing
+
+- **Description**: Trickery where a user is prompted to sign a transaction whose operations or parameters differ from what the UI displays.
+- **Attack Vector**: Manipulated frontend state, malicious deep links, or compromised UI components that alter the destination address, asset code, or Soroban contract arguments before invoking the wallet signer.
+- **Impact**: Unauthorized asset transfers or unintended smart contract state mutations.
+
+### 3. RPC Spoofing and Man-in-the-Middle (MITM)
+
+- **Description**: Connecting to compromised, untrusted, or unencrypted Horizon/Soroban RPC endpoints.
+- **Attack Vector**: DNS hijacking or misconfigured RPC URLs allow malicious nodes to return fabricated account sequences, falsified simulation results, or manipulated transaction fee estimates.
+- **Impact**: Failed submissions, overpaid transaction fees, or signing transactions based on false contract state.
+
+### 4. Cross-Site Scripting (XSS) & State Poisoning
+
+- **Description**: Injection of untrusted scripts into the web application.
+- **Attack Vector**: Unsanitized user inputs rendered in the DOM, malicious dependencies, or compromised third-party scripts that hijack wallet connection objects (`window.freighterApi`) or intercept transaction payloads.
+- **Impact**: Silent redirection of transactions, session hijacking, and theft of user data.
+
+### 5. Dependency Supply Chain Attacks
+
+- **Description**: Malicious code introduced via compromised npm packages.
+- **Attack Vector**: Indirect dependencies injected into `package.json` that monitor wallet interactions or monkey-patch the Stellar SDK.
+- **Impact**: Keylogging, exfiltration of telemetry, and silent modification of transaction envelopes prior to signing.
+
+### 6. Client-Enforced Access Control Bypass
+
+- **Description**: Relying on frontend visibility rules to restrict administrative or privileged actions.
+- **Attack Vector**: Attackers bypass the UI and construct raw transaction envelopes directly against the Soroban contract or Horizon endpoint.
+- **Impact**: Unauthorized invocation of privileged contract functions if on-chain checks are missing.
+
+### 7. Transaction Replay and Sequencing Attacks
+
+- **Description**: Submitting valid transactions outside the intended sequence or across different networks.
+- **Attack Vector**: Transactions signed for Testnet submitted to Mainnet (or vice versa), or reusing pre-authorized transactions without proper sequence restrictions or timebounds.
+- **Impact**: Double spending, unintended executions, or funds locked in stale states.
+
+---
+
+## Actionable Mitigations
+
+Implement the following mitigations to harden your scaffolded Nextellar dApp against these threats.
+
+### 1. Enforce Non-Custodial Key Management
+
+Never handle, generate, or store private keys (starting with `S...`) in client-side code or browser storage.
+
+- **Delegate Signing to Verified Wallets**: Always delegate transaction signing to user-managed browser wallets (Freighter, Albedo, Lobstr, xBull) using `@stellar/freighter-api` or `@creit.tech/stellar-wallets-kit`.
+- **Use Public Keys Exclusively**: Only store and manipulate public keys (starting with `G...` or contract IDs starting with `C...`) on the client.
+
+```tsx
+// Good: Delegating signing to Freighter via Nextellar hooks
+import { useStellarWallet } from '@/hooks/useStellarWallet';
+
+export function PaymentComponent() {
+  const { address, isConnected, signAndSubmitTransaction } = useStellarWallet();
+
+  const handlePayment = async (txXdr: string) => {
+    if (!isConnected) throw new Error('Wallet not connected');
+    // Signs inside Freighter sandbox — private key never enters application memory
+    return await signAndSubmitTransaction(txXdr);
+  };
+
+  return (
+    <button onClick={() => handlePayment(xdr)}>Sign with Freighter</button>
+  );
+}
+```
+
+### 2. Isolate Server Secrets and Environment Variables
+
+Segregate public configuration from sensitive backend keys:
+
+- **Audit `.env` Prefixes**: Ensure that only non-sensitive values use the `NEXT_PUBLIC_` prefix (such as network passphrases and public RPC endpoints).
+- **Store Operator Keys on Server**: If your dApp runs a relayer, paymaster, or administrative service, execute those operations inside Next.js Server Components, API routes, or Server Actions.
+
+```bash
+# .env.local — Safe configuration segregation
+
+# Client-accessible (PUBLIC)
+NEXT_PUBLIC_STELLAR_NETWORK=TESTNET
+NEXT_PUBLIC_HORIZON_URL=https://horizon-testnet.stellar.org
+NEXT_PUBLIC_SOROBAN_RPC_URL=https://soroban-testnet.stellar.org
+
+# Server-only secrets (NEVER prefix with NEXT_PUBLIC_)
+STELLAR_SPONSOR_SECRET_KEY=SB...SECRET_KEY
+DATABASE_ENCRYPTION_KEY=super-secret-key
+ADMIN_API_TOKEN=internal-token
+```
+
+```ts
+// src/app/api/sponsor/route.ts (Server-only execution)
+import { Keypair } from '@stellar/stellar-sdk';
+
+export async function POST(req: Request) {
+  // Safe: process.env.STELLAR_SPONSOR_SECRET_KEY is never sent to the browser
+  const sponsorSecret = process.env.STELLAR_SPONSOR_SECRET_KEY;
+  if (!sponsorSecret) {
+    return new Response('Configuration error', { status: 500 });
+  }
+
+  const sponsor = Keypair.fromSecret(sponsorSecret);
+  // Perform sponsorship logic on server...
+  return Response.json({ success: true });
+}
+```
+
+### 3. Pre-Flight Simulation & Authorization Verification
+
+Always simulate Soroban transactions before requesting the user's signature. Transaction simulation identifies potential failures, calculates exact gas/footprint limits, and exposes required authorizations.
+
+```ts
+import { rpc } from '@stellar/stellar-sdk';
+
+export async function simulateAndVerify(
+  server: rpc.Server,
+  tx: any
+): Promise<rpc.Api.SimulateTransactionResponse> {
+  const simulation = await server.simulateTransaction(tx);
+
+  if (rpc.Api.isSimulationError(simulation)) {
+    throw new Error(`Simulation failed: ${simulation.error}`);
+  }
+
+  // Verify that the simulation contains expected authorization entries
+  // and does not require unexpected authorizations
+  console.log('Simulation footprint:', simulation.transactionData);
+  return simulation;
+}
+```
+
+### 4. Input Validation with Zod
+
+Validate all user-supplied inputs (destination addresses, token amounts, memo fields, contract IDs) before constructing transactions:
+
+```ts
+import { z } from 'zod';
+import { StrKey } from '@stellar/stellar-sdk';
+
+export const PaymentInputSchema = z.object({
+  recipient: z.string().refine((val) => StrKey.isValidEd25519PublicKey(val), {
+    message: 'Invalid Stellar public address (must start with G)',
+  }),
+  amount: z
+    .string()
+    .regex(/^\d+(\.\d{1,7})?$/, 'Amount must have at most 7 decimal places')
+    .refine((val) => parseFloat(val) > 0, {
+      message: 'Amount must be greater than 0',
+    }),
+  memo: z.string().max(28, 'Text memo cannot exceed 28 bytes').optional(),
+});
+
+export type PaymentInput = z.infer<typeof PaymentInputSchema>;
+```
+
+### 5. Content Security Policy (CSP) & HTTP Security Headers
+
+Protect your frontend against XSS, clickjacking, and unauthorized network connections by enforcing strict security headers in `next.config.ts`:
+
+```ts
+// next.config.ts
+import type { NextConfig } from 'next';
+
+const nextConfig: NextConfig = {
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          {
+            key: 'Content-Security-Policy',
+            value: [
+              "default-src 'self'",
+              "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
+              "connect-src 'self' https://horizon.stellar.org https://horizon-testnet.stellar.org https://soroban-testnet.stellar.org https://rpc.mainnet.stellar.org",
+              "frame-ancestors 'none'",
+              "img-src 'self' data: https:",
+              "style-src 'self' 'unsafe-inline'",
+            ].join('; '),
+          },
+          {
+            key: 'X-Frame-Options',
+            value: 'DENY',
+          },
+          {
+            key: 'X-Content-Type-Options',
+            value: 'nosniff',
+          },
+          {
+            key: 'Referrer-Policy',
+            value: 'strict-origin-when-cross-origin',
+          },
+          {
+            key: 'Permissions-Policy',
+            value: 'camera=(), microphone=(), geolocation=()',
+          },
+        ],
+      },
+    ];
+  },
+};
+
+export default nextConfig;
+```
+
+### 6. On-Chain Authorization Verification (`require_auth`)
+
+Frontend validation alone does not provide security. Every privileged Soroban contract function must cryptographically enforce authorization:
+
+```rust
+// contracts/vault/src/lib.rs
+#![no_std]
+use soroban_sdk::{contract, contractimpl, Address, Env};
+
+#[contract]
+pub struct VaultContract;
+
+#[contractimpl]
+impl VaultContract {
+    pub fn withdraw(env: Env, owner: Address, amount: i128) {
+        // Critical: Cryptographically verify caller authorization
+        owner.require_auth();
+
+        // Enforce business constraints
+        if amount <= 0 {
+            panic!("Amount must be positive");
+        }
+
+        // Proceed with transfer...
+    }
+}
+```
+
+### 7. Network Passphrase & Chain ID Safeguards
+
+Prevent cross-network transaction replays by binding transaction envelopes to the intended network:
+
+```ts
+import { Networks, TransactionBuilder } from '@stellar/stellar-sdk';
+
+const networkPassphrase =
+  process.env.NEXT_PUBLIC_STELLAR_NETWORK === 'MAINNET'
+    ? Networks.PUBLIC
+    : Networks.TESTNET;
+
+export function createSecureTransaction(
+  sourceAccount: any,
+  timeoutSeconds = 60
+) {
+  return (
+    new TransactionBuilder(sourceAccount, {
+      fee: '100000',
+      networkPassphrase,
+    })
+      .setTimeout(timeoutSeconds) // Always set explicit timebounds
+      // Add operations...
+      .build()
+  );
+}
+```
+
+### 8. Dependency Auditing & Supply Chain Protections
+
+- **Automated Vulnerability Scans**: Run `pnpm audit` regularly and in your CI pipeline.
+- **Lockfile Enforcement**: Always install dependencies in CI using `pnpm install --frozen-lockfile`.
+- **Pin Direct Dependencies**: Avoid loose wildcard versioning (`^` or `*`) on core cryptographic libraries like `@stellar/stellar-sdk`.
+
+---
+
+## Production Security Checklist
+
+Before launching your scaffolded dApp to Mainnet, verify all checklist items:
+
+| Category         | Check                                                                      | Status |
+| ---------------- | -------------------------------------------------------------------------- | ------ |
+| **Keys**         | No secret keys (`S...`) present in frontend bundle or Git history          | [ ]    |
+| **Keys**         | All transaction signing delegated to external non-custodial wallets        | [ ]    |
+| **Server**       | Non-public environment variables lack `NEXT_PUBLIC_` prefix                | [ ]    |
+| **Transactions** | Explicit transaction timeouts (timebounds) set on all transactions         | [ ]    |
+| **Transactions** | Pre-flight transaction simulation performed before signing                 | [ ]    |
+| **Validation**   | All user inputs and Stellar addresses validated with Zod                   | [ ]    |
+| **Contracts**    | Soroban functions enforce `require_auth()` on privileged callers           | [ ]    |
+| **Network**      | Content Security Policy configured in `next.config.ts`                     | [ ]    |
+| **Network**      | Network passphrase strictly matches target environment (Public vs Testnet) | [ ]    |
+| **Dependencies** | `pnpm audit` passes with 0 high or critical vulnerabilities                | [ ]    |
+
+---
+
+## Related Resources
+
+- [Security Policy](/docs/guides/security-policy) — Vulnerability reporting guidelines
+- [Testing Guide](/docs/guides/testing) — Unit and integration testing strategies
+- [Transaction Lifecycle](/docs/guides/transaction-lifecycle) — Step-by-step transaction handling
+- [Wallet UX Patterns](/docs/guides/wallet-ux-patterns) — Safe wallet connection handling

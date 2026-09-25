@@ -1,0 +1,585 @@
+---
+title: CLI Exit Codes and CI Integration
+description: Complete reference for Nextellar CLI exit codes and recipes for CI/CD pipeline integration.
+date: 2026-09-24
+tags: [cli, exit-codes, ci, cd, automation, error-handling]
+---
+
+# CLI Exit Codes and CI Integration
+
+This guide documents all **Nextellar CLI exit codes** and provides **CI/CD recipes** for integrating Nextellar commands into automated pipelines.
+
+---
+
+## Exit Codes Reference
+
+### Success Codes
+
+| Code | Command | Meaning | Description |
+|------|---------|---------|-------------|
+| `0` | All | Success | Command completed successfully without errors |
+
+### Error Codes
+
+| Code | Command | Meaning | Description |
+|------|---------|---------|-------------|
+| `1` | All | General error | Unspecified error or exception occurred |
+| `2` | All | Invalid arguments | Command invoked with invalid flags, missing required arguments, or malformed options |
+| `3` | `nextellar` | Directory exists | Target directory already exists and `--force` was not provided |
+| `4` | `nextellar` | Installation failed | Dependency installation (npm/yarn/pnpm) exited with non-zero status |
+| `5` | `nextellar add` | Feature not found | Requested feature does not exist or is not available |
+| `6` | `nextellar doctor` | Environment check failed | System does not meet minimum requirements (Node.js version, missing tools) |
+| `7` | `nextellar deploy` | Validation failed | Pre-deployment validation detected issues (build errors, missing env vars) |
+| `8` | `nextellar upgrade` | No upgrades available | Project is already on the latest template version |
+| `9` | `nextellar clean` | Cleanup error | Failed to remove generated build artifacts |
+
+### Network-Related Codes
+
+| Code | Command | Meaning | Description |
+|------|---------|---------|-------------|
+| `10` | `nextellar doctor` | Network unreachable | Cannot connect to Stellar network (Horizon or Soroban RPC) |
+| `11` | `nextellar deploy` | RPC timeout | Stellar network request timed out during deployment checks |
+| `12` | `nextellar doctor` | Invalid endpoint | Provided Horizon or Soroban URL is malformed or unreachable |
+
+### User Interruption Codes
+
+| Code | Command | Meaning | Description |
+|------|---------|---------|-------------|
+| `130` | All (interactive) | User cancelled | User pressed Ctrl+C to abort an interactive prompt |
+
+---
+
+## Exit Code Usage Examples
+
+### Scaffold Command
+
+```bash
+# Success: Directory created, dependencies installed
+nextellar my-app
+# Exit code: 0
+
+# Error: Directory already exists
+nextellar my-app
+# Exit code: 3
+
+# Error: Invalid flag
+nextellar my-app --invalid-flag
+# Exit code: 2
+
+# Success: Overwrite existing directory
+nextellar my-app --force
+# Exit code: 0 (if successful)
+```
+
+### Add Command
+
+```bash
+# Success: Feature added
+nextellar add soroban
+# Exit code: 0
+
+# Error: Feature not found
+nextellar add nonexistent-feature
+# Exit code: 5
+
+# Error: Invalid flag
+nextellar add soroban --invalid-flag
+# Exit code: 2
+```
+
+### Doctor Command
+
+```bash
+# Success: All checks pass
+nextellar doctor
+# Exit code: 0
+
+# Error: Node.js version too old
+nextellar doctor
+# Exit code: 6 (environment check failed)
+
+# Error: Cannot reach Stellar network
+nextellar doctor --with-network-check
+# Exit code: 10 (network unreachable)
+```
+
+### Deploy Command
+
+```bash
+# Success: Pre-deployment validation passes
+nextellar deploy
+# Exit code: 0
+
+# Error: Build fails during validation
+nextellar deploy
+# Exit code: 7 (validation failed)
+
+# Error: Required environment variables missing
+nextellar deploy
+# Exit code: 7 (validation failed)
+
+# Error: Stellar network timeout
+nextellar deploy --check-network
+# Exit code: 11 (RPC timeout)
+```
+
+---
+
+## CI/CD Integration Recipes
+
+### GitHub Actions
+
+#### Basic Build and Deploy Pipeline
+
+```yaml
+# .github/workflows/deploy.yml
+name: Build and Deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm install
+      
+      - name: Run environment checks
+        run: |
+          nextellar doctor
+          # Fails if exit code is non-zero
+      
+      - name: Build application
+        run: npm run build
+        # GitHub Actions automatically fails on non-zero exit code
+      
+      - name: Run tests
+        run: npm run test
+      
+      - name: Deploy to Vercel
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: vercel deploy --prod
+```
+
+#### Conditional Logic Based on Exit Codes
+
+```yaml
+# .github/workflows/validate.yml
+name: Validate Project
+
+on: [push, pull_request]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install dependencies
+        run: npm install
+      
+      - name: Run doctor checks
+        id: doctor
+        run: nextellar doctor
+        continue-on-error: true
+      
+      - name: Check doctor exit code
+        if: steps.doctor.outcome == 'failure'
+        run: |
+          echo "Doctor check failed"
+          exit 1
+      
+      - name: Validate deployment readiness
+        run: nextellar deploy --validate-only
+```
+
+#### Pre-deployment Validation Gate
+
+```yaml
+# .github/workflows/production-deploy.yml
+name: Production Deployment Gate
+
+on:
+  workflow_dispatch:  # Manual trigger only
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - run: npm install
+      
+      - name: Validate production readiness
+        run: |
+          set -e  # Exit on first error
+          nextellar doctor
+          npm run lint
+          npm run test
+          npm run build
+          nextellar deploy --validate-only
+      
+      - name: Notify deployment success
+        run: echo "✓ All validation checks passed. Ready for deployment."
+      
+      - name: Deploy to Mainnet
+        env:
+          NEXT_PUBLIC_NETWORK: MAINNET
+          MAINNET_API_KEY: ${{ secrets.MAINNET_API_KEY }}
+        run: npm run deploy:mainnet
+```
+
+### GitLab CI/CD
+
+```yaml
+# .gitlab-ci.yml
+stages:
+  - validate
+  - build
+  - test
+  - deploy
+
+variables:
+  NODE_VERSION: '20'
+
+validate:
+  image: node:${NODE_VERSION}
+  stage: validate
+  script:
+    - npm install
+    - nextellar doctor || exit 6
+    - echo "✓ Environment validation passed"
+  only:
+    - merge_requests
+    - main
+
+build:
+  image: node:${NODE_VERSION}
+  stage: build
+  script:
+    - npm install
+    - npm run build
+  artifacts:
+    paths:
+      - .next
+      - node_modules
+    expire_in: 1 hour
+  only:
+    - merge_requests
+    - main
+
+test:
+  image: node:${NODE_VERSION}
+  stage: test
+  script:
+    - npm install
+    - npm run lint
+    - npm run test
+  only:
+    - merge_requests
+    - main
+
+deploy_staging:
+  image: node:${NODE_VERSION}
+  stage: deploy
+  script:
+    - npm install
+    - nextellar deploy --validate-only || exit 7
+    - npm run deploy:staging
+  environment:
+    name: staging
+    url: https://staging.example.com
+  only:
+    - main
+
+deploy_production:
+  image: node:${NODE_VERSION}
+  stage: deploy
+  script:
+    - npm install
+    - nextellar deploy --validate-only || exit 7
+    - npm run deploy:production
+  environment:
+    name: production
+    url: https://example.com
+  when: manual
+  only:
+    - main
+```
+
+### Jenkins Pipeline
+
+```groovy
+// Jenkinsfile
+pipeline {
+  agent any
+
+  environment {
+    NODE_VERSION = '20'
+  }
+
+  stages {
+    stage('Validate') {
+      steps {
+        script {
+          sh '''
+            node --version
+            npm install
+            nextellar doctor
+            if [ $? -ne 0 ]; then
+              echo "Environment validation failed"
+              exit 6
+            fi
+          '''
+        }
+      }
+    }
+
+    stage('Build') {
+      steps {
+        sh 'npm run build'
+      }
+    }
+
+    stage('Test') {
+      steps {
+        sh '''
+          npm run lint
+          npm run test
+        '''
+      }
+    }
+
+    stage('Deploy to Staging') {
+      when {
+        branch 'main'
+      }
+      steps {
+        sh '''
+          nextellar deploy --validate-only
+          if [ $? -ne 0 ]; then
+            echo "Deployment validation failed"
+            exit 7
+          fi
+          npm run deploy:staging
+        '''
+      }
+    }
+
+    stage('Approval') {
+      when {
+        branch 'main'
+      }
+      steps {
+        input 'Deploy to Production?'
+      }
+    }
+
+    stage('Deploy to Production') {
+      when {
+        branch 'main'
+      }
+      steps {
+        sh '''
+          nextellar deploy --validate-only
+          if [ $? -ne 0 ]; then
+            echo "Production deployment validation failed"
+            exit 7
+          fi
+          npm run deploy:production
+        '''
+      }
+    }
+  }
+
+  post {
+    failure {
+      echo 'Pipeline failed. Check logs above for details.'
+    }
+    success {
+      echo 'Pipeline completed successfully.'
+    }
+  }
+}
+```
+
+### Error Handling Patterns
+
+#### Fail Fast on Critical Errors
+
+```bash
+#!/bin/bash
+# deploy.sh
+
+set -e  # Exit on first error (exit code != 0)
+
+echo "Step 1: Installing dependencies..."
+npm install
+
+echo "Step 2: Running environment checks..."
+nextellar doctor
+if [ $? -ne 0 ]; then
+  echo "ERROR: Environment check failed"
+  exit 6
+fi
+
+echo "Step 3: Building application..."
+npm run build
+
+echo "Step 4: Validating deployment..."
+nextellar deploy --validate-only
+if [ $? -ne 0 ]; then
+  echo "ERROR: Deployment validation failed"
+  exit 7
+fi
+
+echo "Step 5: Deploying..."
+npm run deploy
+
+echo "SUCCESS: Deployment completed"
+exit 0
+```
+
+#### Conditional Retry Logic
+
+```bash
+#!/bin/bash
+# deploy-with-retry.sh
+
+MAX_RETRIES=3
+RETRY_COUNT=0
+
+while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+  echo "Attempt $((RETRY_COUNT + 1))/$MAX_RETRIES: Running doctor checks..."
+  
+  nextellar doctor
+  EXIT_CODE=$?
+  
+  if [ $EXIT_CODE -eq 0 ]; then
+    echo "SUCCESS: Doctor checks passed"
+    break
+  elif [ $EXIT_CODE -eq 10 ]; then
+    # Network timeout - retry
+    echo "Network timeout (exit code 10), retrying..."
+    RETRY_COUNT=$((RETRY_COUNT + 1))
+    sleep 5
+  else
+    # Other errors - don't retry
+    echo "ERROR: Non-retryable error (exit code $EXIT_CODE)"
+    exit $EXIT_CODE
+  fi
+done
+
+if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+  echo "ERROR: Max retries exceeded"
+  exit 10
+fi
+```
+
+#### Parallel Jobs with Aggregated Results
+
+```yaml
+# .github/workflows/parallel-checks.yml
+name: Parallel Validation
+
+on: [push, pull_request]
+
+jobs:
+  validate_env:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install && nextellar doctor
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install && npm run lint
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install && npm run test
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install && npm run build
+
+  # All checks must pass to proceed
+  all_checks:
+    needs: [validate_env, lint, test, build]
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "✓ All checks passed"
+```
+
+---
+
+## Exit Code Best Practices
+
+### For CI/CD Pipeline Authors
+
+1. **Use `set -e` in bash scripts** — Exit immediately on first error
+2. **Capture and check exit codes** explicitly when needed for branching logic
+3. **Document expected exit codes** in CI/CD pipeline comments
+4. **Implement retry logic** for transient failures (network timeouts, exit code 10–11)
+5. **Never ignore critical exit codes** — Always fail if validation (exit code 6–7) fails
+6. **Log the exit code** in error messages for easier debugging
+
+### For Nextellar Developers
+
+1. Always use consistent exit codes across platforms (bash, PowerShell, etc.)
+2. Document exit codes in the CLI help and error messages
+3. Provide clear error messages before exiting with non-zero code
+4. Use appropriate exit codes for different failure types
+
+---
+
+## Related Resources
+
+- [CLI Commands Reference](/docs/cli/commands) — Full command documentation
+- [Environment Variables](/docs/cli/env-vars-reference) — Configure CLI behavior
+- [Deployment Guide](/docs/guides/deployment) — Production deployment patterns
+- [Lifecycle Tutorial](/docs/guides/lifecycle-tutorial) — End-to-end dApp development
+

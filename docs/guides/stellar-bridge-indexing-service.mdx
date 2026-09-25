@@ -14,7 +14,7 @@ For general-purpose Stellar event indexing options, see [Stellar Event Indexers]
 
 ## Architecture
 
-```
+```text
 Soroban RPC (getEvents) ──► Ingestion loop ──► Postgres (bridge_events)
                                                        │
 Destination chain RPC ──► Ingestion loop ──► Postgres (bridge_events)

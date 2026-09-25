@@ -3,6 +3,8 @@ import './globals.css';
 import { ThemeProvider } from '@/components/theme-provider';
 import { Metadata } from 'next';
 import { meta } from '../../config/meta';
+import { Analytics } from '@/components/analytics';
+import { ErrorBoundary } from '@/components/error-boundary';
 
 const interSans = Inter({
   variable: '--font-inter-sans',
@@ -25,14 +27,17 @@ export default function RootLayout({
           text-sm
           font-regular tracking-wide antialiased`}
       >
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          {children}
-        </ThemeProvider>
+        <ErrorBoundary>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
+            {children}
+          </ThemeProvider>
+        </ErrorBoundary>
+        <Analytics />
       </body>
     </html>
   );

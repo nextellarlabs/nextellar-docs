@@ -1,0 +1,23 @@
+Usage: nextellar add [feature-name] [options]
+
+Description: Add Stellar features to an existing Nextellar project.
+
+Arguments:
+  [feature-name]     Name of the feature to add (optional)
+
+Options:
+  -l, --list                    List all available features
+  -f, --force                   Force add feature, overwriting existing files
+  --skip-install                Skip automatic dependency installation
+  --package-manager <pm>        Choose package manager (npm, yarn, pnpm, bun)
+  -h, --help                    Show this help text
+
+Examples:
+  # List all available features
+  nextellar add --list
+
+  # Add a feature
+  nextellar add soroban
+
+  # Force add with specific package manager
+  nextellar add freighter --force --package-manager pnpm

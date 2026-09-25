@@ -43,7 +43,7 @@ Requests will be rate-limited per API key to keep the managed Horizon/Soroban
 proxy fair for all users. The plan is a sliding-window limit with the
 remaining quota surfaced in response headers, for example:
 
-```
+```text
 X-RateLimit-Limit: 60
 X-RateLimit-Remaining: 42
 X-RateLimit-Reset: 1717000000

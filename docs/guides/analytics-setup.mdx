@@ -1,0 +1,259 @@
+---
+title: Analytics and Error Monitoring Setup
+description: Configure privacy-friendly analytics and error monitoring for the Nextellar docs site.
+date: 2026-09-24
+---
+
+# Analytics and Error Monitoring Setup
+
+The Nextellar docs site uses privacy-friendly analytics and error monitoring to understand user behavior and catch issues early.
+
+## Overview
+
+- **Analytics**: [Plausible Analytics](https://plausible.io) — privacy-focused, GDPR-compliant analytics without cookies
+- **Error Monitoring**: [Sentry](https://sentry.io) — real-time error tracking and session replay
+
+Both services are optional and disabled by default. Configuration is done via environment variables.
+
+## Configuration
+
+### Plausible Analytics
+
+#### 1. Sign up for Plausible
+
+Visit [plausible.io](https://plausible.io) and create an account.
+
+#### 2. Add your domain
+
+In the Plausible dashboard:
+- Click "Add a website"
+- Enter your domain (e.g., `docs.nextellar.dev`)
+- Note the domain name
+
+#### 3. Set the environment variable
+
+Add to `.env.local`:
+
+```bash
+NEXT_PUBLIC_PLAUSIBLE_DOMAIN=docs.nextellar.dev
+```
+
+Replace `docs.nextellar.dev` with your actual domain.
+
+#### 4. Verify in browser
+
+After deploying, visit your site. Open the Plausible dashboard — you should see traffic appearing in real-time.
+
+**What Plausible collects:**
+- Page views
+- Referrer information
+- Device type and browser
+- Country (from IP)
+
+**What Plausible doesn't collect:**
+- Cookie-based tracking
+- Personal data
+- Requires no consent banner
+
+### Sentry Error Monitoring
+
+#### 1. Sign up for Sentry
+
+Visit [sentry.io](https://sentry.io) and create an account.
+
+#### 2. Create a project
+
+In the Sentry dashboard:
+- Click "Create Project"
+- Select "JavaScript" → "Next.js"
+- Follow the setup flow
+- Copy your **DSN** (Data Source Name)
+
+#### 3. Set the environment variable
+
+Add to `.env.local`:
+
+```bash
+NEXT_PUBLIC_SENTRY_DSN=https://your-key@sentry.io/project-id
+```
+
+Replace with your actual DSN from Sentry.
+
+#### 4. Verify in browser
+
+After deploying, Sentry will begin capturing:
+- JavaScript errors
+- Unhandled exceptions
+- Network errors
+- Performance metrics
+
+**Trigger a test error** to verify:
+
+In your browser console:
+
+```javascript
+throw new Error('Sentry test error');
+```
+
+Check your Sentry dashboard — the error should appear within seconds.
+
+## Features
+
+### Error Boundary
+
+The docs site includes an `ErrorBoundary` component that catches React rendering errors and automatically reports them to Sentry.
+
+**File**: `src/components/error-boundary.tsx`
+
+### Analytics Component
+
+The `Analytics` component initializes both Plausible and Sentry on page load.
+
+**File**: `src/components/analytics.tsx`
+
+Features:
+- Lazy-loads scripts for performance
+- Gracefully handles missing configuration
+- Logs initialization status to console
+
+## Development
+
+### Local Development
+
+Analytics and error monitoring are disabled in development unless you explicitly set environment variables:
+
+```bash
+# Disable analytics/monitoring in development
+NEXT_PUBLIC_PLAUSIBLE_DOMAIN=
+NEXT_PUBLIC_SENTRY_DSN=
+```
+
+To test locally, set valid credentials:
+
+```bash
+NEXT_PUBLIC_PLAUSIBLE_DOMAIN=localhost
+NEXT_PUBLIC_SENTRY_DSN=https://your-key@sentry.io/project-id
+```
+
+### Testing Error Reporting
+
+Test Sentry error capture:
+
+```typescript
+// In any component or page
+import { useEffect } from 'react';
+
+export function TestError() {
+  useEffect(() => {
+    if (window.Sentry) {
+      window.Sentry.captureException(new Error('Test from component'));
+    }
+  }, []);
+
+  return null;
+}
+```
+
+## Privacy
+
+### Plausible Privacy
+
+- No cookies used
+- No personal data collected
+- GDPR, CCPA, and PECR compliant
+- No cookie consent banner required
+
+[Plausible Privacy Policy](https://plausible.io/privacy-focused-web-analytics)
+
+### Sentry Privacy
+
+- Session replay is optional and can be disabled
+- Personal data is not collected by default
+- GDPR compliant with proper configuration
+- Data is retained for 90 days by default
+
+**Session Replay Configuration** (in `src/components/analytics.tsx`):
+
+```typescript
+replaysSessionSampleRate: 0.1, // 10% of sessions
+replaysOnErrorSampleRate: 1.0, // 100% on errors
+```
+
+To disable session replay, remove the `Replay` integration:
+
+```typescript
+integrations: [
+  // Remove Replay integration
+],
+```
+
+[Sentry Privacy Policy](https://sentry.io/privacy/)
+
+## Environment Variables Reference
+
+| Variable                        | Required | Description                          | Example                                  |
+| ------------------------------- | -------- | ------------------------------------ | ---------------------------------------- |
+| `NEXT_PUBLIC_PLAUSIBLE_DOMAIN`  | No       | Domain for Plausible analytics       | `docs.nextellar.dev`                     |
+| `NEXT_PUBLIC_SENTRY_DSN`        | No       | DSN for Sentry error monitoring      | `https://key@sentry.io/project-id`       |
+| `NODE_ENV`                      | Yes      | Environment (development, production) | `production`                             |
+
+## Deployment
+
+### Vercel
+
+1. Add environment variables in Vercel project settings
+2. Redeploy or trigger a new build
+3. Analytics will automatically be active in production
+
+### Other Platforms
+
+1. Set the environment variables in your platform's configuration
+2. Rebuild and redeploy
+3. Monitor dashboard for data
+
+## Monitoring
+
+### Plausible Dashboard
+
+Visit your Plausible domain to see:
+- Real-time visitor count
+- Top pages
+- Traffic sources
+- Device information
+- Geographic distribution
+
+### Sentry Dashboard
+
+Monitor:
+- Error trends
+- Performance metrics
+- Release health
+- User sessions (if replay enabled)
+
+## Troubleshooting
+
+### Analytics not appearing in Plausible
+
+1. Verify `NEXT_PUBLIC_PLAUSIBLE_DOMAIN` is set correctly
+2. Check browser console for `[Analytics] Plausible initialized`
+3. Ensure you're not using ad blockers on the analytics domain
+4. Wait 5-10 minutes for data to appear in Plausible
+
+### Errors not appearing in Sentry
+
+1. Verify `NEXT_PUBLIC_SENTRY_DSN` is set correctly
+2. Check browser console for `[ErrorMonitoring] Sentry initialized`
+3. Trigger a test error to verify connectivity
+4. Check Sentry dashboard alert settings
+
+### High error rates
+
+1. Review recent deployments or code changes
+2. Check Sentry for error patterns
+3. Verify all external APIs are responding normally
+
+## Related Documentation
+
+- [Plausible Analytics Documentation](https://plausible.io/docs)
+- [Sentry Documentation](https://docs.sentry.io/)
+- [Next.js Environment Variables](https://nextjs.org/docs/basic-features/environment-variables)

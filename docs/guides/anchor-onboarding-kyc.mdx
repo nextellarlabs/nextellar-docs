@@ -87,7 +87,7 @@ npx nextellar anchor info --domain testanchor.stellar.org
 
 Output:
 
-```
+```text
 Anchor: testanchor.stellar.org
   SIGNING_KEY    GCSGSR6KQQ...
   TRANSFER_SERVER https://testanchor.stellar.org/sep6
@@ -130,7 +130,7 @@ npx nextellar trustline add \
 
 Confirm:
 
-```
+```text
 ✔ Trustline added for USDC:GBBD47...
   Transaction: abc123...def456
   Ledger:      50200100
@@ -155,7 +155,7 @@ The CLI handles the SEP-10 authentication challenge internally (sign-and-submit)
 
 Output:
 
-```
+```text
 ✔ SEP-10 authentication complete
   JWT expires: 2026-06-25T09:00:00Z
 
@@ -180,7 +180,7 @@ npx nextellar anchor kyc get --domain testanchor.stellar.org
 
 Once accepted:
 
-```
+```text
 {
   "id": "d1ce3c1c-...",
   "status": "ACCEPTED"
@@ -211,7 +211,7 @@ npx nextellar anchor deposit \
 
 Output:
 
-```
+```text
 ✔ Deposit initiated
   Transaction ID:    txn_5e9a7c...
   How to deposit:    Transfer $100.00 USD via ACH to:
@@ -243,7 +243,7 @@ npx nextellar anchor withdraw \
 
 Output:
 
-```
+```text
 ✔ Withdrawal initiated
   Transaction ID:    txn_7f1b3d...
   Send to:           GWITHDRAWAL_ADDRESS_OF_ANCHOR
@@ -257,7 +257,7 @@ Nextellar then signs and submits the Stellar payment automatically:
 npx nextellar anchor withdraw --submit txn_7f1b3d
 ```
 
-```
+```text
 ✔ Stellar payment submitted
   Stellar TX Hash:  e8c42a...1f99
   Ledger:           50300200

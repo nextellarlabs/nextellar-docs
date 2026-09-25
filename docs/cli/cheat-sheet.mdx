@@ -165,7 +165,7 @@ nextellar add --list
 nextellar doctor --json
 ```
 
-### Upgrade & Deploy
+### Upgrade, Deploy & Cleanup
 
 ```bash
 # Preview what an upgrade would change
@@ -173,6 +173,9 @@ nextellar upgrade --dry-run
 
 # Validate a deployment without producing a bundle
 nextellar deploy --dry-run
+
+# Remove generated build artifacts
+nextellar clean
 ```
 
 ### Telemetry

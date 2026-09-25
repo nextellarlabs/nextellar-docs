@@ -1,0 +1,61 @@
+---
+title: Clean Nextellar build artifacts
+description: Remove generated Nextellar build artifacts without deleting project configuration, deployment bundles, logs, or source files.
+date: 2026-09-24
+---
+
+# Clean Nextellar build artifacts
+
+Use `nextellar clean` to remove generated files from `.nextellar/build`. The command leaves the rest of your project unchanged.
+
+## Run the command from your project
+
+Open the project root, then run:
+
+```bash
+nextellar clean
+```
+
+When `.nextellar/build` exists, the command removes the directory and prints:
+
+```text
+✔️  Removed .nextellar/build
+```
+
+Run `nextellar clean` before rebuilding when cached Nextellar artifacts are stale or when you want to reclaim their disk space.
+
+## Understand what the command removes
+
+The command deletes `.nextellar/build` and every file below it. It doesn't delete these project files:
+
+- `.nextellar/config.json`
+- `.nextellar/deploy/`
+- `.nextellar/install.log`
+- Application source files outside `.nextellar/`
+- Framework output such as `.next/`
+
+This narrow scope lets you clear Nextellar's generated build artifacts without resetting the project.
+
+## Run the command when no artifacts exist
+
+You can run the command even when `.nextellar/build` doesn't exist. It exits successfully and prints:
+
+```text
+ℹ️  Nothing to clean — .nextellar/build does not exist.
+```
+
+Use this behavior in local scripts or continuous integration (CI) jobs that shouldn't fail when the artifact directory is already absent.
+
+## Handle removal errors
+
+If the operating system prevents deletion, the command exits with an error. Check directory permissions and close processes that are using files below `.nextellar/build`, then run the command again.
+
+```text
+Failed to remove .nextellar/build: permission denied
+```
+
+## Related pages
+
+- [CLI commands](/docs/cli/commands)
+- [Nextellar upgrade workflow](/docs/cli/upgrade-workflow)
+- [Deployment guide](/docs/guides/deployment)

@@ -1,0 +1,62 @@
+---
+title: JavaScript vs TypeScript Projects
+description: Compare JavaScript and TypeScript Nextellar scaffolds and plan migrations between them.
+date: 2026-09-24
+---
+
+# JavaScript vs TypeScript Projects
+
+Nextellar defaults to TypeScript and can generate JavaScript with `--javascript`. Both paths use the same wallet and Stellar building blocks; the main difference is how much safety and editor feedback you want while working.
+
+## Side-by-side differences
+
+| Area | TypeScript project | JavaScript project |
+| --- | --- | --- |
+| File extensions | `.ts` and `.tsx` | `.js` and `.jsx` |
+| Configuration | `tsconfig.json` | `jsconfig.json` |
+| Type checking | Compile-time checks for props, hook returns, and Stellar SDK values | Runtime behavior with editor hints from JSDoc where available |
+| Onboarding speed | Slightly more setup discipline | Fastest for prototypes and tutorials |
+| Refactoring safety | Stronger when renaming fields and moving data shapes | Depends more on tests and manual review |
+| Best fit | Production dApps, teams, SDK-heavy code, contract integrations | Small demos, workshops, quick experiments |
+
+## When to choose TypeScript
+
+Choose the default TypeScript scaffold when the app handles payments, trustlines, contract calls, or shared components. The extra type information helps catch mistakes in transaction payloads and wallet state before users touch the flow.
+
+```bash
+npx nextellar my-app
+npx nextellar my-app --template defi
+```
+
+## When to choose JavaScript
+
+Choose JavaScript when the goal is a quick demo, a beginner workshop, or a team preference for plain React syntax. The generated files keep the same feature set, but avoid a typed build step.
+
+```bash
+npx nextellar my-app --javascript
+npx nextellar my-app --template minimal --javascript
+```
+
+## Migration notes
+
+### JavaScript to TypeScript
+
+1. Rename React files from `.jsx` to `.tsx` and utility files from `.js` to `.ts`.
+2. Replace `jsconfig.json` with the TypeScript config used by a fresh Nextellar scaffold.
+3. Add explicit types around wallet state, payment inputs, and contract call results first.
+4. Convert one route or hook at a time so errors stay easy to review.
+5. Keep runtime checks for user-entered addresses and amounts; TypeScript does not validate user input by itself.
+
+### TypeScript to JavaScript
+
+1. Rename `.tsx` files to `.jsx` and `.ts` files to `.js`.
+2. Remove interface and type declarations from components and hooks.
+3. Preserve JSDoc comments for important payload shapes.
+4. Replace type-only imports with ordinary runtime imports only when the value is actually used.
+5. Keep the same wallet setup and environment variables.
+
+## Related
+
+- [Using JavaScript](/docs/getting-started/javascript)
+- [Scaffolding Templates](/docs/cli/templates)
+- [Template Comparison](/docs/cli/template-comparison)

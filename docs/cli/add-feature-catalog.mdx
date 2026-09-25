@@ -1,0 +1,60 @@
+---
+title: Add Command Feature Catalog
+description: Browse the hooks and components available through `nextellar add`.
+date: 2026-09-24
+---
+
+# Add Command Feature Catalog
+
+Use `nextellar add` when an existing app needs one capability from another starter template without regenerating the whole project. The command copies feature files, includes required dependencies, and skips files that already exist unless `--force` is used.
+
+```bash
+npx nextellar add wallet
+npx nextellar add soroban-contract
+npx nextellar add network-switcher
+```
+
+## Hooks
+
+| Feature id | Adds | Common use | Dependencies |
+| --- | --- | --- | --- |
+| `wallet` | `useStellarWallet`, wallet kit setup, wallet context | Connect Freighter, xBull, and other Stellar wallets | None |
+| `balances` | `useStellarBalances` | Read account balances after wallet connection | `wallet` |
+| `payment` | `useStellarPayment` | Send XLM or Stellar asset payments from the UI | `wallet` |
+| `trustlines` | `useTrustlines` | Add, remove, and inspect asset trustlines | `wallet` |
+| `offer-book` | `useOfferBook` | Read Stellar DEX order book data | `wallet` |
+| `soroban-contract` | `useSorobanContract` | Call Soroban contract methods from React | `wallet` |
+| `soroban-events` | `useSorobanEvents` | Listen to Soroban contract events | `soroban-contract` |
+| `transaction-history` | `useTransactionHistory` | Display recent operations and payments | `wallet` |
+
+## Components
+
+| Feature id | Adds | Common use | Dependencies |
+| --- | --- | --- | --- |
+| `wallet-button` | `WalletConnectButton` | Drop-in connect and disconnect button | `wallet` |
+| `network-switcher` | `NetworkSwitcher` | Toggle between testnet and mainnet in the app shell | `wallet` |
+
+## Choosing features
+
+Start with the smallest feature that unlocks the workflow you need. A wallet-only page usually needs `wallet` and `wallet-button`. A payments page adds `payment` and often `balances`. A DeFi page typically combines `trustlines`, `offer-book`, and `payment`. A contract dashboard starts with `soroban-contract` and adds `soroban-events` when it needs live updates.
+
+## Install flow
+
+```bash
+# Show available features
+npx nextellar add --list
+
+# Add one feature and any required dependencies
+npx nextellar add transaction-history
+
+# Replace existing generated files when intentionally refreshing scaffolding
+npx nextellar add wallet --force
+```
+
+After adding a feature, import the copied hook or component from the generated `src/hooks`, `src/components`, `src/contexts`, or `src/lib` folders. Review skipped files before using `--force`, because that flag can replace local customizations.
+
+## Related
+
+- [Extending the CLI](/docs/guides/extending-the-cli) - how features are registered
+- [CLI Commands](/docs/cli/commands) - command reference
+- [Scaffolding Templates](/docs/cli/templates) - template contents

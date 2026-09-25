@@ -1,0 +1,686 @@
+---
+title: Adoption Guide - Nextellar in Existing Next.js Apps
+description: Step-by-step guide for integrating Nextellar wallet and Stellar capabilities into an existing Next.js application.
+date: 2026-09-24
+tags: [adoption, migration, next.js, integration, existing-app]
+---
+
+# Adoption Guide: Adding Nextellar to Existing Next.js Apps
+
+This guide walks you through integrating Nextellar into an existing Next.js application. Unlike scaffolding a new project with `npx nextellar create`, this approach lets you adopt Nextellar incrementally in your current codebase.
+
+---
+
+## Prerequisites
+
+- Existing Next.js 14+ application
+- Node.js 20.18.0 or later
+- npm, yarn, or pnpm for package management
+- Familiarity with React hooks and TypeScript (optional but recommended)
+
+---
+
+## Part 1: Install Core Dependencies
+
+### Step 1.1: Install Nextellar SDK
+
+```bash
+npm install @nextellar/sdk @stellar/stellar-sdk
+# or
+yarn add @nextellar/sdk @stellar/stellar-sdk
+pnpm add @nextellar/sdk @stellar/stellar-sdk
+```
+
+### Step 1.2: Install Wallet Kit
+
+```bash
+npm install @creit.tech/stellar-wallets-kit
+```
+
+This package provides multi-wallet support (Freighter, Albedo, Lobstr, xBull, Hana).
+
+### Step 1.3: Verify Installation
+
+```bash
+npm list @nextellar/sdk @stellar/stellar-sdk @creit.tech/stellar-wallets-kit
+```
+
+---
+
+## Part 2: Setup Wallet Configuration
+
+### Step 2.1: Create the Wallet Kit Config
+
+Create `src/lib/stellar-wallet-kit.ts`:
+
+```typescript
+import {
+  StellarWalletsKit,
+  FREIGHTER_ID,
+  FreighterModule,
+  AlbedoModule,
+  LobstrModule,
+  xBullModule,
+  HanaModule,
+  WalletNetwork,
+} from '@creit.tech/stellar-wallets-kit';
+import { Networks } from '@stellar/stellar-sdk';
+
+export const kit = new StellarWalletsKit({
+  network: WalletNetwork.TESTNET,
+  selectedWalletId: FREIGHTER_ID,
+  modules: [
+    new FreighterModule(),
+    new AlbedoModule(),
+    new LobstrModule(),
+    new xBullModule(),
+    new HanaModule(),
+  ],
+});
+
+// Export network constants for use in your app
+export const NETWORK_PASSPHRASE = Networks.TESTNET;
+export const HORIZON_URL = 'https://horizon-testnet.stellar.org';
+
+// For mainnet, use:
+// export const NETWORK_PASSPHRASE = Networks.PUBLIC;
+// export const HORIZON_URL = 'https://horizon.stellar.org';
+```
+
+### Step 2.2: Create Storage Utilities
+
+Create `src/lib/storage.ts` for persisting wallet state:
+
+```typescript
+// localStorage wrapper for wallet session management
+export const storage = {
+  setConnected: (value: boolean) =>
+    localStorage.setItem('stellar_wallet_connected', String(value)),
+  getConnected: () =>
+    localStorage.getItem('stellar_wallet_connected') === 'true',
+  
+  setWalletId: (id: string) =>
+    localStorage.setItem('stellar_wallet_id', id),
+  getWalletId: () =>
+    localStorage.getItem('stellar_wallet_id'),
+  
+  setPublicKey: (key: string) =>
+    localStorage.setItem('stellar_wallet_public_key', key),
+  getPublicKey: () =>
+    localStorage.getItem('stellar_wallet_public_key'),
+  
+  setWalletName: (name: string) =>
+    localStorage.setItem('stellar_wallet_name', name),
+  getWalletName: () =>
+    localStorage.getItem('stellar_wallet_name'),
+  
+  clear: () => {
+    localStorage.removeItem('stellar_wallet_connected');
+    localStorage.removeItem('stellar_wallet_id');
+    localStorage.removeItem('stellar_wallet_public_key');
+    localStorage.removeItem('stellar_wallet_name');
+  },
+};
+```
+
+---
+
+## Part 3: Create a Wallet Context Provider
+
+### Step 3.1: Create the Wallet Context
+
+Create `src/contexts/WalletContext.tsx`:
+
+```tsx
+'use client';
+
+import {
+  createContext,
+  ReactNode,
+  useContext,
+  useEffect,
+  useState,
+} from 'react';
+import { kit, NETWORK_PASSPHRASE, HORIZON_URL } from '@/lib/stellar-wallet-kit';
+import { storage } from '@/lib/storage';
+
+export interface WalletContextType {
+  connected: boolean;
+  connecting: boolean;
+  publicKey: string | null;
+  walletName: string | null;
+  connect: (walletId?: string) => Promise<void>;
+  disconnect: () => void;
+  error: Error | null;
+}
+
+const WalletContext = createContext<WalletContextType | undefined>(undefined);
+
+export function WalletProvider({ children }: { children: ReactNode }) {
+  const [connected, setConnected] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [publicKey, setPublicKey] = useState<string | null>(null);
+  const [walletName, setWalletName] = useState<string | null>(null);
+  const [error, setError] = useState<Error | null>(null);
+
+  // Restore session on mount
+  useEffect(() => {
+    const wasConnected = storage.getConnected();
+    const storedPublicKey = storage.getPublicKey();
+    const storedWalletName = storage.getWalletName();
+
+    if (wasConnected && storedPublicKey) {
+      setConnected(true);
+      setPublicKey(storedPublicKey);
+      setWalletName(storedWalletName);
+    }
+  }, []);
+
+  const connect = async (walletId?: string) => {
+    try {
+      setConnecting(true);
+      setError(null);
+
+      let selectedWalletId = walletId;
+      
+      // If no walletId specified, open the modal
+      if (!selectedWalletId) {
+        selectedWalletId = await kit.openModal();
+      }
+
+      // Connect to the selected wallet
+      const { publicKey: pk } = await kit.connect(selectedWalletId);
+      
+      // Get wallet name
+      const wallet = kit.getWallet(selectedWalletId);
+      const wname = wallet?.name || selectedWalletId;
+
+      // Update state
+      setPublicKey(pk);
+      setWalletName(wname);
+      setConnected(true);
+
+      // Persist to localStorage
+      storage.setConnected(true);
+      storage.setPublicKey(pk);
+      storage.setWalletName(wname);
+      storage.setWalletId(selectedWalletId);
+    } catch (err: any) {
+      const error = new Error(err.message || 'Failed to connect wallet');
+      setError(error);
+      throw error;
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  const disconnect = () => {
+    kit.disconnect();
+    setConnected(false);
+    setPublicKey(null);
+    setWalletName(null);
+    setError(null);
+    storage.clear();
+  };
+
+  return (
+    <WalletContext.Provider
+      value={{
+        connected,
+        connecting,
+        publicKey,
+        walletName,
+        connect,
+        disconnect,
+        error,
+      }}
+    >
+      {children}
+    </WalletContext.Provider>
+  );
+}
+
+export function useWallet() {
+  const context = useContext(WalletContext);
+  if (!context) {
+    throw new Error('useWallet must be used within a WalletProvider');
+  }
+  return context;
+}
+```
+
+### Step 3.2: Add Provider to Your App
+
+Update your `app/layout.tsx`:
+
+```tsx
+import { WalletProvider } from '@/contexts/WalletContext';
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="en">
+      <body>
+        <WalletProvider>
+          {children}
+        </WalletProvider>
+      </body>
+    </html>
+  );
+}
+```
+
+---
+
+## Part 4: Install Nextellar Hooks (Optional)
+
+If you want to use Nextellar's pre-built hooks for payments, balances, etc.:
+
+```bash
+npm install @nextellar/hooks
+```
+
+Or, if not using the official hooks package, create your own minimal wrapper:
+
+```typescript
+// src/hooks/useStellarWallet.ts
+import { useWallet } from '@/contexts/WalletContext';
+
+export function useStellarWallet() {
+  return useWallet();
+}
+```
+
+---
+
+## Part 5: Build Your First Component
+
+### Step 5.1: Create a Connect Button
+
+Create `src/components/ConnectWalletButton.tsx`:
+
+```tsx
+'use client';
+
+import { useWallet } from '@/contexts/WalletContext';
+
+export function ConnectWalletButton() {
+  const { connected, connecting, publicKey, walletName, connect, disconnect } =
+    useWallet();
+
+  if (connected) {
+    return (
+      <div className="flex items-center gap-4">
+        <span className="text-sm font-mono">
+          {walletName} • {publicKey?.slice(0, 6)}…{publicKey?.slice(-4)}
+        </span>
+        <button
+          onClick={disconnect}
+          className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+        >
+          Disconnect
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => connect()}
+      disabled={connecting}
+      className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400"
+    >
+      {connecting ? 'Connecting…' : 'Connect Wallet'}
+    </button>
+  );
+}
+```
+
+### Step 5.2: Use in a Page
+
+Create or update a page to use the button:
+
+```tsx
+// app/page.tsx
+import { ConnectWalletButton } from '@/components/ConnectWalletButton';
+
+export default function Home() {
+  return (
+    <main className="min-h-screen flex items-center justify-center">
+      <div className="text-center">
+        <h1 className="text-4xl font-bold mb-8">Welcome to Stellar</h1>
+        <ConnectWalletButton />
+      </div>
+    </main>
+  );
+}
+```
+
+---
+
+## Part 6: Add Environment Variables
+
+Create or update `.env.local`:
+
+```bash
+# Stellar Network Configuration
+NEXT_PUBLIC_NETWORK_PASSPHRASE="Test SDF Network ; September 2015"
+NEXT_PUBLIC_HORIZON_URL="https://horizon-testnet.stellar.org"
+
+# For production (mainnet), use:
+# NEXT_PUBLIC_NETWORK_PASSPHRASE="Public Global Stellar Network ; September 2015"
+# NEXT_PUBLIC_HORIZON_URL="https://horizon.stellar.org"
+```
+
+Then reference in your code:
+
+```typescript
+const NETWORK_PASSPHRASE = process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE!;
+const HORIZON_URL = process.env.NEXT_PUBLIC_HORIZON_URL!;
+```
+
+---
+
+## Part 7: Add Payments (Optional)
+
+### Step 7.1: Create a Payment Hook
+
+Create `src/hooks/useStellarPayment.ts`:
+
+```typescript
+import { useWallet } from '@/contexts/WalletContext';
+import {
+  Account,
+  TransactionBuilder,
+  Networks,
+  BASE_FEE,
+  Operation,
+} from '@stellar/stellar-sdk';
+import { kit, HORIZON_URL } from '@/lib/stellar-wallet-kit';
+import { useState } from 'react';
+
+export function useStellarPayment() {
+  const { publicKey } = useWallet();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  const sendPayment = async (params: {
+    destination: string;
+    amount: string;
+    asset?: string;
+  }) => {
+    if (!publicKey) throw new Error('Wallet not connected');
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Fetch account details
+      const response = await fetch(
+        `${HORIZON_URL}/accounts/${publicKey}`
+      );
+      const account = await response.json();
+
+      // Build transaction
+      const txBuilder = new TransactionBuilder(
+        new Account(publicKey, BigInt(account.sequence)),
+        {
+          fee: BASE_FEE,
+          networkPassphrase: Networks.TESTNET,
+        }
+      )
+        .addOperation(
+          Operation.payment({
+            destination: params.destination,
+            asset: params.asset === 'XLM' 
+              ? undefined 
+              : 'credit_alphanum12',
+            amount: params.amount,
+          })
+        )
+        .setTimeout(300)
+        .build();
+
+      // Sign and submit
+      const { signedTxXdr } = await kit.signTransaction(txBuilder.toXDR(), {
+        address: publicKey,
+        networkPassphrase: Networks.TESTNET,
+      });
+
+      const submitResponse = await fetch(`${HORIZON_URL}/transactions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ tx: signedTxXdr }),
+      });
+
+      const result = await submitResponse.json();
+      return result;
+    } catch (err: any) {
+      const error = new Error(err.message || 'Payment failed');
+      setError(error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { sendPayment, loading, error };
+}
+```
+
+### Step 7.2: Use in a Component
+
+```tsx
+'use client';
+
+import { useState } from 'react';
+import { useStellarPayment } from '@/hooks/useStellarPayment';
+import { useWallet } from '@/contexts/WalletContext';
+
+export function PaymentForm() {
+  const { connected } = useWallet();
+  const { sendPayment, loading, error } = useStellarPayment();
+  const [destination, setDestination] = useState('');
+  const [amount, setAmount] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await sendPayment({ destination, amount, asset: 'XLM' });
+      alert('Payment sent!');
+      setDestination('');
+      setAmount('');
+    } catch (err) {
+      // Error already set in hook
+    }
+  };
+
+  if (!connected) {
+    return <p>Connect wallet first</p>;
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="max-w-md mx-auto">
+      <input
+        type="text"
+        placeholder="Destination (GABC...)"
+        value={destination}
+        onChange={(e) => setDestination(e.target.value)}
+        className="w-full px-4 py-2 border rounded mb-4"
+        required
+      />
+      <input
+        type="number"
+        placeholder="Amount (XLM)"
+        value={amount}
+        onChange={(e) => setAmount(e.target.value)}
+        className="w-full px-4 py-2 border rounded mb-4"
+        step="0.01"
+        required
+      />
+      {error && <p className="text-red-600 mb-4">{error.message}</p>}
+      <button
+        type="submit"
+        disabled={loading}
+        className="w-full px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-400"
+      >
+        {loading ? 'Sending…' : 'Send Payment'}
+      </button>
+    </form>
+  );
+}
+```
+
+---
+
+## Part 8: Add Soroban Support (Optional)
+
+### Step 8.1: Install Soroban Client
+
+```bash
+npm install @stellar/stellar-sdk
+```
+
+(Already installed, but ensure you have the latest version with Soroban support)
+
+### Step 8.2: Create a Soroban Hook
+
+Create `src/hooks/useSorobanContract.ts`:
+
+```typescript
+import { useWallet } from '@/contexts/WalletContext';
+import {
+  Contract,
+  SorobanRpc,
+  TransactionBuilder,
+  Networks,
+  BASE_FEE,
+} from '@stellar/stellar-sdk';
+import { kit } from '@/lib/stellar-wallet-kit';
+import { useState } from 'react';
+
+const SOROBAN_RPC_URL = 'https://soroban-testnet.stellar.org';
+const server = new SorobanRpc.Server(SOROBAN_RPC_URL);
+
+export function useSorobanContract() {
+  const { publicKey } = useWallet();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  const invoke = async (params: {
+    contractId: string;
+    method: string;
+    args: any[];
+  }) => {
+    if (!publicKey) throw new Error('Wallet not connected');
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Fetch account details
+      const account = await server.getAccount(publicKey);
+
+      // Build contract invocation
+      const contract = new Contract(params.contractId);
+      const tx = new TransactionBuilder(account, {
+        fee: BASE_FEE,
+        networkPassphrase: Networks.TESTNET_SOROBAN,
+      })
+        .addOperation(
+          contract.call(params.method, ...params.args)
+        )
+        .setTimeout(300)
+        .build();
+
+      // Simulate first
+      const simulated = await server.simulateTransaction(tx);
+
+      // Sign
+      const { signedTxXdr } = await kit.signTransaction(tx.toXDR(), {
+        address: publicKey,
+        networkPassphrase: Networks.TESTNET_SOROBAN,
+      });
+
+      // Submit
+      const result = await server.sendTransaction(signedTxXdr);
+      return result;
+    } catch (err: any) {
+      const error = new Error(err.message || 'Contract invocation failed');
+      setError(error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { invoke, loading, error };
+}
+```
+
+---
+
+## Checklist: Adoption Complete
+
+- [ ] Dependencies installed (`@nextellar/sdk`, `@stellar/stellar-sdk`, `@creit.tech/stellar-wallets-kit`)
+- [ ] Wallet kit configured (`src/lib/stellar-wallet-kit.ts`)
+- [ ] Storage utilities created (`src/lib/storage.ts`)
+- [ ] Wallet context setup (`src/contexts/WalletContext.tsx`)
+- [ ] Provider added to root layout (`app/layout.tsx`)
+- [ ] Connect button component created
+- [ ] Environment variables configured (`.env.local`)
+- [ ] (Optional) Payment hook implemented
+- [ ] (Optional) Soroban hook implemented
+- [ ] App tested with a real wallet connection
+
+---
+
+## Troubleshooting
+
+### "Wallet not found" Error
+
+**Cause:** User doesn't have the wallet extension installed.
+
+**Solution:** Show install links for supported wallets:
+- [Freighter](https://www.freighter.app/)
+- [Albedo](https://albedo.link/)
+- [Lobstr](https://lobstr.co/)
+- [xBull](https://xbull.app/)
+
+### "Network mismatch" Error
+
+**Cause:** User's wallet is on a different network (Testnet vs Mainnet).
+
+**Solution:** 
+1. Check your `.env.local` network configuration
+2. Ensure user's wallet is set to the same network
+3. Show a clear error message with instructions to switch
+
+### "User rejected" Error
+
+**Cause:** User clicked "Reject" in the wallet permission prompt.
+
+**Solution:** This is not an error state — allow the user to retry silently without blocking the app.
+
+### "Insufficient balance" Error
+
+**Cause:** Account doesn't have enough XLM for the transaction.
+
+**Solution:**
+1. Check balances before submitting
+2. For testnet, fund accounts via [Stellar Friendbot](https://friendbot.stellar.org/)
+3. Show current balance and required amount
+
+---
+
+## Next Steps
+
+- [Wallet Integration Deep-Dive](/docs/guides/wallet-integration-deep-dive) — Advanced wallet patterns
+- [Error Handling Patterns](/docs/guides/error-handling-patterns) — Comprehensive error guide
+- [Soroban Contract Authoring](/docs/guides/soroban-contract-authoring) — Build smart contracts
+- [Testing](/docs/guides/testing) — Test your integration with MSW
+- [Deployment](/docs/guides/deployment) — Deploy to production
+

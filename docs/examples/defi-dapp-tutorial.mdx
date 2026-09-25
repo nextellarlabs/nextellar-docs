@@ -1,0 +1,449 @@
+---
+title: End-to-End DeFi dApp Tutorial (defi Template)
+description: Complete tutorial for scaffolding and building a decentralized finance application on Stellar using Nextellar's defi template.
+date: 2026-09-24
+---
+
+# End-to-End DeFi dApp Tutorial (`defi` Template)
+
+The Nextellar `defi` template is designed for building decentralized finance applications on Stellar and Soroban. It provides pre-configured building blocks for multi-wallet connectivity, token balance tracking, trustline creation, decentralized exchange (DEX) order book queries, payment transfers, and smart contract invocations.
+
+This tutorial guides you through building a complete, end-to-end DeFi dApp using the `defi` template from scaffolding to testnet execution.
+
+---
+
+## What We Are Building
+
+In this tutorial, you will create a DeFi Portal dApp that performs five core operations:
+
+1. **Connects to a Stellar Wallet** (Freighter, Albedo, Lobstr, xBull).
+2. **Displays Native XLM and Custom Asset Balances** with live updates.
+3. **Inspects and Establishes Asset Trustlines** (e.g., testnet USDC).
+4. **Queries the Stellar DEX Order Book** for live bids and asks.
+5. **Executes an Asset Swap or Liquidity Pool Invocation** on Testnet.
+
+---
+
+## 1. Scaffolding with the `defi` Template
+
+Scaffold a new Nextellar project using the `--template defi` flag:
+
+```bash
+npx nextellar stellar-defi-portal --template defi
+```
+
+If you prefer JavaScript over TypeScript, include the `--javascript` (or `-j`) flag:
+
+```bash
+npx nextellar stellar-defi-portal --template defi --javascript
+```
+
+Navigate into your new project directory:
+
+```bash
+cd stellar-defi-portal
+```
+
+### Directory Architecture
+
+The scaffolded `defi` template contains the following specialized structure:
+
+```text
+stellar-defi-portal/
+├── src/
+│   ├── app/
+│   │   ├── layout.tsx         # Root layout with WalletProvider
+│   │   ├── page.tsx           # Main DeFi portal dashboard
+│   │   ├── swap/page.tsx      # DEX token swap interface
+│   │   └── pools/page.tsx     # Liquidity pools and Soroban contracts
+│   ├── components/
+│   │   ├── ConnectButton.tsx  # Multi-wallet connection button
+│   │   ├── BalanceCard.tsx    # Live account balance grid
+│   │   ├── OrderBookTable.tsx # Live DEX bids and asks
+│   │   └── SwapModal.tsx      # Swap confirmation dialog
+│   └── hooks/                 # Nextellar React hooks
+├── .env.example               # Network and RPC configuration
+├── package.json
+└── tsconfig.json
+```
+
+---
+
+## 2. Environment Configuration
+
+Copy the example environment configuration file to `.env.local`:
+
+```bash
+cp .env.example .env.local
+```
+
+Verify that the target endpoints point to Stellar Testnet:
+
+```bash
+# .env.local
+NEXT_PUBLIC_STELLAR_NETWORK=TESTNET
+NEXT_PUBLIC_HORIZON_URL=https://horizon-testnet.stellar.org
+NEXT_PUBLIC_SOROBAN_URL=https://soroban-testnet.stellar.org
+NEXT_PUBLIC_WALLETS=freighter,albedo,lobstr,xbull
+NEXT_PUBLIC_APP_NAME="Stellar DeFi Portal"
+```
+
+Start the local development server:
+
+```bash
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+---
+
+## 3. Step 1: Wallet Connection & Context
+
+The template wraps the application inside `WalletProvider` in `src/app/layout.tsx`. In your dashboard page, use `useStellarWallet` to handle wallet connections:
+
+```tsx
+// src/components/WalletSection.tsx
+'use client';
+
+import React from 'react';
+import { useStellarWallet } from '@/hooks/useStellarWallet';
+
+export function WalletSection() {
+  const {
+    publicKey,
+    isConnected,
+    isConnecting,
+    connect,
+    disconnect,
+    walletType,
+  } = useStellarWallet();
+
+  if (isConnecting) {
+    return (
+      <button disabled className="btn">
+        Connecting wallet...
+      </button>
+    );
+  }
+
+  if (isConnected && publicKey) {
+    return (
+      <div className="p-4 border rounded-lg bg-card">
+        <p className="text-sm text-muted-foreground">
+          Connected via {walletType}
+        </p>
+        <p className="font-mono text-sm">{publicKey}</p>
+        <button
+          onClick={() => disconnect()}
+          className="mt-2 text-red-500 text-sm"
+        >
+          Disconnect
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <button onClick={() => connect('freighter')} className="btn btn-primary">
+      Connect Freighter
+    </button>
+  );
+}
+```
+
+---
+
+## 4. Step 2: Balances & Trustline Management
+
+DeFi applications interact with issued assets (like USDC or EURC). Before an account can hold or trade an asset on Stellar, it must establish a **trustline**.
+
+Use `useStellarBalances` and `useTrustlines` to verify and create trustlines:
+
+```tsx
+// src/components/TrustlineManager.tsx
+'use client';
+
+import React, { useState } from 'react';
+import { useStellarBalances } from '@/hooks/useStellarBalances';
+import { useTrustlines } from '@/hooks/useTrustlines';
+import { useStellarWallet } from '@/hooks/useStellarWallet';
+
+const TESTNET_USDC = {
+  code: 'USDC',
+  issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+};
+
+export function TrustlineManager() {
+  const { publicKey, signTransaction } = useStellarWallet();
+  const { balances, loading, refetch } = useStellarBalances(publicKey);
+  const { hasTrustline, buildChangeTrustXDR } = useTrustlines(publicKey);
+  const [submitting, setSubmitting] = useState(false);
+
+  const isUsdcTrusted = hasTrustline(TESTNET_USDC.code, TESTNET_USDC.issuer);
+
+  const handleAddTrustline = async () => {
+    if (!publicKey) return;
+    setSubmitting(true);
+    try {
+      // 1. Build change-trust XDR
+      const xdr = await buildChangeTrustXDR({
+        assetCode: TESTNET_USDC.code,
+        issuer: TESTNET_USDC.issuer,
+      });
+
+      // 2. Sign transaction via connected wallet
+      const signedXdr = await signTransaction(xdr);
+
+      // 3. Submit to Horizon
+      const response = await fetch(
+        'https://horizon-testnet.stellar.org/transactions',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ tx: signedXdr }),
+        }
+      );
+
+      if (!response.ok) throw new Error('Transaction submission failed');
+      await refetch();
+    } catch (err: any) {
+      alert(`Trustline error: ${err.message}`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="p-4 border rounded-lg">
+      <h3 className="font-semibold text-lg">Asset Balances</h3>
+      {loading ? (
+        <p>Loading balances...</p>
+      ) : (
+        <ul className="my-2 space-y-1">
+          {balances.map((b) => (
+            <li
+              key={b.asset_code || 'XLM'}
+              className="flex justify-between font-mono"
+            >
+              <span>{b.asset_code || 'XLM'}</span>
+              <span>{b.balance}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {!isUsdcTrusted && (
+        <button
+          onClick={handleAddTrustline}
+          disabled={submitting}
+          className="mt-3 px-3 py-1.5 bg-blue-600 text-white rounded text-sm"
+        >
+          {submitting ? 'Adding Trustline...' : 'Enable USDC Trustline'}
+        </button>
+      )}
+    </div>
+  );
+}
+```
+
+---
+
+## 5. Step 3: Querying the Stellar DEX Order Book
+
+The Stellar ledger maintains a native decentralized exchange (DEX). Use `useOfferBook` to fetch bids, asks, and calculate price spreads:
+
+```tsx
+// src/components/OrderBookSection.tsx
+'use client';
+
+import React from 'react';
+import { useOfferBook } from '@/hooks/useOfferBook';
+
+export function OrderBookSection() {
+  const { bids, asks, spread, loading, error } = useOfferBook({
+    sellingAsset: { code: 'XLM' },
+    buyingAsset: {
+      code: 'USDC',
+      issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+    },
+    pollingInterval: 10000, // Refresh every 10 seconds
+  });
+
+  if (loading) return <div>Loading orderbook...</div>;
+  if (error)
+    return (
+      <div className="text-red-500">Error loading orders: {error.message}</div>
+    );
+
+  return (
+    <div className="grid grid-cols-2 gap-4 p-4 border rounded-lg">
+      <div>
+        <h4 className="font-semibold text-green-600">Bids (Buying XLM)</h4>
+        <ul className="text-xs font-mono mt-2 space-y-1">
+          {bids.slice(0, 5).map((bid, idx) => (
+            <li key={idx} className="flex justify-between">
+              <span>{bid.price} USDC</span>
+              <span>{bid.amount} XLM</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <div>
+        <h4 className="font-semibold text-red-600">Asks (Selling XLM)</h4>
+        <ul className="text-xs font-mono mt-2 space-y-1">
+          {asks.slice(0, 5).map((ask, idx) => (
+            <li key={idx} className="flex justify-between">
+              <span>{ask.price} USDC</span>
+              <span>{ask.amount} XLM</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <div className="col-span-2 pt-2 border-t text-xs text-muted-foreground">
+        Spread: {spread ? `${spread} USDC` : 'N/A'}
+      </div>
+    </div>
+  );
+}
+```
+
+---
+
+## 6. Step 4: Token Swaps & Soroban Contract Invocation
+
+When interacting with Soroban AMMs or liquidity pools, invoke the smart contract using `useSorobanContract`:
+
+```tsx
+// src/components/LiquidityPoolAction.tsx
+'use client';
+
+import React, { useState } from 'react';
+import { useSorobanContract } from '@/hooks/useSorobanContract';
+import { useStellarWallet } from '@/hooks/useStellarWallet';
+
+const POOL_CONTRACT_ID =
+  'CCW67TSBXS2A5GUXI25IKWCQXWOHOXTYUX22EC56GDK4E2D3FBAZ4Y2V';
+
+export function LiquidityPoolAction() {
+  const { publicKey } = useStellarWallet();
+  const { invokeContract, isSimulating, isSubmitting } =
+    useSorobanContract(POOL_CONTRACT_ID);
+  const [depositAmount, setDepositAmount] = useState('100');
+  const [resultHash, setResultHash] = useState<string | null>(null);
+
+  const handleDeposit = async () => {
+    if (!publicKey) return alert('Connect wallet first');
+
+    try {
+      // Invoke deposit method on Soroban liquidity contract
+      const result = await invokeContract({
+        method: 'deposit',
+        args: [publicKey, depositAmount],
+      });
+
+      setResultHash(result.hash);
+    } catch (err: any) {
+      alert(`Contract error: ${err.message}`);
+    }
+  };
+
+  return (
+    <div className="p-4 border rounded-lg">
+      <h3 className="font-semibold text-lg">Deposit into Liquidity Pool</h3>
+      <div className="flex gap-2 my-3">
+        <input
+          type="number"
+          value={depositAmount}
+          onChange={(e) => setDepositAmount(e.target.value)}
+          className="border p-2 rounded flex-1"
+          placeholder="Amount"
+        />
+        <button
+          onClick={handleDeposit}
+          disabled={isSimulating || isSubmitting}
+          className="px-4 py-2 bg-emerald-600 text-white rounded font-medium"
+        >
+          {isSimulating
+            ? 'Simulating...'
+            : isSubmitting
+              ? 'Signing...'
+              : 'Deposit'}
+        </button>
+      </div>
+
+      {resultHash && (
+        <p className="text-xs text-green-600 font-mono">
+          Success! Tx:{' '}
+          <a
+            href={`https://stellar.expert/explorer/testnet/tx/${resultHash}`}
+            target="_blank"
+            rel="noreferrer"
+            className="underline"
+          >
+            {resultHash.slice(0, 16)}...
+          </a>
+        </p>
+      )}
+    </div>
+  );
+}
+```
+
+---
+
+## 7. Putting It Together: Full DeFi Dashboard
+
+In `src/app/page.tsx`, assemble the components into an end-to-end DeFi dashboard:
+
+```tsx
+// src/app/page.tsx
+import { WalletSection } from '@/components/WalletSection';
+import { TrustlineManager } from '@/components/TrustlineManager';
+import { OrderBookSection } from '@/components/OrderBookSection';
+import { LiquidityPoolAction } from '@/components/LiquidityPoolAction';
+
+export default function DeFiPage() {
+  return (
+    <main className="max-w-4xl mx-auto p-6 space-y-6">
+      <header>
+        <h1 className="text-3xl font-bold tracking-tight">
+          Stellar DeFi Portal
+        </h1>
+        <p className="text-muted-foreground">
+          Scaffolded with Nextellar DeFi Template
+        </p>
+      </header>
+
+      <WalletSection />
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <TrustlineManager />
+        <LiquidityPoolAction />
+      </div>
+
+      <OrderBookSection />
+    </main>
+  );
+}
+```
+
+---
+
+## 8. Verification on Testnet
+
+1. **Fund Your Wallet**: Open [Stellar Laboratory](https://laboratory.stellar.org/#account-creator) or use Friendbot to fund your testnet account with XLM.
+2. **Connect Freighter**: Ensure Freighter is set to **Testnet**.
+3. **Add Trustline**: Click **Enable USDC Trustline** and approve the prompt in Freighter.
+4. **Inspect on Stellar Expert**: Copy your public key and visit `https://stellar.expert/explorer/testnet/account/<YOUR_PUBLIC_KEY>` to verify that your balances and trustlines are active.
+
+---
+
+## Related Resources
+
+- [CLI Templates Reference](/docs/cli/templates) — Overview of default, minimal, and defi templates
+- [JavaScript DeFi Project Guide](/docs/cli/js-defi) — Using the defi template with JavaScript
+- [Order Book Hook Reference](/docs/hooks/use-offer-book) — Parameters and options for `useOfferBook`
+- [Trustlines Hook Reference](/docs/hooks/use-trustlines) — Managing custom asset limits

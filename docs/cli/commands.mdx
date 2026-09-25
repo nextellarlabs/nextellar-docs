@@ -17,6 +17,7 @@ Complete reference for all Nextellar CLI commands and their usage.
 | `nextellar doctor`    | Run environment diagnostics and system checks              |
 | `nextellar upgrade`   | Upgrade a project to the latest template files             |
 | `nextellar deploy`    | Validate and prepare project for production deployment     |
+| `nextellar clean`     | Remove generated files from `.nextellar/build`             |
 | `nextellar telemetry` | Manage CLI telemetry preferences (status, enable, disable) |
 
 ## Main Command
@@ -259,20 +260,85 @@ nextellar doctor --json
       "detail": "v20.18.0 (>= 20.0.0 required)"
     },
     {
+      "id": "npm",
+      "name": "npm",
+      "required": true,
+      "ok": true,
+      "detail": "v10.8.2"
+    },
+    {
+      "id": "yarn",
+      "name": "yarn",
+      "required": false,
+      "ok": false,
+      "detail": "Not installed"
+    },
+    {
+      "id": "pnpm",
+      "name": "pnpm",
+      "required": false,
+      "ok": true,
+      "detail": "v9.15.4"
+    },
+    {
+      "id": "git",
+      "name": "Git",
+      "required": true,
+      "ok": true,
+      "detail": "v2.47.0"
+    },
+    {
+      "id": "rustc",
+      "name": "Rust",
+      "required": false,
+      "ok": false,
+      "detail": "Not installed",
+      "fix": "Install Rust from https://rustup.rs/"
+    },
+    {
+      "id": "stellar-cli",
+      "name": "Stellar CLI",
+      "required": false,
+      "ok": false,
+      "detail": "Not installed",
+      "link": "https://developers.stellar.org/docs/build/smart-contracts/getting-started/setup"
+    },
+    {
+      "id": "wasm32",
+      "name": "wasm32 target",
+      "required": false,
+      "ok": false,
+      "detail": "Not installed"
+    },
+    {
       "id": "horizon",
       "name": "Horizon API",
       "required": true,
       "ok": true,
       "detail": "https://horizon-testnet.stellar.org (200)"
+    },
+    {
+      "id": "soroban",
+      "name": "Soroban RPC",
+      "required": false,
+      "ok": true,
+      "detail": "https://soroban-testnet.stellar.org (200)"
+    },
+    {
+      "id": "disk",
+      "name": "Free Memory (RAM)",
+      "required": true,
+      "ok": true,
+      "detail": "4096 MB RAM free"
     }
   ],
-  "passed": 10,
-  "failed": 1,
+  "passed": 9,
+  "failed": 3,
   "requiredFailures": 0
 }
 ```
 
-The `checks` array is truncated above for brevity — it contains one entry per check (`node`, `npm`, `yarn`, `pnpm`, `git`, `rustc`, `stellar-cli`, `wasm32`, `horizon`, `soroban`, `disk`).
+The `checks` array above is a complete sample. It contains one object per check (`node`, `npm`, `yarn`, `pnpm`, `git`, `rustc`, `stellar-cli`, `wasm32`, `horizon`, `soroban`, `disk`).
 
 **Top-level fields:**
 
@@ -425,6 +491,65 @@ nextellar deploy --size-threshold 20971520
 # Raise the threshold to 100 MB for large projects
 nextellar deploy --size-threshold 104857600
 ```
+
+### nextellar clean
+
+Remove generated Nextellar build artifacts from the current project.
+
+```bash
+nextellar clean
+```
+
+The command deletes only `.nextellar/build`. It succeeds when the directory is already absent. See [Clean Nextellar build artifacts](/docs/cli/clean) for the preserved files and error behavior.
+
+**What it removes:**
+
+The clean command removes these directories and files:
+
+- `.nextellar/build/` and all its contents
+- Generated intermediate files from the Nextellar build process
+- Cached artifacts
+
+**What it preserves:**
+
+The clean command leaves these files and directories unchanged:
+
+- `.nextellar/config.json` — your project configuration
+- `.nextellar/deploy/` — deployment metadata
+- `.nextellar/install.log` — installation logs
+- Application source files outside `.nextellar/`
+- Framework output such as `.next/`, `dist/`, or `build/`
+
+**Examples:**
+
+```bash
+# Remove .nextellar/build (if it exists)
+nextellar clean
+
+# Safe to run even if already clean
+nextellar clean
+```
+
+**Output:**
+
+When artifacts are removed:
+
+```text
+✔️  Removed .nextellar/build
+```
+
+When nothing to clean:
+
+```text
+ℹ️  Nothing to clean — .nextellar/build does not exist.
+```
+
+**When to use:**
+
+- Reclaim disk space from cached build artifacts
+- Resolve stale cache issues before rebuilding
+- Clean up after interrupted builds
+- Prepare for fresh builds in CI/CD pipelines
 
 ### nextellar telemetry
 
@@ -603,7 +728,7 @@ nxt my-app
 
 **PowerShell:**
 
-```powershell
+```bash
 # Add to $PROFILE
 function nxt { npx nextellar $args }
 
@@ -615,4 +740,4 @@ nxt my-app
 
 - [CLI Options](/docs/cli/options) - Detailed option reference
 - [Configuration](/docs/cli/configuration) - Project configuration
-- [Troubleshooting](/docs/troubleshooting/installation-issues) - Common issues
+- [Troubleshooting](/docs/troubleshooting/common-error-messages) - Common issues

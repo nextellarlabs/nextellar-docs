@@ -14,6 +14,9 @@ export const Post = defineDocumentType(() => ({
     title: { type: 'string', required: true },
     description: { type: 'string', required: false },
     date: { type: 'date', required: false },
+    tags: { type: 'list', of: { type: 'string' }, required: false },
+    tested_with_cli_version: { type: 'string', required: false },
+    tested_with_node_version: { type: 'string', required: false },
   },
   computedFields: {
     url: {

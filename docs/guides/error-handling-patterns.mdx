@@ -1,0 +1,616 @@
+---
+title: Error Handling Patterns Across Nextellar Hooks
+description: Comprehensive guide to error handling patterns, best practices, and per-hook error types when using Nextellar React hooks.
+date: 2026-09-24
+tags: [hooks, error-handling, patterns, best-practices, production]
+---
+
+# Error Handling Patterns Across Nextellar Hooks
+
+This guide documents error types, handling strategies, and best practices for building robust, production-ready Stellar dApps with Nextellar hooks.
+
+---
+
+## Error Types Overview
+
+Nextellar hooks throw or return errors in three main categories:
+
+| Category | Source | Example | Handling |
+|----------|--------|---------|----------|
+| **Network Errors** | Horizon/Soroban RPC | Connection timeout, endpoint unreachable | Retry with exponential backoff |
+| **Validation Errors** | Application logic | Invalid destination, insufficient balance | Show user-friendly message |
+| **Transaction Errors** | Stellar network | Transaction failed, insufficient fee | Log and alert user |
+
+---
+
+## Global Error Handling Pattern
+
+### Try-Catch with Specific Error Types
+
+All Nextellar hooks follow this error pattern:
+
+```tsx
+'use client';
+
+import { useCallback } from 'react';
+import { useStellarWallet } from '@/hooks/useStellarWallet';
+
+export function MyComponent() {
+  const { connect, isConnecting, error } = useStellarWallet();
+
+  const handleConnect = useCallback(async () => {
+    try {
+      // Perform async operation
+      await connect('freighter');
+    } catch (err: unknown) {
+      // Type assertion for error handling
+      if (err instanceof Error) {
+        console.error('Connection error:', err.message);
+        // Handle specific error
+      } else {
+        console.error('Unknown error:', err);
+      }
+    }
+  }, [connect]);
+
+  return (
+    <div>
+      {error && <ErrorAlert message={error.message} />}
+      <button onClick={handleConnect} disabled={isConnecting}>
+        Connect
+      </button>
+    </div>
+  );
+}
+```
+
+---
+
+## Per-Hook Error Handling
+
+### useStellarWallet
+
+**Purpose:** Wallet connection, signing transactions
+
+**Error Types:**
+
+| Error | Code | When | Solution |
+|-------|------|------|----------|
+| Wallet not installed | `WALLET_NOT_FOUND` | User doesn't have Freighter/other wallet | Prompt to install wallet with link |
+| User rejected | `USER_REJECTED` | User cancels connection prompt | Let user retry |
+| Network mismatch | `NETWORK_MISMATCH` | Wallet on different network (Testnet vs Mainnet) | Show network switch prompt |
+| Invalid signature | `INVALID_SIGNATURE` | XDR signature verification failed | Report to backend, retry signing |
+
+**Pattern:**
+
+```tsx
+import { useStellarWallet } from '@/hooks/useStellarWallet';
+import { useCallback, useState } from 'react';
+
+export function WalletConnector() {
+  const { connect, isConnecting, error } = useStellarWallet();
+  const [errorMessage, setErrorMessage] = useState('');
+
+  const handleConnect = useCallback(async () => {
+    try {
+      setErrorMessage('');
+      await connect('freighter');
+    } catch (err: any) {
+      if (err.code === 'WALLET_NOT_FOUND') {
+        setErrorMessage('Freighter not installed. Install it at freighter.app');
+      } else if (err.code === 'USER_REJECTED') {
+        setErrorMessage('You rejected the connection. Please try again.');
+      } else if (err.code === 'NETWORK_MISMATCH') {
+        setErrorMessage('Switch your wallet to Testnet and try again.');
+      } else {
+        setErrorMessage(`Connection failed: ${err.message}`);
+      }
+    }
+  }, [connect]);
+
+  return (
+    <div>
+      <button onClick={handleConnect} disabled={isConnecting}>
+        Connect Wallet
+      </button>
+      {errorMessage && (
+        <div className="p-4 bg-red-50 text-red-800 rounded mt-2">
+          {errorMessage}
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+---
+
+### useStellarPayment
+
+**Purpose:** Building and submitting Stellar payments
+
+**Error Types:**
+
+| Error | Code | When | Solution |
+|-------|------|------|----------|
+| Insufficient balance | `INSUFFICIENT_BALANCE` | Account doesn't have enough XLM | Show current balance, prompt deposit |
+| Invalid destination | `INVALID_DESTINATION` | Destination account doesn't exist or invalid | Validate address format before submit |
+| No trustline | `TRUSTLINE_MISSING` | Recipient doesn't trust the asset | Create trustline first with ChangeTrust |
+| Timeout | `NETWORK_TIMEOUT` | Horizon unreachable after retries | Retry with backoff or show offline message |
+
+**Pattern:**
+
+```tsx
+import { useStellarPayment } from '@/hooks/useStellarPayment';
+import { useState } from 'react';
+
+export function PaymentForm() {
+  const { buildPaymentXDR, submitPayment, loading, error } = useStellarPayment();
+  const [formError, setFormError] = useState('');
+
+  const handlePayment = async (destination: string, amount: string) => {
+    try {
+      setFormError('');
+
+      // Validate before submission
+      if (!destination.startsWith('G') || destination.length !== 56) {
+        setFormError('Invalid Stellar address format');
+        return;
+      }
+
+      if (isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+        setFormError('Amount must be a positive number');
+        return;
+      }
+
+      const xdr = await buildPaymentXDR(destination, {
+        amount,
+        asset: 'XLM',
+      });
+
+      const result = await submitPayment(xdr);
+      console.log('Payment successful:', result.hash);
+    } catch (err: any) {
+      if (err.code === 'INSUFFICIENT_BALANCE') {
+        setFormError(
+          `Insufficient balance. You have: ${err.availableBalance} XLM`
+        );
+      } else if (err.code === 'TRUSTLINE_MISSING') {
+        setFormError('Recipient must add trustline for custom assets first');
+      } else if (err.code === 'NETWORK_TIMEOUT') {
+        setFormError('Network timeout. Please check your connection and retry.');
+      } else {
+        setFormError(`Payment failed: ${err.message}`);
+      }
+    }
+  };
+
+  return (
+    <div>
+      {/* Form JSX */}
+      {formError && (
+        <div className="p-3 bg-yellow-50 text-yellow-800 rounded text-sm">
+          ⚠️ {formError}
+        </div>
+      )}
+      <button onClick={() => handlePayment(destination, amount)} disabled={loading}>
+        {loading ? 'Processing...' : 'Send Payment'}
+      </button>
+    </div>
+  );
+}
+```
+
+---
+
+### useStellarBalances
+
+**Purpose:** Fetching account balances and assets
+
+**Error Types:**
+
+| Error | Code | When | Solution |
+|-------|------|------|----------|
+| Account not found | `ACCOUNT_NOT_FOUND` | Account doesn't exist on network | Prompt user to fund account |
+| RPC unavailable | `RPC_UNAVAILABLE` | Horizon endpoint is down | Retry or switch endpoint |
+| Invalid account | `INVALID_ACCOUNT` | PublicKey param is null/malformed | Check wallet connection first |
+| Rate limit | `RATE_LIMITED` | Too many requests to Horizon | Implement request throttling |
+
+**Pattern:**
+
+```tsx
+import { useStellarBalances } from '@/hooks/useStellarBalances';
+import { useEffect, useState } from 'react';
+
+export function BalanceDisplay({ publicKey }: { publicKey: string | null }) {
+  const { balances, loading, error, refetch } = useStellarBalances(publicKey);
+  const [retryCount, setRetryCount] = useState(0);
+
+  // Auto-retry on rate limit or RPC errors
+  useEffect(() => {
+    if (error && retryCount < 3) {
+      const timer = setTimeout(() => {
+        console.log(`Retrying balance fetch (attempt ${retryCount + 1})...`);
+        refetch();
+        setRetryCount(retryCount + 1);
+      }, 2000 * (retryCount + 1)); // Exponential backoff
+
+      return () => clearTimeout(timer);
+    }
+  }, [error, retryCount, refetch]);
+
+  if (!publicKey) {
+    return <p>Connect wallet to view balances</p>;
+  }
+
+  if (loading) {
+    return <p>Loading balances...</p>;
+  }
+
+  if (error) {
+    if (error.code === 'ACCOUNT_NOT_FOUND') {
+      return (
+        <div className="p-4 bg-blue-50 text-blue-800 rounded">
+          <p>Account not found. Fund it first.</p>
+          <a href="https://friendbot.stellar.org/" target="_blank">
+            Use Friendbot →
+          </a>
+        </div>
+      );
+    }
+    if (error.code === 'RATE_LIMITED') {
+      return (
+        <div className="p-4 bg-amber-50 text-amber-800 rounded">
+          <p>Rate limited. Retrying... ({retryCount}/3)</p>
+        </div>
+      );
+    }
+    return (
+      <div className="p-4 bg-red-50 text-red-800 rounded">
+        <p>Error loading balances: {error.message}</p>
+        <button onClick={() => refetch()} className="mt-2 text-sm underline">
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      {balances.map((balance) => (
+        <div key={balance.asset_code || 'native'}>
+          {balance.asset_code}: {balance.balance}
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+---
+
+### useSorobanContract
+
+**Purpose:** Invoking Soroban smart contracts
+
+**Error Types:**
+
+| Error | Code | When | Solution |
+|-------|------|------|----------|
+| Contract not found | `CONTRACT_NOT_FOUND` | Contract ID doesn't exist on network | Verify contract ID or deploy |
+| Function not found | `FUNCTION_NOT_FOUND` | Method doesn't exist in contract | Check contract ABI/schema |
+| Invalid arguments | `INVALID_ARGS` | Function parameters don't match signature | Validate arg types and structure |
+| Execution failed | `EXECUTION_FAILED` | Contract logic returned error | Check contract logs for details |
+| Timeout | `INVOCATION_TIMEOUT` | Soroban RPC request exceeded timeout | Retry or increase timeout |
+
+**Pattern:**
+
+```tsx
+import { useSorobanContract } from '@/hooks/useSorobanContract';
+import { useState } from 'react';
+
+const CONTRACT_ID = 'CCW67TSBXS2A5GUXI25IKWCQXWOHOXTYUX22EC56GDK4E2D3FBAZ4Y2V';
+
+export function ContractInteraction() {
+  const { invokeContract, loading } = useSorobanContract(CONTRACT_ID);
+  const [message, setMessage] = useState('');
+
+  const handleInvoke = async (functionName: string, args: any) => {
+    try {
+      setMessage('');
+      const result = await invokeContract(functionName, args);
+      setMessage(`Success: ${result.hash}`);
+    } catch (err: any) {
+      if (err.code === 'CONTRACT_NOT_FOUND') {
+        setMessage(
+          `Contract not found. Did you deploy it to ${process.env.NEXT_PUBLIC_SOROBAN_RPC_URL}?`
+        );
+      } else if (err.code === 'FUNCTION_NOT_FOUND') {
+        setMessage(`Function "${functionName}" doesn't exist in contract`);
+      } else if (err.code === 'INVALID_ARGS') {
+        setMessage(`Invalid arguments: ${err.details}`);
+      } else if (err.code === 'EXECUTION_FAILED') {
+        setMessage(`Contract execution error: ${err.message}`);
+        // Parse contract error for user-friendly message
+        if (err.message.includes('insufficient_balance')) {
+          setMessage('Insufficient balance in contract');
+        }
+      } else if (err.code === 'INVOCATION_TIMEOUT') {
+        setMessage('Request timed out. Try again.');
+      } else {
+        setMessage(`Invocation failed: ${err.message}`);
+      }
+    }
+  };
+
+  return (
+    <div>
+      <button
+        onClick={() => handleInvoke('deposit', { amount: 1000 })}
+        disabled={loading}
+      >
+        {loading ? 'Invoking...' : 'Deposit'}
+      </button>
+      {message && (
+        <div className={`p-3 rounded mt-2 ${
+          message.startsWith('Success')
+            ? 'bg-green-50 text-green-800'
+            : 'bg-red-50 text-red-800'
+        }`}>
+          {message}
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+---
+
+### useTrustlines
+
+**Purpose:** Managing custom asset trustlines
+
+**Error Types:**
+
+| Error | Code | When | Solution |
+|-------|------|------|----------|
+| Trustline exists | `TRUSTLINE_ALREADY_EXISTS` | Trying to add trustline that already exists | Check first before adding |
+| Invalid asset | `INVALID_ASSET` | Asset code or issuer is malformed | Validate asset details |
+| Limit exceeded | `LIMIT_EXCEEDED` | Account has too many trustlines | Remove unused trustlines |
+
+**Pattern:**
+
+```tsx
+import { useTrustlines } from '@/hooks/useTrustlines';
+import { useState } from 'react';
+
+export function TrustlineManager() {
+  const { hasTrustline, buildChangeTrustXDR, refresh, loading } = useTrustlines(
+    publicKey
+  );
+  const [status, setStatus] = useState('');
+
+  const handleAddTrustline = async (assetCode: string, assetIssuer: string) => {
+    try {
+      setStatus('');
+
+      if (hasTrustline(assetCode, assetIssuer)) {
+        setStatus('Trustline already exists');
+        return;
+      }
+
+      setStatus('Building trustline transaction...');
+      const xdr = await buildChangeTrustXDR({
+        assetCode,
+        assetIssuer,
+      });
+
+      setStatus('Sign the transaction in your wallet...');
+      const signedXdr = await signTransaction(xdr);
+
+      await submitPayment(signedXdr);
+      await refresh();
+      setStatus(`✓ Trustline added for ${assetCode}`);
+    } catch (err: any) {
+      if (err.code === 'TRUSTLINE_ALREADY_EXISTS') {
+        setStatus('This trustline is already set up');
+      } else if (err.code === 'LIMIT_EXCEEDED') {
+        setStatus('You have too many trustlines. Remove one first.');
+      } else if (err.code === 'INVALID_ASSET') {
+        setStatus('Invalid asset code or issuer');
+      } else {
+        setStatus(`Error: ${err.message}`);
+      }
+    }
+  };
+
+  return (
+    <div>
+      {status && <p className="text-sm">{status}</p>}
+      <button onClick={() => handleAddTrustline('USDC', 'GA...')}>
+        Add USDC Trustline
+      </button>
+    </div>
+  );
+}
+```
+
+---
+
+## Cross-Hook Error Coordination
+
+When composing multiple hooks, handle errors at the **workflow level**:
+
+```tsx
+import { useStellarWallet } from '@/hooks/useStellarWallet';
+import { useStellarPayment } from '@/hooks/useStellarPayment';
+import { useStellarBalances } from '@/hooks/useStellarBalances';
+import { useState } from 'react';
+
+export function PaymentFlow() {
+  const { publicKey, isConnected } = useStellarWallet();
+  const { balances, error: balanceError } = useStellarBalances(publicKey);
+  const { submitPayment, error: paymentError } = useStellarPayment();
+  const [workflowError, setWorkflowError] = useState('');
+
+  const handleCompletePayment = async () => {
+    try {
+      setWorkflowError('');
+
+      // Validate wallet
+      if (!isConnected || !publicKey) {
+        setWorkflowError('Connect wallet first');
+        return;
+      }
+
+      // Validate balance loaded
+      if (balanceError) {
+        setWorkflowError('Could not load balances. Check network.');
+        return;
+      }
+
+      if (!balances || balances.length === 0) {
+        setWorkflowError('No balances found');
+        return;
+      }
+
+      // Execute payment
+      const result = await submitPayment(xdr);
+      console.log('Complete workflow success:', result);
+    } catch (err: any) {
+      // Centralized error handling
+      if (err.code === 'NETWORK_TIMEOUT') {
+        setWorkflowError('Network timeout. Please retry.');
+      } else if (err.code === 'INSUFFICIENT_BALANCE') {
+        setWorkflowError('Not enough XLM to pay network fee');
+      } else {
+        setWorkflowError(`Workflow failed: ${err.message}`);
+      }
+    }
+  };
+
+  return (
+    <div>
+      {workflowError && (
+        <ErrorBanner message={workflowError} />
+      )}
+      <button onClick={handleCompletePayment}>Execute Payment</button>
+    </div>
+  );
+}
+```
+
+---
+
+## Error Boundary Pattern
+
+Wrap your dApp with a React Error Boundary to catch **unexpected errors**:
+
+```tsx
+// app/error-boundary.tsx
+'use client';
+
+import { ReactNode } from 'react';
+
+export default function ErrorBoundary({ children }: { children: ReactNode }) {
+  return (
+    <ErrorBoundaryWrapper>
+      {children}
+    </ErrorBoundaryWrapper>
+  );
+}
+
+class ErrorBoundaryWrapper extends React.Component<
+  { children: ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('Caught error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-6 bg-red-50 text-red-800 rounded">
+          <h2 className="font-bold">Something went wrong</h2>
+          <p className="text-sm mt-1">{this.state.error?.message}</p>
+          <button
+            onClick={() => this.setState({ hasError: false, error: null })}
+            className="mt-4 px-3 py-1 bg-red-600 text-white rounded text-sm"
+          >
+            Try Again
+          </button>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+```
+
+---
+
+## Testing Error Scenarios
+
+Mock errors in your tests:
+
+```tsx
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { vi } from 'vitest';
+import { PaymentForm } from './PaymentForm';
+
+vi.mock('@/hooks/useStellarPayment', () => ({
+  useStellarPayment: () => ({
+    submitPayment: vi.fn().mockRejectedValue(
+      new Error('INSUFFICIENT_BALANCE')
+    ),
+    loading: false,
+  }),
+}));
+
+describe('PaymentForm Error Handling', () => {
+  it('handles insufficient balance error', async () => {
+    render(<PaymentForm />);
+
+    fireEvent.click(screen.getByText('Send Payment'));
+
+    await waitFor(() => {
+      expect(screen.getByText(/insufficient balance/i)).toBeDefined();
+    });
+  });
+});
+```
+
+---
+
+## Best Practices Summary
+
+1. **Always check for errors** — Don't ignore error states from hooks
+2. **Provide specific messages** — Map error codes to user-friendly text
+3. **Retry strategically** — Use exponential backoff for transient errors (network timeouts)
+4. **Validate early** — Check inputs before calling hooks to prevent errors
+5. **Handle network errors** — Assume network connectivity can fail anytime
+6. **Log for debugging** — Always log errors to console or error tracking service
+7. **Test error paths** — Mock hook errors in tests to verify handling
+8. **Fail gracefully** — Show error states, not crashes
+
+---
+
+## Related Resources
+
+- [useStellarWallet Hook](/docs/hooks/use-stellar-wallet) — Wallet connection errors
+- [useSorobanContract Hook](/docs/hooks/use-soroban-contract) — Smart contract errors
+- [Testing Guide](/docs/guides/testing) — Test error scenarios
+- [Error Tracking](/docs/guides/error-tracking) — Monitor production errors
+

@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  lint-and-test:
+    name: Lint, Type Check, Build & Test
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run linter
+        run: npm run lint
+
+      - name: Build content layer
+        run: npm run build:content
+
+      - name: Build documentation
+        run: npm run build
+
+      - name: Run unit tests
+        run: npm run test:unit
+
+  # Diff gate: verify CLI docs are in sync with CLI's --help output
+  verify-cli-docs:
+    name: Verify CLI Docs Match --help Output
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Regenerate CLI docs from --help
+        run: npm run generate:cli-docs
+        continue-on-error: true
+
+      - name: Check for differences
+        run: |
+          if git diff --quiet docs/cli/commands.mdx; then
+            echo "✓ CLI docs are up-to-date"
+            exit 0
+          else
+            echo "✗ CLI docs are out of sync with --help output"
+            echo ""
+            echo "Diff:"
+            git diff docs/cli/commands.mdx
+            echo ""
+            echo "To fix this, run locally:"
+            echo "  npm run generate:cli-docs"
+            echo "Then commit the updated docs/cli/commands.mdx"
+            exit 1
+          fi
+
+      - name: Show generated docs summary
+        if: failure()
+        run: |
+          echo "Generated docs would contain:"
+          head -50 docs/cli/commands.mdx

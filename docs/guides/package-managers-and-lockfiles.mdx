@@ -1,0 +1,835 @@
+---
+title: Package Managers & Lockfiles Guide
+description: Complete guide to using npm, yarn, pnpm, and bun with Nextellar projects, including lockfile strategies and best practices.
+---
+
+# Package Managers & Lockfiles Guide
+
+This guide covers package manager support in Nextellar, lockfile strategies, and best practices for managing dependencies across npm, yarn, pnpm, and bun.
+
+---
+
+## Table of Contents
+
+1. [Supported Package Managers](#supported-package-managers)
+2. [Scaffolding with a Specific Manager](#scaffolding-with-a-specific-manager)
+3. [Lockfile Behavior](#lockfile-behavior)
+4. [Switching Package Managers](#switching-package-managers)
+5. [Best Practices](#best-practices)
+6. [CI/CD Integration](#cicd-integration)
+7. [Troubleshooting](#troubleshooting)
+
+---
+
+## Supported Package Managers
+
+Nextellar supports all major Node.js package managers. Each has different lockfile formats, dependency resolution, and performance characteristics.
+
+| Manager | Command   | Lockfile       | Speed | Workspace Support | Storage |
+| ------- | --------- | -------------- | ----- | ----------------- | ------- |
+| npm     | `npm`     | `package-lock.json` | Slow  | ✅ Yes (npm v7+)  | `node_modules/` |
+| yarn    | `yarn`    | `yarn.lock`    | Fast  | ✅ Yes (v1.0+)    | `node_modules/` |
+| pnpm    | `pnpm`    | `pnpm-lock.yaml` | Fast  | ✅ Yes (v4+)      | `.pnpm-store/` |
+| bun     | `bun`     | `bun.lockb`    | Fast  | ✅ Yes           | `node_modules/` |
+
+---
+
+### npm
+
+**Latest version:** 10.x
+
+**Default manager.** Pre-installed with Node.js.
+
+**Strengths:**
+- Pre-installed with Node.js
+- Largest package registry
+- Familiar to most developers
+- Good monorepo support (workspaces)
+
+**Limitations:**
+- Slower dependency resolution than alternatives
+- Larger `node_modules/` folders
+- Higher disk I/O
+
+**Install:**
+
+```bash
+npm install -g npm@latest
+```
+
+---
+
+### yarn
+
+**Latest version:** 4.x (latest) or 1.x (classic)
+
+**Fast package manager with robust dependency resolution.**
+
+**Strengths:**
+- Faster than npm
+- Offline mode support
+- Better error messages
+- Works with monorepos
+
+**Limitations:**
+- Two versions (1.x and 4.x) with different behaviors
+- Yarn 4.x requires explicit Node version support
+- Disk usage similar to npm
+
+**Install:**
+
+```bash
+# Using npm
+npm install -g yarn
+
+# Or using Homebrew (macOS/Linux)
+brew install yarn
+```
+
+**Verify:**
+
+```bash
+yarn --version
+# Should output 1.x or 4.x
+```
+
+---
+
+### pnpm
+
+**Latest version:** 9.x
+
+**Most storage-efficient package manager.**
+
+**Strengths:**
+- Fastest dependency resolution
+- Smallest `node_modules/` (uses symbolic links)
+- Strict dependency management
+- Excellent monorepo support
+- Lowest disk usage
+
+**Limitations:**
+- Smaller community than npm/yarn
+- Some packages incompatible with symlink-based structure
+- Requires Node.js 16+
+
+**Install:**
+
+```bash
+# Using npm
+npm install -g pnpm
+
+# Or using Homebrew (macOS/Linux)
+brew install pnpm
+
+# Or using cURL (Linux/macOS)
+curl -fsSL https://get.pnpm.io/install.sh | sh -
+```
+
+**Verify:**
+
+```bash
+pnpm --version
+# Should output 9.x or higher
+```
+
+---
+
+### bun
+
+**Latest version:** 1.x
+
+**Fastest JavaScript runtime with integrated package management.**
+
+**Strengths:**
+- Fastest package installation
+- Built-in runtime (not just package manager)
+- Modern API
+- TypeScript support built-in
+
+**Limitations:**
+- Newer, smaller ecosystem
+- Less mature than alternatives
+- Node.js compatibility limited
+- Not all packages tested with bun
+
+**Install:**
+
+```bash
+# Using curl (Linux/macOS)
+curl -fsSL https://bun.sh/install | bash
+
+# Or using Homebrew (macOS)
+brew install oven-sh/bun/bun
+
+# Or using npm
+npm install -g bun
+```
+
+**Verify:**
+
+```bash
+bun --version
+# Should output 1.x or higher
+```
+
+---
+
+## Scaffolding with a Specific Manager
+
+### Auto-Detect (Default)
+
+Nextellar auto-detects the package manager on your system:
+
+```bash
+nextellar my-app
+# Checks for: yarn, pnpm, bun, then falls back to npm
+```
+
+Detection order:
+
+1. `yarn --version` ✓ → Use yarn
+2. `pnpm --version` ✓ → Use pnpm
+3. `bun --version` ✓ → Use bun
+4. `npm` (always present) → Use npm
+
+### Force a Specific Manager
+
+Use `--package-manager` flag:
+
+```bash
+# Use npm (even if yarn is installed)
+nextellar my-app --package-manager npm
+
+# Use pnpm
+nextellar my-app --package-manager pnpm
+
+# Use yarn
+nextellar my-app --package-manager yarn
+
+# Use bun
+nextellar my-app --package-manager bun
+```
+
+### Environment Variable
+
+Override detection with an environment variable:
+
+```bash
+export NEXTELLAR_PACKAGE_MANAGER="pnpm"
+nextellar my-app
+```
+
+Or inline:
+
+```bash
+NEXTELLAR_PACKAGE_MANAGER=pnpm nextellar my-app
+```
+
+---
+
+## Lockfile Behavior
+
+Lockfiles freeze dependency versions for reproducible installs. Each manager uses a different format.
+
+### npm: package-lock.json
+
+**Format:** JSON
+
+**Purpose:** Lock exact versions of all dependencies.
+
+**Size:** ~500KB–2MB for typical projects (large because it's JSON)
+
+**When to commit:**
+
+Always commit `package-lock.json`:
+
+```bash
+git add package-lock.json
+git commit -m "Lock dependencies"
+```
+
+**When to regenerate:**
+
+```bash
+# Delete and regenerate
+rm package-lock.json
+npm install
+```
+
+**Example:**
+
+```json
+{
+  "name": "my-app",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "name": "my-app",
+      "dependencies": {
+        "stellar-sdk": "^11.0.0"
+      }
+    },
+    "node_modules/stellar-sdk": {
+      "version": "11.0.0",
+      "resolved": "https://registry.npmjs.org/stellar-sdk/-/stellar-sdk-11.0.0.tgz",
+      "integrity": "sha512-..."
+    }
+  }
+}
+```
+
+---
+
+### yarn: yarn.lock
+
+**Format:** YAML (human-readable)
+
+**Purpose:** Lock exact versions and ensure compatibility across machines.
+
+**Size:** ~200KB–800KB for typical projects
+
+**When to commit:**
+
+Always commit `yarn.lock`:
+
+```bash
+git add yarn.lock
+git commit -m "Lock dependencies"
+```
+
+**When to regenerate:**
+
+```bash
+# Delete and regenerate
+rm yarn.lock
+yarn install
+```
+
+**Yarn 1.x vs 4.x:**
+
+Yarn 1.x:
+
+```bash
+yarn install  # Uses yarn.lock
+yarn add stellar-sdk  # Updates yarn.lock
+```
+
+Yarn 4.x:
+
+```bash
+yarn install  # Uses yarn.lock
+yarn add stellar-sdk  # Updates yarn.lock
+```
+
+Both commit `yarn.lock` in the same way.
+
+---
+
+### pnpm: pnpm-lock.yaml
+
+**Format:** YAML (compact and human-readable)
+
+**Purpose:** Lock exact versions with efficient dependency deduplication.
+
+**Size:** ~100KB–400KB for typical projects (most compact)
+
+**When to commit:**
+
+Always commit `pnpm-lock.yaml`:
+
+```bash
+git add pnpm-lock.yaml
+git commit -m "Lock dependencies"
+```
+
+**When to regenerate:**
+
+```bash
+# Delete and regenerate
+rm pnpm-lock.yaml
+pnpm install
+```
+
+**Storage efficiency:**
+
+pnpm uses a content-addressable store. Duplicate packages across projects share storage:
+
+```bash
+# Show pnpm store usage
+pnpm store status
+
+# Prune unused packages
+pnpm store prune
+```
+
+**Example snippet:**
+
+```yaml
+lockfileVersion: 5.4
+specifiers:
+  stellar-sdk: ^11.0.0
+dependencies:
+  stellar-sdk: 11.0.0
+packages:
+  /stellar-sdk/11.0.0:
+    resolution: {integrity: sha512-...}
+    dependencies:
+      tweetnacl: ^1.0.3
+```
+
+---
+
+### bun: bun.lockb
+
+**Format:** Binary (optimized for speed)
+
+**Purpose:** Lock exact versions for reproducible installs with bun runtime.
+
+**Size:** ~50KB–200KB for typical projects (smallest)
+
+**When to commit:**
+
+Always commit `bun.lockb`:
+
+```bash
+git add bun.lockb
+git commit -m "Lock dependencies"
+```
+
+**When to regenerate:**
+
+```bash
+# Delete and regenerate
+rm bun.lockb
+bun install
+```
+
+**Note:** `bun.lockb` is binary and not human-readable. Use `bun pm ls` to inspect:
+
+```bash
+bun pm ls
+```
+
+---
+
+## Switching Package Managers
+
+### From npm to yarn
+
+1. **Install yarn:**
+
+```bash
+npm install -g yarn
+```
+
+2. **Generate yarn.lock:**
+
+```bash
+yarn install
+```
+
+3. **Remove package-lock.json:**
+
+```bash
+rm package-lock.json
+```
+
+4. **Commit changes:**
+
+```bash
+git add yarn.lock package.json
+git rm package-lock.json
+git commit -m "Switch from npm to yarn"
+```
+
+5. **Update scripts (if needed):**
+
+Check `package.json` scripts still work:
+
+```bash
+yarn dev
+yarn build
+yarn test
+```
+
+---
+
+### From npm to pnpm
+
+1. **Install pnpm:**
+
+```bash
+npm install -g pnpm
+```
+
+2. **Generate pnpm-lock.yaml:**
+
+```bash
+pnpm install
+```
+
+3. **Remove package-lock.json:**
+
+```bash
+rm package-lock.json
+```
+
+4. **Commit changes:**
+
+```bash
+git add pnpm-lock.yaml package.json
+git rm package-lock.json
+git commit -m "Switch from npm to pnpm"
+```
+
+5. **Verify:**
+
+```bash
+pnpm dev
+pnpm build
+pnpm test
+```
+
+---
+
+### From yarn to pnpm
+
+1. **Install pnpm:**
+
+```bash
+brew install pnpm  # or npm install -g pnpm
+```
+
+2. **Generate pnpm-lock.yaml:**
+
+```bash
+pnpm install
+```
+
+3. **Remove yarn.lock:**
+
+```bash
+rm yarn.lock
+```
+
+4. **Commit changes:**
+
+```bash
+git add pnpm-lock.yaml package.json
+git rm yarn.lock
+git commit -m "Switch from yarn to pnpm"
+```
+
+---
+
+### From any manager to bun
+
+1. **Install bun:**
+
+```bash
+curl -fsSL https://bun.sh/install | bash
+```
+
+2. **Generate bun.lockb:**
+
+```bash
+bun install
+```
+
+3. **Remove old lockfile:**
+
+```bash
+rm package-lock.json  # if using npm
+rm yarn.lock          # if using yarn
+rm pnpm-lock.yaml     # if using pnpm
+```
+
+4. **Commit changes:**
+
+```bash
+git add bun.lockb package.json
+git rm package-lock.json yarn.lock pnpm-lock.yaml
+git commit -m "Switch to bun"
+```
+
+---
+
+## Best Practices
+
+### 1. Choose One Manager per Project
+
+Mixing package managers can cause inconsistent lockfiles and install behavior:
+
+**Don't do this:**
+
+```bash
+npm install stellar-sdk     # Then later...
+yarn add framer-motion      # Conflicts!
+```
+
+**Do this:**
+
+```bash
+# Decide on one manager, then always use it
+pnpm install stellar-sdk
+pnpm add framer-motion
+```
+
+### 2. Commit Lockfiles
+
+Always commit lockfiles to version control:
+
+```bash
+# All lockfiles should be committed
+git add package-lock.json
+# OR
+git add yarn.lock
+# OR
+git add pnpm-lock.yaml
+# OR
+git add bun.lockb
+```
+
+Never add lockfiles to `.gitignore`.
+
+### 3. Use Exact Versions for Nextellar Dependencies
+
+Pin Nextellar and Stellar SDK dependencies to exact versions:
+
+```json
+{
+  "dependencies": {
+    "stellar-sdk": "11.0.0",
+    "next": "16.1.3",
+    "@stellar/stellar-sdk": "11.0.0"
+  },
+  "devDependencies": {
+    "typescript": "5.3.3"
+  }
+}
+```
+
+Allow patch updates for other libraries:
+
+```json
+{
+  "dependencies": {
+    "framer-motion": "^12.5.0",
+    "tailwindcss": "^3.3.0"
+  }
+}
+```
+
+### 4. Use CI Caching
+
+Cache `node_modules` or the package manager store in CI to speed up builds.
+
+**GitHub Actions with npm:**
+
+```yaml
+- uses: actions/setup-node@v4
+  with:
+    node-version: '20'
+    cache: 'npm'
+
+- run: npm ci  # ci = clean install (respects lockfile)
+```
+
+**GitHub Actions with pnpm:**
+
+```yaml
+- uses: pnpm/action-setup@v2
+  with:
+    version: 9
+
+- uses: actions/setup-node@v4
+  with:
+    node-version: '20'
+    cache: 'pnpm'
+
+- run: pnpm install --frozen-lockfile
+```
+
+**GitHub Actions with yarn:**
+
+```yaml
+- uses: actions/setup-node@v4
+  with:
+    node-version: '20'
+    cache: 'yarn'
+
+- run: yarn install --frozen-lockfile
+```
+
+### 5. Use `--frozen-lockfile` in CI
+
+Prevent accidental lockfile changes in CI:
+
+```bash
+npm ci                              # npm (clean install)
+yarn install --frozen-lockfile      # yarn
+pnpm install --frozen-lockfile      # pnpm
+bun install --frozen-lockfile       # bun (if supported)
+```
+
+### 6. Regular Dependency Updates
+
+Keep dependencies current:
+
+```bash
+# npm
+npm update
+npm outdated
+
+# yarn
+yarn upgrade
+yarn outdated
+
+# pnpm
+pnpm update
+pnpm outdated
+
+# bun
+bun update
+```
+
+Test thoroughly after updates.
+
+---
+
+## CI/CD Integration
+
+### GitHub Actions
+
+**npm:**
+
+```yaml
+name: Tests
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run build
+      - run: npm run test
+```
+
+**pnpm:**
+
+```yaml
+name: Tests
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm test
+```
+
+### Selecting Package Manager in CI
+
+Use `NEXTELLAR_PACKAGE_MANAGER` to ensure the same manager is used for scaffolding:
+
+```yaml
+- name: Scaffold project
+  env:
+    NEXTELLAR_PACKAGE_MANAGER: pnpm
+  run: npx nextellar my-app
+```
+
+---
+
+## Troubleshooting
+
+### "Command not found: pnpm"
+
+**Cause:** pnpm not installed or not in PATH.
+
+**Solution:**
+
+```bash
+npm install -g pnpm
+pnpm --version  # Verify
+```
+
+### "Lockfile version mismatch"
+
+**Cause:** Lockfile created with a different package manager version.
+
+**Solution:**
+
+Regenerate the lockfile:
+
+```bash
+rm pnpm-lock.yaml     # or package-lock.json, yarn.lock, etc.
+pnpm install
+git add pnpm-lock.yaml
+git commit -m "Regenerate lockfile"
+```
+
+### "Module not found after switching managers"
+
+**Cause:** Incomplete migration or cache issues.
+
+**Solution:**
+
+```bash
+# Clear node_modules and reinstall
+rm -rf node_modules
+rm package-lock.json yarn.lock pnpm-lock.yaml bun.lockb
+
+# Reinstall with new manager
+pnpm install
+```
+
+### "Different versions on local vs CI"
+
+**Cause:** Lockfile not committed, or different manager versions.
+
+**Solution:**
+
+1. Ensure lockfile is committed
+2. Use exact package manager version:
+
+```yaml
+# GitHub Actions
+- uses: pnpm/action-setup@v2
+  with:
+    version: 9.10.0  # Match your local version
+```
+
+### "Slow installation in CI"
+
+**Cause:** Not using CI cache.
+
+**Solution:**
+
+Add caching to your CI config (see [CI/CD Integration](#cicd-integration) section).
+
+---
+
+## Related Documentation
+
+- [Environment Variables Reference](/docs/cli/env-vars-reference) — `NEXTELLAR_PACKAGE_MANAGER` variable
+- [CLI Commands](/docs/cli/commands) — Scaffolding options
+- [Contributing](/docs/guides/contributing) — Development workflow

@@ -1,0 +1,109 @@
+---
+title: Soroban Smart Contracts Quick-Reference Index
+description: Curated topic index linking all Soroban smart contract guides, architecture patterns, SDK hooks, and tutorials.
+date: 2026-09-24
+---
+
+# Soroban Smart Contracts Quick-Reference Index
+
+Nextellar features comprehensive documentation covering smart contract development on Stellar's native WebAssembly (WASM) execution environment, Soroban.
+
+This quick-reference index categorizes every Soroban-related guide, architecture pattern, and integration manual across the documentation site.
+
+---
+
+## 1. Getting Started & Core Architecture
+
+Essential guides for scaffolding your first contract, understanding Soroban's `#![no_std]` Rust SDK, and contrasting Soroban RPC with Horizon.
+
+| Guide                          | Description                                                                            | Difficulty   | Link                                                      |
+| :----------------------------- | :------------------------------------------------------------------------------------- | :----------- | :-------------------------------------------------------- |
+| **Contracts Quick Start**      | Setup Rust, Soroban CLI, compile WASM, and deploy your first contract.                 | Beginner     | [View Guide](/docs/getting-started/contracts-quick-start) |
+| **Soroban Contract Authoring** | Architectural foundations: types, contractimpl, environment objects, and error enums.  | Intermediate | [View Guide](/docs/guides/soroban-contract-authoring)     |
+| **Horizon vs Soroban RPC**     | Comparison of Horizon REST APIs and Soroban JSON-RPC endpoints and simulation flows.   | Intermediate | [View Guide](/docs/guides/horizon-vs-soroban-rpc)         |
+| **Soroban Integration**        | Integrating Soroban smart contracts into Next.js applications and frontend components. | Beginner     | [View Guide](/docs/integrations/soroban)                  |
+
+---
+
+## 2. Token Standards & Issuance Models
+
+Patterns for issuing digital assets, continuous token models, and verifiable credentials on-chain.
+
+| Guide                         | Description                                                                        | Difficulty   | Link                                                         |
+| :---------------------------- | :--------------------------------------------------------------------------------- | :----------- | :----------------------------------------------------------- |
+| **Continuous Token Issuance** | Implementation of bonding curves, dynamic minting, and continuous liquidity pools. | Advanced     | [View Guide](/docs/guides/soroban-continuous-token-issuance) |
+| **Credential Issuance**       | Decentralized identity, on-chain verifiable claims, and credential management.     | Intermediate | [View Guide](/docs/guides/soroban-credential-issuance)       |
+
+---
+
+## 3. Auction & Mechanism Design
+
+On-chain competitive pricing models, auction contracts, and bidding dynamics.
+
+| Guide               | Description                                                                    | Difficulty   | Link                                               |
+| :------------------ | :----------------------------------------------------------------------------- | :----------- | :------------------------------------------------- |
+| **Dutch Auction**   | Descending-price auction implementation with automated reserve clearance.      | Intermediate | [View Guide](/docs/guides/soroban-dutch-auction)   |
+| **English Auction** | Ascending-bid auction mechanics with minimum increments and escrow protection. | Intermediate | [View Guide](/docs/guides/soroban-english-auction) |
+
+---
+
+## 4. Runtime, Execution & Storage Patterns
+
+Low-level host environment functions, verifiable randomness, storage types, and state migration.
+
+| Guide                          | Description                                                                            | Difficulty | Link                                                          |
+| :----------------------------- | :------------------------------------------------------------------------------------- | :--------- | :------------------------------------------------------------ |
+| **Host Functions**             | Deep dive into Soroban low-level host functions, cryptographic primitives, and memory. | Advanced   | [View Guide](/docs/guides/soroban-host-functions)             |
+| **VRF Integration**            | Verifiable Random Functions for provably fair randomness in gaming and lotteries.      | Advanced   | [View Guide](/docs/guides/soroban-vrf-integration)            |
+| **Contract Storage Migration** | Managing contract state schemas, instance vs persistent storage, and live upgrades.    | Advanced   | [View Guide](/docs/guides/contract-storage-migration)         |
+| **XDR Serialization Patterns** | Binary serialization, XDR encoding/decoding, and payload optimizations.                | Advanced   | [View Guide](/docs/guides/soroban-xdr-serialization-patterns) |
+
+---
+
+## 5. Resource Limits, Budgets & Footprints
+
+Optimizing compute units, memory limits, and transaction footprint read/write sets.
+
+| Guide                         | Description                                                                     | Difficulty | Link                                         |
+| :---------------------------- | :------------------------------------------------------------------------------ | :--------- | :------------------------------------------- |
+| **Soroban Budget Management** | Understanding CPU instructions, memory budgets, and cost optimizations.         | Advanced   | [View Guide](/docs/guides/soroban-budget)    |
+| **Soroban Footprint**         | Managing ledger read/write footprints, concurrent isolation, and ledger bounds. | Advanced   | [View Guide](/docs/guides/soroban-footprint) |
+
+---
+
+## 6. Composability & Cross-Contract Communication
+
+Calling external contracts, forwarding authorization, and composing on-chain protocols.
+
+| Guide                    | Description                                                                  | Difficulty | Link                                            |
+| :----------------------- | :--------------------------------------------------------------------------- | :--------- | :---------------------------------------------- |
+| **Cross-Contract Calls** | Multi-contract invocations, client interfaces, and authorization delegation. | Advanced   | [View Guide](/docs/guides/cross-contract-calls) |
+
+---
+
+## 7. Testing & Verification
+
+Techniques for writing robust tests with Soroban Rust SDK and simulating RPC behaviors.
+
+| Guide                         | Description                                                                           | Difficulty   | Link                                               |
+| :---------------------------- | :------------------------------------------------------------------------------------ | :----------- | :------------------------------------------------- |
+| **Testing Horizon & Soroban** | Automated testing strategies using Soroban test environments and Mock Service Worker. | Intermediate | [View Guide](/docs/guides/testing-horizon-soroban) |
+
+---
+
+## 8. React Hooks Reference
+
+Nextellar React hooks for interacting with deployed Soroban contracts from your frontend.
+
+| Hook                     | Purpose                                                                                | Link                                              |
+| :----------------------- | :------------------------------------------------------------------------------------- | :------------------------------------------------ |
+| **`useSorobanContract`** | Simulate and execute public methods on any deployed Soroban contract.                  | [API Reference](/docs/hooks/use-soroban-contract) |
+| **`useSorobanEvents`**   | Subscribe to live topic-filtered contract events directly from Soroban RPC.            | [API Reference](/docs/hooks/use-soroban-events)   |
+| **Hooks API Reference**  | Complete consolidated reference of parameters, return types, and errors for all hooks. | [View Reference](/docs/hooks/api-reference)       |
+
+---
+
+## Need More Examples?
+
+- Explore the [DeFi dApp Tutorial](/docs/examples/defi-dapp-tutorial) for a complete Soroban liquidity pool implementation.
+- Check the [Hooks Cookbook](/docs/hooks/cookbook) for real-world composition patterns.

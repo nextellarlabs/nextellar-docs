@@ -25,7 +25,7 @@ The `NavMenu` component is a flexible and customizable navigation menu that supp
             <NavMenuContent position="down">
               <ul className="grid gap-3 p-4 w-64">
                 <NavListItem href="/docs" title="Introduction">Overview of components and usage.</NavListItem>
-                <NavListItem href="/docs/installation" title="Installation">Learn how to install dependencies.</NavListItem>
+                <NavListItem href="/docs/getting-started/installation" title="Installation">Learn how to install dependencies.</NavListItem>
               </ul>
             </NavMenuContent>
           </NavMenuItem>
@@ -38,8 +38,8 @@ The `NavMenu` component is a flexible and customizable navigation menu that supp
             <NavMenuTrigger>Components</NavMenuTrigger>
             <NavMenuContent position="down">
               <ul className="grid gap-3 p-4 w-64">
-                <NavListItem href="/components/button" title="Button">Usage of button component.</NavListItem>
-                <NavListItem href="/components/card" title="Card">Learn how to use cards effectively.</NavListItem>
+                <NavListItem href="/docs/components/button" title="Button">Usage of button component.</NavListItem>
+                <NavListItem href="/docs/components/connect-wallet-button" title="Connect Wallet">Wallet connection button component.</NavListItem>
               </ul>
             </NavMenuContent>
           </NavMenuItem>
@@ -52,8 +52,8 @@ The `NavMenu` component is a flexible and customizable navigation menu that supp
             <NavMenuTrigger>Resources</NavMenuTrigger>
             <NavMenuContent position="up">
               <ul className="grid gap-3 p-4 w-64">
-                <NavListItem href="/resources/blogs" title="Blogs">Read insightful blogs and tutorials.</NavListItem>
-                <NavListItem href="/resources/community" title="Community">Join discussions and share knowledge.</NavListItem>
+                <NavListItem href="https://nextellar.dev/blog" title="Blogs">Read insightful blogs and tutorials.</NavListItem>
+                <NavListItem href="https://github.com/nextellarlabs/nextellar/discussions" title="Community">Join discussions and share knowledge.</NavListItem>
               </ul>
             </NavMenuContent>
           </NavMenuItem>
@@ -81,7 +81,10 @@ export default function Example() {
                 <NavListItem href="/docs" title="Introduction">
                   Overview of components and usage.
                 </NavListItem>
-                <NavListItem href="/docs/installation" title="Installation">
+                <NavListItem
+                  href="/docs/getting-started/installation"
+                  title="Installation"
+                >
                   Learn how to install dependencies.
                 </NavListItem>
               </ul>
@@ -96,11 +99,14 @@ export default function Example() {
             <NavMenuTrigger>Components</NavMenuTrigger>
             <NavMenuContent position="down">
               <ul className="grid gap-3 p-4 w-64">
-                <NavListItem href="/components/button" title="Button">
+                <NavListItem href="/docs/components/button" title="Button">
                   Usage of button component.
                 </NavListItem>
-                <NavListItem href="/components/card" title="Card">
-                  Learn how to use cards effectively.
+                <NavListItem
+                  href="/docs/components/connect-wallet-button"
+                  title="Connect Wallet"
+                >
+                  Wallet connection button component.
                 </NavListItem>
               </ul>
             </NavMenuContent>
@@ -114,10 +120,13 @@ export default function Example() {
             <NavMenuTrigger>Resources</NavMenuTrigger>
             <NavMenuContent position="up">
               <ul className="grid gap-3 p-4 w-64">
-                <NavListItem href="/resources/blogs" title="Blogs">
+                <NavListItem href="https://nextellar.dev/blog" title="Blogs">
                   Read insightful blogs and tutorials.
                 </NavListItem>
-                <NavListItem href="/resources/community" title="Community">
+                <NavListItem
+                  href="https://github.com/nextellarlabs/nextellar/discussions"
+                  title="Community"
+                >
                   Join discussions and share knowledge.
                 </NavListItem>
               </ul>

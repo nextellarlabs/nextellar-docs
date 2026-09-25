@@ -29,6 +29,39 @@ Nextellar hooks default to Stellar's public Horizon servers:
 | Testnet | `https://horizon-testnet.stellar.org` |
 | Mainnet | `https://horizon.stellar.org`         |
 
+### Configure a Custom Endpoint
+
+Pass `--horizon-url` when scaffolding to replace the default public Horizon
+endpoint:
+
+```bash
+npx nextellar my-app \
+  --horizon-url https://horizon.example.com
+```
+
+The generated project writes the value to `NEXT_PUBLIC_HORIZON_URL`. Use an
+endpoint for the same Stellar network as the wallet and network passphrase, and
+pass that value to `WalletProvider` if you configure the provider manually:
+
+```tsx
+const horizonUrl = process.env.NEXT_PUBLIC_HORIZON_URL!;
+
+<WalletProvider horizonUrl={horizonUrl}>
+  <App />
+</WalletProvider>;
+```
+
+Confirm that the custom endpoint is reachable before running the app:
+
+```bash
+npx nextellar doctor --horizon-url https://horizon.example.com
+```
+
+Use the Horizon server's base URL without an endpoint suffix such as
+`/accounts`. If the server requires authentication headers, route requests
+through a server-side proxy rather than exposing credentials in a
+`NEXT_PUBLIC_` variable.
+
 ### Hooks That Use Horizon
 
 | Hook                    | Horizon Operations                     |

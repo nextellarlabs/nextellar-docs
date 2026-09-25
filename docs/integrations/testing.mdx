@@ -11,6 +11,39 @@ date: 2026-06-02
 
 This guide covers how to add MSW to your Nextellar project for testing Stellar API interactions.
 
+## Fund a Stellar Testnet Account
+
+MSW tests use mock balances and do not require funds. For a live Testnet smoke
+test, create and fund a separate test account with the
+[Stellar Friendbot faucet](https://developers.stellar.org/docs/networks#friendbot).
+Friendbot creates the account on Testnet and sends it test XLM; it does not fund
+Mainnet accounts.
+
+1. Create or select a test-only account in your wallet and copy its public
+   `G...` address. Do not share its secret key or recovery phrase.
+2. Set both the wallet and the Nextellar app to Stellar Testnet.
+3. Replace `<PUBLIC_KEY>` with the account's public address and request funds:
+
+   ```bash
+   curl "https://friendbot.stellar.org/?addr=<PUBLIC_KEY>"
+   ```
+
+   You can also use Stellar Lab's documented
+   [Fund Account workflow](https://developers.stellar.org/docs/tools/lab/account#fund-account).
+
+4. Verify that Horizon can load the funded account:
+
+   ```bash
+   curl "https://horizon-testnet.stellar.org/accounts/<PUBLIC_KEY>"
+   ```
+
+5. Refresh the balance in your app, then run the live transaction flow. Keep
+   this separate from the deterministic MSW tests below.
+
+> [!WARNING]
+> Friendbot funds Testnet accounts with valueless test XLM. Never use a Mainnet
+> account or production credentials in automated tests.
+
 ## What is MSW?
 
 [Mock Service Worker](https://mswjs.io/) is an API mocking library that intercepts requests at the network level. This allows you to:

@@ -1,0 +1,54 @@
+---
+title: Choosing a Template
+description: Decision guide for selecting the right Nextellar starter template.
+date: 2026-09-24
+---
+
+# Choosing a Template
+
+Nextellar templates trade setup speed against how much Stellar functionality is included on day one. Pick the smallest template that already contains the workflow your first screen needs, then add more features with `nextellar add` as the product grows.
+
+## Quick decision table
+
+| If you are building... | Choose | Why |
+| --- | --- | --- |
+| A full Stellar dApp, dashboard, marketplace, or learning project | [`default`](/docs/cli/templates#default) | It includes wallet connection, balances, payments, Soroban helpers, transaction history, and network switching. |
+| A landing flow, wallet gate, profile page, or prototype | [`minimal`](/docs/cli/templates#minimal) | It keeps the scaffold small while still handling wallet connection and balances. |
+| A DEX, trading tool, portfolio app, or asset-management UI | [`defi`](/docs/cli/templates#defi) | It adds payment, trustline, and offer-book primitives without the full Soroban surface. |
+| Any template that needs JavaScript instead of TypeScript | Add [`--javascript`](/docs/getting-started/javascript) | It keeps the same feature set but emits `.js` and `.jsx` files. |
+| Any template that needs a starter Soroban contract | Add [`--with-contracts`](/docs/cli/templates#--with-contracts-overlay) | It layers Rust contract scaffolding on top of the selected frontend template. |
+
+## Decision criteria
+
+### Start with user action
+
+Choose the template around the first thing a user must do. If the first action is connecting a wallet, `minimal` is enough. If the first action is sending value or managing assets, `defi` is usually the better starting point. If the first action is interacting with a Soroban contract, use `default` or add `--with-contracts`.
+
+### Consider how much code you want to own
+
+`minimal` gives you the cleanest surface for custom architecture. `default` gives you the most examples and reusable hooks. `defi` sits between them by focusing on asset and DEX workflows.
+
+### Match team preference for JavaScript or TypeScript
+
+TypeScript is the default and gives stronger editor support for Stellar SDK calls. JavaScript is useful for quick prototypes, tutorials, or teams that do not want a typed build step. The language flag does not change the template features.
+
+## Migration path
+
+You do not need to recreate the project if the first template choice is too small. Add missing pieces with the CLI:
+
+```bash
+npx nextellar add wallet-button
+npx nextellar add transaction-history
+npx nextellar add soroban-contract
+```
+
+If you began with `minimal` and need DeFi features, add `payment`, `trustlines`, and `offer-book`. If you began with `defi` and later need contract calls, add `soroban-contract` and `soroban-events`.
+
+## Template links
+
+- [`default`](/docs/cli/templates#default)
+- [`minimal`](/docs/cli/templates#minimal)
+- [`defi`](/docs/cli/templates#defi)
+- [JavaScript variant](/docs/getting-started/javascript)
+- [Contracts overlay](/docs/getting-started/contracts-quick-start)
+- [Template comparison](/docs/cli/template-comparison)

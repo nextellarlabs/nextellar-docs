@@ -80,6 +80,30 @@ If you want to add a new section, append an object to the `sidebarNav` array:
 }
 ```
 
+### Adding a collapsible group
+
+Add a `pages` array to make a section collapsible. Set `defaultOpen` to control its initial state. Readers can use the chevron to expand or collapse the group.
+
+```tsx
+{
+  title: 'Stellar Guides',
+  icon: <BookOpen className="h-5 w-5" />,
+  defaultOpen: false,
+  pages: [
+    {
+      title: 'Wallet Setup',
+      href: '/docs/stellar/wallet-setup',
+    },
+    {
+      title: 'Send a Payment',
+      href: '/docs/stellar/send-payment',
+    },
+  ],
+}
+```
+
+Use `defaultOpen: true` when readers should see the child pages on first load. A group without `defaultOpen` starts collapsed because `SidebarMenuItem` defaults the property to `false`.
+
 ### Adding a Single Page Without Sub-Pages
 
 To add a single page (without dropdown sub-pages):
