@@ -24,6 +24,11 @@ Nextellar dApps typically span three testing layers:
 
 ---
 
+- `pnpm test` — runs Vitest in the project root (recommended entry point)
+- `pnpm test:unit` — also runs Vitest (equivalent to `pnpm test`)
+- `vitest.config.ts` — configures the test environment and React plugin
+- `jsdom` — simulates browser APIs when testing React components
+- `@vitejs/plugin-react` — enables JSX/TSX syntax during test execution
 ## Test Runner Setup
 
 Scaffolded Nextellar applications configure Vitest in `vitest.config.ts`:
@@ -232,6 +237,19 @@ describe('ConnectWalletButton Component', () => {
       />
     );
 
+Use the `test` command to run all unit tests:
+
+```bash
+pnpm test
+```
+
+This runs all tests using Vitest. You can also use the explicit `test:unit` command:
+
+```bash
+pnpm test:unit
+```
+
+Both commands are equivalent and run all tests using Vitest.
     const button = screen.getByRole('button', { name: /connect wallet/i });
     expect(button).toBeInTheDocument();
 
@@ -449,6 +467,9 @@ describe('Soroban Contract RPC Integration', () => {
 
 ---
 
+- The repository includes test tooling and configuration, but there are currently no active test files under the source tree.
+- The `pnpm test` command is the correct entry point for running tests.
+- Test coverage is not enforced today and should be added when tests are introduced.
 ## Best Practices for Scaffolded App Testing
 
 1. **Mock at the Network Boundary**: Use MSW to mock HTTP/RPC responses instead of deeply mocking the Stellar SDK internals. This ensures the SDK's parsing and XDR verification logic are tested.
