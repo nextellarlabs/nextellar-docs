@@ -29,12 +29,12 @@ By default, Nextellar projects use Stellar's testnet endpoints. No configuration
 
 ```bash
 nextellar my-app
-# Uses:
-# - Horizon: https://horizon-testnet.stellar.org
-# - Soroban RPC: https://soroban-testnet.stellar.org
+## Uses:
+## - Horizon: https://horizon-testnet.stellar.org
+## - Soroban RPC: https://soroban-testnet.stellar.org
 ```
 
-### Production (Mainnet)
+## Production (Mainnet)
 
 Switch to mainnet when deploying:
 
@@ -60,10 +60,10 @@ nextellar my-app \
 
 ### Stellar Public Endpoints
 
-| Network | Horizon Endpoint                    | Soroban RPC Endpoint                |
-| ------- | ----------------------------------- | ----------------------------------- |
+| Network | Horizon Endpoint                      | Soroban RPC Endpoint                  |
+| ------- | ------------------------------------- | ------------------------------------- |
 | Testnet | `https://horizon-testnet.stellar.org` | `https://soroban-testnet.stellar.org` |
-| Mainnet | `https://horizon.stellar.org`       | `https://soroban-rpc.stellar.org`   |
+| Mainnet | `https://horizon.stellar.org`         | `https://soroban-rpc.stellar.org`     |
 
 ### Staging & Custom Endpoints
 
@@ -94,7 +94,7 @@ CLI-level configuration affects scaffolding, upgrading, and validation commands.
 Use `--horizon-url` and `--soroban-url` flags when creating a project:
 
 ```bash
-# Create with custom endpoints
+## Create with custom endpoints
 nextellar my-app \
   --horizon-url https://horizon.stellar.org \
   --soroban-url https://soroban-rpc.stellar.org
@@ -102,7 +102,7 @@ nextellar my-app \
 
 These flags also populate `.env.example` in the generated project, so developers know which endpoints to use.
 
-### Environment Variables (CLI-Level)
+## Environment Variables (CLI-Level)
 
 You can also set CLI endpoints via environment variables:
 
@@ -118,15 +118,15 @@ nextellar my-app
 Test endpoint connectivity:
 
 ```bash
-# Check testnet endpoints
+## Check testnet endpoints
 nextellar doctor
 
-# Check mainnet endpoints
+## Check mainnet endpoints
 nextellar doctor \
   --horizon-url https://horizon.stellar.org \
   --soroban-url https://soroban-rpc.stellar.org
 
-# Check custom endpoints
+## Check custom endpoints
 NEXTELLAR_HORIZON_URL="http://localhost:8000" nextellar doctor
 ```
 
@@ -165,7 +165,7 @@ Application-level configuration affects the generated Nextellar app at runtime. 
 Create a `.env.local` file in your project root:
 
 ```bash
-# .env.local (development)
+## .env.local (development)
 NEXT_PUBLIC_HORIZON_URL=https://horizon-testnet.stellar.org
 NEXT_PUBLIC_SOROBAN_URL=https://soroban-testnet.stellar.org
 ```
@@ -173,14 +173,14 @@ NEXT_PUBLIC_SOROBAN_URL=https://soroban-testnet.stellar.org
 Or for mainnet:
 
 ```bash
-# .env.local (production)
+## .env.local (production)
 NEXT_PUBLIC_HORIZON_URL=https://horizon.stellar.org
 NEXT_PUBLIC_SOROBAN_URL=https://soroban-rpc.stellar.org
 ```
 
 These variables are read by hooks at runtime and passed to Horizon and Soroban RPC.
 
-### Post-Scaffolding Configuration
+## Post-Scaffolding Configuration
 
 If you scaffolded with testnet endpoints but want to switch to mainnet later:
 
@@ -210,15 +210,15 @@ For production deployments, set environment variables in your hosting provider:
 
 ```bash
 vercel env add NEXT_PUBLIC_HORIZON_URL
-# Prompts: https://horizon.stellar.org
+## Prompts: https://horizon.stellar.org
 vercel env add NEXT_PUBLIC_SOROBAN_URL
-# Prompts: https://soroban-rpc.stellar.org
+## Prompts: https://soroban-rpc.stellar.org
 ```
 
 **Netlify:**
 
 ```toml
-# netlify.toml
+## netlify.toml
 [build]
   environment = { NEXT_PUBLIC_HORIZON_URL = "https://horizon.stellar.org", NEXT_PUBLIC_SOROBAN_URL = "https://soroban-rpc.stellar.org" }
 ```
@@ -226,7 +226,7 @@ vercel env add NEXT_PUBLIC_SOROBAN_URL
 **AWS Amplify:**
 
 ```yaml
-# amplify.yml
+## amplify.yml
 version: 1
 env:
   variables:
@@ -289,7 +289,7 @@ When writing a custom hook, follow this pattern:
 import { useWalletContext } from '@/context/WalletContext';
 
 interface UseAssetPricingOptions {
-  horizonUrl?: string;     // Allow per-call override
+  horizonUrl?: string; // Allow per-call override
   pollingInterval?: number;
 }
 
@@ -303,9 +303,7 @@ export function useAssetPricing(
   // 2. Fall back to provider (from context)
   // 3. Fall back to default
   const horizonUrl =
-    options.horizonUrl ??
-    providerUrl ??
-    'https://horizon-testnet.stellar.org';
+    options.horizonUrl ?? providerUrl ?? 'https://horizon-testnet.stellar.org';
 
   // ... rest of hook implementation
 }
@@ -331,9 +329,7 @@ export function useEndpoints(): EndpointConfig {
   return {
     horizonUrl: horizonUrl || 'https://horizon-testnet.stellar.org',
     sorobanUrl: sorobanUrl || 'https://soroban-testnet.stellar.org',
-    network: horizonUrl?.includes('mainnet')
-      ? 'PUBLIC'
-      : 'TESTNET',
+    network: horizonUrl?.includes('mainnet') ? 'PUBLIC' : 'TESTNET',
   };
 }
 ```
@@ -361,7 +357,7 @@ This example sets up a Nextellar project to use a private Stellar network runnin
 Use Docker Compose to run a local Stellar instance:
 
 ```yaml
-# docker-compose.yml
+## docker-compose.yml
 version: '3.8'
 services:
   stellar:
@@ -370,8 +366,8 @@ services:
       - NETWORK_TYPE=standalone
       - ENABLE_CORE_DIAGNOSTICS=true
     ports:
-      - '8000:8000'  # Horizon
-      - '8001:8001'  # Soroban RPC
+      - '8000:8000' # Horizon
+      - '8001:8001' # Soroban RPC
       - '11626:11626' # Core
 ```
 
@@ -385,13 +381,13 @@ Verify connectivity:
 
 ```bash
 curl http://localhost:8000/
-# Should return Horizon info
+## Should return Horizon info
 
 curl http://localhost:8001/rpc
-# Should return Soroban RPC info
+## Should return Soroban RPC info
 ```
 
-### Step 2: Scaffold with Custom Endpoints
+## Step 2: Scaffold with Custom Endpoints
 
 Create a Nextellar project pointing to your local network:
 
@@ -406,13 +402,13 @@ nextellar my-local-app \
 This generates `.env.example`:
 
 ```bash
-# .env.example
+## .env.example
 NEXT_PUBLIC_HORIZON_URL=http://localhost:8000
 NEXT_PUBLIC_SOROBAN_URL=http://localhost:8001
 NEXT_PUBLIC_NETWORK=TESTNET
 ```
 
-### Step 3: Create `.env.local`
+## Step 3: Create `.env.local`
 
 ```bash
 cp .env.example .env.local
@@ -460,7 +456,7 @@ Your app now connects to the local Stellar network.
 Switch back to testnet by updating `.env.local`:
 
 ```bash
-# .env.local
+## .env.local
 NEXT_PUBLIC_HORIZON_URL=https://horizon-testnet.stellar.org
 NEXT_PUBLIC_SOROBAN_URL=https://soroban-testnet.stellar.org
 ```
@@ -491,10 +487,10 @@ curl https://horizon-testnet.stellar.org/
 
 ```bash
 docker-compose ps
-# Check that stellar service is running
+## Check that stellar service is running
 ```
 
-### CORS Error in Browser
+## CORS Error in Browser
 
 **Error:** `Access to XMLHttpRequest at '...' blocked by CORS policy`
 
@@ -512,11 +508,11 @@ Access-Control-Allow-Origin: *
 Or use a CORS proxy in development:
 
 ```bash
-# .env.local
+## .env.local
 NEXT_PUBLIC_HORIZON_URL=https://cors-anywhere.herokuapp.com/https://your-endpoint.com
 ```
 
-### Soroban RPC 404 Error
+## Soroban RPC 404 Error
 
 **Error:** `404 Not Found` when calling `useSorobanClient`
 

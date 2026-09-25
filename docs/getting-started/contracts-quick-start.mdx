@@ -38,7 +38,7 @@ The flag has a short form, `-c`, and a long form, `--with-contracts`. They do th
 
 ```bash
 npx nextellar my-dapp --with-contracts
-# or, equivalently
+## or, equivalently
 npx nextellar my-dapp -c
 cd my-dapp
 ```
@@ -46,14 +46,14 @@ cd my-dapp
 `--with-contracts` is an overlay, not a separate template, so you can combine it with any template or language flag:
 
 ```bash
-# DeFi template + contracts
+## DeFi template + contracts
 npx nextellar my-dapp --template defi -c
 
-# JavaScript frontend + contracts (the contract itself is always Rust)
+## JavaScript frontend + contracts (the contract itself is always Rust)
 npx nextellar my-dapp --javascript -c
 ```
 
-### 1b. What the CLI does
+## 1b. What the CLI does
 
 With the flag set, the scaffold runs its normal steps and then:
 
@@ -118,11 +118,11 @@ my-dapp/
 `.env.example` gains a placeholder you'll replace after deploying:
 
 ```bash
-# Soroban Smart Contracts
+## Soroban Smart Contracts
 NEXT_PUBLIC_HELLO_WORLD_CONTRACT_ID=C_REPLACE_WITH_YOUR_CONTRACT_ID
 ```
 
-### 1e. Verify the scaffold
+## 1e. Verify the scaffold
 
 ```bash
 ls contracts/hello_world/src          # lib.rs

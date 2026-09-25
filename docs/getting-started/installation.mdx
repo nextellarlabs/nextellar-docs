@@ -20,10 +20,10 @@ Before you begin, ensure you have:
 
 ```bash
 node --version
-# Should output v20.18.0 or higher
+## Should output v20.18.0 or higher
 ```
 
-### Verify Your Setup
+## Verify Your Setup
 
 Run the doctor check before scaffolding, or any time you need to confirm that your local machine still matches the CLI requirements:
 
@@ -66,22 +66,22 @@ Nextellar supports all major package managers. The CLI auto-detects your package
 ### Explicit Package Manager Selection
 
 ```bash
-# npm (default if package-lock.json exists)
+## npm (default if package-lock.json exists)
 npx nextellar my-app --package-manager npm
 
-# yarn (default if yarn.lock exists)
+## yarn (default if yarn.lock exists)
 npx nextellar my-app --package-manager yarn
 
-# pnpm (default if pnpm-lock.yaml exists)
+## pnpm (default if pnpm-lock.yaml exists)
 npx nextellar my-app --package-manager pnpm
 
-# bun (default if bun.lockb exists)
+## bun (default if bun.lockb exists)
 npx nextellar my-app --package-manager bun
 ```
 
 The `--package-manager` flag accepts: `npm`, `yarn`, `pnpm`, `bun`
 
-### Lockfile Detection
+## Lockfile Detection
 
 Nextellar automatically detects your package manager by checking for lockfiles in the current directory:
 
@@ -157,7 +157,7 @@ npx nextellar my-app --horizon-url https://horizon.stellar.org
 
 ```bash
 npx nextellar my-app --wallets freighter,xbull
-# See [Wallet Configuration](/docs/cli/flags#wallet-configuration-wallets) for defaults and all supported adapters
+## See [Wallet Configuration](/docs/cli/flags#wallet-configuration-wallets) for defaults and all supported adapters
 ```
 
 ## What Gets Installed?

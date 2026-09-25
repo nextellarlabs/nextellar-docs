@@ -26,6 +26,7 @@ Visit [plausible.io](https://plausible.io) and create an account.
 #### 2. Add your domain
 
 In the Plausible dashboard:
+
 - Click "Add a website"
 - Enter your domain (e.g., `docs.nextellar.dev`)
 - Note the domain name
@@ -45,12 +46,14 @@ Replace `docs.nextellar.dev` with your actual domain.
 After deploying, visit your site. Open the Plausible dashboard — you should see traffic appearing in real-time.
 
 **What Plausible collects:**
+
 - Page views
 - Referrer information
 - Device type and browser
 - Country (from IP)
 
 **What Plausible doesn't collect:**
+
 - Cookie-based tracking
 - Personal data
 - Requires no consent banner
@@ -64,6 +67,7 @@ Visit [sentry.io](https://sentry.io) and create an account.
 #### 2. Create a project
 
 In the Sentry dashboard:
+
 - Click "Create Project"
 - Select "JavaScript" → "Next.js"
 - Follow the setup flow
@@ -82,6 +86,7 @@ Replace with your actual DSN from Sentry.
 #### 4. Verify in browser
 
 After deploying, Sentry will begin capturing:
+
 - JavaScript errors
 - Unhandled exceptions
 - Network errors
@@ -112,6 +117,7 @@ The `Analytics` component initializes both Plausible and Sentry on page load.
 **File**: `src/components/analytics.tsx`
 
 Features:
+
 - Lazy-loads scripts for performance
 - Gracefully handles missing configuration
 - Logs initialization status to console
@@ -123,7 +129,7 @@ Features:
 Analytics and error monitoring are disabled in development unless you explicitly set environment variables:
 
 ```bash
-# Disable analytics/monitoring in development
+## Disable analytics/monitoring in development
 NEXT_PUBLIC_PLAUSIBLE_DOMAIN=
 NEXT_PUBLIC_SENTRY_DSN=
 ```
@@ -135,7 +141,7 @@ NEXT_PUBLIC_PLAUSIBLE_DOMAIN=localhost
 NEXT_PUBLIC_SENTRY_DSN=https://your-key@sentry.io/project-id
 ```
 
-### Testing Error Reporting
+## Testing Error Reporting
 
 Test Sentry error capture:
 
@@ -191,11 +197,11 @@ integrations: [
 
 ## Environment Variables Reference
 
-| Variable                        | Required | Description                          | Example                                  |
-| ------------------------------- | -------- | ------------------------------------ | ---------------------------------------- |
-| `NEXT_PUBLIC_PLAUSIBLE_DOMAIN`  | No       | Domain for Plausible analytics       | `docs.nextellar.dev`                     |
-| `NEXT_PUBLIC_SENTRY_DSN`        | No       | DSN for Sentry error monitoring      | `https://key@sentry.io/project-id`       |
-| `NODE_ENV`                      | Yes      | Environment (development, production) | `production`                             |
+| Variable                       | Required | Description                           | Example                            |
+| ------------------------------ | -------- | ------------------------------------- | ---------------------------------- |
+| `NEXT_PUBLIC_PLAUSIBLE_DOMAIN` | No       | Domain for Plausible analytics        | `docs.nextellar.dev`               |
+| `NEXT_PUBLIC_SENTRY_DSN`       | No       | DSN for Sentry error monitoring       | `https://key@sentry.io/project-id` |
+| `NODE_ENV`                     | Yes      | Environment (development, production) | `production`                       |
 
 ## Deployment
 
@@ -216,6 +222,7 @@ integrations: [
 ### Plausible Dashboard
 
 Visit your Plausible domain to see:
+
 - Real-time visitor count
 - Top pages
 - Traffic sources
@@ -225,6 +232,7 @@ Visit your Plausible domain to see:
 ### Sentry Dashboard
 
 Monitor:
+
 - Error trends
 - Performance metrics
 - Release health

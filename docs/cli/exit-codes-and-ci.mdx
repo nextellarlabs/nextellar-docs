@@ -15,36 +15,36 @@ This guide documents all **Nextellar CLI exit codes** and provides **CI/CD recip
 
 ### Success Codes
 
-| Code | Command | Meaning | Description |
-|------|---------|---------|-------------|
-| `0` | All | Success | Command completed successfully without errors |
+| Code | Command | Meaning | Description                                   |
+| ---- | ------- | ------- | --------------------------------------------- |
+| `0`  | All     | Success | Command completed successfully without errors |
 
 ### Error Codes
 
-| Code | Command | Meaning | Description |
-|------|---------|---------|-------------|
-| `1` | All | General error | Unspecified error or exception occurred |
-| `2` | All | Invalid arguments | Command invoked with invalid flags, missing required arguments, or malformed options |
-| `3` | `nextellar` | Directory exists | Target directory already exists and `--force` was not provided |
-| `4` | `nextellar` | Installation failed | Dependency installation (npm/yarn/pnpm) exited with non-zero status |
-| `5` | `nextellar add` | Feature not found | Requested feature does not exist or is not available |
-| `6` | `nextellar doctor` | Environment check failed | System does not meet minimum requirements (Node.js version, missing tools) |
-| `7` | `nextellar deploy` | Validation failed | Pre-deployment validation detected issues (build errors, missing env vars) |
-| `8` | `nextellar upgrade` | No upgrades available | Project is already on the latest template version |
-| `9` | `nextellar clean` | Cleanup error | Failed to remove generated build artifacts |
+| Code | Command             | Meaning                  | Description                                                                          |
+| ---- | ------------------- | ------------------------ | ------------------------------------------------------------------------------------ |
+| `1`  | All                 | General error            | Unspecified error or exception occurred                                              |
+| `2`  | All                 | Invalid arguments        | Command invoked with invalid flags, missing required arguments, or malformed options |
+| `3`  | `nextellar`         | Directory exists         | Target directory already exists and `--force` was not provided                       |
+| `4`  | `nextellar`         | Installation failed      | Dependency installation (npm/yarn/pnpm) exited with non-zero status                  |
+| `5`  | `nextellar add`     | Feature not found        | Requested feature does not exist or is not available                                 |
+| `6`  | `nextellar doctor`  | Environment check failed | System does not meet minimum requirements (Node.js version, missing tools)           |
+| `7`  | `nextellar deploy`  | Validation failed        | Pre-deployment validation detected issues (build errors, missing env vars)           |
+| `8`  | `nextellar upgrade` | No upgrades available    | Project is already on the latest template version                                    |
+| `9`  | `nextellar clean`   | Cleanup error            | Failed to remove generated build artifacts                                           |
 
 ### Network-Related Codes
 
-| Code | Command | Meaning | Description |
-|------|---------|---------|-------------|
-| `10` | `nextellar doctor` | Network unreachable | Cannot connect to Stellar network (Horizon or Soroban RPC) |
-| `11` | `nextellar deploy` | RPC timeout | Stellar network request timed out during deployment checks |
-| `12` | `nextellar doctor` | Invalid endpoint | Provided Horizon or Soroban URL is malformed or unreachable |
+| Code | Command            | Meaning             | Description                                                 |
+| ---- | ------------------ | ------------------- | ----------------------------------------------------------- |
+| `10` | `nextellar doctor` | Network unreachable | Cannot connect to Stellar network (Horizon or Soroban RPC)  |
+| `11` | `nextellar deploy` | RPC timeout         | Stellar network request timed out during deployment checks  |
+| `12` | `nextellar doctor` | Invalid endpoint    | Provided Horizon or Soroban URL is malformed or unreachable |
 
 ### User Interruption Codes
 
-| Code | Command | Meaning | Description |
-|------|---------|---------|-------------|
+| Code  | Command           | Meaning        | Description                                        |
+| ----- | ----------------- | -------------- | -------------------------------------------------- |
 | `130` | All (interactive) | User cancelled | User pressed Ctrl+C to abort an interactive prompt |
 
 ---
@@ -54,73 +54,73 @@ This guide documents all **Nextellar CLI exit codes** and provides **CI/CD recip
 ### Scaffold Command
 
 ```bash
-# Success: Directory created, dependencies installed
+## Success: Directory created, dependencies installed
 nextellar my-app
-# Exit code: 0
+## Exit code: 0
 
-# Error: Directory already exists
+## Error: Directory already exists
 nextellar my-app
-# Exit code: 3
+## Exit code: 3
 
-# Error: Invalid flag
+## Error: Invalid flag
 nextellar my-app --invalid-flag
-# Exit code: 2
+## Exit code: 2
 
-# Success: Overwrite existing directory
+## Success: Overwrite existing directory
 nextellar my-app --force
-# Exit code: 0 (if successful)
+## Exit code: 0 (if successful)
 ```
 
-### Add Command
+## Add Command
 
 ```bash
-# Success: Feature added
+## Success: Feature added
 nextellar add soroban
-# Exit code: 0
+## Exit code: 0
 
-# Error: Feature not found
+## Error: Feature not found
 nextellar add nonexistent-feature
-# Exit code: 5
+## Exit code: 5
 
-# Error: Invalid flag
+## Error: Invalid flag
 nextellar add soroban --invalid-flag
-# Exit code: 2
+## Exit code: 2
 ```
 
-### Doctor Command
+## Doctor Command
 
 ```bash
-# Success: All checks pass
+## Success: All checks pass
 nextellar doctor
-# Exit code: 0
+## Exit code: 0
 
-# Error: Node.js version too old
+## Error: Node.js version too old
 nextellar doctor
-# Exit code: 6 (environment check failed)
+## Exit code: 6 (environment check failed)
 
-# Error: Cannot reach Stellar network
+## Error: Cannot reach Stellar network
 nextellar doctor --with-network-check
-# Exit code: 10 (network unreachable)
+## Exit code: 10 (network unreachable)
 ```
 
-### Deploy Command
+## Deploy Command
 
 ```bash
-# Success: Pre-deployment validation passes
+## Success: Pre-deployment validation passes
 nextellar deploy
-# Exit code: 0
+## Exit code: 0
 
-# Error: Build fails during validation
+## Error: Build fails during validation
 nextellar deploy
-# Exit code: 7 (validation failed)
+## Exit code: 7 (validation failed)
 
-# Error: Required environment variables missing
+## Error: Required environment variables missing
 nextellar deploy
-# Exit code: 7 (validation failed)
+## Exit code: 7 (validation failed)
 
-# Error: Stellar network timeout
+## Error: Stellar network timeout
 nextellar deploy --check-network
-# Exit code: 11 (RPC timeout)
+## Exit code: 11 (RPC timeout)
 ```
 
 ---
@@ -132,7 +132,7 @@ nextellar deploy --check-network
 #### Basic Build and Deploy Pipeline
 
 ```yaml
-# .github/workflows/deploy.yml
+## .github/workflows/deploy.yml
 name: Build and Deploy
 
 on:
@@ -144,30 +144,30 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-      
+
       - name: Install dependencies
         run: npm install
-      
+
       - name: Run environment checks
         run: |
           nextellar doctor
           # Fails if exit code is non-zero
-      
+
       - name: Build application
         run: npm run build
         # GitHub Actions automatically fails on non-zero exit code
-      
+
       - name: Run tests
         run: npm run test
-      
+
       - name: Deploy to Vercel
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
@@ -175,10 +175,10 @@ jobs:
         run: vercel deploy --prod
 ```
 
-#### Conditional Logic Based on Exit Codes
+## Conditional Logic Based on Exit Codes
 
 ```yaml
-# .github/workflows/validate.yml
+## .github/workflows/validate.yml
 name: Validate Project
 
 on: [push, pull_request]
@@ -186,55 +186,55 @@ on: [push, pull_request]
 jobs:
   validate:
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      
+
       - name: Install dependencies
         run: npm install
-      
+
       - name: Run doctor checks
         id: doctor
         run: nextellar doctor
         continue-on-error: true
-      
+
       - name: Check doctor exit code
         if: steps.doctor.outcome == 'failure'
         run: |
           echo "Doctor check failed"
           exit 1
-      
+
       - name: Validate deployment readiness
         run: nextellar deploy --validate-only
 ```
 
-#### Pre-deployment Validation Gate
+## Pre-deployment Validation Gate
 
 ```yaml
-# .github/workflows/production-deploy.yml
+## .github/workflows/production-deploy.yml
 name: Production Deployment Gate
 
 on:
-  workflow_dispatch:  # Manual trigger only
+  workflow_dispatch: # Manual trigger only
 
 jobs:
   validate:
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-      
+
       - run: npm install
-      
+
       - name: Validate production readiness
         run: |
           set -e  # Exit on first error
@@ -243,10 +243,10 @@ jobs:
           npm run test
           npm run build
           nextellar deploy --validate-only
-      
+
       - name: Notify deployment success
         run: echo "✓ All validation checks passed. Ready for deployment."
-      
+
       - name: Deploy to Mainnet
         env:
           NEXT_PUBLIC_NETWORK: MAINNET
@@ -254,10 +254,10 @@ jobs:
         run: npm run deploy:mainnet
 ```
 
-### GitLab CI/CD
+## GitLab CI/CD
 
 ```yaml
-# .gitlab-ci.yml
+## .gitlab-ci.yml
 stages:
   - validate
   - build
@@ -332,7 +332,7 @@ deploy_production:
     - main
 ```
 
-### Jenkins Pipeline
+## Jenkins Pipeline
 
 ```groovy
 // Jenkinsfile
@@ -434,7 +434,7 @@ pipeline {
 
 ```bash
 #!/bin/bash
-# deploy.sh
+## deploy.sh
 
 set -e  # Exit on first error (exit code != 0)
 
@@ -465,21 +465,21 @@ echo "SUCCESS: Deployment completed"
 exit 0
 ```
 
-#### Conditional Retry Logic
+## Conditional Retry Logic
 
 ```bash
 #!/bin/bash
-# deploy-with-retry.sh
+## deploy-with-retry.sh
 
 MAX_RETRIES=3
 RETRY_COUNT=0
 
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
   echo "Attempt $((RETRY_COUNT + 1))/$MAX_RETRIES: Running doctor checks..."
-  
+
   nextellar doctor
   EXIT_CODE=$?
-  
+
   if [ $EXIT_CODE -eq 0 ]; then
     echo "SUCCESS: Doctor checks passed"
     break
@@ -501,10 +501,10 @@ if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
 fi
 ```
 
-#### Parallel Jobs with Aggregated Results
+## Parallel Jobs with Aggregated Results
 
 ```yaml
-# .github/workflows/parallel-checks.yml
+## .github/workflows/parallel-checks.yml
 name: Parallel Validation
 
 on: [push, pull_request]
@@ -582,4 +582,3 @@ jobs:
 - [Environment Variables](/docs/cli/env-vars-reference) — Configure CLI behavior
 - [Deployment Guide](/docs/guides/deployment) — Production deployment patterns
 - [Lifecycle Tutorial](/docs/guides/lifecycle-tutorial) — End-to-end dApp development
-

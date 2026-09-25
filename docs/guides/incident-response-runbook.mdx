@@ -30,12 +30,12 @@ This runbook defines the actions to take when something goes wrong in a producti
 - On-chain balance of contract drops unexpectedly
 
 ```bash
-# Query recent contract invocations via Horizon
+## Query recent contract invocations via Horizon
 curl "https://horizon.stellar.org/operations?limit=20&order=desc" | \
   jq '.._embedded.records[] | select(.type == "invoke_host_function")'
 ```
 
-### Contain
+## Contain
 
 1. **Pause the contract** — if your contract has an admin pause function, call it immediately:
    ```ts

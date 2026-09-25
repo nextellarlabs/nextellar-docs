@@ -111,14 +111,14 @@ Segregate public configuration from sensitive backend keys:
 - **Store Operator Keys on Server**: If your dApp runs a relayer, paymaster, or administrative service, execute those operations inside Next.js Server Components, API routes, or Server Actions.
 
 ```bash
-# .env.local — Safe configuration segregation
+## .env.local — Safe configuration segregation
 
-# Client-accessible (PUBLIC)
+## Client-accessible (PUBLIC)
 NEXT_PUBLIC_STELLAR_NETWORK=TESTNET
 NEXT_PUBLIC_HORIZON_URL=https://horizon-testnet.stellar.org
 NEXT_PUBLIC_SOROBAN_RPC_URL=https://soroban-testnet.stellar.org
 
-# Server-only secrets (NEVER prefix with NEXT_PUBLIC_)
+## Server-only secrets (NEVER prefix with NEXT_PUBLIC_)
 STELLAR_SPONSOR_SECRET_KEY=SB...SECRET_KEY
 DATABASE_ENCRYPTION_KEY=super-secret-key
 ADMIN_API_TOKEN=internal-token
@@ -141,7 +141,7 @@ export async function POST(req: Request) {
 }
 ```
 
-### 3. Pre-Flight Simulation & Authorization Verification
+## 3. Pre-Flight Simulation & Authorization Verification
 
 Always simulate Soroban transactions before requesting the user's signature. Transaction simulation identifies potential failures, calculates exact gas/footprint limits, and exposes required authorizations.
 

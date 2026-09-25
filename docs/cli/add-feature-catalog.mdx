@@ -16,23 +16,23 @@ npx nextellar add network-switcher
 
 ## Hooks
 
-| Feature id | Adds | Common use | Dependencies |
-| --- | --- | --- | --- |
-| `wallet` | `useStellarWallet`, wallet kit setup, wallet context | Connect Freighter, xBull, and other Stellar wallets | None |
-| `balances` | `useStellarBalances` | Read account balances after wallet connection | `wallet` |
-| `payment` | `useStellarPayment` | Send XLM or Stellar asset payments from the UI | `wallet` |
-| `trustlines` | `useTrustlines` | Add, remove, and inspect asset trustlines | `wallet` |
-| `offer-book` | `useOfferBook` | Read Stellar DEX order book data | `wallet` |
-| `soroban-contract` | `useSorobanContract` | Call Soroban contract methods from React | `wallet` |
-| `soroban-events` | `useSorobanEvents` | Listen to Soroban contract events | `soroban-contract` |
-| `transaction-history` | `useTransactionHistory` | Display recent operations and payments | `wallet` |
+| Feature id            | Adds                                                 | Common use                                          | Dependencies       |
+| --------------------- | ---------------------------------------------------- | --------------------------------------------------- | ------------------ |
+| `wallet`              | `useStellarWallet`, wallet kit setup, wallet context | Connect Freighter, xBull, and other Stellar wallets | None               |
+| `balances`            | `useStellarBalances`                                 | Read account balances after wallet connection       | `wallet`           |
+| `payment`             | `useStellarPayment`                                  | Send XLM or Stellar asset payments from the UI      | `wallet`           |
+| `trustlines`          | `useTrustlines`                                      | Add, remove, and inspect asset trustlines           | `wallet`           |
+| `offer-book`          | `useOfferBook`                                       | Read Stellar DEX order book data                    | `wallet`           |
+| `soroban-contract`    | `useSorobanContract`                                 | Call Soroban contract methods from React            | `wallet`           |
+| `soroban-events`      | `useSorobanEvents`                                   | Listen to Soroban contract events                   | `soroban-contract` |
+| `transaction-history` | `useTransactionHistory`                              | Display recent operations and payments              | `wallet`           |
 
 ## Components
 
-| Feature id | Adds | Common use | Dependencies |
-| --- | --- | --- | --- |
-| `wallet-button` | `WalletConnectButton` | Drop-in connect and disconnect button | `wallet` |
-| `network-switcher` | `NetworkSwitcher` | Toggle between testnet and mainnet in the app shell | `wallet` |
+| Feature id         | Adds                  | Common use                                          | Dependencies |
+| ------------------ | --------------------- | --------------------------------------------------- | ------------ |
+| `wallet-button`    | `WalletConnectButton` | Drop-in connect and disconnect button               | `wallet`     |
+| `network-switcher` | `NetworkSwitcher`     | Toggle between testnet and mainnet in the app shell | `wallet`     |
 
 ## Choosing features
 
@@ -41,13 +41,13 @@ Start with the smallest feature that unlocks the workflow you need. A wallet-onl
 ## Install flow
 
 ```bash
-# Show available features
+## Show available features
 npx nextellar add --list
 
-# Add one feature and any required dependencies
+## Add one feature and any required dependencies
 npx nextellar add transaction-history
 
-# Replace existing generated files when intentionally refreshing scaffolding
+## Replace existing generated files when intentionally refreshing scaffolding
 npx nextellar add wallet --force
 ```
 

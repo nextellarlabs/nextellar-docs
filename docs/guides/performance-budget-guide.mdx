@@ -66,13 +66,13 @@ A performance budget is a set of limits on metrics that affect site performance.
 #### Content Build Time
 
 ```bash
-# Measure content build time
+## Measure content build time
 time pnpm build:content
 
-# Output example:
-# real    0m28.456s
-# user    0m45.123s
-# sys     0m3.234s
+## Output example:
+## real    0m28.456s
+## user    0m45.123s
+## sys     0m3.234s
 ```
 
 **Interpretation:**
@@ -81,29 +81,29 @@ time pnpm build:content
 - User time: CPU time spent
 - Sys time: System calls time
 
-#### Full Build Time
+## Full Build Time
 
 ```bash
-# Measure complete build
+## Measure complete build
 time pnpm build
 
-# Includes:
-# - Content build (contentlayer2)
-# - Next.js build
-# - Static generation
+## Includes:
+## - Content build (contentlayer2)
+## - Next.js build
+## - Static generation
 ```
 
-#### Bundle Size Analysis
+## Bundle Size Analysis
 
 ```bash
-# Analyze bundle size
+## Analyze bundle size
 pnpm build
 
-# Check output directory
+## Check output directory
 du -sh .next/static/chunks/
 du -sh .next/static/css/
 
-# Detailed breakdown
+## Detailed breakdown
 ls -lh .next/static/chunks/ | grep -E '\.(js|css)$'
 ```
 
@@ -115,18 +115,18 @@ ls -lh .next/static/chunks/ | grep -E '\.(js|css)$'
 .next/static/css/main-*.css       ~80KB
 ```
 
-### 2. Runtime Performance Measurement
+## 2. Runtime Performance Measurement
 
 #### Using Lighthouse
 
 ```bash
-# Install Lighthouse CLI
+## Install Lighthouse CLI
 npm install -g @lhci/cli@latest lighthouse
 
-# Run Lighthouse audit
+## Run Lighthouse audit
 lighthouse https://docs.nextellar.dev --view
 
-# Headless mode (CI/CD)
+## Headless mode (CI/CD)
 lighthouse https://docs.nextellar.dev \
   --output=json \
   --output-path=./lighthouse-report.json
@@ -139,7 +139,7 @@ lighthouse https://docs.nextellar.dev \
 - Cumulative Layout Shift (CLS)
 - First Contentful Paint (FCP)
 
-#### Using Web Vitals
+## Using Web Vitals
 
 ```typescript
 // pages/_app.tsx
@@ -180,10 +180,10 @@ getTTFB(reportWebVitals);
 #### Document Count
 
 ```bash
-# Count total documents
+## Count total documents
 find docs -name "*.mdx" | wc -l
 
-# Count by category
+## Count by category
 find docs -type d -name "*" | while read dir; do
   count=$(find "$dir" -maxdepth 1 -name "*.mdx" | wc -l)
   if [ $count -gt 0 ]; then
@@ -192,37 +192,37 @@ find docs -type d -name "*" | while read dir; do
 done
 ```
 
-#### Average Document Size
+## Average Document Size
 
 ```bash
-# Calculate average document size
+## Calculate average document size
 du -b docs/**/*.mdx | awk '{sum+=$1; count++} END {print "Average:", sum/count, "bytes"}'
 
-# Size distribution
+## Size distribution
 du -b docs/**/*.mdx | sort -n | tail -10
 ```
 
-#### Search Index Size
+## Search Index Size
 
 ```bash
-# Check generated search index
+## Check generated search index
 ls -lh .contentlayer/generated/
 
-# Estimate search index
+## Estimate search index
 du -sh .contentlayer/generated/
 ```
 
-### 4. Network Metrics Measurement
+## 4. Network Metrics Measurement
 
 #### Using curl
 
 ```bash
-# Measure Time to First Byte (TTFB)
+## Measure Time to First Byte (TTFB)
 curl -w "TTFB: %{time_starttransfer}s\n" \
      -o /dev/null \
      -s https://docs.nextellar.dev
 
-# Full timing breakdown
+## Full timing breakdown
 curl -w "
   DNS:     %{time_namelookup}s
   Connect: %{time_connect}s
@@ -231,7 +231,7 @@ curl -w "
 " -o /dev/null -s https://docs.nextellar.dev
 ```
 
-#### Using WebPageTest
+## Using WebPageTest
 
 1. Visit [webpagetest.org](https://www.webpagetest.org)
 2. Enter URL: `https://docs.nextellar.dev`
@@ -263,14 +263,14 @@ Create a performance monitoring script:
 
 ```bash
 #!/bin/bash
-# scripts/check-performance.sh
+## scripts/check-performance.sh
 
 set -e
 
 echo "📊 Performance Budget Check"
 echo "=========================="
 
-# Build time check
+## Build time check
 echo ""
 echo "⏱️  Checking build time..."
 START=$(date +%s)
@@ -287,7 +287,7 @@ else
   echo "✅ Build time: ${BUILD_TIME}s (target: <30s)"
 fi
 
-# Bundle size check
+## Bundle size check
 echo ""
 echo "📦 Checking bundle sizes..."
 JS_SIZE=$(du -sb .next/static/chunks/*.js 2>/dev/null | awk '{sum+=$1} END {print int(sum/1024/1024)}')
@@ -311,7 +311,7 @@ else
   echo "✅ CSS bundle: ${CSS_SIZE}MB (target: <100MB)"
 fi
 
-# Document count check
+## Document count check
 echo ""
 echo "📄 Checking content metrics..."
 DOC_COUNT=$(find docs -name "*.mdx" | wc -l)
@@ -339,12 +339,12 @@ Add to package.json:
 }
 ```
 
-### CI/CD Integration
+## CI/CD Integration
 
 Add to GitHub Actions workflow:
 
 ```yaml
-# .github/workflows/performance.yml
+## .github/workflows/performance.yml
 name: Performance Check
 
 on: [pull_request, push]
@@ -384,49 +384,49 @@ jobs:
 **Automatic Detection:**
 
 ```bash
-# Run performance check in CI
+## Run performance check in CI
 pnpm check:performance
 
-# If it fails, investigate the cause
+## If it fails, investigate the cause
 ```
 
 **Manual Detection:**
 
 ```bash
-# Compare build times
+## Compare build times
 time pnpm build:content
 
-# Compare bundle sizes
+## Compare bundle sizes
 du -sh .next/static/chunks/
 du -sh .next/static/css/
 ```
 
-### Investigation Steps
+## Investigation Steps
 
 #### 1. Identify the Cause
 
 ```bash
-# Check recent changes
+## Check recent changes
 git log --oneline -10
 
-# Compare bundle sizes
+## Compare bundle sizes
 git diff HEAD~1 -- .next/static/
 
-# Check for new dependencies
+## Check for new dependencies
 git diff HEAD~1 -- package.json
 ```
 
-#### 2. Analyze Impact
+## 2. Analyze Impact
 
 ```bash
-# Detailed bundle analysis
+## Detailed bundle analysis
 npm install -g webpack-bundle-analyzer
 
-# Generate report
+## Generate report
 webpack-bundle-analyzer .next/static/chunks/main-*.js
 ```
 
-#### 3. Common Causes and Solutions
+## 3. Common Causes and Solutions
 
 | Issue                | Cause                  | Solution                                    |
 | -------------------- | ---------------------- | ------------------------------------------- |
@@ -457,7 +457,7 @@ webpack-bundle-analyzer .next/static/chunks/main-*.js
 - [ ] Propose solution
 ```
 
-#### Step 2: Implement Fix
+### Step 2: Implement Fix
 
 **Example: Reduce Bundle Size**
 
@@ -495,18 +495,18 @@ const Analytics = dynamic(() => import('@/components/Analytics'), {
 #### Step 3: Verify Fix
 
 ```bash
-# Re-run performance checks
+## Re-run performance checks
 pnpm check:performance
 
-# Verify metrics improved
+## Verify metrics improved
 time pnpm build:content
 
-# Check bundle sizes
+## Check bundle sizes
 du -sh .next/static/chunks/
 du -sh .next/static/css/
 ```
 
-#### Step 4: Document Changes
+## Step 4: Document Changes
 
 ```markdown
 ## Performance Fix

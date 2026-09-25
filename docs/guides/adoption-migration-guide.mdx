@@ -26,12 +26,12 @@ This guide walks you through integrating Nextellar into an existing Next.js appl
 
 ```bash
 npm install @nextellar/sdk @stellar/stellar-sdk
-# or
+## or
 yarn add @nextellar/sdk @stellar/stellar-sdk
 pnpm add @nextellar/sdk @stellar/stellar-sdk
 ```
 
-### Step 1.2: Install Wallet Kit
+## Step 1.2: Install Wallet Kit
 
 ```bash
 npm install @creit.tech/stellar-wallets-kit
@@ -98,22 +98,18 @@ export const storage = {
     localStorage.setItem('stellar_wallet_connected', String(value)),
   getConnected: () =>
     localStorage.getItem('stellar_wallet_connected') === 'true',
-  
-  setWalletId: (id: string) =>
-    localStorage.setItem('stellar_wallet_id', id),
-  getWalletId: () =>
-    localStorage.getItem('stellar_wallet_id'),
-  
+
+  setWalletId: (id: string) => localStorage.setItem('stellar_wallet_id', id),
+  getWalletId: () => localStorage.getItem('stellar_wallet_id'),
+
   setPublicKey: (key: string) =>
     localStorage.setItem('stellar_wallet_public_key', key),
-  getPublicKey: () =>
-    localStorage.getItem('stellar_wallet_public_key'),
-  
+  getPublicKey: () => localStorage.getItem('stellar_wallet_public_key'),
+
   setWalletName: (name: string) =>
     localStorage.setItem('stellar_wallet_name', name),
-  getWalletName: () =>
-    localStorage.getItem('stellar_wallet_name'),
-  
+  getWalletName: () => localStorage.getItem('stellar_wallet_name'),
+
   clear: () => {
     localStorage.removeItem('stellar_wallet_connected');
     localStorage.removeItem('stellar_wallet_id');
@@ -182,7 +178,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       setError(null);
 
       let selectedWalletId = walletId;
-      
+
       // If no walletId specified, open the modal
       if (!selectedWalletId) {
         selectedWalletId = await kit.openModal();
@@ -190,7 +186,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
       // Connect to the selected wallet
       const { publicKey: pk } = await kit.connect(selectedWalletId);
-      
+
       // Get wallet name
       const wallet = kit.getWallet(selectedWalletId);
       const wname = wallet?.name || selectedWalletId;
@@ -264,9 +260,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <WalletProvider>
-          {children}
-        </WalletProvider>
+        <WalletProvider>{children}</WalletProvider>
       </body>
     </html>
   );
@@ -366,13 +360,13 @@ export default function Home() {
 Create or update `.env.local`:
 
 ```bash
-# Stellar Network Configuration
+## Stellar Network Configuration
 NEXT_PUBLIC_NETWORK_PASSPHRASE="Test SDF Network ; September 2015"
 NEXT_PUBLIC_HORIZON_URL="https://horizon-testnet.stellar.org"
 
-# For production (mainnet), use:
-# NEXT_PUBLIC_NETWORK_PASSPHRASE="Public Global Stellar Network ; September 2015"
-# NEXT_PUBLIC_HORIZON_URL="https://horizon.stellar.org"
+## For production (mainnet), use:
+## NEXT_PUBLIC_NETWORK_PASSPHRASE="Public Global Stellar Network ; September 2015"
+## NEXT_PUBLIC_HORIZON_URL="https://horizon.stellar.org"
 ```
 
 Then reference in your code:
@@ -419,9 +413,7 @@ export function useStellarPayment() {
       setError(null);
 
       // Fetch account details
-      const response = await fetch(
-        `${HORIZON_URL}/accounts/${publicKey}`
-      );
+      const response = await fetch(`${HORIZON_URL}/accounts/${publicKey}`);
       const account = await response.json();
 
       // Build transaction
@@ -435,9 +427,7 @@ export function useStellarPayment() {
         .addOperation(
           Operation.payment({
             destination: params.destination,
-            asset: params.asset === 'XLM' 
-              ? undefined 
-              : 'credit_alphanum12',
+            asset: params.asset === 'XLM' ? undefined : 'credit_alphanum12',
             amount: params.amount,
           })
         )
@@ -590,9 +580,7 @@ export function useSorobanContract() {
         fee: BASE_FEE,
         networkPassphrase: Networks.TESTNET_SOROBAN,
       })
-        .addOperation(
-          contract.call(params.method, ...params.args)
-        )
+        .addOperation(contract.call(params.method, ...params.args))
         .setTimeout(300)
         .build();
 
@@ -645,6 +633,7 @@ export function useSorobanContract() {
 **Cause:** User doesn't have the wallet extension installed.
 
 **Solution:** Show install links for supported wallets:
+
 - [Freighter](https://www.freighter.app/)
 - [Albedo](https://albedo.link/)
 - [Lobstr](https://lobstr.co/)
@@ -654,7 +643,8 @@ export function useSorobanContract() {
 
 **Cause:** User's wallet is on a different network (Testnet vs Mainnet).
 
-**Solution:** 
+**Solution:**
+
 1. Check your `.env.local` network configuration
 2. Ensure user's wallet is set to the same network
 3. Show a clear error message with instructions to switch
@@ -670,6 +660,7 @@ export function useSorobanContract() {
 **Cause:** Account doesn't have enough XLM for the transaction.
 
 **Solution:**
+
 1. Check balances before submitting
 2. For testnet, fund accounts via [Stellar Friendbot](https://friendbot.stellar.org/)
 3. Show current balance and required amount
@@ -683,4 +674,3 @@ export function useSorobanContract() {
 - [Soroban Contract Authoring](/docs/guides/soroban-contract-authoring) — Build smart contracts
 - [Testing](/docs/guides/testing) — Test your integration with MSW
 - [Deployment](/docs/guides/deployment) — Deploy to production
-

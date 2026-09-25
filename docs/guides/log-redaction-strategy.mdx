@@ -188,11 +188,11 @@ export function middleware(req: NextRequest) {
 Use `detect-secrets` or `gitleaks` to scan staged files for accidentally committed secrets:
 
 ```bash
-# .husky/pre-commit
+## .husky/pre-commit
 npx detect-secrets scan --baseline .secrets.baseline
 ```
 
-### 2. Log Audit on Every PR
+## 2. Log Audit on Every PR
 
 Add a PR checklist item:
 
@@ -206,11 +206,11 @@ Add a PR checklist item:
 Once a week, pull 100 random log lines from production and run them through a regex scanner for `G[A-Z2-7]{55}` and `S[A-Z2-7]{55}` patterns:
 
 ```bash
-# Pull sample from your log aggregator and scan
+## Pull sample from your log aggregator and scan
 grep -E '[GS][A-Z2-7]{55}' sample.log && echo "LEAK FOUND" || echo "clean"
 ```
 
-### 4. Retention Policy
+## 4. Retention Policy
 
 Keep production logs for 30 days maximum unless compliance requires longer. Configure this at the transport level:
 

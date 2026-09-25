@@ -116,11 +116,11 @@ const appName = process.env.NEXT_PUBLIC_APP_NAME;
 This variable is commented out in `.env.example`. Uncomment it only if you need runtime wallet selection independent of the compiled list.
 
 ```bash
-# .env.local
+## .env.local
 NEXT_PUBLIC_WALLETS=freighter,albedo,lobstr
 ```
 
-### Contract IDs
+## Contract IDs
 
 #### `NEXT_PUBLIC_CONTRACT_ID`
 
@@ -145,7 +145,7 @@ NEXT_PUBLIC_WALLETS=freighter,albedo,lobstr
 | **Only with** | `npx nextellar my-app --with-contracts`                                |
 
 ```bash
-# .env.local  (only present with --with-contracts)
+## .env.local  (only present with --with-contracts)
 NEXT_PUBLIC_HELLO_WORLD_CONTRACT_ID=CABC...XYZ
 ```
 
@@ -167,16 +167,16 @@ These variables are read by the Nextellar CLI process. They are never bundled in
 | **Valid values** | `1`, `true`, `yes`, `on`                                     |
 
 ```bash
-# Disable telemetry for a single run
+## Disable telemetry for a single run
 NEXTELLAR_TELEMETRY_DISABLED=1 npx nextellar my-app
 
-# Or export for the session
+## Or export for the session
 export NEXTELLAR_TELEMETRY_DISABLED=true
 ```
 
 You can also pass `--no-telemetry` as a flag instead.
 
-### `NEXTELLAR_TELEMETRY_ENDPOINT`
+## `NEXTELLAR_TELEMETRY_ENDPOINT`
 
 **Source:** `src/lib/telemetry.ts` — `postTelemetryEvent()`
 
@@ -237,28 +237,28 @@ These standard variables are read by the CLI or by the underlying Node.js runtim
 The following is the verbatim `.env.example` written into every scaffolded project (all templates). Placeholders in `{{DOUBLE_BRACES}}` are replaced at scaffold time.
 
 ```bash
-# Nextellar — Environment Variables
-# Copy this file to .env.local and fill in your values
+## Nextellar — Environment Variables
+## Copy this file to .env.local and fill in your values
 
-# Stellar Network Configuration
+## Stellar Network Configuration
 NEXT_PUBLIC_HORIZON_URL={{HORIZON_URL}}
 NEXT_PUBLIC_SOROBAN_URL={{SOROBAN_URL}}
 NEXT_PUBLIC_NETWORK={{NETWORK}}
 
-# Wallet Configuration (comma-separated: freighter,albedo,lobstr,xbull,hana)
-# NEXT_PUBLIC_WALLETS=freighter,albedo,lobstr
+## Wallet Configuration (comma-separated: freighter,albedo,lobstr,xbull,hana)
+## NEXT_PUBLIC_WALLETS=freighter,albedo,lobstr
 
-# Soroban Contract IDs (add after deploying contracts)
-# NEXT_PUBLIC_CONTRACT_ID=
+## Soroban Contract IDs (add after deploying contracts)
+## NEXT_PUBLIC_CONTRACT_ID=
 
-# App Metadata
+## App Metadata
 NEXT_PUBLIC_APP_NAME={{APP_NAME}}
 ```
 
 When `--with-contracts` is used, the CLI appends:
 
 ```bash
-# Soroban Smart Contracts
+## Soroban Smart Contracts
 NEXT_PUBLIC_HELLO_WORLD_CONTRACT_ID=C_REPLACE_WITH_YOUR_CONTRACT_ID
 ```
 
@@ -269,17 +269,17 @@ NEXT_PUBLIC_HELLO_WORLD_CONTRACT_ID=C_REPLACE_WITH_YOUR_CONTRACT_ID
 ### Local development (testnet)
 
 ```bash
-# .env.local
+## .env.local
 NEXT_PUBLIC_HORIZON_URL=https://horizon-testnet.stellar.org
 NEXT_PUBLIC_SOROBAN_URL=https://soroban-testnet.stellar.org
 NEXT_PUBLIC_NETWORK=TESTNET
 NEXT_PUBLIC_APP_NAME=my-stellar-app
 ```
 
-### Production (mainnet)
+## Production (mainnet)
 
 ```bash
-# .env.production
+## .env.production
 NEXT_PUBLIC_HORIZON_URL=https://horizon.stellar.org
 NEXT_PUBLIC_SOROBAN_URL=https://soroban-rpc.stellar.org
 NEXT_PUBLIC_NETWORK=PUBLIC
