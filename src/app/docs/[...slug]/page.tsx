@@ -4,6 +4,7 @@ import { Mdx } from '@/components/mdx-components';
 import Breadcrumb from '@/components/bread-crumb';
 import AutoToc from '@/components/auto-toc';
 import EditThisPage from '@/components/edit-this-page';
+import PrevNextNav from '@/components/prev-next-nav';
 import { format, parseISO } from 'date-fns';
 
 type tParams = Promise<{ slug: string[] }>;
@@ -66,6 +67,7 @@ const DocsPage = async ({ params }: { params: tParams }) => {
         <div className="mt-12 pt-6 border-t border-[var(--color-border)]">
           <EditThisPage filePath={doc._raw.flattenedPath} />
         </div>
+        <PrevNextNav currentPath={doc.url} />
       </article>
 
       <AutoToc />
