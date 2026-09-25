@@ -58,14 +58,14 @@ pnpm build:content
 **Integration with Development**
 
 ```bash
-# Full development build
+## Full development build
 pnpm build          # Runs build:content + next build
 
-# Development server (auto-rebuilds content)
+## Development server (auto-rebuilds content)
 pnpm dev           # Watches for MDX changes
 ```
 
-### When You Must Run the Content Build
+## When You Must Run the Content Build
 
 **Required Scenarios**
 
@@ -192,10 +192,10 @@ interface DocumentFrontmatter {
 **Link Validation**
 
 ```bash
-# Check all internal links
+## Check all internal links
 pnpm check:links
 
-# Output example
+## Output example
 ✓ Validated 156 internal links
 ✗ Found 3 broken links:
   - /docs/cli/nonexistent (referenced in docs/cli/commands.mdx:45)
@@ -258,19 +258,19 @@ pnpm dev
 Before submitting a pull request:
 
 ```bash
-# 1. Build content successfully
+## 1. Build content successfully
 pnpm build:content
 
-# 2. Validate all links
+## 2. Validate all links
 pnpm check:links
 
-# 3. Check formatting
+## 3. Check formatting
 pnpm format:check
 
-# 4. Run linting
+## 4. Run linting
 pnpm lint
 
-# 5. Test full build
+## 5. Test full build
 pnpm build
 ```
 

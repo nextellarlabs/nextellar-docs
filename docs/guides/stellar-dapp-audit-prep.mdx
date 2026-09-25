@@ -57,16 +57,16 @@ Verify your dApp against this readiness checklist before submitting your audit i
 Run the following commands to verify audit artifact completeness locally:
 
 ```bash
-# 1. Compile Soroban contracts in release mode
+## 1. Compile Soroban contracts in release mode
 cargo build --target wasm32-unknown-unknown --release
 
-# 2. Generate WASM SHA-256 hashes
+## 2. Generate WASM SHA-256 hashes
 sha256sum target/wasm32-unknown-unknown/release/*.wasm > audit/wasm-hashes.txt
 
-# 3. Run full contract test suite
+## 3. Run full contract test suite
 cargo test --all
 
-# 4. Run frontend and SDK unit tests
+## 4. Run frontend and SDK unit tests
 pnpm test:unit
 ```
 

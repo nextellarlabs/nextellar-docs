@@ -32,6 +32,8 @@
     "test:generate-cli-docs": "node scripts/generate-cli-docs.test.cjs",
     "generate:cli-docs": "npx nextellar --help | node scripts/generate-cli-docs.cjs --output docs/cli/commands.mdx",
     "validate:sidebar": "node scripts/validate-sidebar.cjs",
+    "validate:heading-hierarchy": "node scripts/validate-heading-hierarchy.mjs",
+    "fix:heading-hierarchy": "node scripts/fix-heading-hierarchy.mjs",
     "check:links": "node scripts/check-links.cjs",
     "check:links:all": "node scripts/link-checker.mjs",
     "check:links:external": "node scripts/link-checker.mjs --check-external"

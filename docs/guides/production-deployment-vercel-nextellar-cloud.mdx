@@ -123,17 +123,17 @@ These preview environments use the same build process and environment variables 
 Set up rate limiting and request routing:
 
 ```bash
-# Example: Nextellar Cloud CLI
+## Example: Nextellar Cloud CLI
 nextellar cloud config --project dapp-prod
 
-# Set rate limits
+## Set rate limits
 nextellar cloud ratelimit --rpm 1000 --burst 100
 
-# Configure CORS
+## Configure CORS
 nextellar cloud cors --allow-origins "https://app.example.com"
 ```
 
-### Step 2.3: Database & State Management
+## Step 2.3: Database & State Management
 
 If your dApp requires persistent state (leaderboards, user data, analytics):
 
@@ -142,7 +142,7 @@ If your dApp requires persistent state (leaderboards, user data, analytics):
 3. Run migrations on every deployment:
 
 ```bash
-# In Vercel deployment settings, add to "Build Command":
+## In Vercel deployment settings, add to "Build Command":
 npm run build && npm run migrate:prod
 ```
 
@@ -239,7 +239,7 @@ export default {
 Vercel can be configured to require all checks to pass before allowing production deployment:
 
 ```yaml
-# .github/workflows/pre-deploy-checks.yml
+## .github/workflows/pre-deploy-checks.yml
 name: Pre-Deployment Checks
 on:
   pull_request:
@@ -365,10 +365,10 @@ monitor.recordError('soroban_simulation_failed', {
 2. **Third-party Integration**: Connect Sentry for error tracking:
 
 ```bash
-# Install Sentry
+## Install Sentry
 npm install @sentry/nextjs
 
-# Set SENTRY_AUTH_TOKEN in Vercel environment
+## Set SENTRY_AUTH_TOKEN in Vercel environment
 ```
 
 ---

@@ -281,10 +281,10 @@ Before invoking a Soroban contract in your dApp, you need to deploy the contract
 Create a simple Soroban smart contract in Rust. If you scaffolded with `nextellar --with-contracts`, you'll have a `contracts/` directory:
 
 ```bash
-# If you haven't added contract support yet
+## If you haven't added contract support yet
 nextellar add soroban
 
-# Create a new contract
+## Create a new contract
 cargo generate --git https://github.com/stellar/soroban-examples.git --name my-contract
 cd my-contract
 ```
@@ -320,7 +320,7 @@ impl TokenContract {
 }
 ```
 
-### Step 2: Build the Contract
+## Step 2: Build the Contract
 
 Compile your contract to WebAssembly:
 
@@ -340,14 +340,14 @@ target/wasm32-unknown-unknown/release/my_contract.wasm
 Use the Stellar CLI to deploy the contract:
 
 ```bash
-# Install Stellar CLI if you haven't already
+## Install Stellar CLI if you haven't already
 npm install -g @stellar/cli
 
-# Set Testnet as your network
+## Set Testnet as your network
 stellar config set --global networks.testnet rpc_url https://soroban-testnet.stellar.org
 stellar config set --global networks.testnet network_passphrase "Test SDF Network ; July 2015"
 
-# Deploy the contract
+## Deploy the contract
 stellar contract deploy \
   --wasm target/wasm32-unknown-unknown/release/my_contract.wasm \
   --source my-source-account \
@@ -363,7 +363,7 @@ Contract deployed successfully!
 Contract ID: CCW67TSBXS2A5GUXI25IKWCQXWOHOXTYUX22EC56GDK4E2D3FBAZ4Y2V
 ```
 
-### Step 4: Verify Deployment
+## Step 4: Verify Deployment
 
 Check that your contract is live on Testnet:
 
@@ -385,7 +385,7 @@ const CONTRACT_ID = 'CCW67TSBXS2A5GUXI25IKWCQXWOHOXTYUX22EC56GDK4E2D3FBAZ4Y2V';
 
 export function ContractInvoker() {
   const { invokeContract } = useSorobanContract(CONTRACT_ID);
-  
+
   const handleTransfer = async () => {
     const result = await invokeContract('transfer', {
       from: 'GA...',
@@ -395,11 +395,7 @@ export function ContractInvoker() {
     console.log('Transfer complete:', result.hash);
   };
 
-  return (
-    <button onClick={handleTransfer}>
-      Execute Transfer
-    </button>
-  );
+  return <button onClick={handleTransfer}>Execute Transfer</button>;
 }
 ```
 

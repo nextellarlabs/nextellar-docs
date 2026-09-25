@@ -25,12 +25,12 @@ Horizon exposes a `/health` endpoint that returns `{"status":"healthy"}` when th
 
 ```bash
 GET https://horizon.stellar.org/health
-# → {"status":"healthy"}
+## → {"status":"healthy"}
 ```
 
 A non-`healthy` response or a network error means Horizon is degraded. When this signal is red, users cannot load account balances or submit transactions.
 
-### Soroban RPC health
+## Soroban RPC health
 
 Soroban RPC also provides a health check:
 
@@ -39,12 +39,12 @@ POST https://soroban-testnet.stellar.org
 Content-Type: application/json
 
 {"jsonrpc":"2.0","id":1,"method":"getHealth"}
-# → {"jsonrpc":"2.0","id":1,"result":{"status":"healthy"}}
+## → {"jsonrpc":"2.0","id":1,"result":{"status":"healthy"}}
 ```
 
 When the Soroban RPC is unhealthy, smart contract calls fail. Users who try to interact with your contract will see errors.
 
-### Smart contract reachability
+## Smart contract reachability
 
 A health check that only pings the RPC node does not guarantee your specific contract is reachable. Add a lightweight `simulateTransaction` call that invokes a read-only method on your contract (for example, a getter that returns a constant). If the simulation succeeds, your contract is reachable.
 

@@ -12,17 +12,17 @@ This page is the complete reference for environment variables that control **Nex
 
 ## Quick Reference
 
-| Variable                        | Type    | Default              | Required | Scope          |
-| ------------------------------- | ------- | -------------------- | -------- | -------------- |
-| `NEXTELLAR_TELEMETRY_DISABLED`  | boolean | `false` (off)        | No       | CLI            |
-| `NEXTELLAR_TELEMETRY_ENDPOINT`  | string  | `https://nextellar...` | No       | CLI            |
-| `NEXTELLAR_HORIZON_URL`         | string  | testnet URL          | No       | CLI            |
-| `NEXTELLAR_SOROBAN_URL`         | string  | testnet URL          | No       | CLI            |
-| `NEXTELLAR_NETWORK`             | string  | `TESTNET`            | No       | CLI            |
-| `NEXTELLAR_SKIP_INSTALL`        | boolean | `false`              | No       | CLI            |
-| `NEXTELLAR_PACKAGE_MANAGER`     | string  | auto-detect          | No       | CLI            |
-| `NEXTELLAR_LOG_LEVEL`           | string  | `info`               | No       | CLI            |
-| `NEXTELLAR_NO_ANALYTICS`        | boolean | `false`              | No       | CLI            |
+| Variable                       | Type    | Default                | Required | Scope |
+| ------------------------------ | ------- | ---------------------- | -------- | ----- |
+| `NEXTELLAR_TELEMETRY_DISABLED` | boolean | `false` (off)          | No       | CLI   |
+| `NEXTELLAR_TELEMETRY_ENDPOINT` | string  | `https://nextellar...` | No       | CLI   |
+| `NEXTELLAR_HORIZON_URL`        | string  | testnet URL            | No       | CLI   |
+| `NEXTELLAR_SOROBAN_URL`        | string  | testnet URL            | No       | CLI   |
+| `NEXTELLAR_NETWORK`            | string  | `TESTNET`              | No       | CLI   |
+| `NEXTELLAR_SKIP_INSTALL`       | boolean | `false`                | No       | CLI   |
+| `NEXTELLAR_PACKAGE_MANAGER`    | string  | auto-detect            | No       | CLI   |
+| `NEXTELLAR_LOG_LEVEL`          | string  | `info`                 | No       | CLI   |
+| `NEXTELLAR_NO_ANALYTICS`       | boolean | `false`                | No       | CLI   |
 
 ---
 
@@ -49,10 +49,10 @@ These variables control Nextellar CLI behavior during scaffolding, adding featur
 **Examples:**
 
 ```bash
-# Disable telemetry for one command
+## Disable telemetry for one command
 NEXTELLAR_TELEMETRY_DISABLED=1 nextellar my-app
 
-# In GitHub Actions
+## In GitHub Actions
 env:
   NEXTELLAR_TELEMETRY_DISABLED: 1
 ```
@@ -64,7 +64,7 @@ env:
 
 ---
 
-#### `NEXTELLAR_TELEMETRY_ENDPOINT`
+## `NEXTELLAR_TELEMETRY_ENDPOINT`
 
 **Type:** `string` (full URL)
 
@@ -77,11 +77,11 @@ env:
 **Examples:**
 
 ```bash
-# Send telemetry to custom endpoint
+## Send telemetry to custom endpoint
 export NEXTELLAR_TELEMETRY_ENDPOINT="https://my-analytics.internal/telemetry"
 nextellar my-app
 
-# Send to localhost (testing)
+## Send to localhost (testing)
 NEXTELLAR_TELEMETRY_ENDPOINT=http://localhost:3000 nextellar my-app
 ```
 
@@ -91,7 +91,7 @@ Telemetry is sent as JSON-formatted event objects. See [Telemetry Documentation]
 
 ---
 
-### Network Endpoints
+## Network Endpoints
 
 #### `NEXTELLAR_HORIZON_URL`
 
@@ -112,11 +112,11 @@ Telemetry is sent as JSON-formatted event objects. See [Telemetry Documentation]
 **Examples:**
 
 ```bash
-# Use mainnet Horizon
+## Use mainnet Horizon
 export NEXTELLAR_HORIZON_URL="https://horizon.stellar.org"
 nextellar doctor
 
-# Use local Horizon (e.g., docker compose)
+## Use local Horizon (e.g., docker compose)
 NEXTELLAR_HORIZON_URL=http://localhost:8000 nextellar upgrade --check
 ```
 
@@ -129,7 +129,7 @@ NEXTELLAR_HORIZON_URL=http://localhost:8000 nextellar upgrade --check
 
 ---
 
-#### `NEXTELLAR_SOROBAN_URL`
+## `NEXTELLAR_SOROBAN_URL`
 
 **Type:** `string` (full Soroban RPC URL)
 
@@ -142,17 +142,17 @@ NEXTELLAR_HORIZON_URL=http://localhost:8000 nextellar upgrade --check
 **Examples:**
 
 ```bash
-# Use mainnet Soroban RPC
+## Use mainnet Soroban RPC
 export NEXTELLAR_SOROBAN_URL="https://soroban-rpc.stellar.org"
 nextellar deploy
 
-# Use local Soroban RPC
+## Use local Soroban RPC
 NEXTELLAR_SOROBAN_URL=http://localhost:8001 nextellar upgrade --check
 ```
 
 ---
 
-#### `NEXTELLAR_NETWORK`
+## `NEXTELLAR_NETWORK`
 
 **Type:** `string` (enum: `TESTNET` or `PUBLIC`)
 
@@ -162,24 +162,24 @@ NEXTELLAR_SOROBAN_URL=http://localhost:8001 nextellar upgrade --check
 
 **Valid values:**
 
-| Value      | Network     | Horizon Passphrase               |
-| ---------- | ----------- | -------------------------------- |
-| `TESTNET`  | Stellar test network | `Test SDF Network ; September 2015` |
-| `PUBLIC`   | Stellar mainnet      | `Public Global Stellar Network ; September 2015` |
+| Value     | Network              | Horizon Passphrase                               |
+| --------- | -------------------- | ------------------------------------------------ |
+| `TESTNET` | Stellar test network | `Test SDF Network ; September 2015`              |
+| `PUBLIC`  | Stellar mainnet      | `Public Global Stellar Network ; September 2015` |
 
 **Examples:**
 
 ```bash
-# Verify mainnet configuration
+## Verify mainnet configuration
 NEXTELLAR_NETWORK=PUBLIC nextellar doctor
 
-# Deploy to testnet
+## Deploy to testnet
 NEXTELLAR_NETWORK=TESTNET nextellar deploy
 ```
 
 ---
 
-### Installation & Package Manager
+## Installation & Package Manager
 
 #### `NEXTELLAR_SKIP_INSTALL`
 
@@ -192,10 +192,10 @@ NEXTELLAR_NETWORK=TESTNET nextellar deploy
 **Examples:**
 
 ```bash
-# Skip installation (useful in Docker or CI)
+## Skip installation (useful in Docker or CI)
 NEXTELLAR_SKIP_INSTALL=1 nextellar my-app
 
-# GitHub Actions with npm cache
+## GitHub Actions with npm cache
 - uses: actions/setup-node@v4
   with:
     node-version: '20'
@@ -205,7 +205,7 @@ NEXTELLAR_SKIP_INSTALL=1 nextellar my-app
 
 ---
 
-#### `NEXTELLAR_PACKAGE_MANAGER`
+## `NEXTELLAR_PACKAGE_MANAGER`
 
 **Type:** `string` (enum: `npm`, `yarn`, `pnpm`, `bun`)
 
@@ -225,17 +225,17 @@ NEXTELLAR_SKIP_INSTALL=1 nextellar my-app
 **Examples:**
 
 ```bash
-# Force pnpm
+## Force pnpm
 export NEXTELLAR_PACKAGE_MANAGER="pnpm"
 nextellar my-app
 
-# Force npm in CI (ignore auto-detect)
+## Force npm in CI (ignore auto-detect)
 NEXTELLAR_PACKAGE_MANAGER=npm nextellar my-app
 ```
 
 ---
 
-### Logging & Debugging
+## Logging & Debugging
 
 #### `NEXTELLAR_LOG_LEVEL`
 
@@ -247,27 +247,27 @@ NEXTELLAR_PACKAGE_MANAGER=npm nextellar my-app
 
 **Valid values:**
 
-| Level     | Description               | Example Output |
-| --------- | ------------------------- | -------------- |
-| `debug`   | Verbose debugging output  | All steps logged |
-| `info`    | Normal operation info     | Key milestones logged |
-| `warn`    | Warnings and errors only  | Issues only |
-| `error`   | Errors only               | Fatal errors only |
-| `silent`  | No output                 | (nothing) |
+| Level    | Description              | Example Output        |
+| -------- | ------------------------ | --------------------- |
+| `debug`  | Verbose debugging output | All steps logged      |
+| `info`   | Normal operation info    | Key milestones logged |
+| `warn`   | Warnings and errors only | Issues only           |
+| `error`  | Errors only              | Fatal errors only     |
+| `silent` | No output                | (nothing)             |
 
 **Examples:**
 
 ```bash
-# Debug scaffolding issues
+## Debug scaffolding issues
 NEXTELLAR_LOG_LEVEL=debug nextellar my-app
 
-# Silent mode for scripting
+## Silent mode for scripting
 NEXTELLAR_LOG_LEVEL=silent nextellar my-app > output.txt
 ```
 
 ---
 
-#### `NEXTELLAR_NO_ANALYTICS`
+## `NEXTELLAR_NO_ANALYTICS`
 
 **Type:** `boolean` (unset = `false`, set to any value = `true`)
 
@@ -278,7 +278,7 @@ NEXTELLAR_LOG_LEVEL=silent nextellar my-app > output.txt
 **Examples:**
 
 ```bash
-# Disable all analytics tracking
+## Disable all analytics tracking
 export NEXTELLAR_NO_ANALYTICS=1
 nextellar my-app
 ```
@@ -298,11 +298,9 @@ However, hooks can read `NEXTELLAR_*` variables in server-side code or during bu
 ```typescript
 // Server-side hook configuration (getServerSideProps, API route)
 export async function getServerSideProps() {
-  const telemetryEnabled =
-    !process.env.NEXTELLAR_TELEMETRY_DISABLED;
+  const telemetryEnabled = !process.env.NEXTELLAR_TELEMETRY_DISABLED;
   const horizonUrl =
-    process.env.NEXTELLAR_HORIZON_URL ||
-    'https://horizon-testnet.stellar.org';
+    process.env.NEXTELLAR_HORIZON_URL || 'https://horizon-testnet.stellar.org';
 
   return {
     props: { telemetryEnabled, horizonUrl },
@@ -319,7 +317,7 @@ export async function getServerSideProps() {
 Create a `.env.local` file in your project root:
 
 ```bash
-# .env.local
+## .env.local
 NEXTELLAR_TELEMETRY_DISABLED=1
 NEXTELLAR_HORIZON_URL=https://horizon.stellar.org
 NEXTELLAR_LOG_LEVEL=debug
@@ -331,7 +329,7 @@ Then run CLI commands:
 nextellar add useHorizonServer
 ```
 
-### In CI/CD Pipelines
+## In CI/CD Pipelines
 
 **GitHub Actions:**
 
@@ -402,13 +400,13 @@ NEXTELLAR_TELEMETRY_DISABLED=1 NEXTELLAR_HORIZON_URL="https://horizon.stellar.or
 Before opening a PR that changes these variables, validate they work correctly:
 
 ```bash
-# Check all variables are recognized
+## Check all variables are recognized
 nextellar doctor
 
-# Verify endpoint connectivity
+## Verify endpoint connectivity
 NEXTELLAR_HORIZON_URL="https://horizon.stellar.org" nextellar doctor
 
-# Test in CI-like environment
+## Test in CI-like environment
 CI=true NEXTELLAR_TELEMETRY_DISABLED=1 nextellar deploy --dry-run
 ```
 
