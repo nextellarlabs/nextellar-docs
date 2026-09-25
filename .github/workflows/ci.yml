@@ -38,6 +38,45 @@ jobs:
       - name: Run unit tests
         run: npm run test:unit
 
+  # Validate sidebar references
+  validate-sidebar:
+    name: Validate Sidebar & TOC
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run sidebar validator
+        run: npm run validate:sidebar
+
+  # Validate heading hierarchy
+  validate-heading-hierarchy:
+    name: Validate Heading Hierarchy
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Validate heading hierarchy
+        run: node scripts/validate-heading-hierarchy.mjs
+
   # Diff gate: verify CLI docs are in sync with CLI's --help output
   verify-cli-docs:
     name: Verify CLI Docs Match --help Output
