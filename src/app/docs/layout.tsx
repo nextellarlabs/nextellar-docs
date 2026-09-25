@@ -139,7 +139,9 @@ export default function DocsLayout({
             </div>
           </Header>
           {/* <div className={`grid xl:grid xl:grid-cols-[1fr_270px]`}> */}
-          <main className="overflow-auto p-6">{children}</main>
+          <main id="main-content" className="overflow-auto p-6" lang="en">
+            {children}
+          </main>
         </MainContent>
       </SidebarProvider>
 
