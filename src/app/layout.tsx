@@ -5,6 +5,7 @@ import { Metadata } from 'next';
 import { meta } from '../../config/meta';
 import { Analytics } from '@/components/analytics';
 import { ErrorBoundary } from '@/components/error-boundary';
+import { SkipToContent } from '@/components/skip-to-content';
 
 const interSans = Inter({
   variable: '--font-inter-sans',
@@ -34,6 +35,7 @@ export default function RootLayout({
             enableSystem
             disableTransitionOnChange
           >
+            <SkipToContent />
             {children}
           </ThemeProvider>
         </ErrorBoundary>
