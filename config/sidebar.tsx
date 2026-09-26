@@ -405,8 +405,12 @@ export const sidebarNav: SidebarSection[] = [
         href: '/docs/guides/horizon-vs-soroban-rpc',
       },
       {
-        title: 'Internationalization',
-        href: '/docs/guides/internationalization',
+        title: 'Accessibility Guide',
+        href: '/docs/guides/accessibility-guide',
+      },
+      {
+        title: 'Internationalization Guide',
+        href: '/docs/guides/internationalization-guide',
       },
     ],
   },
