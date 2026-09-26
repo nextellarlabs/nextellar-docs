@@ -5,16 +5,27 @@ import { codeImport } from 'remark-code-import';
 import rehypeSlug from 'rehype-slug';
 import highlight from 'rehype-highlight';
 
+export interface GuideFrontmatter {
+  title: string;
+  description: string;
+  date?: string;
+  tags?: string[];
+}
+
+const guideFrontmatterFields = {
+  title: { type: 'string', required: true },
+  description: { type: 'string', required: false },
+  date: { type: 'date', required: false },
+  tags: { type: 'list', of: { type: 'string' }, required: false },
+} satisfies Record<keyof GuideFrontmatter, unknown>;
+
 export const Post = defineDocumentType(() => ({
   name: 'Docs',
   contentType: 'mdx',
   filePathPattern: `**/*.mdx`,
   markdown: { fileExtensions: ['mdx', 'md'] }, // Ensure it watches these files
   fields: {
-    title: { type: 'string', required: true },
-    description: { type: 'string', required: false },
-    date: { type: 'date', required: false },
-    tags: { type: 'list', of: { type: 'string' }, required: false },
+    ...guideFrontmatterFields,
     tested_with_cli_version: { type: 'string', required: false },
     tested_with_node_version: { type: 'string', required: false },
   },

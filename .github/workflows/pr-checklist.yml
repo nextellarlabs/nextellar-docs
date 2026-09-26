@@ -1,0 +1,19 @@
+name: PR Checklist
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  checklist:
+    name: Validate contributor checklist
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Require completed checklist items
+        run: node scripts/check-pr-checklist.mjs
