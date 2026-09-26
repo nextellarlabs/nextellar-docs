@@ -40,18 +40,18 @@ Below is the complete list of hooks included in Nextellar projects. These React 
 
 ## Hooks Overview Matrix
 
-A quick reference of every hook, its category, and what it does. Click a hook name to open its full reference page.
+A quick reference of every hook, its purpose, and which template ships it. Click a hook name to open its full reference page.
 
-| Hook                                                           | Category    | Purpose                                                                               |
-| -------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------- |
-| [`useStellarWallet`](/docs/hooks/use-stellar-wallet)           | Wallet      | Connect, disconnect, and sign with Freighter, Albedo, Lobstr, xBull, or Hana wallets. |
-| [`useStellarBalances`](/docs/hooks/use-stellar-balances)       | Account     | Fetch and poll XLM and custom asset balances, handling unfunded accounts gracefully.  |
-| [`useTrustlines`](/docs/hooks/use-trustlines)                  | Account     | Query an account's trustlines and build change-trust XDRs to add or remove them.      |
-| [`useTransactionHistory`](/docs/hooks/use-transaction-history) | Account     | Load and paginate an account's transaction and operation history with cursors.        |
-| [`useStellarPayment`](/docs/hooks/use-stellar-payment)         | Transaction | Build payment XDRs for wallet signing and submit signed payments to Horizon.          |
-| [`useOfferBook`](/docs/hooks/use-offer-book)                   | DEX         | Query Stellar DEX orderbook bids and asks for an asset pair with optional polling.    |
-| [`useSorobanContract`](/docs/hooks/use-soroban-contract)       | Soroban     | Read contract state via simulation and build invoke transactions for signing.         |
-| [`useSorobanEvents`](/docs/hooks/use-soroban-events)           | Soroban     | Subscribe to Soroban contract events with cursor-based pagination and polling.        |
+| Hook | Purpose | Default | Minimal | DeFi | JS | Link |
+| ---- | ------- | ------- | ------- | ---- | -- | ---- |
+| [`useStellarWallet`](/docs/hooks/use-stellar-wallet) | Connect, disconnect, and sign with Freighter, Albedo, Lobstr, xBull, or Hana wallets. | ✓ | ✓ | ✓ | ✓ | [Docs](/docs/hooks/use-stellar-wallet) |
+| [`useStellarBalances`](/docs/hooks/use-stellar-balances) | Fetch and poll XLM and custom asset balances, handling unfunded accounts gracefully. | ✓ | ✓ | ✓ | ✓ | [Docs](/docs/hooks/use-stellar-balances) |
+| [`useStellarPayment`](/docs/hooks/use-stellar-payment) | Build payment XDRs for wallet signing and submit signed payments to Horizon. | ✓ | — | ✓ | ✓ | [Docs](/docs/hooks/use-stellar-payment) |
+| [`useTrustlines`](/docs/hooks/use-trustlines) | Query an account's trustlines and build change-trust XDRs to add or remove them. | ✓ | — | ✓ | ✓ | [Docs](/docs/hooks/use-trustlines) |
+| [`useTransactionHistory`](/docs/hooks/use-transaction-history) | Load and paginate an account's transaction and operation history with cursors. | ✓ | — | — | ✓ | [Docs](/docs/hooks/use-transaction-history) |
+| [`useOfferBook`](/docs/hooks/use-offer-book) | Query Stellar DEX orderbook bids and asks for an asset pair with optional polling. | ✓ | — | ✓ | ✓ | [Docs](/docs/hooks/use-offer-book) |
+| [`useSorobanContract`](/docs/hooks/use-soroban-contract) | Read contract state via simulation and build invoke transactions for signing. | ✓ | — | — | ✓ | [Docs](/docs/hooks/use-soroban-contract) |
+| [`useSorobanEvents`](/docs/hooks/use-soroban-events) | Subscribe to Soroban contract events with cursor-based pagination and polling. | ✓ | — | — | ✓ | [Docs](/docs/hooks/use-soroban-events) |
 
 Related building blocks: [`WalletProvider`](/docs/hooks/wallet-provider) supplies shared config that every hook auto-consumes, [`WalletConnectButton`](/docs/hooks/wallet-connect-button) is a ready-made UI on top of `useStellarWallet`, and [Hook Reference & Edge Cases](/docs/hooks/hook-reference-edge-cases) covers failure modes for each hook.
 
