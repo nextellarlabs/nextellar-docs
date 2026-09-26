@@ -22,6 +22,32 @@ Out of the box, Nextellar supports:
 | **xBull**     | Browser Extension | Advanced features           |
 | **Hana**      | Browser Extension | Stellar ecosystem wallet    |
 
+## Set Up xBull
+
+1. Install xBull from the [official xBull site](https://xbull.app/) and unlock
+   the extension.
+2. Create a wallet or import an existing account. Back up the recovery phrase
+   offline and never share it with your app.
+3. In xBull, select the same network your Nextellar app uses. New Nextellar
+   projects use Stellar Testnet by default.
+4. Include the xBull adapter when scaffolding your project:
+
+   ```bash
+   npx nextellar my-app --wallets freighter,xbull
+   ```
+
+   In an existing project, confirm that `xBullModule` is imported and included
+   in the `modules` array shown below.
+
+5. Start the app, choose **Connect Wallet**, select **xBull**, and approve the
+   site's connection request in the extension.
+6. Verify that the public key shown by the app matches the active xBull account.
+   Before signing a test transaction, also confirm that the app and xBull both
+   show the same network.
+
+If a new Testnet account has no balance, fund it with the steps in
+[Testing (MSW)](/docs/integrations/testing#fund-a-stellar-testnet-account).
+
 ## How It Works
 
 ### Wallet Kit Configuration

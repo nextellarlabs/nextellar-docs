@@ -14,12 +14,14 @@ A Dutch Auction starts at a high initial price and continuously decays over time
 
 The current price $P(t)$ is calculated dynamically:
 
-$$P(t) = \max\left(P_{\text{reserve}}, P_{\text{start}} - \frac{(P_{\text{start}} - P_{\text{reserve}}) \cdot (t - t_{\text{start}})}{T_{\text{duration}}}\right)$$
+```text
+P(t) = \max\left(P_{\text{reserve}}, P_{\text{start}} - \frac{(P_{\text{start}} - P_{\text{reserve}}) \cdot (t - t_{\text{start}})}{T_{\text{duration}}}\right)
+```
 
-- $P_{\text{start}}$: Initial starting price
-- $P_{\text{reserve}}$: Reserve price floor
-- $t_{\text{start}}$: Auction start timestamp
-- $T_{\text{duration}}$: Total duration of price decay
+- `P_start`: Initial starting price
+- `P_reserve`: Reserve price floor
+- `t_start`: Auction start timestamp
+- `T_duration`: Total duration of price decay
 
 ---
 

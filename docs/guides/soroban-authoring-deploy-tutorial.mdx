@@ -1,0 +1,802 @@
+---
+title: Soroban Contract Authoring & Deployment Tutorial
+description: Complete end-to-end guide to writing, testing, deploying, and invoking a Soroban smart contract with Nextellar. Includes a payment vault contract example.
+date: 2026-09-24
+tags: [soroban, contracts, rust, deployment, tutorial, smart-contracts]
+---
+
+# Soroban Contract Authoring & Deployment Tutorial
+
+This tutorial walks you through building a complete Soroban smart contract from scratch, testing it locally, deploying to Stellar Testnet, and invoking it from your Nextellar frontend.
+
+By the end, you'll have:
+- A production-ready Rust Soroban contract (payment vault)
+- Passing unit tests
+- Deployed contract on Testnet
+- A React component invoking the contract
+
+---
+
+## Prerequisites
+
+Verify your environment is ready:
+
+```bash
+# Check Node.js (≥ 20.18.0)
+node --version
+
+# Check Rust is installed
+rustc --version
+
+# Add WASM target
+rustup target add wasm32-unknown-unknown
+
+# Install Stellar CLI
+# https://developers.stellar.org/docs/build/smart-contracts/getting-started/setup#install-the-stellar-cli
+stellar --version
+```
+
+Run Nextellar's doctor to confirm:
+
+```bash
+npx nextellar doctor
+```
+
+---
+
+## Part 1: Project Setup
+
+### Step 1.1: Scaffold with Contracts
+
+Create a new Nextellar project with contract support:
+
+```bash
+npx nextellar my-vault-dapp --with-contracts
+cd my-vault-dapp
+```
+
+This creates:
+- `contracts/` directory with a sample `hello_world` contract
+- `npm run contracts:build` script
+- `npm run contracts:test` script
+- `.env.example` with contract ID placeholder
+
+### Step 1.2: Explore the Structure
+
+```bash
+# View contract directory
+tree contracts/ -L 3
+
+# Should output:
+# contracts/
+# ├── Cargo.toml         (workspace manifest)
+# ├── hello_world/       (sample contract)
+# │   ├── Cargo.toml     (contract package manifest)
+# │   └── src/
+# │       ├── lib.rs     (contract code)
+# │       └── test.rs    (unit tests)
+# └── README.md
+```
+
+### Step 1.3: Verify Compilation
+
+Test that the sample contract builds:
+
+```bash
+npm run contracts:build
+```
+
+You should see:
+```
+Compiling soroban-hello-world v0.1.0
+Finished `release` profile...
+```
+
+---
+
+## Part 2: Write Your Contract
+
+### Step 2.1: Replace the Sample Contract
+
+We'll write a **Payment Vault** contract that allows users to deposit and withdraw funds, with access control.
+
+Edit `contracts/hello_world/src/lib.rs`:
+
+```rust
+#![no_std]
+
+use soroban_sdk::{
+    contract, contractimpl, contracttype, symbol_short, Address, Env, String,
+    Vec, Symbol, log,
+};
+
+// Storage keys (constants for contract state)
+const BALANCE: Symbol = symbol_short!("BALANCE");
+const ADMIN: Symbol = symbol_short!("ADMIN");
+const OWNER_KEY: Symbol = symbol_short!("OWNER");
+
+/// Data structure for storing balances and admin
+#[contracttype]
+pub enum DataKey {
+    Balance(Address),
+    Admin,
+    Owner,
+}
+
+/// The vault contract
+#[contract]
+pub struct VaultContract;
+
+#[contractimpl]
+impl VaultContract {
+    /// Initialize the vault with an admin address (must be called once)
+    /// # Arguments
+    /// * `env` - The Soroban environment
+    /// * `admin` - The admin account address
+    pub fn initialize(env: Env, admin: Address) -> String {
+        // Check if already initialized
+        if env.storage().instance().has(&DataKey::Admin) {
+            log!(&env, "Vault is already initialized");
+            return String::from_slice(&env, "Already initialized");
+        }
+
+        // Set admin
+        env.storage().instance().set(&DataKey::Admin, &admin);
+        
+        // Set instance TTL (time-to-live) to prevent expiration
+        env.storage().instance().extend_ttl(100_000, 300_000);
+
+        log!(&env, "Vault initialized with admin: {}", &admin);
+        String::from_slice(&env, "Initialized successfully")
+    }
+
+    /// Deposit funds into the vault for a user
+    /// # Arguments
+    /// * `env` - The Soroban environment
+    /// * `from` - The depositing user's address (must authorize the transaction)
+    /// * `amount` - Amount to deposit (must be positive)
+    pub fn deposit(env: Env, from: Address, amount: i128) -> String {
+        // Require authorization from the depositing user
+        from.require_auth();
+
+        // Validate amount
+        if amount <= 0 {
+            log!(&env, "Deposit amount must be positive: {}", amount);
+            return String::from_slice(&env, "Invalid amount");
+        }
+
+        // Get the storage key for this user's balance
+        let key = DataKey::Balance(from.clone());
+
+        // Fetch current balance (default to 0 if not found)
+        let current_balance: i128 = env
+            .storage()
+            .persistent()
+            .get(&key)
+            .unwrap_or(Ok(0))
+            .unwrap_or(0);
+
+        // Calculate new balance with overflow protection
+        let new_balance = match current_balance.checked_add(amount) {
+            Some(sum) => sum,
+            None => {
+                log!(&env, "Deposit would overflow balance");
+                return String::from_slice(&env, "Balance overflow");
+            }
+        };
+
+        // Update balance in persistent storage
+        env.storage().persistent().set(&key, &new_balance);
+
+        // Extend the storage TTL to prevent expiration (prevent archival)
+        // Extended TTL: 100,000 ledgers current, 300,000 ledgers future
+        env.storage().persistent().extend_ttl(&key, 100_000, 300_000);
+
+        log!(&env, "Deposited {} for user, new balance: {}", amount, new_balance);
+        String::from_slice(&env, "Deposit successful")
+    }
+
+    /// Withdraw funds from the vault
+    /// # Arguments
+    /// * `env` - The Soroban environment
+    /// * `from` - The withdrawing user's address (must authorize the transaction)
+    /// * `amount` - Amount to withdraw (must be positive and ≤ current balance)
+    pub fn withdraw(env: Env, from: Address, amount: i128) -> String {
+        // Require authorization from the withdrawing user
+        from.require_auth();
+
+        // Validate amount
+        if amount <= 0 {
+            log!(&env, "Withdrawal amount must be positive: {}", amount);
+            return String::from_slice(&env, "Invalid amount");
+        }
+
+        // Get the storage key for this user's balance
+        let key = DataKey::Balance(from.clone());
+
+        // Fetch current balance (default to 0 if not found)
+        let current_balance: i128 = env
+            .storage()
+            .persistent()
+            .get(&key)
+            .unwrap_or(Ok(0))
+            .unwrap_or(0);
+
+        // Check if user has sufficient balance
+        if current_balance < amount {
+            log!(&env, "Insufficient balance: {} < {}", current_balance, amount);
+            return String::from_slice(&env, "Insufficient balance");
+        }
+
+        // Calculate new balance
+        let new_balance = current_balance - amount;
+
+        // Update balance in persistent storage
+        env.storage().persistent().set(&key, &new_balance);
+
+        log!(&env, "Withdrew {} for user, new balance: {}", amount, new_balance);
+        String::from_slice(&env, "Withdrawal successful")
+    }
+
+    /// Get the current balance of a user
+    /// # Arguments
+    /// * `env` - The Soroban environment
+    /// * `user` - The user's address
+    /// # Returns
+    /// The user's current balance, or 0 if not found
+    pub fn get_balance(env: Env, user: Address) -> i128 {
+        let key = DataKey::Balance(user);
+        env.storage()
+            .persistent()
+            .get(&key)
+            .unwrap_or(Ok(0))
+            .unwrap_or(0)
+    }
+}
+
+// Test module
+#[cfg(test)]
+mod test;
+```
+
+### Step 2.2: Create Unit Tests
+
+Replace `contracts/hello_world/src/test.rs`:
+
+```rust
+#[cfg(test)]
+mod tests {
+    use soroban_sdk::testutils::Address as AddressTestUtils;
+    use soroban_sdk::{Env, Address};
+
+    use crate::{VaultContract, VaultContractClient};
+
+    #[test]
+    fn test_initialize() {
+        let env = Env::default();
+        let admin = Address::random(&env);
+        let contract = VaultContractClient::new(&env, &env.register_contract(None, VaultContract));
+
+        let result = contract.initialize(&admin);
+        assert_eq!(result, "Initialized successfully");
+    }
+
+    #[test]
+    fn test_deposit_and_balance() {
+        let env = Env::default();
+        let contract_id = env.register_contract(None, VaultContract);
+        let client = VaultContractClient::new(&env, &contract_id);
+
+        let user = Address::random(&env);
+        let admin = Address::random(&env);
+
+        // Initialize
+        client.initialize(&admin);
+
+        // Deposit 100 units
+        user.mock_all_auths();
+        let deposit_result = client.deposit(&user, &100);
+        assert_eq!(deposit_result, "Deposit successful");
+
+        // Check balance
+        let balance = client.get_balance(&user);
+        assert_eq!(balance, 100);
+    }
+
+    #[test]
+    fn test_withdraw() {
+        let env = Env::default();
+        let contract_id = env.register_contract(None, VaultContract);
+        let client = VaultContractClient::new(&env, &contract_id);
+
+        let user = Address::random(&env);
+        let admin = Address::random(&env);
+
+        // Initialize
+        client.initialize(&admin);
+
+        // Deposit 100
+        user.mock_all_auths();
+        client.deposit(&user, &100);
+
+        // Withdraw 30
+        let withdraw_result = client.withdraw(&user, &30);
+        assert_eq!(withdraw_result, "Withdrawal successful");
+
+        // Check balance is now 70
+        let balance = client.get_balance(&user);
+        assert_eq!(balance, 70);
+    }
+
+    #[test]
+    fn test_insufficient_balance() {
+        let env = Env::default();
+        let contract_id = env.register_contract(None, VaultContract);
+        let client = VaultContractClient::new(&env, &contract_id);
+
+        let user = Address::random(&env);
+        let admin = Address::random(&env);
+
+        // Initialize
+        client.initialize(&admin);
+
+        // Deposit 50
+        user.mock_all_auths();
+        client.deposit(&user, &50);
+
+        // Try to withdraw 100 (more than balance)
+        let withdraw_result = client.withdraw(&user, &100);
+        assert_eq!(withdraw_result, "Insufficient balance");
+
+        // Balance should still be 50
+        let balance = client.get_balance(&user);
+        assert_eq!(balance, 50);
+    }
+
+    #[test]
+    fn test_invalid_amount() {
+        let env = Env::default();
+        let contract_id = env.register_contract(None, VaultContract);
+        let client = VaultContractClient::new(&env, &contract_id);
+
+        let user = Address::random(&env);
+        let admin = Address::random(&env);
+
+        // Initialize
+        client.initialize(&admin);
+
+        // Try to deposit 0 (invalid)
+        user.mock_all_auths();
+        let deposit_result = client.deposit(&user, &0);
+        assert_eq!(deposit_result, "Invalid amount");
+
+        // Try to deposit negative (invalid)
+        let deposit_result = client.deposit(&user, &-100);
+        assert_eq!(deposit_result, "Invalid amount");
+    }
+}
+```
+
+### Step 2.3: Build and Test Locally
+
+```bash
+# Run unit tests
+npm run contracts:test
+
+# Output should show all tests passing:
+# test test::test_initialize ... ok
+# test test::test_deposit_and_balance ... ok
+# test test::test_withdraw ... ok
+# test test::test_insufficient_balance ... ok
+# test test::test_invalid_amount ... ok
+```
+
+Verify the contract compiles:
+
+```bash
+npm run contracts:build
+
+# Should output:
+# Compiling soroban-vault-contract v0.1.0
+# Finished `release` profile...
+```
+
+---
+
+## Part 3: Deploy to Testnet
+
+### Step 3.1: Set Up Stellar CLI
+
+Configure the Stellar CLI for Testnet:
+
+```bash
+# Set default network to testnet
+stellar network add \
+  --rpc-url https://soroban-testnet.stellar.org \
+  --network-passphrase "Test SDF Network ; September 2015" \
+  testnet
+
+stellar network use testnet
+```
+
+### Step 3.2: Create/Fund a Deployment Account
+
+You need an account with XLM to pay for deployment fees.
+
+```bash
+# Generate a new keypair (save the secret in .env!)
+stellar keys generate --secret deployment_key
+
+# Get the public key
+stellar keys show deployment_key
+
+# Fund it via Friendbot (testnet only)
+curl "https://friendbot.stellar.org/?addr=<YOUR_PUBLIC_KEY>"
+
+# Verify funding
+stellar account info <YOUR_PUBLIC_KEY>
+```
+
+Store the secret key securely:
+
+```bash
+# .env (NEVER commit this!)
+SOROBAN_DEPLOYMENT_KEY=SCXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+```
+
+### Step 3.3: Build WASM Binary
+
+Build the contract for deployment:
+
+```bash
+npm run contracts:build
+
+# WASM binary is now at:
+# contracts/hello_world/target/wasm32-unknown-unknown/release/soroban_hello_world.wasm
+```
+
+### Step 3.4: Deploy the Contract
+
+Deploy using the Stellar CLI:
+
+```bash
+stellar contract deploy \
+  --wasm contracts/hello_world/target/wasm32-unknown-unknown/release/soroban_hello_world.wasm \
+  --source deployment_key
+
+# Output:
+# Deployed contract ID: CAB3DDEFAFE7D5E3C6CBEF9D0F3D8F2E1A9B8C7D6E5F4A3B2C1D0E9F8A7B6C
+```
+
+**Save this contract ID!** You'll need it for frontend invocation.
+
+### Step 3.5: Initialize the Contract
+
+Call the `initialize` function to set up the vault:
+
+```bash
+stellar contract invoke \
+  --id CAB3DDEFAFE7D5E3C6CBEF9D0F3D8F2E1A9B8C7D6E5F4A3B2C1D0E9F8A7B6C \
+  --source deployment_key \
+  --network testnet \
+  -- initialize \
+  --admin <YOUR_PUBLIC_KEY>
+
+# Output:
+# "Initialized successfully"
+```
+
+### Step 3.6: Update Environment Variables
+
+Add the contract ID to `.env.local`:
+
+```bash
+# .env.local
+NEXT_PUBLIC_VAULT_CONTRACT_ID=CAB3DDEFAFE7D5E3C6CBEF9D0F3D8F2E1A9B8C7D6E5F4A3B2C1D0E9F8A7B6C
+NEXT_PUBLIC_SOROBAN_RPC_URL=https://soroban-testnet.stellar.org
+```
+
+---
+
+## Part 4: Invoke from Frontend
+
+### Step 4.1: Create a Contract Hook
+
+Create `src/hooks/useSorobanVault.ts`:
+
+```typescript
+import { useSorobanContract } from '@/hooks/useSorobanContract';
+import { useWallet } from '@/contexts/WalletContext';
+import { useState } from 'react';
+
+const CONTRACT_ID = process.env.NEXT_PUBLIC_VAULT_CONTRACT_ID!;
+
+export function useSorobanVault() {
+  const { publicKey } = useWallet();
+  const { invoke, loading: invoking } = useSorobanContract();
+  const [error, setError] = useState<Error | null>(null);
+
+  const initialize = async (adminKey: string) => {
+    try {
+      setError(null);
+      return await invoke({
+        contractId: CONTRACT_ID,
+        method: 'initialize',
+        args: [adminKey],
+      });
+    } catch (err: any) {
+      const error = new Error(err.message || 'Initialize failed');
+      setError(error);
+      throw error;
+    }
+  };
+
+  const deposit = async (amount: number) => {
+    if (!publicKey) throw new Error('Wallet not connected');
+    try {
+      setError(null);
+      return await invoke({
+        contractId: CONTRACT_ID,
+        method: 'deposit',
+        args: [publicKey, amount],
+      });
+    } catch (err: any) {
+      const error = new Error(err.message || 'Deposit failed');
+      setError(error);
+      throw error;
+    }
+  };
+
+  const withdraw = async (amount: number) => {
+    if (!publicKey) throw new Error('Wallet not connected');
+    try {
+      setError(null);
+      return await invoke({
+        contractId: CONTRACT_ID,
+        method: 'withdraw',
+        args: [publicKey, amount],
+      });
+    } catch (err: any) {
+      const error = new Error(err.message || 'Withdrawal failed');
+      setError(error);
+      throw error;
+    }
+  };
+
+  const getBalance = async (userKey: string) => {
+    try {
+      setError(null);
+      const result = await invoke({
+        contractId: CONTRACT_ID,
+        method: 'get_balance',
+        args: [userKey],
+      });
+      return result;
+    } catch (err: any) {
+      const error = new Error(err.message || 'Get balance failed');
+      setError(error);
+      throw error;
+    }
+  };
+
+  return {
+    initialize,
+    deposit,
+    withdraw,
+    getBalance,
+    loading: invoking,
+    error,
+  };
+}
+```
+
+### Step 4.2: Create a Vault Component
+
+Create `src/components/VaultComponent.tsx`:
+
+```tsx
+'use client';
+
+import { useState } from 'react';
+import { useWallet } from '@/contexts/WalletContext';
+import { useSorobanVault } from '@/hooks/useSorobanVault';
+
+export function VaultComponent() {
+  const { connected, publicKey } = useWallet();
+  const { deposit, withdraw, getBalance, loading, error } = useSorobanVault();
+
+  const [depositAmount, setDepositAmount] = useState('');
+  const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [balance, setBalance] = useState<number | null>(null);
+  const [txStatus, setTxStatus] = useState('');
+
+  const handleDeposit = async () => {
+    if (!depositAmount) return;
+    try {
+      setTxStatus('Depositing...');
+      await deposit(Number(depositAmount));
+      setTxStatus('Deposit successful!');
+      setDepositAmount('');
+      // Refresh balance
+      if (publicKey) {
+        const newBalance = await getBalance(publicKey);
+        setBalance(newBalance as number);
+      }
+    } catch (err) {
+      setTxStatus(`Error: ${(err as Error).message}`);
+    }
+  };
+
+  const handleWithdraw = async () => {
+    if (!withdrawAmount) return;
+    try {
+      setTxStatus('Withdrawing...');
+      await withdraw(Number(withdrawAmount));
+      setTxStatus('Withdrawal successful!');
+      setWithdrawAmount('');
+      // Refresh balance
+      if (publicKey) {
+        const newBalance = await getBalance(publicKey);
+        setBalance(newBalance as number);
+      }
+    } catch (err) {
+      setTxStatus(`Error: ${(err as Error).message}`);
+    }
+  };
+
+  const handleCheckBalance = async () => {
+    if (!publicKey) return;
+    try {
+      const bal = await getBalance(publicKey);
+      setBalance(bal as number);
+    } catch (err) {
+      setTxStatus(`Error: ${(err as Error).message}`);
+    }
+  };
+
+  if (!connected) {
+    return <p className="text-gray-600">Connect wallet to use vault</p>;
+  }
+
+  return (
+    <div className="max-w-md mx-auto border rounded-lg p-6 bg-gray-50">
+      <h2 className="text-2xl font-bold mb-4">Stellar Vault</h2>
+
+      <div className="mb-6">
+        <button
+          onClick={handleCheckBalance}
+          disabled={loading}
+          className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400 mb-2"
+        >
+          {loading ? 'Loading...' : 'Check Balance'}
+        </button>
+        {balance !== null && (
+          <p className="text-lg font-semibold">Balance: {balance} units</p>
+        )}
+      </div>
+
+      <div className="mb-4">
+        <label className="block text-sm font-medium mb-2">Deposit Amount</label>
+        <div className="flex gap-2">
+          <input
+            type="number"
+            value={depositAmount}
+            onChange={(e) => setDepositAmount(e.target.value)}
+            placeholder="Amount to deposit"
+            className="flex-1 px-3 py-2 border rounded"
+            disabled={loading}
+          />
+          <button
+            onClick={handleDeposit}
+            disabled={loading || !depositAmount}
+            className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-400"
+          >
+            {loading ? 'Processing...' : 'Deposit'}
+          </button>
+        </div>
+      </div>
+
+      <div className="mb-4">
+        <label className="block text-sm font-medium mb-2">Withdraw Amount</label>
+        <div className="flex gap-2">
+          <input
+            type="number"
+            value={withdrawAmount}
+            onChange={(e) => setWithdrawAmount(e.target.value)}
+            placeholder="Amount to withdraw"
+            className="flex-1 px-3 py-2 border rounded"
+            disabled={loading}
+          />
+          <button
+            onClick={handleWithdraw}
+            disabled={loading || !withdrawAmount}
+            className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:bg-gray-400"
+          >
+            {loading ? 'Processing...' : 'Withdraw'}
+          </button>
+        </div>
+      </div>
+
+      {txStatus && (
+        <p className={`text-sm font-medium ${txStatus.includes('Error') ? 'text-red-600' : 'text-green-600'}`}>
+          {txStatus}
+        </p>
+      )}
+      {error && <p className="text-red-600 text-sm mt-2">{error.message}</p>}
+    </div>
+  );
+}
+```
+
+### Step 4.3: Use in Your Page
+
+Update `app/page.tsx`:
+
+```tsx
+import { ConnectWalletButton } from '@/components/ConnectWalletButton';
+import { VaultComponent } from '@/components/VaultComponent';
+
+export default function Home() {
+  return (
+    <main className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 text-white">
+      <div className="container mx-auto px-4 py-12">
+        <h1 className="text-4xl font-bold mb-4 text-center">Stellar Vault dApp</h1>
+        <p className="text-center text-gray-400 mb-8">
+          Deposit and withdraw funds using a Soroban smart contract
+        </p>
+
+        <div className="flex justify-center mb-8">
+          <ConnectWalletButton />
+        </div>
+
+        <div className="flex justify-center">
+          <VaultComponent />
+        </div>
+      </div>
+    </main>
+  );
+}
+```
+
+---
+
+## Troubleshooting
+
+### Contract Deployment Fails
+
+**Error:** `No account found for key`
+
+**Solution:** Fund the deployment account via Friendbot first:
+
+```bash
+curl "https://friendbot.stellar.org/?addr=<YOUR_PUBLIC_KEY>"
+```
+
+### Contract Invocation Returns Error
+
+**Error:** `Contract not found` or `Invalid contract ID`
+
+**Solution:** 
+1. Verify the contract ID in `.env.local` is correct
+2. Confirm you deployed to Testnet (not Mainnet)
+3. Check the contract initialization was called
+
+### Authorization Failed
+
+**Error:** `require_auth failed` or `User rejected`
+
+**Solution:**
+- The wallet must authorize the transaction
+- Check that the user's public key matches the `from` argument
+- Ensure the wallet is connected before invoking
+
+---
+
+## Next Steps
+
+- [Soroban Contract Authoring](/docs/guides/soroban-contract-authoring) — Deep dive on contract design patterns
+- [Wallet Integration Deep-Dive](/docs/guides/wallet-integration-deep-dive) — Advanced wallet signing
+- [Soroban Index](/docs/guides/soroban-index) — Full Soroban documentation index
+- [Contracts Quick Start](/docs/getting-started/contracts-quick-start) — Quick reference
+- [Testing](/docs/guides/testing) — Test your contract and frontend
+

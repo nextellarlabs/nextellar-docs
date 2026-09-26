@@ -8,7 +8,7 @@ date: 2026-07-27
 
 Every change to Stellar network state — a payment, a trustline, a smart contract invocation — travels through four phases before it is permanent. Understanding each phase makes it easier to build reliable flows, handle errors in the right place, and know when it is safe to update your UI.
 
-```
+```text
 Build  →  Sign  →  Submit  →  Confirm
 ```
 
@@ -18,13 +18,13 @@ Build  →  Sign  →  Submit  →  Confirm
 
 Building a transaction means constructing an XDR envelope that describes exactly what should happen on-chain. The key inputs are:
 
-| Input | Why it matters |
-|---|---|
-| Source account | Determines which account's sequence number is consumed |
-| Sequence number | Must be exactly `current + 1`; fetched fresh from Horizon before building |
-| Operations | The actions to execute (payment, changeTrust, invokeHostFunction, etc.) |
-| Fee | Stroops per operation; higher fee improves inclusion during congestion |
-| Timeout | Seconds until the transaction is invalid; prevents stuck pending txs |
+| Input              | Why it matters                                                                    |
+| ------------------ | --------------------------------------------------------------------------------- |
+| Source account     | Determines which account's sequence number is consumed                            |
+| Sequence number    | Must be exactly `current + 1`; fetched fresh from Horizon before building         |
+| Operations         | The actions to execute (payment, changeTrust, invokeHostFunction, etc.)           |
+| Fee                | Stroops per operation; higher fee improves inclusion during congestion            |
+| Timeout            | Seconds until the transaction is invalid; prevents stuck pending txs              |
 | Network passphrase | Binds the transaction to testnet or mainnet; signing with the wrong network fails |
 
 ```typescript
@@ -42,7 +42,7 @@ const server = new Server('https://horizon-testnet.stellar.org');
 const sourceAccount = await server.loadAccount(senderPublicKey);
 
 const tx = new TransactionBuilder(sourceAccount, {
-  fee: '200',                          // stroops per operation
+  fee: '200', // stroops per operation
   networkPassphrase: Networks.TESTNET,
 })
   .addOperation(
@@ -52,7 +52,7 @@ const tx = new TransactionBuilder(sourceAccount, {
       amount: '10',
     })
   )
-  .setTimeout(30)                      // reject if not submitted within 30 s
+  .setTimeout(30) // reject if not submitted within 30 s
   .build();
 ```
 
@@ -129,10 +129,10 @@ try {
 
 ```typescript
 {
-  hash: string;          // transaction hash — use this to look up the tx later
-  ledger: number;        // ledger sequence number the tx was included in
-  envelope_xdr: string;  // the signed envelope
-  result_xdr: string;    // encoded operation results
+  hash: string; // transaction hash — use this to look up the tx later
+  ledger: number; // ledger sequence number the tx was included in
+  envelope_xdr: string; // the signed envelope
+  result_xdr: string; // encoded operation results
   result_meta_xdr: string;
 }
 ```
@@ -143,14 +143,14 @@ try {
 
 ### Common submission errors
 
-| Result code | Cause | Fix |
-|---|---|---|
-| `tx_bad_seq` | Sequence number mismatch | Reload account and rebuild |
-| `tx_bad_auth` | Missing or wrong signature | Check signing keys and thresholds |
-| `tx_insufficient_fee` | Fee too low during surge | Increase fee and resubmit |
-| `tx_too_late` | Submitted after `timeBounds.maxTime` | Rebuild with a fresh timeout |
-| `op_underfunded` | Sender balance too low | Verify balance before building |
-| `op_no_trust` | Recipient lacks trustline | Open trustline first |
+| Result code           | Cause                                | Fix                               |
+| --------------------- | ------------------------------------ | --------------------------------- |
+| `tx_bad_seq`          | Sequence number mismatch             | Reload account and rebuild        |
+| `tx_bad_auth`         | Missing or wrong signature           | Check signing keys and thresholds |
+| `tx_insufficient_fee` | Fee too low during surge             | Increase fee and resubmit         |
+| `tx_too_late`         | Submitted after `timeBounds.maxTime` | Rebuild with a fresh timeout      |
+| `op_underfunded`      | Sender balance too low               | Verify balance before building    |
+| `op_no_trust`         | Recipient lacks trustline            | Open trustline first              |
 
 ---
 
@@ -160,19 +160,17 @@ Once Horizon returns a `ledger` number, the transaction is confirmed. Stellar le
 
 ### Ledger close timing
 
-| Network | Average ledger close | Notes |
-|---|---|---|
-| Testnet | ~5 s | Can be slower under load |
-| Mainnet | ~5 s | SCP consensus; rarely varies |
+| Network | Average ledger close | Notes                        |
+| ------- | -------------------- | ---------------------------- |
+| Testnet | ~5 s                 | Can be slower under load     |
+| Mainnet | ~5 s                 | SCP consensus; rarely varies |
 
 ### Checking confirmation status
 
 If you need to verify a transaction after the fact (for example, after a page reload), fetch it by hash:
 
 ```typescript
-const tx = await server.transactions()
-  .transaction(txHash)
-  .call();
+const tx = await server.transactions().transaction(txHash).call();
 
 console.log('Successful:', tx.successful);
 console.log('Ledger:', tx.ledger);
@@ -259,9 +257,7 @@ async function sendAndConfirm(
   // ── Phase 4: Confirm ────────────────────────────────────────────────────
   // submitTransaction already waited for inclusion — result.ledger is set.
   // Optionally verify the final state by fetching the transaction record:
-  const confirmed = await server.transactions()
-    .transaction(result.hash)
-    .call();
+  const confirmed = await server.transactions().transaction(result.hash).call();
 
   console.log(`✅ Confirmed in ledger ${confirmed.ledger}`);
   console.log(`   Hash: ${confirmed.hash}`);
@@ -306,22 +302,22 @@ See [useStellarPayment](/docs/hooks/use-stellar-payment) for the full API and [u
 
 For full hook-level recovery patterns see [Hook Error Handling](/docs/guides/hook-error-handling).
 
-| Phase | What can fail | Recovery |
-|---|---|---|
-| Build | Stale sequence number | Reload account; rebuild |
-| Build | Invalid address or amount | Validate inputs before calling `TransactionBuilder` |
-| Sign | Wrong network passphrase | Confirm `Networks.TESTNET` vs `Networks.PUBLIC` |
-| Sign | User rejects in wallet | Catch the rejection and let the user retry |
-| Submit | `tx_bad_seq` | Reload account and rebuild — do not resubmit the old XDR |
-| Submit | `tx_too_late` | Rebuild with a fresh `setTimeout` |
-| Submit | `tx_insufficient_fee` | Increase fee; consider fee-bump transactions for stuck txs |
-| Confirm | Transaction not found | Hash may be from a different network; verify passphrase |
+| Phase   | What can fail             | Recovery                                                   |
+| ------- | ------------------------- | ---------------------------------------------------------- |
+| Build   | Stale sequence number     | Reload account; rebuild                                    |
+| Build   | Invalid address or amount | Validate inputs before calling `TransactionBuilder`        |
+| Sign    | Wrong network passphrase  | Confirm `Networks.TESTNET` vs `Networks.PUBLIC`            |
+| Sign    | User rejects in wallet    | Catch the rejection and let the user retry                 |
+| Submit  | `tx_bad_seq`              | Reload account and rebuild — do not resubmit the old XDR   |
+| Submit  | `tx_too_late`             | Rebuild with a fresh `setTimeout`                          |
+| Submit  | `tx_insufficient_fee`     | Increase fee; consider fee-bump transactions for stuck txs |
+| Confirm | Transaction not found     | Hash may be from a different network; verify passphrase    |
 
 ---
 
 ## Lifecycle summary
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │  Build                                                      │
 │  • Load fresh account (sequence number)                     │

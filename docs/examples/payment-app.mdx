@@ -484,7 +484,11 @@ function ErrorDisplay({ error }: { error: AppError }) {
     rejected: <button onClick={() => setError(null)}>Try Again</button>,
     network: <button onClick={() => handleSend(params)}>Retry</button>,
     trustline: (
-      <a href="/guides/trustlines" target="_blank" rel="noopener noreferrer">
+      <a
+        href="/docs/hooks/use-trustlines"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
         Learn about trustlines ↗
       </a>
     ),

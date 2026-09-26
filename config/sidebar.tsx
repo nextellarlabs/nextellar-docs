@@ -51,6 +51,10 @@ export const sidebarNav: SidebarSection[] = [
       { title: 'Installation', href: '/docs/getting-started/installation' },
       { title: 'Quick Start', href: '/docs/getting-started/quick-start' },
       {
+        title: 'Project Structure',
+        href: '/docs/getting-started/project-structure',
+      },
+      {
         title: 'Contracts Quick Start',
         href: '/docs/getting-started/contracts-quick-start',
       },
@@ -69,13 +73,26 @@ export const sidebarNav: SidebarSection[] = [
     pages: [
       { title: 'Overview', href: '/docs/cli/overview' },
       { title: 'Commands', href: '/docs/cli/commands' },
+      { title: 'CLI Reference', href: '/docs/cli/reference' },
       { title: 'Cheat Sheet', href: '/docs/cli/cheat-sheet' },
       { title: 'Flags & Options', href: '/docs/cli/flags' },
       { title: 'Scaffolding Templates', href: '/docs/cli/templates' },
       { title: 'Template Comparison', href: '/docs/cli/template-comparison' },
       { title: 'JavaScript Default Template', href: '/docs/cli/js-template' },
+      {
+        title: 'Verified Template Matrix',
+        href: '/docs/cli/verified-template-matrix',
+      },
       { title: 'JavaScript DeFi Template', href: '/docs/cli/js-defi' },
       { title: 'Clean Build Artifacts', href: '/docs/cli/clean' },
+      {
+        title: 'Environment Variables Reference',
+        href: '/docs/cli/env-vars-reference',
+      },
+      {
+        title: 'Exit Codes & CI Integration',
+        href: '/docs/cli/exit-codes-and-ci',
+      },
     ],
   },
 
@@ -102,10 +119,27 @@ export const sidebarNav: SidebarSection[] = [
         href: '/docs/guides/cdn-cache-invalidation',
       },
       { title: 'Deployment', href: '/docs/guides/deployment' },
+      {
+        title: 'Production Deployment (Vercel + Cloud)',
+        href: '/docs/guides/production-deployment-vercel-nextellar-cloud',
+      },
+      {
+        title: 'Observability & Analytics Pipeline',
+        href: '/docs/guides/observability-analytics-guide',
+      },
+      { title: 'Lifecycle Tutorial', href: '/docs/guides/lifecycle-tutorial' },
       { title: 'Migration', href: '/docs/guides/migration' },
+      {
+        title: 'Adoption Guide - Nextellar in Existing Next.js Apps',
+        href: '/docs/guides/adoption-migration-guide',
+      },
       {
         title: 'Transaction Lifecycle',
         href: '/docs/guides/transaction-lifecycle',
+      },
+      {
+        title: 'Transaction Lifecycle End-to-End',
+        href: '/docs/guides/transaction-lifecycle-e2e',
       },
       { title: 'Extending the CLI', href: '/docs/guides/extending-the-cli' },
       { title: 'Feature Flags', href: '/docs/guides/feature-flags' },
@@ -119,8 +153,32 @@ export const sidebarNav: SidebarSection[] = [
         href: '/docs/guides/testing-transactions-testnet',
       },
       {
+        title: 'Testnet Payment Tutorial',
+        href: '/docs/guides/testnet-payment-tutorial',
+      },
+      {
+        title: 'DeFi dApp Tutorial',
+        href: '/docs/examples/defi-dapp-tutorial',
+      },
+      {
         title: 'Cross-Contract Calls',
         href: '/docs/guides/cross-contract-calls',
+      },
+      {
+        title: 'Soroban Guides Index',
+        href: '/docs/guides/soroban-index',
+      },
+      {
+        title: 'Soroban Contract Authoring & Deploy Tutorial',
+        href: '/docs/guides/soroban-authoring-deploy-tutorial',
+      },
+      {
+        title: 'Soroban Resources Consolidated Guide',
+        href: '/docs/guides/soroban-resources-consolidated-guide',
+      },
+      {
+        title: 'Error Handling Patterns',
+        href: '/docs/guides/error-handling-patterns',
       },
       {
         title: 'Hook Error Handling',
@@ -131,8 +189,24 @@ export const sidebarNav: SidebarSection[] = [
         href: '/docs/guides/wallet-ux-patterns',
       },
       {
+        title: 'Wallet Integration Deep-Dive',
+        href: '/docs/guides/wallet-integration-deep-dive',
+      },
+      {
         title: 'Custom Hook Authoring',
         href: '/docs/guides/custom-hook-authoring-playbook',
+      },
+      {
+        title: 'Adding & Authoring Custom Hooks',
+        href: '/docs/guides/custom-hook-with-add',
+      },
+      {
+        title: 'Using Custom Endpoints',
+        href: '/docs/guides/custom-endpoints',
+      },
+      {
+        title: 'Package Managers & Lockfiles',
+        href: '/docs/guides/package-managers-and-lockfiles',
       },
       {
         title: 'Optimizing Transaction Sizes',
@@ -167,11 +241,10 @@ export const sidebarNav: SidebarSection[] = [
         title: 'Creating and Managing DEX Offers',
         href: '/docs/guides/offer-creation-management',
       },
+      { title: 'Documentation Roadmap', href: '/docs/guides/roadmap' },
       {
-        title: 'Documentation Roadmap',
-        href: '/docs/guides/roadmap',
-        title: 'Security Policy',
-        href: '/docs/guides/security-policy',
+        title: 'Security Hardening',
+        href: '/docs/guides/security-hardening',
       },
       { title: 'Security Policy', href: '/docs/guides/security-policy' },
       { title: 'Glossary', href: '/docs/guides/glossary' },
@@ -201,6 +274,7 @@ export const sidebarNav: SidebarSection[] = [
     icon: <Component className="h-5 w-5" />,
     defaultOpen: false,
     pages: [
+      { title: 'Hooks Cookbook', href: '/docs/hooks/cookbook' },
       { title: 'useStellarWallet', href: '/docs/hooks/use-stellar-wallet' },
       { title: 'useStellarBalances', href: '/docs/hooks/use-stellar-balances' },
       { title: 'useStellarPayment', href: '/docs/hooks/use-stellar-payment' },
@@ -332,8 +406,6 @@ export const sidebarNav: SidebarSection[] = [
         href: '/docs/guides/horizon-vs-soroban-rpc',
       },
       {
-        title: 'Security Policy',
-        href: '/docs/guides/security-policy',
         title: 'Internationalization',
         href: '/docs/guides/internationalization',
       },

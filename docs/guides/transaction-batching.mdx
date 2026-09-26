@@ -27,7 +27,7 @@ A single Stellar transaction can carry up to 100 operations. Batching groups log
 
 When creating a new account you often need to fund it, open trustlines, and set options in the same step. Batching these avoids a race condition where another transaction could observe the account in a half-configured state.
 
-```
+```text
 createAccount → changeTrust (USDC) → changeTrust (yXLM) → setOptions
 ```
 
@@ -35,7 +35,7 @@ createAccount → changeTrust (USDC) → changeTrust (yXLM) → setOptions
 
 Sending the same asset to many recipients in one envelope is more efficient than separate transactions. Up to 100 payment operations can be packed into a single submission.
 
-```
+```text
 payment → payment → payment → ... (up to 100)
 ```
 
@@ -43,7 +43,7 @@ payment → payment → payment → ... (up to 100)
 
 A common pattern for onboarding: open the trustline for an asset and immediately send the first deposit in the same transaction. The recipient never needs to take an intermediate step.
 
-```
+```text
 changeTrust (asset) → payment (asset)
 ```
 

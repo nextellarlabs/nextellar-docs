@@ -14,7 +14,7 @@ A paymaster is a service that pays Stellar transaction fees on behalf of users. 
 
 A fee-bump transaction wraps an inner transaction (already signed by the user) and adds an outer fee payer. The inner transaction's source account pays nothing — the outer fee-bump account pays the fee.
 
-```
+```text
 User signs inner tx (fee = 0 or BASE_FEE)
    ↓
 Paymaster wraps in fee-bump tx (pays actual network fee)
@@ -26,7 +26,7 @@ Submit fee-bump tx — user pays no XLM
 
 ## Architecture
 
-```
+```text
 User → dApp frontend
   → User signs inner tx with their wallet (no fee concern)
   → POST /api/paymaster with signed inner tx XDR

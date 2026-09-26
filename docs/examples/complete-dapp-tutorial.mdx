@@ -15,7 +15,7 @@ This comprehensive tutorial guides you through building a full-featured dApp usi
 
 The dApp coordinates four sequential phases:
 
-```
+```text
 [ 1. Wallet Connect ] ──> [ 2. Trustline Check/Create ] ──> [ 3. Payment Execution ] ──> [ 4. Soroban Invocation ]
 ```
 
@@ -272,10 +272,225 @@ describe('StellarDAppFlow Integration Test', () => {
 
 ---
 
-## 4. End-to-End Verification & Validation
+## 4. Deploy a Soroban Smart Contract
 
-When deploying to Stellar Testnet:
+Before invoking a Soroban contract in your dApp, you need to deploy the contract WASM to the Stellar network.
 
-1. Ensure the active wallet is funded via **Friendbot** (`https://friendbot.stellar.org`).
-2. Verify Soroban Contract WASM has been deployed to Testnet using `stellar contract deploy`.
-3. Check the Horizon and RPC responses in the browser developer tools console to confirm XDR signatures match network passphrase `Test SDF Network ; July 2015`.
+### Step 1: Prepare Your Contract
+
+Create a simple Soroban smart contract in Rust. If you scaffolded with `nextellar --with-contracts`, you'll have a `contracts/` directory:
+
+```bash
+# If you haven't added contract support yet
+nextellar add soroban
+
+# Create a new contract
+cargo generate --git https://github.com/stellar/soroban-examples.git --name my-contract
+cd my-contract
+```
+
+Here's a minimal token transfer contract:
+
+```rust
+// contracts/src/lib.rs
+use soroban_sdk::{contract, contractimpl, Env, Symbol, symbol_short};
+
+#[contract]
+pub struct TokenContract;
+
+#[contractimpl]
+impl TokenContract {
+  /// Transfer tokens from one account to another
+  pub fn transfer(env: Env, from: String, to: String, amount: i128) -> bool {
+    // Verify from signature in real implementation
+    // Update balances (from -= amount, to += amount)
+    true
+  }
+
+  /// Query token balance
+  pub fn balance(env: Env, account: String) -> i128 {
+    // Lookup balance in contract storage
+    1000
+  }
+
+  /// Deposit tokens into the contract
+  pub fn deposit(env: Env, user: String, amount: i128) {
+    // Store deposit in contract state
+  }
+}
+```
+
+### Step 2: Build the Contract
+
+Compile your contract to WebAssembly:
+
+```bash
+cd contracts
+cargo build --target wasm32-unknown-unknown --release
+```
+
+The compiled WASM binary is at:
+
+```
+target/wasm32-unknown-unknown/release/my_contract.wasm
+```
+
+### Step 3: Deploy to Testnet
+
+Use the Stellar CLI to deploy the contract:
+
+```bash
+# Install Stellar CLI if you haven't already
+npm install -g @stellar/cli
+
+# Set Testnet as your network
+stellar config set --global networks.testnet rpc_url https://soroban-testnet.stellar.org
+stellar config set --global networks.testnet network_passphrase "Test SDF Network ; July 2015"
+
+# Deploy the contract
+stellar contract deploy \
+  --wasm target/wasm32-unknown-unknown/release/my_contract.wasm \
+  --source my-source-account \
+  --network testnet
+```
+
+The command outputs your **Contract ID**. Save this — you'll need it in your dApp.
+
+Example output:
+
+```
+Contract deployed successfully!
+Contract ID: CCW67TSBXS2A5GUXI25IKWCQXWOHOXTYUX22EC56GDK4E2D3FBAZ4Y2V
+```
+
+### Step 4: Verify Deployment
+
+Check that your contract is live on Testnet:
+
+```bash
+stellar contract info \
+  --id CCW67TSBXS2A5GUXI25IKWCQXWOHOXTYUX22EC56GDK4E2D3FBAZ4Y2V \
+  --network testnet
+```
+
+Or use [Stellar Expert](https://stellar.expert/explorer/testnet/) to search for your contract ID.
+
+### Step 5: Update Your dApp
+
+Add the deployed contract ID to your application:
+
+```tsx
+// src/app/page.tsx
+const CONTRACT_ID = 'CCW67TSBXS2A5GUXI25IKWCQXWOHOXTYUX22EC56GDK4E2D3FBAZ4Y2V';
+
+export function ContractInvoker() {
+  const { invokeContract } = useSorobanContract(CONTRACT_ID);
+  
+  const handleTransfer = async () => {
+    const result = await invokeContract('transfer', {
+      from: 'GA...',
+      to: 'GB...',
+      amount: 100,
+    });
+    console.log('Transfer complete:', result.hash);
+  };
+
+  return (
+    <button onClick={handleTransfer}>
+      Execute Transfer
+    </button>
+  );
+}
+```
+
+### Step 6: Invoke from Your dApp
+
+Your Nextellar dApp can now invoke the deployed contract:
+
+```tsx
+// Complete contract invocation flow
+'use client';
+
+import { useState } from 'react';
+import { useStellarWallet } from '@/hooks/useStellarWallet';
+import { useSorobanContract } from '@/hooks/useSorobanContract';
+
+const CONTRACT_ID = 'CCW67TSBXS2A5GUXI25IKWCQXWOHOXTYUX22EC56GDK4E2D3FBAZ4Y2V';
+
+export function ContractInteraction() {
+  const { publicKey, signTransaction } = useStellarWallet();
+  const { invokeContract, loading, error } = useSorobanContract(CONTRACT_ID);
+  const [txHash, setTxHash] = useState('');
+  const [amount, setAmount] = useState('100');
+
+  const handleInvoke = async () => {
+    try {
+      // Invoke contract function
+      const result = await invokeContract('deposit', {
+        user: publicKey,
+        amount: BigInt(amount),
+      });
+
+      setTxHash(result.hash);
+      console.log('Contract invocation successful:', result);
+    } catch (err) {
+      console.error('Contract invocation failed:', err);
+    }
+  };
+
+  return (
+    <div className="max-w-md mx-auto p-6 border rounded-lg">
+      <h2 className="text-2xl font-bold mb-4">Deposit into Contract</h2>
+
+      <input
+        type="number"
+        value={amount}
+        onChange={(e) => setAmount(e.target.value)}
+        placeholder="Amount"
+        className="w-full px-3 py-2 border rounded mb-4"
+      />
+
+      <button
+        onClick={handleInvoke}
+        disabled={loading}
+        className="w-full px-4 py-2 bg-blue-600 text-white rounded font-medium hover:bg-blue-700 disabled:opacity-50"
+      >
+        {loading ? 'Processing...' : 'Invoke Contract'}
+      </button>
+
+      {error && (
+        <div className="mt-4 p-3 bg-red-50 text-red-800 rounded text-sm">
+          ❌ {error.message}
+        </div>
+      )}
+
+      {txHash && (
+        <div className="mt-4 p-3 bg-green-50 text-green-800 rounded text-sm">
+          ✓ Success! <br />
+          <a
+            href={`https://stellar.expert/explorer/testnet/tx/${txHash}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline"
+          >
+            View on Stellar Expert
+          </a>
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+---
+
+## 5. End-to-End Verification & Validation
+
+When deploying the complete dApp with contract invocation to Stellar Testnet:
+
+1. **Fund your account** via **Friendbot** (`https://friendbot.stellar.org`).
+2. **Build and deploy the contract** using `stellar contract deploy` (see Step 4 above).
+3. **Update your dApp** with the contract ID from deployment.
+4. **Test locally** by running `npm run dev` and invoking the contract.
+5. **Verify XDR signatures** in browser DevTools console — they should match `Test SDF Network ; July 2015` passphrase.
+6. **Monitor transactions** on [Stellar Expert](https://stellar.expert/explorer/testnet/) to confirm all steps (wallet connection, trustlines, payments, contract invocations) complete successfully.

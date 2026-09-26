@@ -1,90 +1,466 @@
 ---
-title: Testing
-description: Document the repository testing setup and how to run unit tests with Vitest.
-date: 2026-06-01
+title: Testing Guide for Scaffolded dApps
+description: Complete unit and integration testing guide for Nextellar Stellar dApps with Vitest, React Testing Library, and MSW.
+date: 2026-09-24
 ---
 
-# Testing
+# Testing Guide for Scaffolded dApps
 
-This repository is configured for testing with **Vitest** and **jsdom**. The test setup is designed to run React and MDX-related code in a browser-like environment while using Vite-style module resolution.
+A production-grade decentralized application on Stellar requires comprehensive testing across multiple layers. Scaffolded Nextellar projects come pre-configured with **Vitest**, **React Testing Library**, and support for **Mock Service Worker (MSW)** to test React hooks, UI components, Horizon interactions, and Soroban smart contract invocations without burning testnet lumens or introducing network flakiness.
 
-## Test tooling
+This guide details how to implement unit and integration tests for your scaffolded app with complete, runnable code examples.
 
-The repository test configuration includes:
+---
 
-- `pnpm test:unit` — runs Vitest in the project root
-- `vitest.config.ts` — configures the test environment and React plugin
-- `jsdom` — simulates browser APIs when testing React components
-- `@vitejs/plugin-react` — enables JSX/TSX syntax during test execution
+## Testing Strategy Overview
 
-### Vitest configuration
+Nextellar dApps typically span three testing layers:
+
+| Layer                 | What is tested                                                   | Mocking Strategy                             | Tools                             |
+| --------------------- | ---------------------------------------------------------------- | -------------------------------------------- | --------------------------------- |
+| **Unit Tests**        | Formatters, validators, pure utils, isolated hooks               | Mock external APIs and React Context         | Vitest, `@testing-library/react`  |
+| **Component Tests**   | UI rendering, user events, form validation, error states         | Mock hook return values or wallet state      | `@testing-library/react`, jsdom   |
+| **Integration Tests** | Multi-step workflows (Connect → Form → Simulate → Sign → Submit) | Intercept network boundary at HTTP/RPC layer | MSW (Mock Service Worker), Vitest |
+
+---
+
+## Test Runner Setup
+
+Scaffolded Nextellar applications configure Vitest in `vitest.config.ts`:
 
 ```ts
+// vitest.config.ts
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
+import path from 'path';
 
 export default defineConfig({
   plugins: [react()],
   test: {
     environment: 'jsdom',
     globals: true,
+    setupFiles: ['./tests/setup.ts'],
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
   },
 });
 ```
 
-### What this setup does
+Create a global test setup file to configure DOM cleanups and MSW lifecycle:
 
-- Runs unit tests in a DOM-compatible environment.
-- Provides global helpers like `describe`, `it`, `expect`, and `vi`.
-- Resolves imports with Vite-style path aliases.
-- Supports testing React components and hooks.
+```ts
+// tests/setup.ts
+import '@testing-library/jest-dom';
+import { afterAll, afterEach, beforeAll } from 'vitest';
+import { server } from './mocks/server';
 
-## Running tests
-
-Use the configured unit test command:
-
-```bash
-pnpm test:unit
+beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
+afterEach(() => server.resetHandlers());
+afterAll(() => server.close());
 ```
 
-This runs all tests using Vitest. The root `test` script is a placeholder and should not be used for actual test execution.
+Add the test scripts to your `package.json`:
 
-```bash
-pnpm test
+```json
+{
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest watch",
+    "test:coverage": "vitest run --coverage"
+  }
+}
 ```
 
-> This command prints a generic message and exits successfully, but it does not run unit tests.
+---
 
-### Watch mode
+## Unit Testing
 
-For an interactive development workflow, run:
+Unit tests verify individual functions, validators, and custom hooks in complete isolation.
 
-```bash
-pnpm exec vitest watch
+### 1. Testing Utilities and Validators
+
+Test Stellar address validation, amount calculations, and XDR parsing:
+
+```ts
+// tests/unit/stellar-utils.test.ts
+import { describe, it, expect } from 'vitest';
+import { StrKey } from '@stellar/stellar-sdk';
+
+export function isValidStellarAddress(address: string): boolean {
+  return StrKey.isValidEd25519PublicKey(address);
+}
+
+export function formatStroopsToXlm(stroops: number | bigint): string {
+  const xlm = Number(stroops) / 10_000_000;
+  return xlm.toFixed(7);
+}
+
+describe('Stellar Utility Functions', () => {
+  it('validates genuine public keys', () => {
+    const validKey = 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5';
+    expect(isValidStellarAddress(validKey)).toBe(true);
+  });
+
+  it('rejects invalid or malformed public keys', () => {
+    expect(isValidStellarAddress('invalid-key')).toBe(false);
+    expect(
+      isValidStellarAddress(
+        'SBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5'
+      )
+    ).toBe(false); // Secret key
+    expect(isValidStellarAddress('')).toBe(false);
+  });
+
+  it('correctly converts stroops to XLM string', () => {
+    expect(formatStroopsToXlm(10_000_000)).toBe('1.0000000');
+    expect(formatStroopsToXlm(500_000)).toBe('0.0500000');
+  });
+});
 ```
 
-## Coverage state
+### 2. Testing Custom React Hooks
 
-This repository does not currently include a dedicated coverage report command in `package.json`. Coverage is not tracked automatically by the default scripts.
+Use `renderHook` from `@testing-library/react` to test hooks like `useStellarBalances` or `useStellarWallet`. Wrap the hook inside mock context providers:
 
-If you need coverage output, it can be generated manually once tests exist:
+```tsx
+// tests/unit/useStellarBalances.test.ts
+import { describe, it, expect, vi } from 'vitest';
+import { renderHook, waitFor } from '@testing-library/react';
+import React from 'react';
 
-```bash
-pnpm exec vitest run --coverage
+// Simplified hook example for testing demonstration
+function useStellarBalances(address: string | null) {
+  const [balance, setBalance] = React.useState<string | null>(null);
+  const [loading, setLoading] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!address) {
+      setBalance(null);
+      return;
+    }
+    setLoading(true);
+    fetch(`https://horizon-testnet.stellar.org/accounts/${address}`)
+      .then((res) => res.json())
+      .then((data) => {
+        const native = data.balances?.find(
+          (b: any) => b.asset_type === 'native'
+        );
+        setBalance(native ? native.balance : '0');
+      })
+      .finally(() => setLoading(false));
+  }, [address]);
+
+  return { balance, loading };
+}
+
+describe('useStellarBalances Hook', () => {
+  it('returns null balance when no address is provided', () => {
+    const { result } = renderHook(() => useStellarBalances(null));
+    expect(result.current.balance).toBeNull();
+    expect(result.current.loading).toBe(false);
+  });
+
+  it('fetches and updates balance for connected account', async () => {
+    const mockResponse = {
+      balances: [{ asset_type: 'native', balance: '125.5000000' }],
+    };
+
+    vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+      json: async () => mockResponse,
+    } as Response);
+
+    const { result } = renderHook(() =>
+      useStellarBalances(
+        'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5'
+      )
+    );
+
+    expect(result.current.loading).toBe(true);
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    expect(result.current.balance).toBe('125.5000000');
+  });
+});
 ```
 
-## Current status
+### 3. Testing UI Components
 
-- The repository includes test tooling and configuration, but there are currently no active test files under the source tree.
-- The `pnpm test:unit` command is the correct entry point for adding and running tests.
-- Test coverage is not enforced today and should be added when tests are introduced.
+Test that components react properly to wallet state changes:
 
-## Notes
+```tsx
+// tests/unit/ConnectWalletButton.test.tsx
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
+import React from 'react';
 
-- Add new tests alongside related code with filenames such as `*.test.ts`, `*.test.tsx`, or `*.spec.ts`.
-- Keep tests focused on React hooks, component behavior, and utility functions.
-- For documentation contribution guidance, see [Contributing to Documentation](/docs/guides/contributing).
+interface ButtonProps {
+  isConnected: boolean;
+  address?: string;
+  onConnect: () => void;
+  onDisconnect: () => void;
+}
 
-## Next Steps
+export function ConnectWalletButton({
+  isConnected,
+  address,
+  onConnect,
+  onDisconnect,
+}: ButtonProps) {
+  if (isConnected && address) {
+    return (
+      <div>
+        <span data-testid="wallet-address">{`${address.slice(0, 4)}...${address.slice(-4)}`}</span>
+        <button onClick={onDisconnect}>Disconnect</button>
+      </div>
+    );
+  }
+  return <button onClick={onConnect}>Connect Wallet</button>;
+}
 
-For mocking external API calls (like Stellar Horizon), see [Testing with MSW](/docs/integrations/testing) for Mock Service Worker setup.
+describe('ConnectWalletButton Component', () => {
+  it('renders Connect button when disconnected', () => {
+    const onConnect = vi.fn();
+    render(
+      <ConnectWalletButton
+        isConnected={false}
+        onConnect={onConnect}
+        onDisconnect={vi.fn()}
+      />
+    );
+
+    const button = screen.getByRole('button', { name: /connect wallet/i });
+    expect(button).toBeInTheDocument();
+
+    fireEvent.click(button);
+    expect(onConnect).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders formatted address and disconnect button when connected', () => {
+    const onDisconnect = vi.fn();
+    const address = 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5';
+
+    render(
+      <ConnectWalletButton
+        isConnected={true}
+        address={address}
+        onConnect={vi.fn()}
+        onDisconnect={onDisconnect}
+      />
+    );
+
+    expect(screen.getByTestId('wallet-address')).toHaveTextContent(
+      'GBBD...FLA5'
+    );
+    const disconnectBtn = screen.getByRole('button', { name: /disconnect/i });
+    fireEvent.click(disconnectBtn);
+    expect(onDisconnect).toHaveBeenCalledTimes(1);
+  });
+});
+```
+
+---
+
+## Integration Testing with MSW
+
+Integration tests verify that your React UI, transaction builders, Horizon APIs, and Soroban RPC clients work together smoothly.
+
+### 1. Setting up MSW Handlers
+
+Intercept Horizon HTTP requests and Soroban RPC JSON-RPC calls at the network boundary:
+
+```ts
+// tests/mocks/handlers.ts
+import { http, HttpResponse } from 'msw';
+
+const HORIZON_URL = 'https://horizon-testnet.stellar.org';
+const SOROBAN_RPC_URL = 'https://soroban-testnet.stellar.org';
+
+export const handlers = [
+  // Mock Horizon Account details
+  http.get(`${HORIZON_URL}/accounts/:id`, ({ params }) => {
+    return HttpResponse.json({
+      id: params.id,
+      sequence: '100200300',
+      balances: [
+        { asset_type: 'native', balance: '500.0000000' },
+        {
+          asset_type: 'credit_alphanum4',
+          asset_code: 'USDC',
+          balance: '25.0000000',
+        },
+      ],
+    });
+  }),
+
+  // Mock Soroban RPC simulateTransaction & sendTransaction
+  http.post(SOROBAN_RPC_URL, async ({ request }) => {
+    const body = (await request.json()) as any;
+
+    if (body.method === 'simulateTransaction') {
+      return HttpResponse.json({
+        jsonrpc: '2.0',
+        id: body.id,
+        result: {
+          minResourceFee: '100',
+          transactionData: 'AAAA...',
+          results: [{ auth: [], xdr: 'AAAA...' }],
+        },
+      });
+    }
+
+    if (body.method === 'sendTransaction') {
+      return HttpResponse.json({
+        jsonrpc: '2.0',
+        id: body.id,
+        result: {
+          status: 'PENDING',
+          hash: 'a1b2c3d4e5f67890123456789abcdef0123456789abcdef0123456789abcdef0',
+        },
+      });
+    }
+
+    return HttpResponse.json({ jsonrpc: '2.0', id: body?.id, result: {} });
+  }),
+];
+```
+
+```ts
+// tests/mocks/server.ts
+import { setupServer } from 'msw/node';
+import { handlers } from './handlers';
+
+export const server = setupServer(...handlers);
+```
+
+### 2. Integration Test: Payment Submission Flow
+
+Test the complete transaction flow from user input to submission:
+
+```tsx
+// tests/integration/PaymentFlow.test.tsx
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import React, { useState } from 'react';
+
+function PaymentForm({
+  onSubmit,
+}: {
+  onSubmit: (to: string, amount: string) => Promise<string>;
+}) {
+  const [to, setTo] = useState('');
+  const [amount, setAmount] = useState('');
+  const [txHash, setTxHash] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      const hash = await onSubmit(to, amount);
+      setTxHash(hash);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <input
+        placeholder="Recipient"
+        value={to}
+        onChange={(e) => setTo(e.target.value)}
+        aria-label="recipient"
+      />
+      <input
+        placeholder="Amount"
+        value={amount}
+        onChange={(e) => setAmount(e.target.value)}
+        aria-label="amount"
+      />
+      <button type="submit" disabled={submitting}>
+        {submitting ? 'Submitting...' : 'Send Payment'}
+      </button>
+      {txHash && (
+        <p data-testid="tx-success">Transaction submitted: {txHash}</p>
+      )}
+    </form>
+  );
+}
+
+describe('PaymentFlow Integration', () => {
+  it('submits payment and renders confirmation hash', async () => {
+    const mockSubmit = vi.fn().mockResolvedValue('mock-tx-hash-12345');
+
+    render(<PaymentForm onSubmit={mockSubmit} />);
+
+    fireEvent.change(screen.getByLabelText(/recipient/i), {
+      target: {
+        value: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+      },
+    });
+    fireEvent.change(screen.getByLabelText(/amount/i), {
+      target: { value: '10' },
+    });
+
+    const submitBtn = screen.getByRole('button', { name: /send payment/i });
+    fireEvent.click(submitBtn);
+
+    expect(screen.getByText(/submitting.../i)).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(mockSubmit).toHaveBeenCalledWith(
+        'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+        '10'
+      );
+      expect(screen.getByTestId('tx-success')).toHaveTextContent(
+        'mock-tx-hash-12345'
+      );
+    });
+  });
+});
+```
+
+### 3. Integration Test: Soroban Contract Invocation
+
+Test invoking a Soroban contract client with simulated pre-flight validation:
+
+```ts
+// tests/integration/soroban-contract.test.ts
+import { describe, it, expect } from 'vitest';
+import { rpc } from '@stellar/stellar-sdk';
+
+describe('Soroban Contract RPC Integration', () => {
+  it('successfully simulates contract invocation through MSW', async () => {
+    const server = new rpc.Server('https://soroban-testnet.stellar.org');
+
+    // Simulate dummy transaction
+    const mockTx: any = {};
+    const simulation = await server.simulateTransaction(mockTx);
+
+    expect(simulation).toBeDefined();
+    expect(simulation.minResourceFee).toBe('100');
+  });
+});
+```
+
+---
+
+## Best Practices for Scaffolded App Testing
+
+1. **Mock at the Network Boundary**: Use MSW to mock HTTP/RPC responses instead of deeply mocking the Stellar SDK internals. This ensures the SDK's parsing and XDR verification logic are tested.
+2. **Never Commit Real Secret Keys in Fixtures**: Use randomly generated Testnet keypairs or deterministic test addresses for test fixtures.
+3. **Reset Handlers Between Tests**: Ensure `server.resetHandlers()` runs in `afterEach` so test mutations do not bleed across test cases.
+4. **Automate in CI**: Run `pnpm test:unit` in GitHub Actions on every pull request to catch regressions before deployment.
+
+---
+
+## Related Resources
+
+- [Testing Horizon and Soroban](/docs/guides/testing-horizon-soroban) — In-depth MSW setup for Horizon and Soroban
+- [Testing Transactions on Testnet](/docs/guides/testing-transactions-testnet) — Executing real transactions against live Testnet
+- [Security Hardening Guide](/docs/guides/security-hardening) — Security mitigations and pre-flight checks
+- [Hook Error Handling](/docs/guides/hook-error-handling) — Testing resilient error boundaries

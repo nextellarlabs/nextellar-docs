@@ -164,12 +164,12 @@ Error: Unexpected token in docs/guides/example.mdx:15:3
 
 **Solution**: Check MDX syntax, especially JSX components:
 
-```mdx
-{/* Correct */}
+```markdown
+{/_ Correct _/}
 
 <div className="grid grid-cols-2">Content here</div>
 
-{/* Incorrect - missing closing tag */}
+{/_ Incorrect - missing closing tag _/}
 
 <div className="grid grid-cols-2">
   Content here
@@ -282,7 +282,7 @@ For a quick ready-to-use checklist, see [Documentation Contributing Checklist](/
 
 ### File Organization
 
-```
+```text
 docs/
 ├── index.mdx              # Homepage
 ├── getting-started/       # Installation, quick start
@@ -320,8 +320,8 @@ description: 'Clear description for SEO and navigation (50-160 chars)'
 
 ### Component Usage
 
-```mdx
-{/* Use project components for consistency */}
+```markdown
+{/_ Use project components for consistency _/}
 
 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
   <a href="/docs/cli/commands" className="block p-4 border rounded-lg">
@@ -352,6 +352,23 @@ description: 'Clear description for SEO and navigation (50-160 chars)'
 - Clear `.contentlayer` directory and rebuild.
 - Restart development server.
 - Check Node.js version compatibility (requires Node 18+).
+
+---
+
+## Stellar Wave Program & Contributor Rewards Payouts
+
+Nextellar participates in the **Stellar Wave Program** organized in collaboration with [Drips Network](https://www.drips.network/wave). The program provides decentralized, transparent rewards for open-source contributions.
+
+### How Rewards Work
+
+1. **Issue Application & Assignment**:
+   Contributors apply to open Wave issues directly on GitHub using the Drips Wave bot (`drips-wave`). Maintainers review applications and assign issues with established difficulty tiers (e.g., Easy: 100 pts, Medium: 150 pts, Hard: 200 pts).
+2. **Review & Points Accrual**:
+   Upon submitting a linked pull request before the cycle due date and receiving maintainer approval, points are awarded to the contributor's account.
+3. **Automated On-Chain Reward Distribution**:
+   At the close of each Wave cycle, rewards from the allocated reward pool are distributed automatically on-chain via smart contracts directly to contributors' registered addresses.
+4. **Verifying Payouts & Proof of Payment**:
+   Contributors can track point accumulation, cycle settlements, and on-chain transaction hashes directly on the [Drips Wave Platform](https://www.drips.network/wave) and verify transaction execution on Stellar/EVM network block explorers.
 
 ---
 

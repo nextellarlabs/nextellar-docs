@@ -68,7 +68,7 @@ function Dashboard() {
 
 ## Connection Flow
 
-```
+```text
 User clicks "Connect Wallet"
         ->
 Wallet selection modal opens
@@ -180,6 +180,25 @@ const handleConnect = async () => {
   }
 };
 ```
+
+## Pairing Troubleshooting
+
+If the wallet selection modal opens but the wallet does not pair, use the
+symptom below to identify the next step:
+
+| Symptom                                | Cause                                           | Resolution                                                                                                                                             |
+| -------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| No approval prompt appears             | The extension is locked, disabled, or blocked   | Unlock the wallet, confirm the extension is enabled for the current site, allow the popup, and select the wallet again.                                 |
+| QR code or pairing link has expired    | Pairing requests are temporary and single-use   | Close the modal, start a new connection to generate a fresh pairing request, and scan or open it only once. Keep both devices online until it completes. |
+| The wallet reports an existing pairing | A stale session already exists                  | Disconnect the site in both the app and wallet, reload the page, and start a new pairing.                                                               |
+| Pairing succeeds but balances fail     | The wallet and app use different Stellar networks | Switch both to the same network, disconnect, and pair again.                                                                                          |
+| The app reconnects to the wrong account | Persisted session data points to another account | Disconnect, select the intended active account in the wallet, then reconnect. Clear the site's stored wallet session only if disconnecting is not enough. |
+| The request is rejected or times out   | Approval was declined or not completed in time  | Start the connection again and approve the request in the wallet before it expires.                                                                    |
+| A wallet is missing from the modal     | Its module is not configured or it is unavailable | Add the wallet module in `stellar-wallet-kit.ts`, install or open that wallet, and retry.                                                              |
+
+After recovery, verify the connected public key and network before requesting a
+signature. Never ask users to paste a secret key or recovery phrase to repair a
+pairing.
 
 ## Related
 

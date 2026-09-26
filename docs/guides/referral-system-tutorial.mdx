@@ -14,7 +14,7 @@ A referral system rewards users who bring new participants to your dApp. On Stel
 
 The simplest model: every existing user has a referral code tied to their Stellar account. When a new user signs up with that code, an on-chain record is written linking the newcomer to the referrer. Once the newcomer completes a qualifying action (first deposit, first policy purchase), the contract credits the referrer.
 
-```
+```text
 Referrer shares link → /signup?ref=GABC...REFERRER
 New user signs up     → dApp calls contract: register(new_user, referrer)
 New user qualifies    → dApp calls contract: credit_referral(new_user)

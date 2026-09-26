@@ -51,7 +51,7 @@ npx nextellar doctor
 
 Expected output:
 
-```
+```text
 ✔ Node.js  v20.12.0
 ✔ pnpm     9.1.0
 ✔ .env.local found
@@ -113,7 +113,7 @@ npx nextellar payments validate
 
 Expected output:
 
-```
+```text
 ✔ Config loaded  nextellar-payments.config.js
 ✔ Source account GABC... found on testnet  (balance: 9 900.00 XLM)
 ✔ Destination    GDEST... found on testnet
@@ -137,7 +137,7 @@ npx nextellar payments run --dry-run
 
 Output:
 
-```
+```text
 [dry-run] Building transaction for payment "weekly-salary"
 [dry-run] Source:       GABC...  (sequence: 12345678)
 [dry-run] Destination:  GDEST...
@@ -157,7 +157,7 @@ npx nextellar payments start
 
 The process stays running and fires each payment at the scheduled time:
 
-```
+```text
 Nextellar Payments Scheduler started.
   Config:   nextellar-payments.config.js
   Network:  testnet
@@ -184,7 +184,7 @@ npx nextellar payments init --recipients ./recipients.csv
 
 **recipients.csv format:**
 
-```csv
+```text
 id,destination,amount,memo
 emp-001,GDEST1...,250,payroll
 emp-002,GDEST2...,310,payroll
@@ -227,7 +227,7 @@ Nextellar retries on these error classes:
 npx nextellar payments logs --job weekly-salary --tail 50
 ```
 
-```
+```text
 [2026-06-30T09:00:00Z] Attempt 1/3 — submitted a3f1...
 [2026-06-30T09:00:01Z] Error: tx_bad_seq
 [2026-06-30T09:00:06Z] Attempt 2/3 — re-fetched sequence 12345679

@@ -1,0 +1,686 @@
+---
+title: Wallet Integration Deep-Dive
+description: Comprehensive guide to wallet connection, signing, network switching, and error handling in Nextellar applications.
+date: 2026-09-24
+tags: [wallet, integration, connect, sign, switch, errors, deep-dive]
+---
+
+# Wallet Integration Deep-Dive
+
+This guide provides a comprehensive exploration of wallet integration in Nextellar, covering the four core operations: **connect**, **sign**, **switch**, and **error handling**. Use this alongside [Wallet UX Patterns](/docs/guides/wallet-ux-patterns) for UI/UX recommendations.
+
+---
+
+## Overview
+
+Nextellar uses [@creit.tech/stellar-wallets-kit](https://github.com/AhaLabs/stellar-wallets-kit) to abstract wallet interactions. The kit supports Freighter, Albedo, Lobstr, xBull, and Hana — each with its own connection semantics, but unified through a common interface.
+
+---
+
+## Part 1: Connection
+
+### The Connection Flow
+
+When a user connects a wallet:
+
+1. **User clicks "Connect Wallet"** — Your app invokes `connect()` or `connect(walletId)`
+2. **Wallet kit opens modal** — User selects a wallet (unless `walletId` is specified)
+3. **Extension prompts for permission** — Wallet extension asks user to authorize connection
+4. **Public key retrieved** — Wallet returns the user's public key (G-address)
+5. **Session persisted** — App stores the connection state (wallet ID, public key) in localStorage
+6. **Auto-reconnect on reload** — On next page load, the wallet kit restores the previous session
+
+### Using `useStellarWallet`
+
+```tsx
+import { useStellarWallet } from '@/hooks/useStellarWallet';
+
+export function ConnectDemo() {
+  const {
+    connected,
+    connecting,
+    publicKey,
+    walletName,
+    connect,
+    disconnect,
+    error,
+  } = useStellarWallet();
+
+  return (
+    <div>
+      {connected ? (
+        <div>
+          <p>Connected to {walletName}</p>
+          <p>{publicKey}</p>
+          <button onClick={disconnect}>Disconnect</button>
+        </div>
+      ) : (
+        <div>
+          <button onClick={() => connect()} disabled={connecting}>
+            {connecting ? 'Connecting…' : 'Connect Wallet'}
+          </button>
+          {error && <p className="text-red-600">{error.message}</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+### Connecting to a Specific Wallet
+
+If you want to skip the modal and connect directly to a single wallet:
+
+```tsx
+// Connect to Freighter specifically
+await connect('freighter');
+
+// Connect to Albedo
+await connect('albedo');
+
+// Connect to xBull
+await connect('xbull');
+```
+
+This is useful for apps that support only one wallet, or for advanced flows where the app manages wallet selection.
+
+### Session Persistence
+
+The wallet kit automatically persists the connection state via localStorage:
+
+```typescript
+// Stored on successful connection
+localStorage.setItem('stellar_wallet_connected', 'true');
+localStorage.setItem('stellar_wallet_id', 'freighter');
+localStorage.setItem('stellar_wallet_public_key', 'GABC...');
+
+// On page reload or app restart
+// The hook checks these values and auto-reconnects
+// No re-authorization prompt needed if session is valid
+```
+
+To **disconnect** programmatically:
+
+```tsx
+const { disconnect } = useStellarWallet();
+
+// Clear session and disconnect
+await disconnect();
+```
+
+This clears localStorage and closes any active wallet connection.
+
+### Persisting Custom User Data
+
+Often you'll want to store app-specific metadata alongside the wallet connection (e.g., selected template, theme preference):
+
+```tsx
+// On connect
+const handleConnect = async () => {
+  await connect('freighter');
+  
+  // Store custom data keyed by public key
+  localStorage.setItem(
+    `user_prefs_${publicKey}`,
+    JSON.stringify({
+      theme: 'dark',
+      template: 'defi',
+      joinedAt: new Date().toISOString(),
+    })
+  );
+};
+
+// On disconnect
+const handleDisconnect = async () => {
+  await disconnect();
+  localStorage.removeItem(`user_prefs_${publicKey}`);
+};
+```
+
+---
+
+## Part 2: Signing Transactions
+
+### Building and Signing Flow
+
+Once connected, you can build transactions and request the wallet to sign them. The typical flow is:
+
+1. **Build transaction XDR** — Use `useStellarPayment`, `useSorobanContract`, or manually construct XDR
+2. **Request signature** — Pass XDR and context to wallet
+3. **Wallet prompts user** — Extension displays what is being signed
+4. **User approves** — Wallet returns the signed XDR
+5. **Submit to Horizon** — Your app submits the signed XDR to Stellar
+
+### Signing with `useStellarWallet`
+
+For low-level signing without a higher-level hook:
+
+```tsx
+import { useStellarWallet } from '@/hooks/useStellarWallet';
+import { Networks } from '@stellar/stellar-sdk';
+
+export function SignDemo() {
+  const { publicKey, sign } = useStellarWallet();
+
+  const handleSign = async (unsignedXdr: string) => {
+    try {
+      const { signedTxXdr } = await sign(unsignedXdr, {
+        networkPassphrase: Networks.TESTNET,
+      });
+      
+      console.log('Signed transaction:', signedTxXdr);
+      // Now you can submit to Horizon
+    } catch (error) {
+      console.error('Sign failed:', error);
+    }
+  };
+
+  return (
+    <button onClick={() => handleSign(myXdr)}>
+      Sign Transaction
+    </button>
+  );
+}
+```
+
+### Signing with Higher-Level Hooks
+
+Most apps use hooks that wrap signing logic:
+
+#### Payment Signing
+
+```tsx
+import { useStellarPayment } from '@/hooks/useStellarPayment';
+
+export function PaymentDemo() {
+  const { send, status, error } = useStellarPayment();
+
+  const handleSendPayment = async () => {
+    try {
+      const result = await send({
+        destination: 'GDEF...',
+        amount: '100',
+        asset: 'XLM',
+      });
+      
+      console.log('Payment sent:', result.txHash);
+    } catch (error) {
+      console.error('Payment failed:', error.message);
+    }
+  };
+
+  return (
+    <div>
+      <button onClick={handleSendPayment} disabled={status === 'loading'}>
+        Send Payment
+      </button>
+      {error && <p className="text-red-600">{error.message}</p>}
+    </div>
+  );
+}
+```
+
+The hook handles:
+- Building the payment transaction XDR
+- Requesting signature from the wallet
+- Submitting to Horizon
+- Polling for confirmation
+
+#### Soroban Contract Signing
+
+```tsx
+import { useSorobanContract } from '@/hooks/useSorobanContract';
+
+export function SorobanDemo() {
+  const { invoke, status, error } = useSorobanContract();
+
+  const handleInvoke = async () => {
+    try {
+      const result = await invoke({
+        contractId: 'CAA...',
+        method: 'transfer',
+        args: ['GABC...', '1000'],
+      });
+      
+      console.log('Contract invoked:', result.txHash);
+    } catch (error) {
+      console.error('Invocation failed:', error.message);
+    }
+  };
+
+  return (
+    <div>
+      <button onClick={handleInvoke} disabled={status === 'loading'}>
+        Call Contract
+      </button>
+      {error && <p className="text-red-600">{error.message}</p>}
+    </div>
+  );
+}
+```
+
+### What Users See During Signing
+
+When you request a signature, the wallet extension displays:
+
+1. **Transaction details** — Sender, receiver(s), amounts, fee, sequence
+2. **Network** — Which network (Testnet/Mainnet) the tx will execute on
+3. **Approve/Reject buttons** — User chooses to sign or cancel
+
+**Important:** The user **cannot modify** the transaction in the extension, only approve or reject. Always show the transaction details in your app before requesting a signature.
+
+---
+
+## Part 3: Network Switching
+
+### Understanding Networks
+
+Stellar has two main networks:
+
+| Network | Purpose | Horizon URL | Network Passphrase |
+|---------|---------|-----|-------------------|
+| **Testnet** | Development and testing | `https://horizon-testnet.stellar.org` | `Test SDF Network ; September 2015` |
+| **Mainnet** (Public) | Production with real XLM | `https://horizon.stellar.org` | `Public Global Stellar Network ; September 2015` |
+
+### Wallet-Side Network Switching
+
+Most users switch networks directly in their wallet extension:
+- **Freighter**: Settings → Network selector
+- **Albedo**: Account selector dropdown
+- **xBull**: Network selector in the extension
+
+Your app should:
+1. Detect when the user's wallet is on a different network than your app expects
+2. Show a clear prompt to the user
+3. Provide instructions to switch in their wallet
+
+### Detecting Network Mismatch
+
+```tsx
+import { useStellarWallet } from '@/hooks/useStellarWallet';
+import { Networks } from '@stellar/stellar-sdk';
+
+const EXPECTED_NETWORK = Networks.TESTNET;
+
+export function NetworkChecker() {
+  const { connected, publicKey, error } = useStellarWallet();
+
+  // If you get an error message containing "NETWORK_MISMATCH"
+  // the wallet is on a different network
+  
+  if (error?.code === 'NETWORK_MISMATCH') {
+    return (
+      <div className="p-4 bg-yellow-100 border border-yellow-400 rounded">
+        <p className="font-bold">Network mismatch</p>
+        <p>Your wallet is on the wrong network.</p>
+        <p>Switch to <strong>Testnet</strong> in your wallet and try again.</p>
+      </div>
+    );
+  }
+
+  return connected ? <p>Connected to {EXPECTED_NETWORK}</p> : null;
+}
+```
+
+### App-Side Network Switching
+
+If your app needs to support both Testnet and Mainnet, store the preference:
+
+```tsx
+import { useState, useEffect } from 'react';
+import { Networks } from '@stellar/stellar-sdk';
+
+export function NetworkSwitcher() {
+  const [network, setNetwork] = useState<'testnet' | 'mainnet'>('testnet');
+
+  useEffect(() => {
+    // Persist to localStorage
+    localStorage.setItem('preferred_network', network);
+  }, [network]);
+
+  const toggleNetwork = () => {
+    setNetwork(network === 'testnet' ? 'mainnet' : 'testnet');
+    
+    // Warn user they need to switch wallet too
+    alert(`Please switch your wallet to ${network.toUpperCase()}`);
+  };
+
+  const networkPassphrase = network === 'testnet'
+    ? Networks.TESTNET
+    : Networks.PUBLIC;
+
+  return (
+    <div>
+      <button onClick={toggleNetwork}>
+        Switch to {network === 'testnet' ? 'Mainnet' : 'Testnet'}
+      </button>
+      <p>App is on: {network}</p>
+      <p>Network passphrase: {networkPassphrase}</p>
+    </div>
+  );
+}
+```
+
+### Honoring User's Network Choice
+
+When building transactions, always use the network passphrase the user selected:
+
+```tsx
+import { useStellarPayment } from '@/hooks/useStellarPayment';
+import { Networks } from '@stellar/stellar-sdk';
+
+export function PaymentOnUserNetwork() {
+  const userNetwork = localStorage.getItem('preferred_network') === 'mainnet'
+    ? Networks.PUBLIC
+    : Networks.TESTNET;
+
+  const { send } = useStellarPayment();
+
+  const handleSend = async () => {
+    // send() internally uses userNetwork for building the XDR
+    await send({
+      destination: 'GDEF...',
+      amount: '100',
+      asset: 'XLM',
+      networkPassphrase: userNetwork,
+    });
+  };
+
+  return (
+    <button onClick={handleSend}>Send on {userNetwork}</button>
+  );
+}
+```
+
+---
+
+## Part 4: Error Handling
+
+### Common Wallet Errors
+
+#### 1. Wallet Not Installed
+
+**When it occurs:** User doesn't have the wallet extension installed or it's disabled in the browser.
+
+**Error message example:** `"Freighter wallet not found"`
+
+**How to handle:**
+
+```tsx
+import { useStellarWallet } from '@/hooks/useStellarWallet';
+
+export function ConnectWithInstallPrompt() {
+  const { connect, error } = useStellarWallet();
+
+  const handleConnect = async () => {
+    try {
+      await connect('freighter');
+    } catch (err: any) {
+      if (err.message?.includes('not found') || err.message?.includes('not installed')) {
+        // Show install links
+        return (
+          <div>
+            <p>Freighter not installed</p>
+            <a href="https://www.freighter.app/" target="_blank" rel="noreferrer">
+              Install Freighter
+            </a>
+          </div>
+        );
+      }
+    }
+  };
+
+  return <button onClick={handleConnect}>Connect</button>;
+}
+```
+
+#### 2. User Rejected
+
+**When it occurs:** User clicks "Reject" or closes the wallet permission prompt.
+
+**Error message example:** `"User rejected the request"` or `"User cancelled"`
+
+**How to handle:**
+
+```tsx
+const handleConnect = async () => {
+  try {
+    await connect();
+  } catch (err: any) {
+    if (err.message?.includes('rejected') || err.message?.includes('cancelled')) {
+      // Don't show an error alert; let user retry silently
+      console.log('User cancelled connection');
+      return;
+    }
+    // Other errors
+    throw err;
+  }
+};
+```
+
+#### 3. Network Mismatch
+
+**When it occurs:** User's wallet is on Testnet but your app expects Mainnet (or vice versa).
+
+**Error message example:** `"Network passphrase mismatch"` or specific code `NETWORK_MISMATCH`
+
+**How to handle:**
+
+```tsx
+const handleConnect = async () => {
+  try {
+    await connect();
+  } catch (err: any) {
+    if (err.code === 'NETWORK_MISMATCH' || err.message?.includes('network')) {
+      showNetworkMismatchPrompt();
+      return;
+    }
+  }
+};
+
+function showNetworkMismatchPrompt() {
+  return (
+    <div className="p-4 bg-red-100 border-2 border-red-500 rounded">
+      <h3 className="font-bold text-red-800">Network Mismatch</h3>
+      <p className="text-red-700">
+        Your wallet is on <strong>Testnet</strong> but this app uses <strong>Mainnet</strong>.
+      </p>
+      <ol className="mt-2 ml-4 list-decimal text-red-700">
+        <li>Open your Freighter extension</li>
+        <li>Click the network selector</li>
+        <li>Choose <strong>Mainnet</strong></li>
+        <li>Try connecting again</li>
+      </ol>
+    </div>
+  );
+}
+```
+
+#### 4. Transaction Rejected by Wallet
+
+**When it occurs:** User clicks "Reject" when approving a transaction signature in the extension.
+
+**Error message example:** `"User rejected the signing request"` or `"Signing request rejected"`
+
+**How to handle:**
+
+```tsx
+const handleSendPayment = async () => {
+  try {
+    await send({ destination, amount });
+  } catch (err: any) {
+    if (err.message?.includes('rejected') || err.message?.includes('cancelled')) {
+      // Non-critical; user chose not to sign
+      console.log('Transaction not signed');
+      return;
+    }
+    // Other signing errors (network, XDR build, etc.)
+    showError(err.message);
+  }
+};
+```
+
+#### 5. Insufficient Balance
+
+**When it occurs:** Transaction would fail because the account doesn't have enough XLM for payment + fee.
+
+**Error message example:** `"Insufficient balance"` or `"Insufficient funds for transaction fee"`
+
+**How to handle:**
+
+```tsx
+import { useStellarBalance } from '@/hooks/useStellarBalance';
+
+export function PaymentWithBalanceCheck() {
+  const { balances } = useStellarBalance();
+  const { send } = useStellarPayment();
+
+  const handleSendPayment = async (amount: string) => {
+    // Check balance before building transaction
+    const xlmBalance = parseFloat(balances?.native || '0');
+    const fee = 0.00001; // ~1% of this
+
+    if (xlmBalance < parseFloat(amount) + fee) {
+      alert(
+        `Insufficient balance. You have ${xlmBalance} XLM, need ${parseFloat(amount) + fee}`
+      );
+      return;
+    }
+
+    try {
+      await send({ destination, amount });
+    } catch (err: any) {
+      if (err.message?.includes('insufficient')) {
+        alert('Insufficient balance for this transaction');
+      }
+    }
+  };
+
+  return <button onClick={() => handleSendPayment('100')}>Send</button>;
+}
+```
+
+#### 6. Invalid Destination
+
+**When it occurs:** The destination address doesn't exist or is malformed.
+
+**Error message example:** `"Invalid destination account"` or `"Destination account does not exist"`
+
+**How to handle:**
+
+```tsx
+import { StrKey } from '@stellar/stellar-sdk';
+
+export function PaymentWithValidation() {
+  const [destination, setDestination] = useState('');
+  const [destinationError, setDestinationError] = useState('');
+
+  const validateDestination = (addr: string) => {
+    if (!StrKey.isValidPublicKey(addr)) {
+      setDestinationError('Invalid Stellar address (must start with G)');
+      return false;
+    }
+    setDestinationError('');
+    return true;
+  };
+
+  const handleSendPayment = async () => {
+    if (!validateDestination(destination)) {
+      return;
+    }
+
+    try {
+      await send({ destination, amount: '100' });
+    } catch (err: any) {
+      if (err.message?.includes('destination')) {
+        setDestinationError('Destination account not found on network');
+      }
+    }
+  };
+
+  return (
+    <div>
+      <input
+        value={destination}
+        onChange={(e) => setDestination(e.target.value)}
+        onBlur={() => validateDestination(destination)}
+        placeholder="GDEF..."
+      />
+      {destinationError && <p className="text-red-600">{destinationError}</p>}
+      <button onClick={handleSendPayment}>Send</button>
+    </div>
+  );
+}
+```
+
+#### 7. Network Timeout
+
+**When it occurs:** Horizon is unreachable or unresponsive after several retries.
+
+**Error message example:** `"Request timeout"` or `"Network unreachable"`
+
+**How to handle:**
+
+```tsx
+const handleSendPayment = async () => {
+  try {
+    await send({ destination, amount });
+  } catch (err: any) {
+    if (err.message?.includes('timeout') || err.message?.includes('unreachable')) {
+      alert('Network error. Please check your connection and try again.');
+      return;
+    }
+  }
+};
+```
+
+### Error Handling Checklist
+
+When implementing wallet features, follow this checklist:
+
+- [ ] **Wallet not installed** — Provide install links for supported wallets
+- [ ] **User rejected** — Allow silent retry without alarming the user
+- [ ] **Network mismatch** — Show clear instructions to switch networks in the wallet
+- [ ] **Transaction rejected** — Allow retry; don't crash or log out the user
+- [ ] **Insufficient balance** — Check balance before submitting; show required amount
+- [ ] **Invalid destination** — Validate address format client-side before signing
+- [ ] **Network timeout** — Show a connection error message; allow retry
+- [ ] **Unknown errors** — Log to console/error tracking; show generic message to user
+
+### Global Error Boundary Example
+
+```tsx
+import { ReactNode } from 'react';
+
+export function WalletErrorBoundary({ children }: { children: ReactNode }) {
+  return (
+    <div>
+      {/* Display wallet errors at app level */}
+      <div role="region" aria-live="polite" aria-label="Wallet errors">
+        {/* Error messages rendered here */}
+      </div>
+      {children}
+    </div>
+  );
+}
+```
+
+---
+
+## Summary: The Four Core Operations
+
+| Operation | Hook/Method | Key Concepts | Error Types |
+|-----------|-------------|--------------|------------|
+| **Connect** | `useStellarWallet().connect()` | Session persistence, auto-reconnect, wallet modal | Wallet not found, user rejected, timeout |
+| **Sign** | `useStellarWallet().sign()` or higher-level hooks | XDR building, wallet approval, submission | Transaction rejected, invalid XDR, signing errors |
+| **Switch** | Manual via settings + wallet-side | Network passphrase, Testnet vs Mainnet | Network mismatch, app-wallet desynchronization |
+| **Error Handling** | Try-catch + error codes | User-friendly messages, recovery flows | All of the above + generic network errors |
+
+---
+
+## Related Guides
+
+- [Wallet UX Patterns](/docs/guides/wallet-ux-patterns) — Recommended UI/UX for connect, sign, disconnect flows
+- [Error Handling Patterns](/docs/guides/error-handling-patterns) — Comprehensive error types and strategies
+- [Wallet Adapter Comparison](/docs/integrations/wallet-adapters-comparison) — Freighter vs xBull and other adapters
+- [Wallets Integration](/docs/integrations/wallets) — Setup and configuration reference

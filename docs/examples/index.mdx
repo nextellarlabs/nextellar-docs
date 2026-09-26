@@ -230,7 +230,9 @@ function ContractReader() {
 - **DAO Voting**: On-chain governance with Soroban
 - **Multi-Sig Wallet**: Shared account management
 
-<script>
+<script
+  dangerouslySetInnerHTML={{
+    __html: `
 function filterExamples(tag) {
   const buttons = document.querySelectorAll('#tag-filters button');
   buttons.forEach(btn => {
@@ -243,7 +245,7 @@ function filterExamples(tag) {
 
   const cards = document.querySelectorAll('.example-card');
   cards.forEach(card => {
-    const tags = JSON.parse(card.dataset.tags);
+    const tags = JSON.parse(card.dataset.tags || '[]');
     if (tag === 'all' || tags.includes(tag)) {
       card.style.display = 'block';
     } else {
@@ -251,10 +253,11 @@ function filterExamples(tag) {
     }
   });
 }
-</script>
-
+window.filterExamples = filterExamples;
+`,
+  }}
+/>
 ---
-
 <p className="text-sm text-center text-muted-foreground mt-8">
   <a href="#"> Back to top</a>
 </p>

@@ -1,0 +1,701 @@
+---
+title: Adding & Authoring Custom Hooks with nextellar add
+description: A complete workflow for discovering available hooks via nextellar add and authoring your own custom hooks for Nextellar projects.
+---
+
+# Adding & Authoring Custom Hooks with nextellar add
+
+This guide covers the complete workflow for **discovering and adding** pre-built hooks to your Nextellar project, and then **authoring custom hooks** that extend your application.
+
+---
+
+## Table of Contents
+
+1. [Discovering Available Hooks](#discovering-available-hooks)
+2. [Adding Hooks with nextellar add](#adding-hooks-with-nextellar-add)
+3. [Authoring Your Own Custom Hooks](#authoring-your-own-custom-hooks)
+4. [Custom Hook Design Principles](#custom-hook-design-principles)
+5. [Worked Example: useStellarTransactionHistory](#worked-example-usestellartransactionhistory)
+6. [Testing Your Custom Hooks](#testing-your-custom-hooks)
+7. [Publishing Custom Hooks](#publishing-custom-hooks)
+8. [Checklist](#checklist)
+
+---
+
+## Discovering Available Hooks
+
+### Using nextellar add
+
+The `nextellar add` command displays all available hooks, integrations, and features you can add to your project.
+
+```bash
+nextellar add
+```
+
+**Output:**
+
+```text
+? Select a feature to add:
+  ○ Hooks
+    ├─ useHorizonServer
+    ├─ useStellarWallet
+    ├─ useSorobanClient
+    └─ useTransactionBuilder
+  ○ Integrations
+    ├─ Vercel Analytics
+    ├─ Sentry Error Tracking
+    └─ Stellar RPC Monitoring
+  ○ UI Components
+    ├─ Wallet Connect Button
+    ├─ Payment Form
+    └─ Transaction History Table
+```
+
+### Browsing the Feature Catalog
+
+View the complete feature catalog online:
+
+```bash
+nextellar add --catalog
+```
+
+This opens your browser to the interactive feature catalog at `https://nextellar.dev/catalog`, where you can:
+
+- Search by hook name or functionality
+- View hook README and API reference
+- Copy installation code
+- See compatible versions
+
+---
+
+## Adding Hooks with nextellar add
+
+### Quick Add
+
+To add a specific hook without interactive selection:
+
+```bash
+nextellar add useStellarWallet
+```
+
+**What this does:**
+
+1. Downloads the hook source code
+2. Copies it to `src/hooks/`
+3. Generates type exports in `src/hooks/index.ts`
+4. Runs your package manager's install (if new dependencies are added)
+5. Displays a setup checklist
+
+### Interactive Selection
+
+```bash
+nextellar add
+```
+
+Then select the hook you want:
+
+```text
+? Select a feature to add:
+  ○ Hooks
+  ○ Integrations
+  ○ UI Components
+
+? Select hook:
+  ○ useHorizonServer
+  ○ useStellarWallet (← highlighted)
+  ○ useSorobanClient
+
+✔ Added useStellarWallet to src/hooks/useStellarWallet.ts
+✔ Updated src/hooks/index.ts
+✔ Install dependencies? (yes)
+```
+
+### Verify the Addition
+
+After adding a hook, verify it's available:
+
+```bash
+grep -r "export.*useStellarWallet" src/hooks/index.ts
+```
+
+Then import and use it in your component:
+
+```tsx
+import { useStellarWallet } from '@/hooks';
+
+export function MyComponent() {
+  const { connected, publicKey } = useStellarWallet();
+  // ...
+}
+```
+
+---
+
+## Authoring Your Own Custom Hooks
+
+### When to Author a Custom Hook
+
+Author a custom hook when you need to:
+
+- Encapsulate reusable wallet or blockchain state
+- Handle polling, error recovery, or cleanup logic
+- Provide a clean API to your components
+- Share logic across multiple pages or components
+
+**Don't author a hook for:**
+
+- One-off UI state (use `useState` instead)
+- Simple data transformations (use regular functions)
+- Global state if it fits in a context (use `useContext`)
+
+### File Structure
+
+Place custom hooks in `src/hooks/` and follow this structure:
+
+```
+src/hooks/
+├── index.ts                          (re-exports all hooks)
+├── useHorizonServer.ts               (built-in hook)
+├── useStellarWallet.ts               (built-in hook)
+├── useAssetPricing.ts                (your custom hook)
+├── usePaymentFlow.ts                 (your custom hook)
+└── __tests__/
+    ├── useAssetPricing.test.tsx
+    └── usePaymentFlow.test.tsx
+```
+
+### Hook Index File
+
+Maintain `src/hooks/index.ts` to re-export all hooks:
+
+```tsx
+// src/hooks/index.ts
+export { useStellarWallet } from './useStellarWallet';
+export { useHorizonServer } from './useHorizonServer';
+export { useAssetPricing } from './useAssetPricing';
+export { usePaymentFlow } from './usePaymentFlow';
+
+// Types
+export type { StellarWalletState } from './useStellarWallet';
+export type { PriceData } from './useAssetPricing';
+export type { PaymentState } from './usePaymentFlow';
+```
+
+---
+
+## Custom Hook Design Principles
+
+Every Nextellar hook should follow these five principles:
+
+### 1. Auto-Consume Provider Config
+
+Hooks should read global configuration from `WalletProvider` when available, while allowing per-call overrides:
+
+```tsx
+// Good: falls back to provider, allows override
+function useAssetPricing(
+  assetCode: string,
+  opts?: { horizonUrl?: string; pollingInterval?: number }
+) {
+  const { horizonUrl: providerUrl } = useWalletContext();
+  const horizonUrl = opts?.horizonUrl ?? providerUrl ?? DEFAULT_HORIZON_URL;
+  // ...
+}
+```
+
+### 2. Consistent Return Shape
+
+All hooks return the same four-field pattern:
+
+```typescript
+interface HookResult<T> {
+  data: T | undefined;
+  loading: boolean;
+  error: Error | undefined;
+  refresh: () => Promise<void>;
+}
+```
+
+This consistency ensures UI code never branches on hook-specific shapes.
+
+### 3. Loading and Error States Are First-Class
+
+Never return `null` for loading or throw uncaught errors. Consumers must render loading spinners and retry buttons:
+
+```tsx
+// Good
+const { data, loading, error, refresh } = useAssetPricing('USDC');
+if (loading) return <Spinner />;
+if (error) return <button onClick={refresh}>Retry</button>;
+return <PriceDisplay price={data} />;
+```
+
+### 4. Cleanup on Unmount
+
+Abort in-flight requests when the component unmounts. Use `AbortController` for fetch and clear intervals/timeouts:
+
+```tsx
+useEffect(() => {
+  const controller = new AbortController();
+  fetchPrice(controller.signal);
+  return () => controller.abort();
+}, [dependency]);
+```
+
+### 5. Minimal API Surface
+
+Expose only what consumers need. Prefer composition over configuration. If a feature is used by fewer than 20% of consumers, leave it out or export a separate utility.
+
+---
+
+## Worked Example: useStellarTransactionHistory
+
+This section walks through building `useStellarTransactionHistory` from scratch.
+
+### Step 1: Define the Problem
+
+Consumers need to fetch and paginate a wallet's transaction history from Horizon, with automatic refresh and error handling.
+
+### Step 2: Design the API
+
+```typescript
+interface TransactionHistoryOptions {
+  horizonUrl?: string;
+  pollingInterval?: number;
+  pageSize?: number;
+  enabled?: boolean;
+}
+
+interface TransactionHistoryResult {
+  transactions: Transaction[];
+  loading: boolean;
+  error: Error | undefined;
+  refresh: () => Promise<void>;
+  loadMore: () => Promise<void>;
+  hasMore: boolean;
+}
+```
+
+### Step 3: Implement the Hook
+
+```tsx
+// src/hooks/useTransactionHistory.ts
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useWalletContext } from '@/context/WalletContext';
+import type { Transaction } from '@stellar/stellar-sdk';
+
+const DEFAULT_PAGE_SIZE = 20;
+const DEFAULT_HORIZON_URL = 'https://horizon-testnet.stellar.org';
+
+export interface TransactionHistoryOptions {
+  horizonUrl?: string;
+  pollingInterval?: number;
+  pageSize?: number;
+  enabled?: boolean;
+}
+
+export interface TransactionHistoryResult {
+  transactions: Transaction[];
+  loading: boolean;
+  error: Error | undefined;
+  refresh: () => Promise<void>;
+  loadMore: () => Promise<void>;
+  hasMore: boolean;
+}
+
+export function useTransactionHistory(
+  publicKey: string | undefined,
+  options: TransactionHistoryOptions = {}
+): TransactionHistoryResult {
+  const { horizonUrl: providerUrl } = useWalletContext();
+  const horizonUrl = options.horizonUrl ?? providerUrl ?? DEFAULT_HORIZON_URL;
+  const pageSize = options.pageSize ?? DEFAULT_PAGE_SIZE;
+  const pollingInterval = options.pollingInterval ?? 0;
+  const enabled = options.enabled ?? true;
+
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | undefined>();
+  const [hasMore, setHasMore] = useState(true);
+  const nextPageRef = useRef<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  const fetchTransactions = useCallback(
+    async (signal?: AbortSignal) => {
+      if (!publicKey) return;
+
+      setLoading(true);
+      setError(undefined);
+
+      try {
+        const url = `${horizonUrl}/accounts/${publicKey}/transactions?limit=${pageSize}`;
+        const response = await fetch(url, { signal });
+
+        if (!response.ok) {
+          throw new Error(`Horizon returned ${response.status}`);
+        }
+
+        const json = await response.json();
+        const records = json._embedded?.records || [];
+
+        setTransactions(records);
+        nextPageRef.current = json._links?.next?.href || null;
+        setHasMore(!!nextPageRef.current);
+      } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') return;
+        setError(err instanceof Error ? err : new Error(String(err)));
+      } finally {
+        setLoading(false);
+      }
+    },
+    [publicKey, horizonUrl, pageSize]
+  );
+
+  const refresh = useCallback(async () => {
+    abortRef.current?.abort();
+    abortRef.current = new AbortController();
+    nextPageRef.current = null;
+    await fetchTransactions(abortRef.current.signal);
+  }, [fetchTransactions]);
+
+  const loadMore = useCallback(async () => {
+    if (!nextPageRef.current || loading) return;
+
+    setLoading(true);
+    setError(undefined);
+
+    try {
+      const response = await fetch(nextPageRef.current, {
+        signal: abortRef.current?.signal,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Horizon returned ${response.status}`);
+      }
+
+      const json = await response.json();
+      const records = json._embedded?.records || [];
+
+      setTransactions((prev) => [...prev, ...records]);
+      nextPageRef.current = json._links?.next?.href || null;
+      setHasMore(!!nextPageRef.current);
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') return;
+      setError(err instanceof Error ? err : new Error(String(err)));
+    } finally {
+      setLoading(false);
+    }
+  }, [loading]);
+
+  useEffect(() => {
+    if (!enabled || !publicKey) return;
+
+    refresh();
+
+    if (pollingInterval > 0) {
+      const id = setInterval(refresh, pollingInterval);
+      return () => {
+        clearInterval(id);
+        abortRef.current?.abort();
+      };
+    }
+
+    return () => abortRef.current?.abort();
+  }, [enabled, publicKey, refresh, pollingInterval]);
+
+  return { transactions, loading, error, refresh, loadMore, hasMore };
+}
+```
+
+### Step 4: Usage in a Component
+
+```tsx
+import { useTransactionHistory } from '@/hooks';
+
+export function TransactionList({ publicKey }: { publicKey: string }) {
+  const { transactions, loading, error, refresh, loadMore, hasMore } =
+    useTransactionHistory(publicKey, { pageSize: 10, pollingInterval: 30000 });
+
+  if (loading && transactions.length === 0) {
+    return <div>Loading transactions...</div>;
+  }
+
+  if (error) {
+    return (
+      <div>
+        <p>Error: {error.message}</p>
+        <button onClick={refresh}>Retry</button>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <ul>
+        {transactions.map((tx) => (
+          <li key={tx.id}>
+            {tx.created_at}: {tx.type}
+          </li>
+        ))}
+      </ul>
+      {hasMore && (
+        <button onClick={loadMore} disabled={loading}>
+          Load More
+        </button>
+      )}
+    </div>
+  );
+}
+```
+
+---
+
+## Testing Your Custom Hooks
+
+### Unit Tests with React Testing Library
+
+```tsx
+// src/hooks/__tests__/useTransactionHistory.test.tsx
+import { renderHook, waitFor, act } from '@testing-library/react';
+import { useTransactionHistory } from '../useTransactionHistory';
+
+describe('useTransactionHistory', () => {
+  beforeEach(() => {
+    global.fetch = jest.fn();
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('returns loading state initially', () => {
+    (fetch as jest.Mock).mockReturnValue(new Promise(() => {}));
+
+    const { result } = renderHook(() =>
+      useTransactionHistory('GBBD47UZQ5CSHGI3VTFMS5WVLOFXVF2ZSHNCUVRKLV3PCDTXVG5ZWXLY')
+    );
+
+    expect(result.current.loading).toBe(true);
+    expect(result.current.transactions).toEqual([]);
+  });
+
+  it('fetches transactions on success', async () => {
+    (fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        _embedded: {
+          records: [
+            { id: 'tx1', type: 'payment', created_at: '2024-01-01T00:00:00Z' },
+          ],
+        },
+        _links: { next: null },
+      }),
+    });
+
+    const { result } = renderHook(() =>
+      useTransactionHistory('GBBD47UZQ5CSHGI3VTFMS5WVLOFXVF2ZSHNCUVRKLV3PCDTXVG5ZWXLY')
+    );
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.transactions).toHaveLength(1);
+    expect(result.current.error).toBeUndefined();
+  });
+
+  it('handles errors gracefully', async () => {
+    (fetch as jest.Mock).mockResolvedValue({
+      ok: false,
+      status: 404,
+    });
+
+    const { result } = renderHook(() =>
+      useTransactionHistory('GBBD47UZQ5CSHGI3VTFMS5WVLOFXVF2ZSHNCUVRKLV3PCDTXVG5ZWXLY')
+    );
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.error).toBeDefined();
+    expect(result.current.transactions).toEqual([]);
+  });
+
+  it('supports refresh', async () => {
+    (fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        _embedded: { records: [{ id: 'tx1', type: 'payment' }] },
+        _links: { next: null },
+      }),
+    });
+
+    const { result } = renderHook(() =>
+      useTransactionHistory('GBBD47UZQ5CSHGI3VTFMS5WVLOFXVF2ZSHNCUVRKLV3PCDTXVG5ZWXLY')
+    );
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    act(() => {
+      result.current.refresh();
+    });
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not fetch when enabled is false', () => {
+    renderHook(() =>
+      useTransactionHistory('GBBD47UZQ5CSHGI3VTFMS5WVLOFXVF2ZSHNCUVRKLV3PCDTXVG5ZWXLY', {
+        enabled: false,
+      })
+    );
+
+    expect(fetch).not.toHaveBeenCalled();
+  });
+});
+```
+
+### Integration Testing
+
+Test your hook with the full provider chain:
+
+```tsx
+import { WalletProvider } from '@/context/WalletContext';
+
+function wrapper({ children }: { children: React.ReactNode }) {
+  return (
+    <WalletProvider horizonUrl="https://horizon-testnet.stellar.org">
+      {children}
+    </WalletProvider>
+  );
+}
+
+it('uses provider horizonUrl', async () => {
+  const { result } = renderHook(
+    () =>
+      useTransactionHistory('GBBD47UZQ5CSHGI3VTFMS5WVLOFXVF2ZSHNCUVRKLV3PCDTXVG5ZWXLY'),
+    { wrapper }
+  );
+
+  // Verify fetch called with provider URL
+  expect(fetch).toHaveBeenCalledWith(
+    expect.stringContaining('horizon-testnet.stellar.org'),
+    expect.any(Object)
+  );
+});
+```
+
+Run tests:
+
+```bash
+npm run test
+# or
+pnpm test:unit
+```
+
+---
+
+## Publishing Custom Hooks
+
+### For Internal Use
+
+If your hook is specific to your project, keep it in `src/hooks/` and import via path aliases:
+
+```tsx
+import { useTransactionHistory } from '@/hooks';
+```
+
+### For Open Source
+
+To publish your hook as an npm package:
+
+1. **Create package.json:**
+
+```json
+{
+  "name": "@nextellar/use-transaction-history",
+  "version": "1.0.0",
+  "description": "Fetch Stellar transaction history with pagination and polling",
+  "main": "dist/index.cjs",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "peerDependencies": {
+    "react": "^18.0.0 || ^19.0.0"
+  },
+  "keywords": ["nextellar", "hooks", "stellar", "transactions"],
+  "license": "MIT"
+}
+```
+
+2. **Build for multiple formats:**
+
+```bash
+npm install -D tsup
+```
+
+3. **Publish to npm:**
+
+```bash
+npm publish
+```
+
+4. **Notify the Nextellar team** to add it to the feature catalog.
+
+---
+
+## Checklist
+
+Before shipping a custom hook, verify:
+
+### Design
+
+- [ ] Follows the `{ data, loading, error, refresh }` return shape
+- [ ] Auto-consumes `WalletProvider` config with override support
+- [ ] Cleans up on unmount (abort, intervals, timeouts)
+- [ ] Minimal API surface — no rarely-used options
+
+### Implementation
+
+- [ ] Written in TypeScript with exported interfaces
+- [ ] Uses `useCallback` for stable function references
+- [ ] Uses `useRef` for abort controllers
+- [ ] Normalizes all errors to `Error` instances
+- [ ] Swallows `AbortError` silently
+
+### Testing
+
+- [ ] Unit tests for loading, success, error, refresh, enabled=false
+- [ ] Integration tests with `WalletProvider`
+- [ ] All tests pass: `npm run test`
+- [ ] Coverage > 80% for new hook code
+
+### Documentation
+
+- [ ] JSDoc on exported types and hook function
+- [ ] Usage example in code comments
+- [ ] Added to `src/hooks/index.ts`
+- [ ] Type exports added to `src/hooks/index.ts`
+
+### Publishing (if applicable)
+
+- [ ] Exported from package index
+- [ ] Peer dependencies declared correctly
+- [ ] ESM + CJS builds configured
+- [ ] `sideEffects: false` in `package.json`
+- [ ] SemVer-compliant version
+
+---
+
+## Next Steps
+
+- [Custom Hook Authoring Playbook](/docs/guides/custom-hook-authoring-playbook) — Deep dive into design principles and patterns
+- [Hook Error Handling](/docs/guides/hook-error-handling) — Common failure modes and recovery patterns
+- [Testing](/docs/guides/testing) — Repository test setup with Vitest
+- [Contributing](/docs/guides/contributing) — PR workflow and conventions

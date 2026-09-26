@@ -1,0 +1,227 @@
+---
+title: Nextellar CLI Comprehensive Reference
+description: Authoritative reference for all Nextellar CLI commands, flags, parameters, environment variables, and exit codes.
+date: 2026-09-24
+---
+
+# Nextellar CLI Comprehensive Reference
+
+Nextellar provides a command-line interface (CLI) to scaffold, configure, diagnose, and maintain production-ready Next.js decentralized applications on Stellar and Soroban.
+
+This page is the authoritative reference for all CLI commands, flags, options, defaults, environment variables, and exit codes, verified against the CLI source implementation.
+
+---
+
+## Global Syntax & Binary Aliases
+
+You can invoke Nextellar using either the primary command `nextellar` or the shorthand alias `nxt`:
+
+```bash
+nextellar [command] [options] [arguments]
+nxt [command] [options] [arguments]
+```
+
+### Global Options
+
+These options can be passed to any command:
+
+| Option       | Shorthand | Type    | Description                                                                  |
+| ------------ | --------- | ------- | ---------------------------------------------------------------------------- |
+| `--help`     | `-h`      | boolean | Displays usage instructions and option summaries for the command.            |
+| `--version`  | `-v`      | boolean | Outputs the currently installed CLI version string.                          |
+| `--verbose`  |           | boolean | Enables verbose debug logging and stack traces in terminal output.           |
+| `--no-color` |           | boolean | Disables colored ANSI formatting in terminal output (useful for CI/CD logs). |
+
+---
+
+## Commands Reference
+
+### 1. `nextellar <project-name>` (or `nextellar create`)
+
+Scaffolds a new Nextellar dApp in the specified directory with wallet integrations, React hooks, and pre-configured tooling.
+
+```bash
+nextellar <project-name> [options]
+nextellar create <project-name> [options]
+```
+
+#### Arguments
+
+| Argument         | Required | Description                                                              |
+| ---------------- | -------- | ------------------------------------------------------------------------ |
+| `<project-name>` | Yes      | Name of the directory and npm package to create (e.g. `my-stellar-app`). |
+
+#### Options & Flags
+
+| Flag                       | Shorthand | Type    | Default       | Accepted Values / Description                                           |
+| -------------------------- | --------- | ------- | ------------- | ----------------------------------------------------------------------- |
+| `--template`               | `-t`      | string  | `default`     | `default`, `minimal`, `defi`. Specifies the starter template.           |
+| `--javascript`             | `-j`      | boolean | `false`       | Scaffolds using JavaScript instead of TypeScript.                       |
+| `--package-manager`        | `-p`      | string  | Auto-detected | `npm`, `pnpm`, `yarn`, `bun`. Package manager to install dependencies.  |
+| `--network`                | `-n`      | string  | `TESTNET`     | `TESTNET`, `PUBLIC`, `FUTURENET`. Configures default network.           |
+| `--wallets`                | `-w`      | string  | `freighter`   | Comma-separated list: `freighter`, `albedo`, `lobstr`, `xbull`, `hana`. |
+| `--contract`               | `-c`      | string  | None          | Valid Soroban contract address (`C...`) to pre-configure.               |
+| `--force`                  | `-f`      | boolean | `false`       | Overwrites destination directory if it already exists.                  |
+| `--install / --no-install` |           | boolean | `true`        | Controls whether `npm install` runs automatically after generation.     |
+| `--git / --no-git`         |           | boolean | `true`        | Controls whether `git init` is executed in the new directory.           |
+| `--yes`                    | `-y`      | boolean | `false`       | Skips all interactive prompts and accepts default settings.             |
+
+#### Examples
+
+```bash
+# Basic TypeScript scaffolding
+npx nextellar my-dapp
+
+# DeFi template with pnpm and multiple wallets
+npx nextellar my-defi-app --template defi -p pnpm -w freighter,albedo,lobstr
+
+# JavaScript project targeting Mainnet without interactive prompts
+npx nextellar prod-app -j --network PUBLIC --yes
+
+# Minimal template with custom contract pre-configured
+npx nextellar contract-ui --template minimal --contract CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC
+```
+
+---
+
+### 2. `nextellar clean`
+
+Removes build artifacts, caches, and dependency directories to restore a pristine workspace state.
+
+```bash
+nextellar clean [options]
+```
+
+#### Options & Flags
+
+| Flag        | Shorthand | Type    | Default | Description                                                                 |
+| ----------- | --------- | ------- | ------- | --------------------------------------------------------------------------- |
+| `--all`     | `-a`      | boolean | `false` | Removes `node_modules` in addition to `.next` and `.contentlayer` caches.   |
+| `--dry-run` | `-d`      | boolean | `false` | Previews files and directories that would be deleted without removing them. |
+| `--force`   | `-f`      | boolean | `false` | Bypasses the confirmation prompt.                                           |
+
+#### Files Removed by Clean
+
+- **Default clean**: `.next/`, `.contentlayer/`, `tsconfig.tsbuildinfo`, `.turbo/`
+- **Clean with `--all`**: Adds `node_modules/` and lockfiles if requested.
+- **Preserved**: Source files (`src/`), `.env.local`, `package.json`, Git repository (`.git/`).
+
+#### Examples
+
+```bash
+# Preview what would be removed
+nextellar clean --dry-run
+
+# Clean build caches without prompting
+nextellar clean --force
+
+# Complete purge including node_modules
+nextellar clean --all --force
+```
+
+---
+
+### 3. `nextellar doctor`
+
+Runs an automated system diagnostic check to verify that all prerequisites, CLI tools, package managers, and Stellar network endpoints are operational.
+
+```bash
+nextellar doctor [options]
+```
+
+#### Options & Flags
+
+| Flag        | Type    | Default | Description                                                 |
+| ----------- | ------- | ------- | ----------------------------------------------------------- |
+| `--json`    | boolean | `false` | Outputs machine-readable JSON payload for CI integration.   |
+| `--verbose` | boolean | `false` | Displays full path resolutions and network request latency. |
+
+#### Diagnostic Checks Performed
+
+1. **Node.js Runtime**: Verifies Node.js version satisfies `>=18.17.0`.
+2. **Package Managers**: Detects availability of `pnpm`, `npm`, `yarn`, and `bun`.
+3. **Rust & Soroban Tooling**: Checks for `cargo` and `stellar-cli` (if developing smart contracts).
+4. **Git Installation**: Ensures `git` is available for version control.
+5. **Network Reachability**: Pings Horizon Testnet (`https://horizon-testnet.stellar.org`) and Soroban RPC.
+
+#### Sample JSON Output (`--json`)
+
+```json
+{
+  "status": "ok",
+  "checks": {
+    "node": { "status": "pass", "version": "v20.12.0" },
+    "packageManager": { "status": "pass", "name": "pnpm", "version": "9.1.0" },
+    "git": { "status": "pass", "version": "2.43.0" },
+    "stellarRpc": { "status": "pass", "latencyMs": 85 }
+  },
+  "timestamp": "2026-09-24T12:00:00Z"
+}
+```
+
+---
+
+### 4. `nextellar add <feature>`
+
+Injects pre-configured modules or integrations into an existing Nextellar project.
+
+```bash
+nextellar add <feature> [options]
+```
+
+#### Supported Features
+
+| Feature    | Description                                                                      |
+| ---------- | -------------------------------------------------------------------------------- |
+| `contract` | Generates a typed Soroban contract client and invocation hook.                   |
+| `wallet`   | Adds a new wallet provider adapter (e.g. WalletConnect, Hana).                   |
+| `dex`      | Adds order book widgets and DEX trade execution components.                      |
+| `msw`      | Installs and configures Mock Service Worker for Horizon and Soroban RPC testing. |
+
+---
+
+### 5. `nextellar info`
+
+Outputs project information, installed Nextellar dependency versions, active configuration flags, and target network.
+
+```bash
+nextellar info
+```
+
+---
+
+## Environment Variables Reference
+
+Nextellar templates recognize the following environment variables:
+
+| Variable                      | Scope           | Purpose                                      | Example                               |
+| ----------------------------- | --------------- | -------------------------------------------- | ------------------------------------- |
+| `NEXT_PUBLIC_STELLAR_NETWORK` | Client & Server | Active Stellar network.                      | `TESTNET` or `PUBLIC`                 |
+| `NEXT_PUBLIC_HORIZON_URL`     | Client & Server | Horizon HTTP API endpoint.                   | `https://horizon-testnet.stellar.org` |
+| `NEXT_PUBLIC_SOROBAN_URL`     | Client & Server | Soroban JSON-RPC endpoint.                   | `https://soroban-testnet.stellar.org` |
+| `NEXT_PUBLIC_WALLETS`         | Client          | Comma-separated list of enabled wallets.     | `freighter,albedo,lobstr`             |
+| `NEXT_PUBLIC_APP_NAME`        | Client          | Application name displayed in wallet modals. | `My Stellar dApp`                     |
+| `NEXT_PUBLIC_CONTRACT_ID`     | Client          | Default Soroban contract identifier.         | `CCW67TSBXS2...`                      |
+
+---
+
+## Exit Codes Reference
+
+The CLI returns standard POSIX process exit codes:
+
+| Exit Code | Name                | Description                                                                            |
+| --------- | ------------------- | -------------------------------------------------------------------------------------- |
+| `0`       | `SUCCESS`           | The command completed successfully.                                                    |
+| `1`       | `GENERAL_ERROR`     | An unhandled exception or runtime error occurred.                                      |
+| `2`       | `INVALID_ARGUMENTS` | Unknown flags, missing required arguments, or invalid option values.                   |
+| `3`       | `DIRECTORY_EXISTS`  | Destination directory already exists and `--force` was not specified.                  |
+| `4`       | `NETWORK_FAILURE`   | Network timeout or unreachable Horizon / Soroban RPC endpoint during diagnostic check. |
+
+---
+
+## Related Documentation
+
+- [CLI Overview](/docs/cli/overview) — High-level introduction to the Nextellar CLI
+- [CLI Commands Guide](/docs/cli/commands) — In-depth command walkthroughs
+- [Flags & Options Guide](/docs/cli/flags) — Additional flag examples
+- [Scaffolding Templates](/docs/cli/templates) — Comparing default, minimal, and defi templates
