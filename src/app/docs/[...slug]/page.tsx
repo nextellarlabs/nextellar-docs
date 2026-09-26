@@ -5,6 +5,7 @@ import Breadcrumb from '@/components/bread-crumb';
 import AutoToc from '@/components/auto-toc';
 import EditThisPage from '@/components/edit-this-page';
 import { format, parseISO } from 'date-fns';
+import { meta } from '../../../../config/meta';
 
 type tParams = Promise<{ slug: string[] }>;
 
@@ -37,6 +38,7 @@ export const generateMetadata = async ({ params }: { params: tParams }) => {
     openGraph: {
       title: doc.title,
       description: doc.description || 'A detailed guide to the topic.',
+      images: meta.openGraph.images,
     },
   };
 };
