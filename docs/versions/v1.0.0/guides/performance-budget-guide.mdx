@@ -1,0 +1,589 @@
+---
+title: Performance Budget Guide
+description: Define and maintain performance budgets for the Nextellar documentation build and deployment.
+date: 2026-05-29
+---
+
+# Performance Budget Guide
+
+This guide defines performance budgets for the Nextellar documentation site and explains how to measure, monitor, and respond to regressions.
+
+## Overview
+
+A performance budget is a set of limits on metrics that affect site performance. It ensures the documentation remains fast and accessible as it grows.
+
+**Why Performance Budgets Matter:**
+
+- Catch regressions early before they reach production.
+- Keep documentation fast and accessible.
+- Reduce bandwidth costs.
+- Improve user experience, especially on slow networks.
+- Maintain SEO rankings (Core Web Vitals impact ranking).
+
+## Target Metrics
+
+### Build Performance
+
+| Metric             | Target  | Warning | Critical |
+| ------------------ | ------- | ------- | -------- |
+| Content Build Time | < 30s   | > 40s   | > 60s    |
+| Full Build Time    | < 90s   | > 120s  | > 180s   |
+| Bundle Size (JS)   | < 500KB | > 600KB | > 750KB  |
+| Bundle Size (CSS)  | < 100KB | > 150KB | > 200KB  |
+| Total Page Size    | < 800KB | > 1MB   | > 1.5MB  |
+
+### Runtime Performance (Core Web Vitals)
+
+| Metric                         | Target  | Warning | Critical |
+| ------------------------------ | ------- | ------- | -------- |
+| Largest Contentful Paint (LCP) | < 2.5s  | > 3.5s  | > 4.5s   |
+| First Input Delay (FID)        | < 100ms | > 150ms | > 300ms  |
+| Cumulative Layout Shift (CLS)  | < 0.1   | > 0.15  | > 0.25   |
+| First Contentful Paint (FCP)   | < 1.8s  | > 2.5s  | > 3.5s   |
+
+### Content Metrics
+
+| Metric            | Target  | Warning | Critical |
+| ----------------- | ------- | ------- | -------- |
+| Total Documents   | < 100   | > 120   | > 150    |
+| Average Doc Size  | < 50KB  | > 75KB  | > 100KB  |
+| Search Index Size | < 5MB   | > 7MB   | > 10MB   |
+| Sitemap Size      | < 500KB | > 750KB | > 1MB    |
+
+### Network Metrics
+
+| Metric                    | Target  | Warning | Critical |
+| ------------------------- | ------- | ------- | -------- |
+| Time to First Byte (TTFB) | < 200ms | > 300ms | > 500ms  |
+| Document Download         | < 100ms | > 150ms | > 250ms  |
+| Largest Asset             | < 300KB | > 400KB | > 500KB  |
+| Total Requests            | < 50    | > 70    | > 100    |
+
+## Measuring Performance
+
+### 1. Build Performance Measurement
+
+#### Content Build Time
+
+```bash
+# Measure content build time
+time pnpm build:content
+
+# Output example:
+# real    0m28.456s
+# user    0m45.123s
+# sys     0m3.234s
+```
+
+**Interpretation:**
+
+- Real time: Actual elapsed time (what matters)
+- User time: CPU time spent
+- Sys time: System calls time
+
+#### Full Build Time
+
+```bash
+# Measure complete build
+time pnpm build
+
+# Includes:
+# - Content build (contentlayer2)
+# - Next.js build
+# - Static generation
+```
+
+#### Bundle Size Analysis
+
+```bash
+# Analyze bundle size
+pnpm build
+
+# Check output directory
+du -sh .next/static/chunks/
+du -sh .next/static/css/
+
+# Detailed breakdown
+ls -lh .next/static/chunks/ | grep -E '\.(js|css)$'
+```
+
+**Expected Output:**
+
+```
+.next/static/chunks/main-*.js     ~200KB
+.next/static/chunks/pages-*.js    ~150KB
+.next/static/css/main-*.css       ~80KB
+```
+
+### 2. Runtime Performance Measurement
+
+#### Using Lighthouse
+
+```bash
+# Install Lighthouse CLI
+npm install -g @lhci/cli@latest lighthouse
+
+# Run Lighthouse audit
+lighthouse https://docs.nextellar.dev --view
+
+# Headless mode (CI/CD)
+lighthouse https://docs.nextellar.dev \
+  --output=json \
+  --output-path=./lighthouse-report.json
+```
+
+**Key Metrics from Report:**
+
+- Largest Contentful Paint (LCP)
+- First Input Delay (FID)
+- Cumulative Layout Shift (CLS)
+- First Contentful Paint (FCP)
+
+#### Using Web Vitals
+
+```typescript
+// pages/_app.tsx
+import { getCLS, getFID, getFCP, getLCP, getTTFB } from 'web-vitals';
+
+export function reportWebVitals(metric: any) {
+  console.log(metric);
+
+  // Send to analytics
+  if (metric.value < 2500) {
+    console.log('✅ LCP is good:', metric.value);
+  } else {
+    console.warn('⚠️ LCP is slow:', metric.value);
+  }
+}
+
+getCLS(reportWebVitals);
+getFID(reportWebVitals);
+getFCP(reportWebVitals);
+getLCP(reportWebVitals);
+getTTFB(reportWebVitals);
+```
+
+#### Using Chrome DevTools
+
+1. Open DevTools (F12)
+2. Go to Performance tab
+3. Click Record
+4. Interact with page
+5. Stop recording
+6. Review metrics:
+   - First Contentful Paint (FCP)
+   - Largest Contentful Paint (LCP)
+   - Cumulative Layout Shift (CLS)
+
+### 3. Content Metrics Measurement
+
+#### Document Count
+
+```bash
+# Count total documents
+find docs -name "*.mdx" | wc -l
+
+# Count by category
+find docs -type d -name "*" | while read dir; do
+  count=$(find "$dir" -maxdepth 1 -name "*.mdx" | wc -l)
+  if [ $count -gt 0 ]; then
+    echo "$dir: $count"
+  fi
+done
+```
+
+#### Average Document Size
+
+```bash
+# Calculate average document size
+du -b docs/**/*.mdx | awk '{sum+=$1; count++} END {print "Average:", sum/count, "bytes"}'
+
+# Size distribution
+du -b docs/**/*.mdx | sort -n | tail -10
+```
+
+#### Search Index Size
+
+```bash
+# Check generated search index
+ls -lh .contentlayer/generated/
+
+# Estimate search index
+du -sh .contentlayer/generated/
+```
+
+### 4. Network Metrics Measurement
+
+#### Using curl
+
+```bash
+# Measure Time to First Byte (TTFB)
+curl -w "TTFB: %{time_starttransfer}s\n" \
+     -o /dev/null \
+     -s https://docs.nextellar.dev
+
+# Full timing breakdown
+curl -w "
+  DNS:     %{time_namelookup}s
+  Connect: %{time_connect}s
+  TTFB:    %{time_starttransfer}s
+  Total:   %{time_total}s
+" -o /dev/null -s https://docs.nextellar.dev
+```
+
+#### Using WebPageTest
+
+1. Visit [webpagetest.org](https://www.webpagetest.org)
+2. Enter URL: `https://docs.nextellar.dev`
+3. Select location and browser
+4. Run test
+5. Review metrics:
+   - First Byte Time
+   - Start Render
+   - Largest Contentful Paint
+   - Total Page Size
+   - Number of Requests
+
+#### Using Chrome DevTools Network Tab
+
+1. Open DevTools (F12)
+2. Go to Network tab
+3. Reload page
+4. Review:
+   - Total requests
+   - Total size
+   - Largest assets
+   - Waterfall chart
+
+## Monitoring Performance
+
+### Automated Performance Checks
+
+Create a performance monitoring script:
+
+```bash
+#!/bin/bash
+# scripts/check-performance.sh
+
+set -e
+
+echo "📊 Performance Budget Check"
+echo "=========================="
+
+# Build time check
+echo ""
+echo "⏱️  Checking build time..."
+START=$(date +%s)
+pnpm build:content > /dev/null 2>&1
+END=$(date +%s)
+BUILD_TIME=$((END - START))
+
+if [ $BUILD_TIME -gt 60 ]; then
+  echo "❌ CRITICAL: Build time ${BUILD_TIME}s exceeds 60s limit"
+  exit 1
+elif [ $BUILD_TIME -gt 40 ]; then
+  echo "⚠️  WARNING: Build time ${BUILD_TIME}s exceeds 40s warning"
+else
+  echo "✅ Build time: ${BUILD_TIME}s (target: <30s)"
+fi
+
+# Bundle size check
+echo ""
+echo "📦 Checking bundle sizes..."
+JS_SIZE=$(du -sb .next/static/chunks/*.js 2>/dev/null | awk '{sum+=$1} END {print int(sum/1024/1024)}')
+CSS_SIZE=$(du -sb .next/static/css/*.css 2>/dev/null | awk '{sum+=$1} END {print int(sum/1024/1024)}')
+
+if [ $JS_SIZE -gt 750 ]; then
+  echo "❌ CRITICAL: JS bundle ${JS_SIZE}MB exceeds 750MB limit"
+  exit 1
+elif [ $JS_SIZE -gt 600 ]; then
+  echo "⚠️  WARNING: JS bundle ${JS_SIZE}MB exceeds 600MB warning"
+else
+  echo "✅ JS bundle: ${JS_SIZE}MB (target: <500MB)"
+fi
+
+if [ $CSS_SIZE -gt 200 ]; then
+  echo "❌ CRITICAL: CSS bundle ${CSS_SIZE}MB exceeds 200MB limit"
+  exit 1
+elif [ $CSS_SIZE -gt 150 ]; then
+  echo "⚠️  WARNING: CSS bundle ${CSS_SIZE}MB exceeds 150MB warning"
+else
+  echo "✅ CSS bundle: ${CSS_SIZE}MB (target: <100MB)"
+fi
+
+# Document count check
+echo ""
+echo "📄 Checking content metrics..."
+DOC_COUNT=$(find docs -name "*.mdx" | wc -l)
+
+if [ $DOC_COUNT -gt 150 ]; then
+  echo "❌ CRITICAL: Document count $DOC_COUNT exceeds 150 limit"
+  exit 1
+elif [ $DOC_COUNT -gt 120 ]; then
+  echo "⚠️  WARNING: Document count $DOC_COUNT exceeds 120 warning"
+else
+  echo "✅ Document count: $DOC_COUNT (target: <100)"
+fi
+
+echo ""
+echo "✅ All performance checks passed!"
+```
+
+Add to package.json:
+
+```json
+{
+  "scripts": {
+    "check:performance": "bash scripts/check-performance.sh"
+  }
+}
+```
+
+### CI/CD Integration
+
+Add to GitHub Actions workflow:
+
+```yaml
+# .github/workflows/performance.yml
+name: Performance Check
+
+on: [pull_request, push]
+
+jobs:
+  performance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Check performance budget
+        run: pnpm check:performance
+
+      - name: Build and analyze
+        run: pnpm build
+
+      - name: Upload bundle analysis
+        uses: actions/upload-artifact@v3
+        with:
+          name: bundle-analysis
+          path: .next/
+```
+
+## Responding to Regressions
+
+### Regression Detection
+
+**Automatic Detection:**
+
+```bash
+# Run performance check in CI
+pnpm check:performance
+
+# If it fails, investigate the cause
+```
+
+**Manual Detection:**
+
+```bash
+# Compare build times
+time pnpm build:content
+
+# Compare bundle sizes
+du -sh .next/static/chunks/
+du -sh .next/static/css/
+```
+
+### Investigation Steps
+
+#### 1. Identify the Cause
+
+```bash
+# Check recent changes
+git log --oneline -10
+
+# Compare bundle sizes
+git diff HEAD~1 -- .next/static/
+
+# Check for new dependencies
+git diff HEAD~1 -- package.json
+```
+
+#### 2. Analyze Impact
+
+```bash
+# Detailed bundle analysis
+npm install -g webpack-bundle-analyzer
+
+# Generate report
+webpack-bundle-analyzer .next/static/chunks/main-*.js
+```
+
+#### 3. Common Causes and Solutions
+
+| Issue                | Cause                  | Solution                                    |
+| -------------------- | ---------------------- | ------------------------------------------- |
+| Build time increased | New content or plugins | Optimize plugins, lazy-load features        |
+| JS bundle grew       | New dependency         | Tree-shake unused code, use dynamic imports |
+| CSS bundle grew      | New styles             | Remove unused CSS, consolidate rules        |
+| LCP degraded         | Large images           | Optimize images, lazy-load below fold       |
+| CLS increased        | Layout shifts          | Add size constraints, avoid dynamic content |
+
+### Remediation Workflow
+
+#### Step 1: Create Issue
+
+```markdown
+## Performance Regression
+
+**Metric:** Build time
+**Previous:** 28s
+**Current:** 65s
+**Threshold:** 60s (critical)
+
+**Impact:** Slow CI/CD pipeline
+
+**Investigation:**
+
+- [ ] Identify root cause
+- [ ] Quantify impact
+- [ ] Propose solution
+```
+
+#### Step 2: Implement Fix
+
+**Example: Reduce Bundle Size**
+
+```typescript
+// Before: Import entire library
+import _ from 'lodash';
+
+// After: Import only needed functions
+import { debounce } from 'lodash-es';
+```
+
+**Example: Optimize Images**
+
+```typescript
+// Before: Large unoptimized image
+<img src="/logo.png" />
+
+// After: Optimized with Next.js Image
+import Image from 'next/image';
+<Image src="/logo.png" width={200} height={200} />
+```
+
+**Example: Lazy Load Components**
+
+```typescript
+// Before: Load all components upfront
+import Analytics from '@/components/Analytics';
+
+// After: Lazy load non-critical components
+const Analytics = dynamic(() => import('@/components/Analytics'), {
+  loading: () => <div>Loading...</div>,
+});
+```
+
+#### Step 3: Verify Fix
+
+```bash
+# Re-run performance checks
+pnpm check:performance
+
+# Verify metrics improved
+time pnpm build:content
+
+# Check bundle sizes
+du -sh .next/static/chunks/
+du -sh .next/static/css/
+```
+
+#### Step 4: Document Changes
+
+```markdown
+## Performance Fix
+
+**Issue:** Build time regression from 28s to 65s
+
+**Root Cause:** New Mermaid diagram library added 300KB to bundle
+
+**Solution:**
+
+- Lazy-loaded Mermaid component
+- Removed unused diagram types
+- Optimized CSS
+
+**Results:**
+
+- Build time: 65s → 32s ✅
+- JS bundle: 650KB → 520KB ✅
+- No visual changes ✅
+
+**Testing:**
+
+- [x] Local build verified
+- [x] CI/CD pipeline passed
+- [x] Lighthouse score maintained
+```
+
+## Performance Optimization Tips
+
+### Content Optimization
+
+- **Compress images** — Use WebP format, optimize dimensions
+- **Lazy-load heavy components** — Defer non-critical rendering
+- **Code splitting** — Split large pages into smaller chunks
+- **Remove unused CSS** — Use PurgeCSS or Tailwind's purge
+
+### Build Optimization
+
+- **Incremental builds** — Only rebuild changed content
+- **Parallel processing** — Use multiple CPU cores
+- **Caching** — Cache build artifacts between runs
+- **Tree-shaking** — Remove unused code
+
+### Runtime Optimization
+
+- **Minification** — Compress JS and CSS
+- **Compression** — Enable gzip/brotli on server
+- **Caching headers** — Set appropriate cache-control
+- **CDN** — Serve static assets from edge locations
+
+### Monitoring
+
+- **Set up alerts** — Notify on threshold breaches
+- **Track trends** — Monitor performance over time
+- **Compare versions** — Track improvements between releases
+- **User metrics** — Monitor real user performance (RUM)
+
+## Performance Budget Checklist
+
+Before merging changes:
+
+- [ ] Run `pnpm check:performance`
+- [ ] Verify build time < 60s
+- [ ] Check JS bundle < 750KB
+- [ ] Check CSS bundle < 200KB
+- [ ] Run Lighthouse audit
+- [ ] Verify Core Web Vitals
+- [ ] Check document count < 150
+- [ ] Review bundle analysis
+- [ ] Test on slow network (DevTools throttling)
+- [ ] Document any intentional increases
+
+## Related Resources
+
+- [CLI Configuration](/docs/cli/configuration) — Build configuration options
+- [Contributing Guide](/docs/guides/contributing) — Development workflow
+- [Navigation Configuration](/docs/guides/navigation-configuration) — Content structure
+- [Lighthouse Documentation](https://developers.google.com/web/tools/lighthouse) — Performance auditing
+- [Web Vitals Guide](https://web.dev/vitals/) — Core Web Vitals explained
+- [Next.js Performance](https://nextjs.org/learn/seo/web-performance) — Next.js optimization guide

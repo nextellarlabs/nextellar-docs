@@ -1,0 +1,359 @@
+---
+title: Contributing to Documentation
+description: Learn how to contribute to Nextellar documentation, including the content build process and development workflow.
+date: 2026-06-01
+---
+
+
+# Contributing to Documentation
+
+This guide explains how to contribute to Nextellar documentation, with a focus on understanding the content build pipeline and development workflow.
+
+## Content Build Process
+
+Nextellar documentation uses **Contentlayer** to process MDX files into structured, type-safe content objects. Understanding this build step is essential for contributors.
+
+### What the Content Build Does
+
+The content build process (`pnpm build:content`) performs several important tasks:
+
+**Content Processing**
+
+- Converts MDX files into structured JavaScript objects.
+- Validates frontmatter schema and required fields.
+- Processes embedded React components and imports.
+- Generates type definitions for content objects.
+
+**Navigation & Search**
+
+- Creates navigation tree from file structure and frontmatter.
+- Builds search index for documentation content.
+- Generates sitemap and internal link mappings.
+- Validates cross-references between documents.
+
+**Optimization**
+
+- Optimizes images and static assets referenced in content.
+- Bundles and tree-shakes unused code from MDX components.
+- Creates efficient data structures for fast page loading.
+- Generates static props for Next.js pages.
+
+### Running the Content Build
+
+**Basic Command**
+
+```bash
+pnpm build:content
+```
+
+**What happens during the build:**
+
+```bash
+✓ Generated 47 documents in .contentlayer
+✓ Validated frontmatter for all MDX files
+✓ Built navigation tree (4 sections, 23 pages)
+✓ Generated search index (1,247 searchable items)
+✓ Validated 156 internal links
+```
+
+**Integration with Development**
+
+```bash
+# Full development build
+pnpm build          # Runs build:content + next build
+
+# Development server (auto-rebuilds content)
+pnpm dev           # Watches for MDX changes
+```
+
+### When You Must Run the Content Build
+
+**Required Scenarios**
+
+- **Adding new MDX files**: New pages need to be processed and indexed
+- **Modifying frontmatter**: Changes to title, description, or metadata
+- **Updating internal links**: Cross-references need validation
+- **Before production build**: Always runs as part of `pnpm build`
+
+**Automatic Rebuilds**
+
+- **Development mode**: Content rebuilds automatically when MDX files change
+- **CI/CD pipeline**: Runs during automated builds and deployments
+- **Pre-commit hooks**: Validates content before commits (optional)
+
+**Manual Rebuilds Needed**
+
+- **After git pull**: When pulling changes that include new content
+- **Troubleshooting**: When content seems out of sync
+- **Before testing**: To ensure latest content is available
+
+### Content Build Configuration
+
+The build process is configured in `contentlayer.config.ts`:
+
+```typescript
+import { defineDocumentType, makeSource } from 'contentlayer2/source-files';
+
+const Doc = defineDocumentType(() => ({
+  name: 'Doc',
+  filePathPattern: `**/*.mdx`,
+  contentType: 'mdx',
+  fields: {
+    title: { type: 'string', required: true },
+    description: { type: 'string', required: true },
+    // Additional fields...
+  },
+  computedFields: {
+    url: {
+      type: 'string',
+      resolve: (doc) => `/${doc._raw.flattenedPath}`,
+    },
+    // Navigation and search fields...
+  },
+}));
+
+export default makeSource({
+  contentDirPath: 'docs',
+  documentTypes: [Doc],
+  mdx: {
+    remarkPlugins: [remarkGfm],
+    rehypePlugins: [rehypeSlug, rehypeHighlight],
+  },
+});
+```
+
+### Troubleshooting Content Build Issues
+
+**Common Error: Invalid Frontmatter**
+
+```bash
+Error: Missing required field "description" in docs/guides/example.mdx
+```
+
+**Solution**: Ensure all MDX files have required frontmatter:
+
+```yaml
+---
+title: 'Page Title'
+description: 'Page description for SEO and navigation'
+---
+```
+
+**Common Error: Broken Internal Links**
+
+```bash
+Error: Link target not found: /docs/nonexistent-page
+```
+
+**Solution**: Verify link targets exist and use correct paths:
+
+```markdown
+<!-- Correct -->
+
+[CLI Commands](/docs/cli/commands)
+
+<!-- Incorrect -->
+
+[CLI Commands](/docs/cli/nonexistent)
+```
+
+**Common Error: MDX Syntax Issues**
+
+```bash
+Error: Unexpected token in docs/guides/example.mdx:15:3
+```
+
+**Solution**: Check MDX syntax, especially JSX components:
+
+```mdx
+{/* Correct */}
+
+<div className="grid grid-cols-2">Content here</div>
+
+{/* Incorrect - missing closing tag */}
+
+<div className="grid grid-cols-2">
+  Content here
+```
+
+### Content Validation
+
+The build process includes several validation steps:
+
+**Frontmatter Validation**
+
+```typescript
+// Required fields for all documents
+interface DocumentFrontmatter {
+  title: string; // Page title
+  description: string; // SEO description
+}
+```
+
+**Link Validation**
+
+```bash
+# Check all internal links
+pnpm check:links
+
+# Output example
+✓ Validated 156 internal links
+✗ Found 3 broken links:
+  - /docs/cli/nonexistent (referenced in docs/cli/commands.mdx:45)
+  - /guides/missing (referenced in docs/index.mdx:12)
+```
+
+**Content Structure Validation**
+
+- Ensures proper heading hierarchy (h1 → h2 → h3).
+- Validates code block language specifications.
+- Checks for required sections in specific document types.
+
+## Development Workflow
+
+### Setting Up for Development
+
+1. **Clone and Install**
+
+```bash
+git clone https://github.com/nextellarlabs/nextellar-docs.git
+cd nextellar-docs
+pnpm install
+```
+
+2. **Initial Content Build**
+
+```bash
+pnpm build:content
+```
+
+3. **Start Development Server**
+
+```bash
+pnpm dev
+```
+
+### Making Content Changes
+
+**For New Pages**
+
+1. Create MDX file in appropriate `docs/` subdirectory
+2. Add required frontmatter
+3. Run `pnpm build:content` to process new file
+4. Verify page appears in navigation
+
+**For Existing Pages**
+
+1. Edit MDX file (auto-rebuilds in dev mode)
+2. Check browser for immediate updates
+3. Validate changes with `pnpm check:links`
+
+**For Navigation Changes**
+
+1. Update file structure or frontmatter
+2. Run `pnpm build:content` to regenerate navigation
+3. Test navigation in browser
+
+### Pre-Submission Checklist
+
+Before submitting a pull request:
+
+```bash
+# 1. Build content successfully
+pnpm build:content
+
+# 2. Validate all links
+pnpm check:links
+
+# 3. Check formatting
+pnpm format:check
+
+# 4. Run linting
+pnpm lint
+
+# 5. Test full build
+pnpm build
+```
+
+**All commands should complete without errors.**
+
+For a quick ready-to-use checklist, see [Documentation Contributing Checklist](/docs/guides/contributing-checklist).
+
+## Content Guidelines
+
+### File Organization
+
+```
+docs/
+├── index.mdx              # Homepage
+├── getting-started/       # Installation, quick start
+├── cli/                   # CLI documentation
+├── hooks/                 # React hooks reference
+├── guides/               # How-to guides
+├── examples/             # Code examples
+└── api/                  # API reference
+```
+
+### Frontmatter Requirements
+
+```yaml
+---
+title: 'Descriptive Page Title'
+description: 'Clear description for SEO and navigation (50-160 chars)'
+---
+```
+
+### Writing Style
+
+- Use clear, concise language.
+- Include code examples for technical concepts.
+- Structure content with proper headings.
+- Add internal links to related documentation.
+
+### Docs Standards
+
+- [Docs Style Guide](/docs/guides/style-guide) — tone, structure, formatting, and examples
+- [Versioned Docs Strategy](/docs/guides/versioned-docs-strategy) — when to split or freeze docs by major version
+- [Redirects Map](/docs/guides/redirects-map) — how moved pages keep old URLs working
+- [Husky Pre-commit Hooks](/docs/guides/husky-pre-commit-hooks) — what the commit hook runs and how to troubleshoot it
+- [Hook Error Handling](/docs/guides/hook-error-handling) — shared failure patterns for hook pages
+- [Issue Templates](/docs/guides/issue-templates) — which template to use when opening a new issue
+
+### Component Usage
+
+```mdx
+{/* Use project components for consistency */}
+
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+  <a href="/docs/cli/commands" className="block p-4 border rounded-lg">
+    <h4 className="font-semibold">CLI Commands</h4>
+    <span className="text-sm text-muted-foreground">
+      Complete command reference
+    </span>
+  </a>
+</div>
+```
+
+## Getting Help
+
+**Build Issues**
+
+- Check the terminal output for specific error messages.
+- Verify MDX syntax and frontmatter format.
+- Ensure all internal links are valid.
+
+**Content Questions**
+
+- Review existing documentation for patterns.
+- Check the [Docs Style Guide](/docs/guides/style-guide) for writing conventions.
+- Ask in [GitHub Discussions](https://github.com/nextellarlabs/nextellar/discussions).
+
+**Technical Problems**
+
+- Clear `.contentlayer` directory and rebuild.
+- Restart development server.
+- Check Node.js version compatibility (requires Node 18+).
+
+---
+
+**Remember**: The content build step is crucial for maintaining documentation quality and ensuring all content is properly processed and validated before publication.

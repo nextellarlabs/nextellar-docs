@@ -1,0 +1,180 @@
+---
+title: Terms and Conditions Template Guide
+description: 'A starter guide and template for writing terms and conditions for your Stellar dApp.'
+date: 2026-08-26
+---
+
+# Terms and Conditions Template Guide
+
+Every Stellar dApp that interacts with real users needs terms and conditions (T&C). Because dApps interact with an immutable public ledger, standard SaaS boilerplate is not sufficient — you need additional clauses that address smart contract behaviour, wallet-based identity, and the absence of a traditional account recovery path.
+
+This guide explains the common sections, when to adapt them, and provides a starter template.
+
+> **Legal disclaimer:** This guide and template are provided for informational purposes only and do not constitute legal advice. Have a qualified attorney review your final terms before publishing.
+
+## Why dApps Need Custom Terms
+
+### Smart contract immutability
+
+Transactions submitted to the Stellar network are final. Your T&C must make clear that:
+
+- Once a transaction is signed and submitted by the user's wallet, it cannot be reversed by your team.
+- Upgrades to smart contracts are possible but may require user action (re-initialisation, migration).
+
+### Wallet-based identity
+
+Users are identified by their Stellar public key, not by a username or email address. This means:
+
+- You cannot reset a user's access if they lose their private key.
+- You cannot freeze or seize funds held in a user's self-custodied wallet.
+
+### Regulatory considerations
+
+If your dApp issues or distributes tokens, additional obligations may apply depending on jurisdiction (securities law, money transmission, GDPR, etc.). Consult a lawyer for anything involving:
+
+- Token sales or initial offerings
+- Staking rewards or yield
+- User funds held in a custodial contract
+
+## Common T&C Sections
+
+### 1. Acceptance of Terms
+
+State how users indicate acceptance (e.g. by connecting a wallet or using the service) and the effective date.
+
+### 2. Description of Service
+
+Describe what the dApp does in plain language. Reference the underlying Stellar network and clarify that your team operates the frontend and (where applicable) the smart contract, but not the Stellar network itself.
+
+### 3. Eligibility
+
+Specify:
+
+- Minimum age (typically 18+)
+- Jurisdictions where the service is not available
+- KYC/AML requirements if applicable
+
+### 4. Token and Asset Disclaimers
+
+Clearly state:
+
+- Whether tokens are utility tokens or might be considered securities.
+- That token values may be zero or highly volatile.
+- That past performance is not indicative of future results.
+
+### 5. User Responsibilities
+
+List what users must not do, including:
+
+- Using the service for illegal purposes
+- Attempting to exploit smart contract vulnerabilities
+- Providing false identity information
+
+### 6. Limitation of Liability
+
+Cap your liability to the amount the user paid for the service (often zero for free dApps) and disclaim liability for losses arising from:
+
+- User error (sending to the wrong address)
+- Smart contract bugs not caused by gross negligence
+- Downtime of the Stellar network or Horizon
+
+### 7. Dispute Resolution and Governing Law
+
+Specify the governing jurisdiction and dispute resolution mechanism (arbitration, mediation, or courts).
+
+### 8. Changes to Terms
+
+Explain how you will notify users of material changes (e.g. email, in-app notice, on-chain event) and the grace period before changes take effect.
+
+## When to Adapt the Template
+
+| Situation | Adaptation needed |
+| --- | --- |
+| Token sale or fundraise | Add securities law disclosures; consult a securities attorney |
+| Custodial contract (you hold user funds) | Add money-transmission disclosures; may require a licence |
+| EU users | Add GDPR-compliant data processing terms |
+| US users | Add CCPA notices; consider state-specific requirements |
+| DAO governance | Add voting rights disclaimer and governance risk section |
+| Minors may access | Strengthen age-gating and parental consent section |
+
+## Starter Template
+
+Copy the template below, replace every `[PLACEHOLDER]` with your details, and have it reviewed by a lawyer before publishing.
+
+```markdown
+# Terms and Conditions
+
+**Last updated:** [DATE]
+
+## 1. Acceptance of Terms
+
+By connecting your Stellar wallet to [DAPP NAME] ("Service") or by otherwise
+accessing or using the Service, you agree to be bound by these Terms and
+Conditions ("Terms"). If you do not agree, do not use the Service.
+
+## 2. Description of Service
+
+[DAPP NAME] is a decentralised application built on the Stellar network that
+enables [SHORT DESCRIPTION, e.g. "royalty splitting for digital assets"]. The
+Service is provided by [YOUR COMPANY / TEAM NAME] ("we", "us", "our").
+
+We operate the web interface and, where stated, the smart contracts deployed on
+Stellar. We do not operate the Stellar network itself; network behaviour is
+governed by the Stellar Development Foundation and the open-source protocol.
+
+## 3. Eligibility
+
+You must be at least 18 years old and not a resident of a jurisdiction where
+use of the Service is prohibited by law to use the Service.
+
+## 4. Wallet and Private Keys
+
+You are solely responsible for the security of your Stellar wallet and private
+key. We never have custody of your private key. If you lose access to your
+wallet, we cannot recover your funds or restore your access.
+
+## 5. Token Disclaimers
+
+[Any tokens accessible through the Service] are [utility tokens / not
+securities — adapt as appropriate]. Token values may fluctuate significantly or
+reach zero. Nothing in the Service constitutes investment advice.
+
+## 6. Prohibited Uses
+
+You agree not to use the Service to:
+- Violate any applicable law or regulation.
+- Launder money or finance terrorism.
+- Attempt to exploit or reverse-engineer smart contracts.
+- Impersonate another person or entity.
+
+## 7. Finality of Transactions
+
+All transactions submitted through the Service are broadcast to the Stellar
+network and are final once confirmed. We cannot reverse or modify on-chain
+transactions.
+
+## 8. Limitation of Liability
+
+To the maximum extent permitted by law, we are not liable for any indirect,
+incidental, special, or consequential damages arising from your use of the
+Service, including but not limited to loss of funds resulting from user error,
+smart contract vulnerabilities, or Stellar network downtime.
+
+## 9. Governing Law and Dispute Resolution
+
+These Terms are governed by the laws of [JURISDICTION]. Any disputes shall be
+resolved by binding arbitration in [CITY/COUNTRY] under the rules of
+[ARBITRATION BODY], except that either party may seek injunctive relief in a
+court of competent jurisdiction.
+
+## 10. Changes to Terms
+
+We may update these Terms at any time. Material changes will be communicated
+via [EMAIL / IN-APP NOTICE / ON-CHAIN EVENT] at least [NUMBER] days before
+taking effect. Continued use of the Service after the effective date constitutes
+acceptance of the updated Terms.
+
+## 11. Contact
+
+Questions about these Terms? Contact us at [CONTACT EMAIL / LINK].
+```

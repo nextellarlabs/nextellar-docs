@@ -1,0 +1,190 @@
+---
+title: Search Experience
+description: How documentation search works, what gets indexed, and how to configure and verify search locally.
+date: 2026-05-29
+---
+
+# Search Experience
+
+The Nextellar docs include a built-in search dialog in the documentation header.
+Search runs entirely in the browser against Contentlayer-generated documents.
+There is no Algolia, Typesense, or other external search service to configure.
+
+## Search approach
+
+### Data source
+
+When you run `pnpm build:content`, Contentlayer processes every `.mdx` file under `docs/` and emits typed documents in `.contentlayer/generated`.
+
+The docs layout imports that collection and passes it to the search UI:
+
+```tsx
+import { allDocs } from 'contentlayer/generated';
+import SearchDialog from '@/components/search-dialog';
+
+// ...
+<SearchDialog searchData={allDocs} />;
+```
+
+Each indexed document includes:
+
+| Field                | Source                  | Used in search                 |
+| -------------------- | ----------------------- | ------------------------------ |
+| `title`              | Frontmatter             | Yes — primary match            |
+| `body.raw`           | MDX file content        | Yes — after markdown stripping |
+| `_raw.flattenedPath` | File path under `docs/` | Result URL only                |
+
+### Query behavior
+
+`SearchDialog` (`src/components/search-dialog.tsx`) implements client-side search:
+
+1. **Debounce** — waits 300ms after typing before querying.
+2. **Match** — case-insensitive substring on `title` and stripped body text.
+3. **Snippet** — shows ~40 characters of context around the first match.
+4. **Highlight** — wraps matched terms in the result list.
+5. **Navigation** — result links go to `/docs/<flattenedPath>`.
+
+Matching is substring-based, not fuzzy ranking.
+A page appears in results when the query appears in its title or body.
+
+### Keyboard shortcut
+
+Press **Cmd+K** (macOS) or **Ctrl+K** (Windows/Linux) anywhere on a docs page to open search.
+You can also click the search button in the header (visible on `sm` breakpoints and up).
+
+## Configuration steps
+
+Search requires no extra npm packages beyond what the repo already installs.
+Follow these steps when setting up a new environment or after changing content structure.
+
+### 1. Install dependencies
+
+```bash
+pnpm install
+```
+
+### 2. Define indexable frontmatter
+
+Every searchable page must live under `docs/` and include required frontmatter in `contentlayer.config.ts`:
+
+```yaml
+---
+title: Page Title
+description: Short summary for metadata and discoverability.
+---
+```
+
+`title` is required and is the strongest search signal.
+`description` is optional in the schema but recommended for metadata; body text is still indexed from the MDX content.
+
+### 3. Build the content index
+
+```bash
+pnpm build:content
+```
+
+This step must succeed before search can reflect new or renamed pages.
+In development, restart `pnpm dev` after adding files if results do not update.
+
+### 4. Confirm layout wiring
+
+Search is mounted in `src/app/docs/layout.tsx` via `<SearchDialog searchData={allDocs} />`.
+No additional registration is needed per page.
+
+### 5. Optional UI customization
+
+To change highlighting, debounce timing, or result layout, edit `src/components/search-dialog.tsx`:
+
+| Function / area      | Purpose                                                       |
+| -------------------- | ------------------------------------------------------------- |
+| `stripMarkdown()`    | Removes code fences and markup before indexing body text      |
+| `highlightText()`    | Styles matched terms in titles and snippets                   |
+| `getSnippet()`       | Controls surrounding context length (default `40` characters) |
+| Debounce `useEffect` | Adjust the `300` ms delay if needed                           |
+
+Documentation-only contributors normally do not need to change these files.
+
+## Indexing requirements
+
+For a page to appear in search results, all of the following must be true:
+
+1. **File location** — the MDX file is under `docs/` (for example `docs/guides/search.mdx`).
+2. **Valid frontmatter** — includes `title` (required by Contentlayer).
+3. **Successful build** — `pnpm build:content` completes without errors for that file.
+4. **Discoverable text** — the query appears in `title` and/or the page body (headings, paragraphs, lists).
+
+### What is not indexed separately
+
+- Files outside `docs/` (for example `routes-d/` drafts or `src/content/`) are not in `allDocs`.
+- Sidebar entries in `config/sidebar.tsx` do not affect search; only MDX content does.
+- React components embedded in MDX are not searched as component names unless written in prose.
+
+### Rebuilding the index
+
+| Action                         | Command                                                   |
+| ------------------------------ | --------------------------------------------------------- |
+| Regenerate Contentlayer output | `pnpm build:content`                                      |
+| Development with hot reload    | `pnpm dev` (rebuilds content on change in most cases)     |
+| Production bundle              | `pnpm build` (runs content build as part of `next build`) |
+
+After renaming or moving a doc file, run `pnpm build:content` and verify the new URL path in search results.
+
+## Verify search works locally
+
+Use this checklist before opening a pull request that adds or renames documentation.
+
+### Step 1 — Build content
+
+```bash
+pnpm build:content
+```
+
+Fix any MDX or frontmatter errors reported for your new file before continuing.
+
+### Step 2 — Start the dev server
+
+```bash
+pnpm dev
+```
+
+Open `http://localhost:3000/docs` in the browser.
+
+### Step 3 — Open search
+
+- Press **Cmd+K** or **Ctrl+K**, or
+- Click the search control in the docs header.
+
+### Step 4 — Run smoke queries
+
+| Query                                  | Expected result                      |
+| -------------------------------------- | ------------------------------------ |
+| A unique word from your new page title | Your page listed near the top        |
+| A phrase from the page body only       | Your page listed with a body snippet |
+| `zzzznonexistent`                      | "No results found."                  |
+
+### Step 5 — Follow a result
+
+Click a result and confirm it navigates to the correct `/docs/...` URL and closes the dialog.
+
+### Troubleshooting
+
+| Symptom                    | Likely cause                                 | Fix                                         |
+| -------------------------- | -------------------------------------------- | ------------------------------------------- |
+| Page missing from results  | Content build failed or file outside `docs/` | Run `pnpm build:content`; confirm file path |
+| Stale results after rename | Dev server cache                             | Restart `pnpm dev`                          |
+| Shortcut does nothing      | Focus in an input that captures the key      | Click the page background and retry         |
+| Empty body matches         | Query only in a code block                   | Add the term to prose or the title          |
+
+## Limitations
+
+- **No fuzzy search** — typos must be close to the stored substring to match.
+- **No section-level ranking** — all body text is treated equally after stripping.
+- **Client-only** — search data ships with the app bundle; very large doc sets increase payload size.
+- **Offline mirrors** — static HTML exports may not execute search JavaScript without the full Next.js runtime.
+
+## Related
+
+- [Contributing to Documentation](/docs/guides/contributing)
+- [Add a New Docs Page](/docs/guides/add-docs-page)
+- [Testing Documentation Changes](/docs/guides/testing-docs-changes)
+- [Search Bar (legacy reference)](/docs/search-bar)

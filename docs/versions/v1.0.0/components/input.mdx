@@ -1,0 +1,69 @@
+---
+title: 'Input'
+description: 'A customizable and theme-aware input component with built-in support for variants, sizes, loading states, and error handling.'
+date: 2025-04-20
+---
+
+# Input Component Documentation
+
+The **Input** component is a fully customizable text input field that supports multiple variants, sizes, and states. It's ideal for form elements in modern, theme-aware applications.
+
+## Preview and Code Snippet
+
+<Tabs defaultValue="preview" size="sm" className="w-full">
+  <TabsList className="grid w-full md:w-[30%] grid-cols-2">
+    <Tab value="preview">Preview</Tab>
+    <Tab value="code">Code</Tab>
+  </TabsList>
+  <TabsContent value="preview">
+    <Preview className="bg-background">
+      <div className="flex flex-col gap-4">
+        <Input placeholder="Outline - SM" variant="outline" size="sm" />
+        <Input placeholder="Filled - MD" variant="filled" size="md" />
+        <Input placeholder="None - LG" variant="none" size="lg" />
+        <Input placeholder="Error - XL" variant="outline" size="xl" isError />
+        <Input placeholder="Loading" variant="outline" isLoading />
+      </div>
+    </Preview>
+  </TabsContent>
+  <TabsContent value="code">
+    ```tsx
+    import React from 'react';
+    import { Input } from '@/components/input';
+
+    export default function Example() {
+      return (
+        <div className="flex flex-col gap-4">
+          <Input placeholder="Outline - SM" variant="outline" size="sm" />
+          <Input placeholder="Filled - MD" variant="filled" size="md" />
+          <Input placeholder="None - LG" variant="none" size="lg" />
+          <Input placeholder="Error - XL" variant="outline" size="xl" isError />
+          <Input placeholder="Loading" variant="outline" isLoading />
+        </div>
+      );
+    }
+
+```
+
+  </TabsContent>
+</Tabs>
+
+## Props
+
+| Prop        | Type                                          | Default     | Description                                                    |
+| ----------- | --------------------------------------------- | ----------- | -------------------------------------------------------------- |
+| `variant`   | `'outline' \| 'filled' \| 'none'`             | `'outline'` | Controls the input's background and border style.              |
+| `size`      | `'xs' \| 'sm' \| 'md' \| 'lg' \| 'xl'`        | `'sm'`      | Controls the height and padding of the input.                  |
+| `fullWidth` | `boolean`                                     | `false`     | If true, the input takes up full width of its container.       |
+| `isError`   | `boolean`                                     | `false`     | Applies red border and ring to indicate error state.           |
+| `isLoading` | `boolean`                                     | `false`     | Displays a spinning loader icon inside the input on the right. |
+| `...props`  | `React.InputHTMLAttributes<HTMLInputElement>` |             | Inherits all native input attributes.                          |
+
+## Styling
+
+This input uses Tailwind CSS and `class-variance-authority` to manage style variants, making it easy to scale with design tokens or theming systems.
+
+## Accessibility
+
+Ensure to associate `<label>` components with the `Input` using the `htmlFor` prop for optimal accessibility.
+```

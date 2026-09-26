@@ -1,0 +1,103 @@
+---
+title: Soroban Continuous Token Issuance & Bonding Curves Guide
+description: Architect automated token minting and redemption mechanisms using bonding curves on Stellar Soroban.
+date: 2026-08-25
+---
+
+# Soroban Continuous Token Issuance & Bonding Curves Guide
+
+Continuous Token Issuance allows tokens to be minted or burned dynamically according to an algorithmic pricing function (bonding curve), offering instant liquidity without centralized market makers.
+
+---
+
+## Bonding Curve Mechanics
+
+1. **Minting (Deposit)**: Users lock collateral tokens into the reserve pool. The contract calculates the required payment based on current supply and mints new tokens to the user.
+2. **Redemption (Burn)**: Users return supply tokens to the contract. The contract burns them and releases reserve collateral according to the curve integral.
+
+---
+
+## Linear Bonding Curve Equation
+
+For a linear price curve $P(S) = m \cdot S + b$:
+
+$$\text{Cost}(\Delta S) = \int_{S_{0}}^{S_{0} + \Delta S} (m \cdot S + b) \, dS = m \cdot S_{0} \cdot \Delta S + \frac{m}{2} (\Delta S)^2 + b \cdot \Delta S$$
+
+---
+
+## Soroban Contract Implementation
+
+```rust
+#![no_std]
+use soroban_sdk::{contract, contractimpl, contracttype, Address, Env};
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CurveState {
+    pub total_supply: u128,
+    pub reserve_balance: u128,
+    pub slope: u128,       // m
+    pub base_price: u128,  // b
+}
+
+#[contract]
+pub struct ContinuousIssuanceContract;
+
+#[contractimpl]
+impl ContinuousIssuanceContract {
+    pub fn init_curve(env: Env, admin: Address, slope: u128, base_price: u128) {
+        admin.require_auth();
+        let state = CurveState {
+            total_supply: 0,
+            reserve_balance: 0,
+            slope,
+            base_price,
+        };
+        env.storage().instance().set(&1u32, &state);
+    }
+
+    pub fn calculate_mint_cost(env: Env, amount: u128) -> u128 {
+        let state: CurveState = env.storage().instance().get(&1u32).expect("curve not initialized");
+        let s0 = state.total_supply;
+        // Cost = m * s0 * amount + (m * amount^2) / 2 + base_price * amount
+        let linear_term = state.slope.saturating_mul(s0).saturating_mul(amount);
+        let quad_term = (state.slope.saturating_mul(amount).saturating_mul(amount)) / 2;
+        let base_term = state.base_price.saturating_mul(amount);
+
+        linear_term.saturating_add(quad_term).saturating_add(base_term)
+    }
+
+    pub fn mint_tokens(env: Env, buyer: Address, amount: u128) -> u128 {
+        buyer.require_auth();
+        let mut state: CurveState = env.storage().instance().get(&1u32).expect("curve not initialized");
+
+        let cost = Self::calculate_mint_cost(env.clone(), amount);
+        state.total_supply = state.total_supply.saturating_add(amount);
+        state.reserve_balance = state.reserve_balance.saturating_add(cost);
+
+        env.storage().instance().set(&1u32, &state);
+        cost
+    }
+
+    pub fn burn_tokens(env: Env, seller: Address, amount: u128) -> u128 {
+        seller.require_auth();
+        let mut state: CurveState = env.storage().instance().get(&1u32).expect("curve not initialized");
+        assert!(state.total_supply >= amount, "insufficient supply");
+
+        let s_new = state.total_supply.saturating_sub(amount);
+        // Refund = Cost difference
+        let refund = Self::calculate_mint_cost(env.clone(), amount);
+        state.total_supply = s_new;
+        state.reserve_balance = state.reserve_balance.saturating_sub(refund);
+
+        env.storage().instance().set(&1u32, &state);
+        refund
+    }
+}
+```
+
+---
+
+## Summary
+
+Continuous issuance curves facilitate automated liquidity, predictable token pricing, and fair entry/exit mechanics for Soroban tokens.

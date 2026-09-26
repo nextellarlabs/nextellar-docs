@@ -1,0 +1,148 @@
+---
+title: Template Comparison
+description: Feature-by-feature comparison of Nextellar templates to help you choose the right starter for your project.
+date: 2026-08-09
+---
+
+# Template Comparison
+
+Nextellar provides three starter templates for different project needs. Use this comparison to see exactly what each template includes before choosing one.
+
+## Quick Template Guide
+
+| Template    | Best For                                                                 |
+| ----------- | ------------------------------------------------------------------------ |
+| **default** | Full applications that need the broadest standard starting point         |
+| **minimal** | Wallet-only or lightweight starts where developers want less scaffolding |
+| **defi**    | DEX, trading, order-book, and other DeFi-focused applications            |
+
+## Feature Comparison
+
+| Capability              | default | minimal | defi |
+| ----------------------- | ------- | ------- | ---- |
+| **Hooks**               |         |         |      |
+| `useStellarWallet`      | ✓       | ✓       | ✓    |
+| `useStellarBalances`    | ✓       | ✓       | ✓    |
+| `useStellarPayment`     | ✓       | —       | ✓    |
+| `useTransactionHistory` | ✓       | —       | —    |
+| `useTrustlines`         | ✓       | —       | ✓    |
+| `useOfferBook`          | ✓       | —       | ✓    |
+| `useSorobanContract`    | ✓       | —       | —    |
+| `useSorobanEvents`      | ✓       | —       | —    |
+| **Components**          |         |         |      |
+| `WalletConnectButton`   | ✓       | ✓       | ✓    |
+| `NetworkSwitcher`       | ✓       | —       | —    |
+| **Infrastructure**      |         |         |      |
+| `lib/storage`           | ✓       | ✓       | ✓    |
+| `config/networks`       | ✓       | —       | —    |
+| `.env.example`          | ✓       | —       | —    |
+| **JavaScript Support**  | ✓       | —       | ✓    |
+
+## Template Details
+
+### default
+
+The comprehensive starter template with full Stellar and Soroban capabilities:
+
+- **Wallet Features**: Connection, balance display, payment sending
+- **Soroban Integration**: Smart contract calls and event listening
+- **Transaction Tools**: Full transaction history and network switching
+- **DeFi Capabilities**: Asset trustlines and DEX order book access
+- **Configuration**: Network switching, persistent storage, environment setup
+
+**Choose default when**: Building a full-featured Stellar application that needs broad functionality out of the box.
+
+### minimal
+
+The lightweight template focused on essential wallet operations:
+
+- **Core Wallet**: Connection and balance checking only
+- **Minimal Dependencies**: Fewest external integrations
+- **Clean Foundation**: Perfect for custom builds without extra scaffolding
+
+**Choose minimal when**: Building wallet-only applications or when you want to add features incrementally.
+
+### defi
+
+The DeFi-focused template optimized for trading and DEX applications:
+
+- **Wallet Features**: Connection, balances, and payments
+- **DeFi Tools**: Asset trustlines and DEX order book integration
+- **Trading Ready**: Optimized for DEX interactions and asset management
+
+**Choose defi when**: Building DEX interfaces, trading applications, or other DeFi-focused projects.
+
+## JavaScript Support
+
+The `--javascript` flag generates `.jsx`/`.js` files instead of TypeScript:
+
+```bash
+npx nextellar my-app --javascript
+npx nextellar my-app --javascript --template defi
+```
+
+**Current JavaScript Support:**
+
+- **default**: ✓ Full JavaScript variant available
+- **minimal**: — Not available yet
+- **defi**: ✓ Full JavaScript variant available
+
+**Note**: `--javascript` is a language option that works with compatible templates, not a separate template itself.
+
+## Smart Contract Support
+
+The `--with-contracts` flag adds Soroban smart contract scaffolding to any template:
+
+```bash
+npx nextellar my-app --template defi --with-contracts
+```
+
+**What `--with-contracts` adds:**
+
+- Sample `hello_world` contract in Rust under `contracts/`
+- `contracts:build` and `contracts:test` npm scripts
+- `NEXT_PUBLIC_HELLO_WORLD_CONTRACT_ID` in `.env.example`
+
+**Note**: `--with-contracts` is an orthogonal overlay that adds contract tooling to your chosen template, not a separate template category.
+
+## Choosing the Right Template
+
+### Start with default if:
+
+- You're new to Stellar development
+- You want to explore all available features
+- You're building a comprehensive dApp
+- You need transaction history or network switching
+
+### Choose minimal if:
+
+- You only need wallet connection and balances
+- You're building a simple wallet interface
+- You prefer to add features incrementally
+- You want the smallest possible starting point
+
+### Pick defi if:
+
+- You're building DEX or trading interfaces
+- You need trustline and order book features
+- You're focusing on DeFi use cases
+- You want DeFi tools without Soroban complexity
+
+## Template Migration
+
+You can add features from other templates to your existing project using the CLI's `add` command:
+
+```bash
+# Add features to an existing project
+nextellar add soroban-contract
+nextellar add transaction-history
+```
+
+See [Extending the CLI](/docs/guides/extending-the-cli) for the complete feature catalog.
+
+## Related
+
+- [Scaffolding Templates](/docs/cli/templates) — Template reference and usage
+- [CLI Flags & Options](/docs/cli/flags) — Complete flag reference
+- [Using JavaScript](/docs/getting-started/javascript) — JavaScript scaffold details
+- [Quick Start](/docs/getting-started/quick-start) — Get started with the default template

@@ -1,0 +1,228 @@
+---
+title: In-App Notification System on Stellar
+description: Build an in-app notification system driven by Stellar ledger events — covering event sources, delivery mechanisms, and user preference management.
+date: 2026-06-25
+---
+
+# In-App Notification System on Stellar
+
+Users of Stellar dApps need to know when their payments settle, when claims are processed, or when a smart contract changes state. This guide explains how to source those events from the ledger, route them to your notification layer, and respect user preferences.
+
+---
+
+## Event Sources
+
+Stellar exposes three classes of events your notification system can consume:
+
+### 1. Horizon Streaming (`text/event-stream`)
+
+Horizon streams real-time account activity over SSE. This is the simplest approach for payment and account-change notifications.
+
+```ts
+// lib/stellar-stream.ts
+import { Horizon } from '@stellar/stellar-sdk';
+
+const server = new Horizon.Server('https://horizon-testnet.stellar.org');
+
+export function streamPayments(
+  accountId: string,
+  onPayment: (record: unknown) => void
+) {
+  return server
+    .payments()
+    .forAccount(accountId)
+    .cursor('now')
+    .stream({ onmessage: onPayment });
+}
+```
+
+**Limitation**: restarts lose the cursor position unless you persist `paging_token` after each event.
+
+### 2. Soroban Contract Events (RPC)
+
+For Soroban contracts, use the `getEvents` RPC method to poll for named events.
+
+```ts
+import { rpc } from '@stellar/stellar-sdk';
+
+const server = new rpc.Server('https://soroban-testnet.stellar.org');
+
+export async function fetchContractEvents(
+  contractId: string,
+  startLedger: number
+) {
+  const result = await server.getEvents({
+    startLedger,
+    filters: [
+      {
+        type: 'contract',
+        contractIds: [contractId],
+        topics: [['*', '*']],
+      },
+    ],
+    limit: 100,
+  });
+  return result.events;
+}
+```
+
+### 3. Third-Party Indexer Webhooks
+
+Services like Mercury support webhooks: register a URL and they POST whenever a matching event is observed. This removes the polling loop from your backend entirely.
+
+```bash
+curl -X POST https://api.mercurydata.app/zephyr/webhooks \
+  -H "Authorization: Bearer $MERCURY_API_KEY" \
+  -d '{
+    "url": "https://yourapp.com/webhooks/stellar",
+    "contract_id": "CCONTRACTID",
+    "event": "claim"
+  }'
+```
+
+---
+
+## Delivery Architecture
+
+```
+Stellar ledger
+      │
+      ▼
+Event Collector (polling or webhook receiver)
+      │
+      ▼
+Notification Queue (e.g., Redis pub/sub, BullMQ)
+      │
+      ├──► WebSocket server  ──► browser push (real-time)
+      ├──► Push notification ──► mobile / PWA
+      └──► Email queue       ──► transactional email
+```
+
+### WebSocket Server
+
+```ts
+// server/notifications.ts
+import { WebSocketServer, WebSocket } from 'ws';
+import type { IncomingMessage } from 'http';
+
+const clients = new Map<string, WebSocket>();
+
+export const wss = new WebSocketServer({ noServer: true });
+
+wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
+  const accountId = new URL(req.url!, 'ws://x').searchParams.get('account');
+  if (!accountId) return ws.close();
+  clients.set(accountId, ws);
+  ws.on('close', () => clients.delete(accountId));
+});
+
+export function notifyAccount(accountId: string, payload: object) {
+  const ws = clients.get(accountId);
+  if (ws?.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(payload));
+  }
+}
+```
+
+### Browser Client Hook
+
+```ts
+// hooks/useNotifications.ts
+'use client';
+
+import { useEffect, useState } from 'react';
+
+interface Notification {
+  type: string;
+  message: string;
+  timestamp: number;
+}
+
+export function useNotifications(accountId: string | undefined) {
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+
+  useEffect(() => {
+    if (!accountId) return;
+    const ws = new WebSocket(`wss://yourapp.com/ws?account=${accountId}`);
+    ws.onmessage = (e) => {
+      const notif: Notification = JSON.parse(e.data);
+      setNotifications((prev) => [notif, ...prev].slice(0, 50));
+    };
+    return () => ws.close();
+  }, [accountId]);
+
+  return notifications;
+}
+```
+
+---
+
+## User Preferences
+
+Store preferences per account in your database. A minimal schema:
+
+```sql
+CREATE TABLE notification_preferences (
+  account_id    TEXT PRIMARY KEY,
+  payment_push  BOOLEAN NOT NULL DEFAULT TRUE,
+  claim_push    BOOLEAN NOT NULL DEFAULT TRUE,
+  email         TEXT,
+  email_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+```
+
+Expose a preferences API and a settings UI. Gate each notification type behind the user's preference:
+
+```ts
+async function shouldNotify(
+  accountId: string,
+  type: 'payment' | 'claim'
+): Promise<boolean> {
+  const prefs = await db.notificationPreferences.findUnique({
+    where: { accountId },
+  });
+  if (!prefs) return true; // default: notify
+  return type === 'payment' ? prefs.paymentPush : prefs.claimPush;
+}
+```
+
+---
+
+## Small Implementation
+
+The following wires up the full pipeline for a `claim` event:
+
+```ts
+// workers/claim-notifier.ts
+import { fetchContractEvents } from '@/lib/stellar-stream';
+import { notifyAccount } from '@/server/notifications';
+import { shouldNotify } from '@/lib/prefs';
+
+let lastLedger = 0;
+
+export async function runClaimNotifier(contractId: string) {
+  setInterval(async () => {
+    const events = await fetchContractEvents(contractId, lastLedger);
+    for (const event of events) {
+      lastLedger = Math.max(lastLedger, event.ledger + 1);
+      const accountId = event.topic[0]; // assume topic[0] = policyholder
+      if (await shouldNotify(accountId, 'claim')) {
+        notifyAccount(accountId, {
+          type: 'claim',
+          message: `Your claim has been processed.`,
+          timestamp: Date.now(),
+        });
+      }
+    }
+  }, 5_000);
+}
+```
+
+---
+
+## Acceptance Checklist
+
+- [ ] Guide renders without build errors (`pnpm build:content`)
+- [ ] Internal links resolve (`pnpm check:links`)
+- [ ] Code samples are self-contained and runnable

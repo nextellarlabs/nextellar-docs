@@ -1,0 +1,224 @@
+---
+title: Token Gating UI Access on Stellar
+description: Restrict UI features or content to users who hold specific Stellar assets — on-chain balance checks, NFT gating, Soroban contract queries, and React integration.
+date: 2026-06-25
+---
+
+# Token Gating UI Access on Stellar
+
+Token gating restricts access to features, content, or actions based on a user's on-chain token holdings. On Stellar this can mean holding a minimum XLM balance, a specific issued asset, or owning an NFT-equivalent token. This guide covers how to implement gating checks at the wallet level, in React components, and via Soroban contract queries.
+
+---
+
+## Types of Token Gates
+
+| Gate type              | Check                                 | Example                         |
+| ---------------------- | ------------------------------------- | ------------------------------- |
+| Native XLM balance     | `account.balances`                    | Premium tier requires ≥ 100 XLM |
+| Custom asset holding   | `account.balances` filter by asset    | Membership token `PASS:GABC…`   |
+| NFT / unique token     | Balance = 1 of a limited-supply asset | Whitelist NFT                   |
+| Soroban contract state | Contract call `is_member(address)`    | DAO membership                  |
+
+---
+
+## Reading Balances from Horizon
+
+```ts
+// lib/token-gate.ts
+import { Horizon } from '@stellar/stellar-sdk';
+
+const server = new Horizon.Server(process.env.NEXT_PUBLIC_HORIZON_URL!);
+
+export async function getBalance(
+  accountId: string,
+  assetCode: string,
+  assetIssuer: string
+): Promise<number> {
+  const account = await server.loadAccount(accountId);
+  const line = account.balances.find(
+    (b) =>
+      b.asset_type !== 'native' &&
+      (b as Horizon.HorizonApi.BalanceLineAsset).asset_code === assetCode &&
+      (b as Horizon.HorizonApi.BalanceLineAsset).asset_issuer === assetIssuer
+  );
+  return line ? parseFloat(line.balance) : 0;
+}
+
+export async function getNativeBalance(accountId: string): Promise<number> {
+  const account = await server.loadAccount(accountId);
+  const native = account.balances.find((b) => b.asset_type === 'native');
+  return native ? parseFloat(native.balance) : 0;
+}
+```
+
+---
+
+## Gate Check Functions
+
+```ts
+// lib/token-gate.ts (continued)
+
+export interface GateConfig {
+  type: 'xlm' | 'asset' | 'soroban';
+  minAmount?: number;
+  assetCode?: string;
+  assetIssuer?: string;
+  contractId?: string;
+  contractMethod?: string;
+}
+
+export async function passesGate(
+  accountId: string,
+  gate: GateConfig
+): Promise<boolean> {
+  if (gate.type === 'xlm') {
+    const bal = await getNativeBalance(accountId);
+    return bal >= (gate.minAmount ?? 0);
+  }
+
+  if (gate.type === 'asset') {
+    const bal = await getBalance(accountId, gate.assetCode!, gate.assetIssuer!);
+    return bal >= (gate.minAmount ?? 1);
+  }
+
+  if (gate.type === 'soroban') {
+    // Query a Soroban contract for membership
+    const { rpc, Contract, scValToNative, Address } =
+      await import('@stellar/stellar-sdk');
+    const rpcServer = new rpc.Server(process.env.NEXT_PUBLIC_RPC_URL!);
+    const contract = new Contract(gate.contractId!);
+    const result = await rpcServer.simulateTransaction(
+      // build a read-only tx calling gate.contractMethod
+      undefined as any // placeholder — build actual tx in your implementation
+    );
+    return false; // parse result.returnValue
+  }
+
+  return false;
+}
+```
+
+---
+
+## React Gate Component
+
+```tsx
+// components/TokenGate.tsx
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useWallet } from '@/hooks/useWallet';
+import { passesGate, GateConfig } from '@/lib/token-gate';
+
+interface TokenGateProps {
+  gate: GateConfig;
+  children: React.ReactNode;
+  fallback?: React.ReactNode;
+}
+
+export function TokenGate({ gate, children, fallback }: TokenGateProps) {
+  const { address } = useWallet();
+  const [allowed, setAllowed] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (!address) {
+      setAllowed(false);
+      return;
+    }
+    passesGate(address, gate).then(setAllowed);
+  }, [address, gate]);
+
+  if (allowed === null) return <div aria-busy="true">Checking access…</div>;
+  if (!allowed) return fallback ? <>{fallback}</> : null;
+  return <>{children}</>;
+}
+```
+
+Usage:
+
+```tsx
+<TokenGate
+  gate={{
+    type: 'asset',
+    assetCode: 'PASS',
+    assetIssuer: 'GABC…',
+    minAmount: 1,
+  }}
+  fallback={<p>You need a PASS token to access this feature.</p>}
+>
+  <PremiumFeature />
+</TokenGate>
+```
+
+---
+
+## Route-Level Gating (Next.js)
+
+```ts
+// middleware.ts
+import { NextRequest, NextResponse } from 'next/server';
+
+// Gate entire routes — check a session cookie that stores the gate result
+export function middleware(req: NextRequest) {
+  const gated = req.nextUrl.pathname.startsWith('/premium');
+  if (!gated) return NextResponse.next();
+
+  const passed = req.cookies.get('gate_passed')?.value === 'true';
+  if (!passed) {
+    return NextResponse.redirect(new URL('/gate-required', req.url));
+  }
+  return NextResponse.next();
+}
+```
+
+Set the cookie after a successful gate check on the client, signed with a server secret to prevent spoofing.
+
+---
+
+## NFT / Unique Token Gating
+
+For NFT-style gating where each token is unique (supply = 1), check that the balance is exactly 1:
+
+```ts
+export async function holdsNft(
+  accountId: string,
+  nftCode: string,
+  issuer: string
+): Promise<boolean> {
+  const bal = await getBalance(accountId, nftCode, issuer);
+  return bal === 1;
+}
+```
+
+---
+
+## Caching Gate Results
+
+Balance checks are real-time but can be throttled. Cache the result for the session duration:
+
+```ts
+const gateCache = new Map<string, { result: boolean; expiresAt: number }>();
+
+export async function cachedGateCheck(
+  accountId: string,
+  gate: GateConfig
+): Promise<boolean> {
+  const key = `${accountId}:${JSON.stringify(gate)}`;
+  const cached = gateCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.result;
+
+  const result = await passesGate(accountId, gate);
+  gateCache.set(key, { result, expiresAt: Date.now() + 60_000 }); // 60s TTL
+  return result;
+}
+```
+
+---
+
+## Acceptance Checklist
+
+- [ ] Guide renders without build errors (`pnpm build:content`)
+- [ ] Internal links resolve (`pnpm check:links`)
+- [ ] All four gate types covered (XLM, asset, NFT, Soroban)
+- [ ] React `TokenGate` component with loading and fallback states
+- [ ] Route-level gating pattern included

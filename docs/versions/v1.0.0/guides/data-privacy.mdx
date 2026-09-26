@@ -1,0 +1,177 @@
+---
+title: Stellar dApp Data Privacy Guide
+description: 'Classify the data your Stellar dApp handles, set retention rules for each category, and use the policy template to document your approach.'
+date: 2026-08-26
+---
+
+# Stellar dApp Data Privacy Guide
+
+Before you can write a privacy policy or comply with regulations such as GDPR, you need to know exactly what data your dApp holds, where it lives, and how long you keep it. This guide walks through data classification, retention rules, and a minimal policy template tailored for Stellar dApps.
+
+> **Legal disclaimer:** This guide is provided for informational purposes only and does not constitute legal advice. Have a qualified attorney review your final data-privacy documentation before publishing.
+
+## Data Classification
+
+A Stellar dApp handles two fundamentally different types of data: on-chain data that is permanently public, and off-chain data that you control.
+
+### Category 1 — On-chain data (always public)
+
+| Data item | Where it lives | Who can see it |
+|-----------|---------------|----------------|
+| User's Stellar public key | Stellar ledger | Anyone |
+| Transaction history | Stellar ledger | Anyone |
+| Smart contract state | Stellar ledger | Anyone |
+| Asset balances | Stellar ledger | Anyone |
+
+On-chain data is immutable and permanently public. You cannot delete it, and neither can the user. Your privacy documentation must make this clear to users before they connect a wallet.
+
+**Classification label:** `PUBLIC / IMMUTABLE` — no access controls apply; no retention policy is needed because you do not store it.
+
+### Category 2 — Off-chain identifiable data
+
+| Data item | Where it lives | Sensitivity |
+|-----------|---------------|-------------|
+| Email address | Your database | High |
+| IP address (from API calls) | Server logs | Medium |
+| Name or username | Your database | Medium |
+| Payment information (if any) | Payment processor | High |
+| Support ticket content | Helpdesk system | Medium–High |
+
+This is the data that most privacy regulations (GDPR, CCPA, LGPD) focus on. You control it, so you are responsible for protecting it and honouring deletion requests.
+
+**Classification label:** `IDENTIFIABLE / CONTROLLED`
+
+### Category 3 — Off-chain non-identifiable data
+
+| Data item | Where it lives | Sensitivity |
+|-----------|---------------|-------------|
+| Aggregate page-view counts | Analytics platform | Low |
+| Anonymised event data | Analytics platform | Low |
+| Error traces without PII | Error-tracking tool | Low |
+
+This data cannot be linked to a specific natural person after anonymisation. It has minimal regulatory risk but should still be documented.
+
+**Classification label:** `ANONYMOUS / CONTROLLED`
+
+### Category 4 — Wallet session data
+
+When a user connects a Stellar wallet (Freighter, Albedo, xBull, Rabet), the wallet extension shares only the user's public key with your dApp. The private key never leaves the extension. Session data typically includes:
+
+- Public key stored in browser `sessionStorage` or `localStorage`
+- Session token (if you issue JWTs for authenticated API calls)
+
+**Classification label:** `PSEUDONYMOUS / CLIENT-SIDE`
+
+## Retention Rules
+
+| Category | Recommended retention | Deletion trigger |
+|----------|-----------------------|-----------------|
+| Email address | Until user deletes account | User request or account closure |
+| IP address logs | 30–90 days | Automated log rotation |
+| Support tickets | 3 years | User request (anonymise rather than delete where legal obligations apply) |
+| Analytics (identifiable) | Anonymise after 12 months | Automated anonymisation job |
+| Analytics (anonymised) | Indefinite | N/A |
+| JWT / session tokens | Expire within 24 hours | Automatic expiry |
+| On-chain data | N/A — immutable | Cannot be deleted |
+
+### Implementing log rotation
+
+If you run your own Horizon proxy or backend API, configure log rotation so IP addresses are purged automatically. Example with `winston` in Node.js:
+
+```ts
+import { createLogger, transports } from 'winston';
+import 'winston-daily-rotate-file';
+
+const logger = createLogger({
+  transports: [
+    new transports.DailyRotateFile({
+      filename: 'logs/access-%DATE%.log',
+      datePattern: 'YYYY-MM-DD',
+      maxFiles: '30d', // delete logs older than 30 days
+      zippedArchive: true,
+    }),
+  ],
+});
+```
+
+### Implementing account deletion
+
+When a user requests deletion, you must remove all identifiable data from your systems. On-chain data (their public key, transactions) cannot be removed — your deletion flow should acknowledge this:
+
+```ts
+async function deleteUserAccount(userId: string) {
+  // 1. Nullify identifiable fields in the database
+  await db.user.update({
+    where: { id: userId },
+    data: {
+      email: null,
+      name: 'deleted-user',
+      deletedAt: new Date(),
+    },
+  });
+
+  // 2. Revoke active sessions
+  await db.session.deleteMany({ where: { userId } });
+
+  // 3. Request erasure from analytics platform (if supported)
+  await analyticsClient.deleteUser(userId);
+
+  // Note: on-chain data (public key, transactions) cannot be deleted.
+  // Inform the user of this limitation in your privacy policy.
+}
+```
+
+## Stellar-Specific Considerations
+
+### Public key as a pseudonymous identifier
+
+A Stellar public key is not directly linked to a real-world identity, but it becomes identifiable if a user has ever linked it to their name or email in your system. Treat public keys as **pseudonymous personal data** under GDPR, not as fully anonymous data.
+
+### Horizon proxy vs. direct browser calls
+
+If your frontend calls Horizon directly from the browser, your server never sees the user's IP address for those requests — Stellar's own infrastructure does. Document this clearly: "We use the Stellar Horizon API directly from your browser for network queries. Stellar's own privacy policy governs those requests."
+
+If you proxy Horizon calls through your own server, your server logs the IP address. Apply the 30–90 day retention rule above.
+
+### Third-party wallet extensions
+
+You do not control data collected by wallet extensions. Include a brief note in your privacy policy directing users to the privacy policies of the wallet(s) you support (Freighter, Albedo, etc.).
+
+## Minimal Policy Template
+
+Use this as a starting structure. Fill in the bracketed placeholders and have an attorney review the result.
+
+```markdown
+## Data We Collect and Why
+
+### What we collect
+| Data | Why we collect it | Retention |
+|------|-------------------|-----------|
+| Email address | Account creation, transactional emails | Until account deletion |
+| IP address | Security, abuse prevention | 30 days (log rotation) |
+| Stellar public key | Wallet connection, display | Until account deletion |
+
+### What we do not collect
+- Your Stellar private key. It never leaves your wallet extension.
+- Payment card numbers (we do not process payments directly).
+
+### On-chain data
+Transactions you submit through [dApp name] are recorded on the Stellar public ledger and cannot be deleted by us or by you. Do not submit transactions you wish to keep private.
+
+### Third-party services
+- **Horizon API** ([Stellar Development Foundation](https://stellar.org/privacy)): used for account queries and transaction submission.
+- **Soroban RPC** (see your provider's policy): used for smart contract calls.
+- **[Analytics tool]** ([link to their policy]): used for aggregate usage analytics.
+
+## Your Rights
+You may request access to, correction of, or deletion of your identifiable data at any time by emailing [contact@example.com]. We will respond within 30 days. Note that on-chain data cannot be deleted.
+
+## Changes to This Policy
+We will notify registered users by email and post a notice in the app at least 14 days before material changes take effect.
+```
+
+## Next Steps
+
+- Read [GDPR Compliance for Stellar dApps](/docs/guides/gdpr-compliance) for a deeper dive into EU-specific obligations.
+- Use the [Privacy Policy Template Tutorial](/docs/guides/privacy-policy) to turn this classification into a publishable document.
+- Review the [Terms and Conditions Template Guide](/docs/guides/terms-and-conditions) — your T&C should cross-reference your privacy policy.

@@ -1,76 +1,21 @@
-import { allDocs } from 'contentlayer/generated';
-import { notFound } from 'next/navigation';
-import { Mdx } from '@/components/mdx-components';
-import Breadcrumb from '@/components/bread-crumb';
-import AutoToc from '@/components/auto-toc';
-import EditThisPage from '@/components/edit-this-page';
-import { format, parseISO } from 'date-fns';
+import { redirect } from 'next/navigation';
 
 type tParams = Promise<{ slug: string[] }>;
 
+/**
+ * This route catches old-style unversioned URLs like /docs/getting-started/intro
+ * and redirects them to the new versioned route /docs/current/getting-started/intro
+ * for consistency with the new routing structure.
+ */
 export const generateStaticParams = async () => {
-  return allDocs
-    .filter((doc) => {
-      const path = doc._raw.flattenedPath;
-      // Exclude root index.mdx (handled by /docs/page.tsx)
-      // The root index has an empty flattenedPath
-      return path !== '' && path !== 'index' && path.length > 0;
-    })
-    .map((doc) => {
-      // For paths like "search-bar" create { slug: ['search-bar'] }
-      // For paths like "getting-started/introduction" create { slug: ['getting-started', 'introduction'] }
-      const slugArray = doc._raw.flattenedPath.split('/');
-      return { slug: slugArray };
-    });
-};
-
-export const generateMetadata = async ({ params }: { params: tParams }) => {
-  // Join the slug array back into a path string
-  const awaitedParams = await params;
-  const path = awaitedParams.slug.join('/');
-  const doc = allDocs.find((doc) => doc._raw.flattenedPath === path);
-
-  if (!doc) notFound();
-  return {
-    title: doc.title,
-    description: doc.description || 'A detailed guide to the topic.',
-    openGraph: {
-      title: doc.title,
-      description: doc.description || 'A detailed guide to the topic.',
-    },
-  };
+  return [];
 };
 
 const DocsPage = async ({ params }: { params: tParams }) => {
   const awaitedParams = await params;
-  // Join the slug array back into a path string
-  const path = awaitedParams.slug.join('/');
-  const doc = allDocs.find((doc) => doc._raw.flattenedPath === path);
-
-  if (!doc) notFound();
-  return (
-    <div className={`grid xl:grid xl:grid-cols-[1fr_270px]`}>
-      <article className="overflow-auto">
-        <div className="mb-8 text-center">
-          <Breadcrumb path={doc.url} />
-          {doc.date && (
-            <time
-              dateTime={doc.date}
-              className="mt-2 block text-sm text-muted-foreground"
-            >
-              Last updated: {format(parseISO(doc.date), 'LLLL d, yyyy')}
-            </time>
-          )}
-        </div>
-        <Mdx code={doc.body.code} />
-        <div className="mt-12 pt-6 border-t border-[var(--color-border)]">
-          <EditThisPage filePath={doc._raw.flattenedPath} />
-        </div>
-      </article>
-
-      <AutoToc />
-    </div>
-  );
+  const slug = awaitedParams.slug.join('/');
+  // Redirect to the new versioned route with 'current' as the version
+  redirect(`/docs/current/${slug}`);
 };
 
 export default DocsPage;

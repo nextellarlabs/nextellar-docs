@@ -1,0 +1,97 @@
+---
+title: 'Label'
+description: 'A flexible, theme-aware label component built with Tailwind CSS and class-variance-authority. Easily adaptable for any input, checkbox, or form element.'
+date: 2025-04-20
+---
+
+# Label Component Documentation
+
+The **Label** component is a lightweight, theme-aware, and variant-powered text label that can be used with form controls like inputs, checkboxes, radio buttons, and more. It's built using **Tailwind CSS** and **class-variance-authority (CVA)** for scalable styling logic.
+
+## Preview and Code Snippet
+
+<Tabs defaultValue="preview" size="sm" className="w-full">
+  <TabsList className="grid w-full md:w-[30%] grid-cols-2">
+    <Tab value="preview">Preview</Tab>
+    <Tab value="code">Code</Tab>
+  </TabsList>
+  <TabsContent value="preview">
+    <Preview>
+      <div className="flex flex-col gap-3">
+        <Label htmlFor="email">Email (default)</Label>
+        <Input type="email" id="email" />
+
+        <Label htmlFor="username" intent="muted">Username (muted)</Label>
+        <Input type="text" id="username" />
+
+        <Label htmlFor="password" intent="error">Password (error)</Label>
+        <Input type="password" id="password" />
+      </div>
+    </Preview>
+
+  </TabsContent>
+  <TabsContent value="code">
+    ```tsx
+    import { Label } from "@/components/label";
+    import { Input } from "@/components/input";
+
+    export default function Example() {
+      return (
+        <div className="flex flex-col gap-3">
+          <Label htmlFor="email">Email (default)</Label>
+          <Input type="email" id="email" />
+
+          <Label htmlFor="username" intent="muted">Username (muted)</Label>
+          <Input type="text" id="username" />
+
+          <Label htmlFor="password" intent="error">Password (error)</Label>
+          <Input type="password" id="password" />
+        </div>
+      );
+    }
+    ```
+
+  </TabsContent>
+</Tabs>
+
+## Props
+
+| Prop        | Type                                          | Default   | Description                                                    |
+| ----------- | --------------------------------------------- | --------- | -------------------------------------------------------------- |
+| `intent`    | `"default" \| "muted" \| "error"`             | `default` | Visual style of the label based on context or form state.      |
+| `className` | `string`                                      | `""`      | Additional Tailwind utility classes to extend styles.          |
+| `...props`  | `React.LabelHTMLAttributes<HTMLLabelElement>` |           | All standard label attributes like `htmlFor`, `children`, etc. |
+
+## Styling
+
+The component uses `class-variance-authority` to manage label style variants:
+
+```ts
+const labelVariants = cva('text-sm font-medium leading-none', {
+  variants: {
+    intent: {
+      default: 'text-gray-900 dark:text-gray-100',
+      muted: 'text-gray-500 dark:text-gray-400',
+      error: 'text-red-600 dark:text-red-400',
+    },
+  },
+  defaultVariants: {
+    intent: 'default',
+  },
+});
+```
+
+You can customize these classes to match your design system.
+
+## Usage Example
+
+```tsx
+<Label htmlFor="acceptTerms" intent="muted">
+  Accept terms and conditions
+</Label>
+<Checkbox id="acceptTerms" />
+```
+
+---
+
+Use the `Label` component for accessible, consistent labeling in all your forms. It pairs perfectly with custom input components like `Checkbox`, `Input`, or `TextArea`.

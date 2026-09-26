@@ -1,0 +1,102 @@
+---
+title: Theming and Dark Mode
+description: 'Learn how theme switching, dark mode, and design tokens work in the Nextellar docs.'
+date: 2025-03-12
+---
+
+# Theming and Dark Mode
+
+## Overview
+
+The docs use `next-themes` to switch between light mode, dark mode, and the
+visitor's system preference. The active theme is applied as a class on the
+document, so Tailwind's `dark:` utilities and the CSS variables in
+`src/app/globals.css` update together.
+
+## Switching Themes
+
+Use the theme toggle in the docs navigation to switch between light and dark
+mode. The toggle calls `setTheme` from `next-themes`, and the provider in
+`src/app/layout.tsx` is configured with:
+
+```tsx
+<ThemeProvider
+  attribute="class"
+  defaultTheme="system"
+  enableSystem
+  disableTransitionOnChange
+>
+  {children}
+</ThemeProvider>
+```
+
+Because `defaultTheme` is set to `system`, first-time visitors see the theme
+that matches their operating system preference. After a visitor chooses a
+theme, `next-themes` stores that choice and reuses it on later visits.
+
+## Theme Tokens
+
+Theme tokens are defined in `src/app/globals.css`. The light theme lives under
+`:root`, and the dark theme lives under `.dark`.
+
+```css
+:root {
+  --background: 0 0% 100%;
+  --foreground: 0 0% 0%;
+  --primary: 0 0% 0%;
+  --primary-foreground: 0 0% 100%;
+}
+
+.dark {
+  --background: 0 0% 0%;
+  --foreground: 0 0% 100%;
+  --primary: 0 0% 100%;
+  --primary-foreground: 0 0% 0%;
+}
+```
+
+The `@theme` block maps those variables to Tailwind color tokens such as
+`bg-background`, `text-foreground`, `border-border`, and `bg-primary`.
+Components should use those tokens when possible so they inherit the active
+theme automatically.
+
+## Working With Dark Mode
+
+For shared surfaces, prefer theme tokens:
+
+```tsx
+<section className="bg-background text-foreground border border-border">
+  Themed content
+</section>
+```
+
+Use `dark:` utilities when a component needs a specific override in dark mode:
+
+```tsx
+<div className="bg-white text-black dark:bg-black dark:text-white">
+  Custom themed content
+</div>
+```
+
+Images and logos can also switch by using `dark:hidden` and `dark:block`, as
+the docs layout does for the light and dark logo assets.
+
+## Limitations
+
+- Theme changes depend on the `.dark` class, so styles outside Tailwind and
+  `globals.css` need to account for that class explicitly.
+- Theme tokens use HSL channel values. Keep the same `H S% L%` format when
+  editing variables.
+- The toggle currently switches between light and dark. System preference is
+  still used as the default, but there is no separate system option in the
+  toggle UI.
+- Third-party embeds, images, and custom code blocks may need their own dark
+  mode treatment if they do not use the shared tokens.
+
+## Summary
+
+- Switch themes with the docs navigation toggle.
+- Edit theme tokens in `src/app/globals.css`.
+- Use token-based Tailwind classes for reusable components.
+- Add `dark:` utilities only when a component needs a dark-mode-specific
+  override.

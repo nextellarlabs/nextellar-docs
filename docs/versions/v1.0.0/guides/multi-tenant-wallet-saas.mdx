@@ -1,0 +1,230 @@
+---
+title: Multi-Tenant Wallet SaaS Reference Architecture
+description: A reference design for building a multi-tenant Stellar wallet platform — tenant isolation, per-tenant billing, and the operational considerations that come with running custody at scale.
+date: 2026-08-28
+---
+
+# Multi-Tenant Wallet SaaS Reference Architecture
+
+A wallet-as-a-service product hosts many independent customers (tenants) — each with their own users, keys, and transaction volume — behind one shared infrastructure. The two things that make this hard are keeping tenants fully isolated from each other despite sharing infrastructure, and metering usage accurately enough to bill for it. This guide covers a reference architecture for both, plus the operational considerations (key custody, rate limiting, incident blast radius) that come with running Stellar custody at scale.
+
+---
+
+## Isolation Model
+
+There are three common isolation strategies, in increasing order of infrastructure cost and decreasing order of shared-infra risk:
+
+| Strategy                         | Description                                                                | Blast radius of a bug                                                  | Cost    |
+| -------------------------------- | -------------------------------------------------------------------------- | ---------------------------------------------------------------------- | ------- |
+| **Shared schema, tenant column** | One database, every table has a `tenant_id`; enforced via application code | All tenants (if the `WHERE tenant_id = ?` is missed anywhere)          | Lowest  |
+| **Schema-per-tenant**            | One database instance, one Postgres schema per tenant                      | Single tenant, but a compromised app-layer credential can span schemas | Medium  |
+| **Database-per-tenant**          | Fully separate database (or cluster) per tenant                            | Single tenant, enforced at the connection level                        | Highest |
+
+For a Stellar wallet SaaS specifically, the isolation boundary that matters most is **key material**, not just application data — a tenant-isolation bug that only leaks row data is bad; one that lets Tenant A sign a transaction with Tenant B's key is catastrophic. Treat key custody as its own isolation layer regardless of which database strategy you pick.
+
+```
+                    ┌─────────────────────────────────┐
+                    │         API Gateway              │
+                    │   (resolves tenant from API key)  │
+                    └────────────────┬─────────────────┘
+                                     │
+                    ┌────────────────▼─────────────────┐
+                    │      Application Layer            │
+                    │  (tenant_id enforced on every      │
+                    │   query via middleware, not        │
+                    │   per-endpoint discipline)         │
+                    └────────────────┬─────────────────┘
+                                     │
+         ┌───────────────────────────┼───────────────────────────┐
+         ▼                           ▼                           ▼
+┌─────────────────┐       ┌──────────────────┐       ┌──────────────────────┐
+│  Tenant Database  │       │  Key Management    │       │  Usage Metering       │
+│  (schema-per-      │       │  Service (KMS/HSM,  │       │  (per-tenant event     │
+│   tenant)           │       │   isolated per        │       │   stream → billing)    │
+│                     │       │   tenant key ring)     │       │                        │
+└─────────────────┘       └──────────────────┘       └──────────────────────┘
+```
+
+---
+
+## Enforcing Isolation in Code
+
+Whatever database strategy you choose, isolation must be enforced structurally — not by remembering to add a `WHERE` clause. A middleware-level guard that fails closed is the difference between "isolation bug" and "isolation bug that leaked data."
+
+```ts
+// lib/tenant-context.ts
+import { AsyncLocalStorage } from 'async_hooks';
+
+interface TenantContext {
+  tenantId: string;
+  apiKeyId: string;
+}
+
+const tenantStorage = new AsyncLocalStorage<TenantContext>();
+
+export function runWithTenant<T>(context: TenantContext, fn: () => T): T {
+  return tenantStorage.run(context, fn);
+}
+
+export function getCurrentTenant(): TenantContext {
+  const context = tenantStorage.getStore();
+  if (!context) {
+    // Fail closed: any code path reaching the database without a
+    // resolved tenant context is a bug, not a "use a default" case.
+    throw new Error('No tenant context — refusing to run an unscoped query');
+  }
+  return context;
+}
+```
+
+```ts
+// lib/db.ts
+import { Pool, PoolClient } from 'pg';
+import { getCurrentTenant } from './tenant-context';
+
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+/** Every query goes through here — sets the Postgres session's schema
+ * search_path to the resolved tenant's schema before running anything. */
+export async function withTenantConnection<T>(
+  fn: (client: PoolClient) => Promise<T>
+): Promise<T> {
+  const { tenantId } = getCurrentTenant();
+  const client = await pool.connect();
+  try {
+    // Schema names are validated/allocated server-side at tenant
+    // creation time — never interpolate raw user input here.
+    await client.query(`SET search_path TO tenant_${tenantId}, public`);
+    return await fn(client);
+  } finally {
+    await client.query('SET search_path TO public');
+    client.release();
+  }
+}
+```
+
+<Note type="warning">
+  `SET search_path` scopes unqualified table references for the connection, but
+  it does not prevent a query that explicitly qualifies another tenant's schema
+  (`tenant_other.wallets`). Isolation at this layer protects against
+  *accidental* cross-tenant queries from application bugs, not a malicious or
+  fully compromised app server — pair it with database-role-level grants
+  restricting which schemas each connection pool's role can even see.
+</Note>
+
+---
+
+## Key Custody Per Tenant
+
+Two viable models, depending on your risk tolerance and target customer segment:
+
+**Per-tenant key rings (KMS-backed)** — each tenant gets its own key-encryption-key (KEK) in a KMS (AWS KMS, GCP KMS, HashiCorp Vault). Tenant signing keys are stored encrypted-at-rest under that tenant's KEK. A KMS access-control bug still only exposes one tenant's KEK, not the whole platform's.
+
+```ts
+// lib/tenant-kms.ts
+import { KMSClient, DecryptCommand, EncryptCommand } from '@aws-sdk/client-kms';
+
+const kms = new KMSClient({ region: process.env.AWS_REGION });
+
+/** Each tenant's KEK ARN is provisioned at onboarding and stored in the
+ * tenant registry — never derived or guessed at request time. */
+async function getTenantKeyId(tenantId: string): Promise<string> {
+  // ... lookup from tenant registry, e.g. a dedicated key-registry table
+  return `arn:aws:kms:us-east-1:123456789:key/tenant-${tenantId}`;
+}
+
+export async function encryptSigningKey(
+  tenantId: string,
+  rawSecretSeed: Uint8Array
+): Promise<Uint8Array> {
+  const keyId = await getTenantKeyId(tenantId);
+  const result = await kms.send(
+    new EncryptCommand({ KeyId: keyId, Plaintext: rawSecretSeed })
+  );
+  return result.CiphertextBlob!;
+}
+
+export async function decryptSigningKey(
+  tenantId: string,
+  ciphertext: Uint8Array
+): Promise<Uint8Array> {
+  const keyId = await getTenantKeyId(tenantId);
+  const result = await kms.send(
+    new DecryptCommand({ KeyId: keyId, CiphertextBlob: ciphertext })
+  );
+  return result.Plaintext!;
+}
+```
+
+**MPC / threshold signing** — no full private key ever exists in one place, tenant-scoped or otherwise; signing requires cooperation across key shards. Higher operational complexity, but removes "a single compromised KMS credential" from the threat model entirely. Consider this for enterprise tenants with strict custody requirements, and the KMS model above for self-serve tiers where operational simplicity matters more.
+
+---
+
+## Per-Tenant Billing
+
+Meter usage as an event stream, not as a running counter — counters lose history and make disputes ("we were billed for 50k transactions but only sent 40k") impossible to audit.
+
+```sql
+CREATE TABLE usage_events (
+  event_id      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id     TEXT NOT NULL,
+  event_type    TEXT NOT NULL,        -- 'transaction_submitted' | 'wallet_created' | 'api_call'
+  quantity      INTEGER NOT NULL DEFAULT 1,
+  occurred_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  metadata      JSONB
+);
+
+CREATE INDEX idx_usage_events_tenant_period ON usage_events (tenant_id, occurred_at);
+
+-- Aggregated per billing period; recomputed from raw events, never
+-- edited directly, so it can always be regenerated if a dispute arises.
+CREATE MATERIALIZED VIEW monthly_usage_summary AS
+SELECT
+  tenant_id,
+  date_trunc('month', occurred_at) AS billing_period,
+  event_type,
+  sum(quantity) AS total_quantity
+FROM usage_events
+GROUP BY tenant_id, date_trunc('month', occurred_at), event_type;
+```
+
+```ts
+// lib/metering.ts
+import { db } from './db';
+
+export async function recordUsage(
+  tenantId: string,
+  eventType: 'transaction_submitted' | 'wallet_created' | 'api_call',
+  quantity = 1,
+  metadata?: Record<string, unknown>
+): Promise<void> {
+  await db.query(
+    `INSERT INTO usage_events (tenant_id, event_type, quantity, metadata)
+     VALUES ($1, $2, $3, $4)`,
+    [tenantId, eventType, quantity, metadata ? JSON.stringify(metadata) : null]
+  );
+}
+```
+
+Record usage at the point of action (immediately after a transaction is confirmed, not in a nightly batch) — this keeps the event stream close to real-time and lets you expose live usage dashboards to tenants, which reduces billing disputes.
+
+---
+
+## Operational Considerations
+
+**Rate limiting per tenant, not globally.** A single noisy or misbehaving tenant should never be able to degrade service for others. Token-bucket limits keyed by `tenant_id`, enforced at the API gateway, before any tenant-specific work begins.
+
+**Noisy-neighbor isolation for Horizon/RPC calls.** If all tenants share a pool of outbound connections to Horizon or Soroban RPC, one tenant's burst traffic can starve others' requests. Either partition the connection pool per tenant tier, or apply the same per-tenant rate limit to outbound calls.
+
+**Incident blast radius.** Document, per isolation layer, what a compromise or outage at that layer affects: a KMS outage affects signing for all tenants sharing that KMS region; a single Postgres instance outage (schema-per-tenant) affects all schemas on that instance even though tenants are logically isolated. Multi-tenant architecture reduces _logical_ blast radius but doesn't eliminate _infrastructure_ blast radius — plan capacity and redundancy accordingly.
+
+**Tenant offboarding.** Key deletion (not just database row deletion) needs an explicit, auditable procedure — KMS key deletion has a mandatory waiting period on most providers (7–30 days), which should be documented in your tenant offboarding SLA rather than discovered during an actual offboarding request.
+
+---
+
+## Acceptance Checklist
+
+- [ ] Guide renders without build errors (`pnpm build:content`)
+- [ ] Internal links resolve (`pnpm check:links`)
+- [ ] Reference design covers isolation, key custody, and billing
+- [ ] Operational considerations section addresses rate limiting and blast radius

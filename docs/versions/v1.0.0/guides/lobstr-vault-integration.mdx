@@ -1,0 +1,220 @@
+---
+title: Lobstr Vault Integration Guide
+description: Integrate Lobstr Vault multisig into your Stellar dApp — account setup, threshold configuration, transaction signing flow, and UI patterns.
+date: 2026-06-25
+---
+
+# Lobstr Vault Integration Guide
+
+Lobstr Vault is a mobile multisig signer for Stellar. It lets users protect high-value accounts by requiring approval from multiple devices or signers before any transaction executes. This guide covers how to set up a Vault-protected account, how to build the signing flow in your dApp, and how to handle the async approval pattern in your UI.
+
+---
+
+## What Lobstr Vault Does
+
+Lobstr Vault works by adding additional signers to a Stellar account and raising the account's signing thresholds. A transaction must collect enough signature weight before it can be submitted to the network.
+
+```
+Standard account: threshold = 1, one signer (master key) with weight 1
+Vault-protected:  low/med/high threshold = 2
+                  master key weight = 1
+                  Vault signer weight = 1
+                  → both must sign for any operation
+```
+
+---
+
+## Step 1 — Add Vault as a Signer
+
+Users add Lobstr Vault through the Vault mobile app, which generates a Vault public key and adds it as a signer via a `setOptions` operation. Your dApp does not do this — the user does it once through the Vault app.
+
+You can verify that an account is Vault-protected by checking its signers:
+
+```ts
+// lib/vault.ts
+import { Horizon } from '@stellar/stellar-sdk';
+
+const server = new Horizon.Server(process.env.NEXT_PUBLIC_HORIZON_URL!);
+
+export async function isVaultProtected(accountId: string): Promise<boolean> {
+  const account = await server.loadAccount(accountId);
+  // Vault signer domain is vault.lobstr.co
+  return (
+    account.signers.some(
+      (s) => s.weight > 0 && s.key !== accountId // has at least one non-master signer
+    ) && (account.thresholds.high_threshold ?? 0) > 1
+  );
+}
+```
+
+---
+
+## Step 2 — Build the Transaction (Do Not Submit Yet)
+
+When a user wants to perform an action that requires multisig approval, your dApp builds the transaction, collects the user's signature (first signer), and hands the XDR to Lobstr Vault for the second signature.
+
+```ts
+// lib/vault.ts (continued)
+import {
+  Transaction,
+  TransactionBuilder,
+  Networks,
+  BASE_FEE,
+} from '@stellar/stellar-sdk';
+
+export async function buildForVaultSigning(
+  sourceAccountId: string,
+  operations: xdr.Operation[]
+): Promise<string> {
+  const account = await server.loadAccount(sourceAccountId);
+  const txBuilder = new TransactionBuilder(account, {
+    fee: BASE_FEE,
+    networkPassphrase: Networks.MAINNET,
+  }).setTimeout(300); // 5 min window for Vault approval
+
+  for (const op of operations) {
+    txBuilder.addOperation(op);
+  }
+
+  return txBuilder.build().toXDR();
+}
+```
+
+The 5-minute timeout is important — Vault approval is async and may require the user to unlock their phone.
+
+---
+
+## Step 3 — Submit to Lobstr Vault for Second Signature
+
+Lobstr Vault exposes a signing service. After the user signs with their connected wallet (e.g. Freighter), submit the partially-signed XDR to Vault's API:
+
+```ts
+// lib/vault.ts (continued)
+const VAULT_API = 'https://vault.lobstr.co/api/transactions/';
+
+export async function submitToVault(
+  signedXdr: string
+): Promise<{ id: string }> {
+  const res = await fetch(VAULT_API, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ xdr: signedXdr }),
+  });
+  if (!res.ok) throw new Error(`Vault submission failed: ${res.status}`);
+  return res.json(); // returns { id: "<vault-tx-id>", ... }
+}
+```
+
+---
+
+## Step 4 — Poll for Vault Approval
+
+Vault signers approve the transaction on their mobile device. Your dApp must poll for completion:
+
+```ts
+// lib/vault.ts (continued)
+export async function waitForVaultApproval(
+  vaultTxId: string,
+  pollIntervalMs = 3000,
+  timeoutMs = 300_000
+): Promise<string> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const res = await fetch(`${VAULT_API}${vaultTxId}/`);
+    const data = await res.json();
+    if (data.status === 'ready') return data.xdr; // fully signed XDR
+    if (data.status === 'rejected')
+      throw new Error('Vault signer rejected the transaction');
+    await new Promise((r) => setTimeout(r, pollIntervalMs));
+  }
+  throw new Error('Vault approval timed out');
+}
+```
+
+---
+
+## Step 5 — Submit the Fully Signed Transaction
+
+```ts
+// lib/vault.ts (continued)
+import { TransactionBuilder } from '@stellar/stellar-sdk';
+
+export async function submitVaultTransaction(fullySignedXdr: string) {
+  const tx = TransactionBuilder.fromXDR(fullySignedXdr, Networks.MAINNET);
+  return server.submitTransaction(tx);
+}
+```
+
+---
+
+## UI Pattern — Pending Approval State
+
+The async nature of Vault requires a distinct UI state between "submitted to Vault" and "confirmed on chain":
+
+```tsx
+// components/VaultApprovalModal.tsx
+'use client';
+
+import { useState } from 'react';
+
+type Stage = 'signing' | 'pending_vault' | 'confirmed' | 'error';
+
+export function VaultApprovalModal({ onClose }: { onClose: () => void }) {
+  const [stage, setStage] = useState<Stage>('signing');
+
+  return (
+    <div className="modal">
+      {stage === 'signing' && (
+        <p>Sign with your wallet to initiate the transaction.</p>
+      )}
+      {stage === 'pending_vault' && (
+        <>
+          <p>Waiting for Lobstr Vault approval…</p>
+          <p className="text-sm text-muted">
+            Open Lobstr Vault on your mobile device to approve.
+          </p>
+          <div className="spinner" />
+        </>
+      )}
+      {stage === 'confirmed' && (
+        <p className="text-green-600">Transaction confirmed on Stellar.</p>
+      )}
+      {stage === 'error' && (
+        <p className="text-red-600">Transaction failed or was rejected.</p>
+      )}
+    </div>
+  );
+}
+```
+
+---
+
+## Threshold Configuration Reference
+
+| Use case            | Low | Med | High | Signers                            |
+| ------------------- | --- | --- | ---- | ---------------------------------- |
+| Basic 2-of-2        | 2   | 2   | 2    | master(1) + vault(1)               |
+| 2-of-3 recovery     | 2   | 2   | 2    | master(1) + vault(1) + recovery(1) |
+| High-value ops only | 1   | 1   | 2    | master(1) + vault(1)               |
+| Board approval      | 3   | 3   | 3    | 3 signers each weight 1            |
+
+---
+
+## Common Errors
+
+| Error                 | Cause                                      | Fix                                               |
+| --------------------- | ------------------------------------------ | ------------------------------------------------- |
+| `op_bad_auth`         | Submitted before Vault signed              | Wait for `status === 'ready'` before submitting   |
+| `tx_bad_auth`         | Master key not included or wrong threshold | Verify account thresholds match signature weights |
+| Vault returns 404     | XDR not yet indexed by Vault               | Retry after 2 seconds                             |
+| Timeout on Vault poll | User never approved on mobile              | Show timeout UI; offer to resubmit                |
+
+---
+
+## Acceptance Checklist
+
+- [ ] Guide renders without build errors (`pnpm build:content`)
+- [ ] Internal links resolve (`pnpm check:links`)
+- [ ] All 5 integration steps covered with TypeScript snippets
+- [ ] UI pattern covers all approval stages
+- [ ] Common errors table included

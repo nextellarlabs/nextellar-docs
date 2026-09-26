@@ -1,0 +1,353 @@
+---
+title: Soroban English Auction Tutorial
+description: Build an ascending-bid English Auction contract on Soroban, covering bid placement, settlement, client invocation, and timeout handling.
+date: 2026-08-28
+---
+
+# Soroban English Auction Tutorial
+
+An English Auction is the classic ascending-bid format: bidders openly outbid each other until time runs out or no higher bid is placed, and the highest bidder wins. This is the opposite mechanism from a [Dutch Auction](/docs/guides/soroban-dutch-auction) (which starts high and decays until someone accepts). This tutorial builds a complete English Auction contract on Soroban — bid placement with automatic refunds, settlement, client-side invocation, and timeout/extension handling to deter last-second sniping.
+
+---
+
+## Auction Lifecycle
+
+```
+Seller calls init_auction(item, reserve_price, end_time)
+        │
+        ▼
+Bidders call bid(amount) — each new bid must exceed the current highest
+        │                    (previous highest bidder is refunded automatically)
+        ▼
+Time reaches end_time (or is extended by a late bid — see Anti-Sniping)
+        │
+        ▼
+Anyone calls settle() — pays the seller, transfers the item to the winner
+                          (or returns the item to the seller if reserve wasn't met)
+```
+
+---
+
+## Contract State
+
+```rust
+#![no_std]
+use soroban_sdk::{contract, contractimpl, contracttype, token, Address, Env};
+
+#[contracttype]
+#[derive(Clone)]
+pub struct AuctionState {
+    pub seller: Address,
+    pub asset_token: Address,     // the token contract representing the item, or an NFT-style asset
+    pub payment_token: Address,   // the token bids are denominated in
+    pub reserve_price: i128,
+    pub end_time: u64,
+    pub highest_bidder: Option<Address>,
+    pub highest_bid: i128,
+    pub settled: bool,
+}
+
+#[contracttype]
+pub enum DataKey {
+    Auction,
+}
+
+const MIN_BID_INCREMENT_BPS: i128 = 500; // 5% minimum raise over the current bid
+const ANTI_SNIPE_WINDOW_SECS: u64 = 300; // 5 minutes
+const ANTI_SNIPE_EXTENSION_SECS: u64 = 300;
+
+#[contract]
+pub struct EnglishAuctionContract;
+```
+
+---
+
+## Bid Placement
+
+The core invariant: a new bid is only accepted if it beats the current highest bid by at least the minimum increment, and the _previous_ highest bidder's funds are refunded atomically as part of accepting the new bid — a bidder should never need to manually reclaim an outbid amount.
+
+```rust
+#[contractimpl]
+impl EnglishAuctionContract {
+    pub fn init_auction(
+        env: Env,
+        seller: Address,
+        asset_token: Address,
+        payment_token: Address,
+        reserve_price: i128,
+        duration_secs: u64,
+    ) {
+        seller.require_auth();
+        assert!(reserve_price > 0, "reserve price must be positive");
+        assert!(duration_secs > 0, "duration must be positive");
+
+        let end_time = env.ledger().timestamp() + duration_secs;
+
+        let state = AuctionState {
+            seller,
+            asset_token,
+            payment_token,
+            reserve_price,
+            end_time,
+            highest_bidder: None,
+            highest_bid: 0,
+            settled: false,
+        };
+
+        env.storage().instance().set(&DataKey::Auction, &state);
+    }
+
+    pub fn bid(env: Env, bidder: Address, amount: i128) {
+        bidder.require_auth();
+
+        let mut state: AuctionState = env
+            .storage()
+            .instance()
+            .get(&DataKey::Auction)
+            .expect("auction not initialized");
+
+        assert!(!state.settled, "auction already settled");
+        assert!(env.ledger().timestamp() < state.end_time, "auction has ended");
+
+        let min_required = if state.highest_bid == 0 {
+            state.reserve_price
+        } else {
+            state.highest_bid + (state.highest_bid * MIN_BID_INCREMENT_BPS) / 10_000
+        };
+        assert!(amount >= min_required, "bid does not meet minimum increment");
+
+        let payment_client = token::Client::new(&env, &state.payment_token);
+
+        // Escrow the new bid before refunding the old one — funds must
+        // be locked in the contract at all times an active bid exists.
+        payment_client.transfer(&bidder, &env.current_contract_address(), &amount);
+
+        if let Some(previous_bidder) = state.highest_bidder.clone() {
+            payment_client.transfer(
+                &env.current_contract_address(),
+                &previous_bidder,
+                &state.highest_bid,
+            );
+        }
+
+        // Anti-sniping: a bid placed within the closing window extends
+        // the auction rather than letting a last-second bid win outright.
+        if state.end_time - env.ledger().timestamp() < ANTI_SNIPE_WINDOW_SECS {
+            state.end_time = env.ledger().timestamp() + ANTI_SNIPE_EXTENSION_SECS;
+        }
+
+        state.highest_bidder = Some(bidder);
+        state.highest_bid = amount;
+
+        env.storage().instance().set(&DataKey::Auction, &state);
+    }
+}
+```
+
+<Note type="warning">
+  Escrowing the new bid before refunding the old one means the contract briefly
+  holds both amounts. This is intentional — refunding first would let a bidder's
+  `transfer` callback (for token contracts with hooks) re-enter `bid()` while
+  the auction is in an inconsistent state. Always mutate storage state
+  (`highest_bidder`, `highest_bid`) only after both transfers complete, and
+  treat `require_auth()` plus this ordering as the reentrancy guard — Soroban
+  has no built-in mutex.
+</Note>
+
+---
+
+## Settlement
+
+Settlement is permissionless — anyone can call `settle()` once the auction ends, so the outcome doesn't depend on the seller remembering to finalize it.
+
+```rust
+#[contractimpl]
+impl EnglishAuctionContract {
+    pub fn settle(env: Env) {
+        let mut state: AuctionState = env
+            .storage()
+            .instance()
+            .get(&DataKey::Auction)
+            .expect("auction not initialized");
+
+        assert!(!state.settled, "auction already settled");
+        assert!(env.ledger().timestamp() >= state.end_time, "auction still active");
+
+        state.settled = true;
+
+        let asset_client = token::Client::new(&env, &state.asset_token);
+        let payment_client = token::Client::new(&env, &state.payment_token);
+
+        match state.highest_bidder.clone() {
+            Some(winner) if state.highest_bid >= state.reserve_price => {
+                // Winning path: item to winner, payment to seller.
+                asset_client.transfer(&env.current_contract_address(), &winner, &1);
+                payment_client.transfer(
+                    &env.current_contract_address(),
+                    &state.seller,
+                    &state.highest_bid,
+                );
+            }
+            Some(bidder) => {
+                // Reserve not met: refund the highest bidder, return item to seller.
+                payment_client.transfer(
+                    &env.current_contract_address(),
+                    &bidder,
+                    &state.highest_bid,
+                );
+                asset_client.transfer(&env.current_contract_address(), &state.seller, &1);
+            }
+            None => {
+                // No bids at all: item stays with the seller (never left escrow).
+            }
+        }
+
+        env.storage().instance().set(&DataKey::Auction, &state);
+    }
+
+    pub fn get_state(env: Env) -> AuctionState {
+        env.storage().instance().get(&DataKey::Auction).expect("auction not initialized")
+    }
+}
+```
+
+---
+
+## Client Invocation
+
+```ts
+// lib/auction-client.ts
+import {
+  Contract,
+  TransactionBuilder,
+  Networks,
+  BASE_FEE,
+  nativeToScVal,
+  Address,
+} from '@stellar/stellar-sdk';
+import { Server } from '@stellar/stellar-sdk/rpc';
+
+const rpc = new Server(process.env.SOROBAN_RPC_URL!);
+const AUCTION_CONTRACT_ID = process.env.AUCTION_CONTRACT_ID!;
+
+export async function placeBid(
+  bidderKeypair: { publicKey(): string; sign(tx: Buffer): Buffer },
+  amountStroops: bigint
+): Promise<string> {
+  const contract = new Contract(AUCTION_CONTRACT_ID);
+  const bidderAddress = Address.fromString(bidderKeypair.publicKey());
+  const sourceAccount = await rpc.getAccount(bidderKeypair.publicKey());
+
+  const tx = new TransactionBuilder(sourceAccount, {
+    fee: BASE_FEE,
+    networkPassphrase: Networks.TESTNET,
+  })
+    .addOperation(
+      contract.call(
+        'bid',
+        bidderAddress.toScVal(),
+        nativeToScVal(amountStroops, { type: 'i128' })
+      )
+    )
+    .setTimeout(30)
+    .build();
+
+  const prepared = await rpc.prepareTransaction(tx);
+  // In a real client, sign with the wallet adapter rather than a raw keypair.
+  const signed = prepared.sign(bidderKeypair as never);
+
+  const response = await rpc.sendTransaction(signed);
+  return response.hash;
+}
+
+export async function getAuctionState(): Promise<{
+  highestBid: bigint;
+  highestBidder: string | null;
+  endTime: number;
+  settled: boolean;
+}> {
+  const contract = new Contract(AUCTION_CONTRACT_ID);
+  const dummyAccount = await rpc.getAccount(
+    process.env.READ_ONLY_SIMULATION_ACCOUNT!
+  );
+
+  const tx = new TransactionBuilder(dummyAccount, {
+    fee: BASE_FEE,
+    networkPassphrase: Networks.TESTNET,
+  })
+    .addOperation(contract.call('get_state'))
+    .setTimeout(30)
+    .build();
+
+  const simulated = await rpc.simulateTransaction(tx);
+  if (!('result' in simulated) || !simulated.result) {
+    throw new Error(
+      'Failed to simulate get_state — auction may not be initialized'
+    );
+  }
+
+  // Decode the ScVal result according to AuctionState's field layout.
+  const decoded = simulated.result.retval;
+  return decodeAuctionState(decoded);
+}
+
+// Decoding logic depends on your SDK version's ScVal helpers —
+// see the Soroban SDK's scValToNative for a generic converter.
+function decodeAuctionState(_scVal: unknown): {
+  highestBid: bigint;
+  highestBidder: string | null;
+  endTime: number;
+  settled: boolean;
+} {
+  throw new Error('implement using scValToNative(scVal) for your SDK version');
+}
+```
+
+---
+
+## Timeout Handling
+
+Two distinct timeout concerns apply here, and they're easy to conflate:
+
+**Auction end time** — enforced on-chain (`state.end_time`), extended automatically by the anti-sniping window in `bid()`. This is a contract-level deadline, not a client concern.
+
+**Transaction submission timeout** — the client-side `setTimeout(30)` on the `TransactionBuilder` controls how long the _transaction itself_ remains valid for submission, unrelated to the auction's timeline. If a bid transaction isn't included within that window, it expires and must be rebuilt with a fresh sequence number — this matters especially near the auction's `end_time`, where a bid that expires client-side without landing on-chain could cause a bidder to believe they won when their transaction never actually settled.
+
+```ts
+// lib/bid-with-retry.ts
+export async function placeBidWithDeadlineCheck(
+  bidderKeypair: Parameters<typeof placeBid>[0],
+  amountStroops: bigint,
+  auctionEndTimeMs: number
+): Promise<string> {
+  const now = Date.now();
+  const bufferMs = 15_000; // leave room for tx build + submission latency
+
+  if (now > auctionEndTimeMs - bufferMs) {
+    throw new Error(
+      'Too close to auction end — bid may not confirm before settlement is callable. ' +
+        "Note: a bid placed within the contract's anti-snipe window still extends the " +
+        'auction on-chain, but the client should not assume a late submission will land.'
+    );
+  }
+
+  return placeBid(bidderKeypair, amountStroops);
+}
+```
+
+<Note type="info">
+  The anti-sniping extension lives entirely in the contract (`bid()` pushes
+  `end_time` forward), so it works correctly even if every bidder's client is
+  unaware of the pattern. The client-side check above is purely a UX safeguard
+  against submitting a bid transaction that won't have time to confirm — not a
+  substitute for the on-chain guard.
+</Note>
+
+---
+
+## Acceptance Checklist
+
+- [ ] Tutorial renders without build errors (`pnpm build:content`)
+- [ ] Internal links resolve (`pnpm check:links`)
+- [ ] Code samples are copy-pasteable without modification
+- [ ] Bid placement, settlement, and timeout handling are each independently testable against the contract's public interface

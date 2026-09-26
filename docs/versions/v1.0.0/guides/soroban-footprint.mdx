@@ -1,0 +1,16 @@
+---
+title: Soroban Footprint Fields
+description: A quick note on footprint fields in Soroban transactions.
+---
+
+# Soroban Footprint Fields
+
+Every Soroban transaction requires a **footprint** to be specified. The footprint is a predefined list of all ledger entries the contract might read or write during execution.
+
+## Read-Only vs. Read-Write
+
+The footprint is split into two arrays:
+1. `readOnly`: Entries the contract will only read.
+2. `readWrite`: Entries the contract may modify or create.
+
+If a contract attempts to access a ledger entry that was not declared in its footprint, the execution will fail immediately. This mechanism ensures predictable execution and parallel transaction processing.
