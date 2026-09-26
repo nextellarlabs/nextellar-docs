@@ -1,5 +1,10 @@
-// src/app/doc/layout.tsx
-'use client';
+// src/app/docs/layout.tsx
+import { Metadata } from 'next';
+import { docsRootMetadata } from 'config/docs-meta';
+
+export const metadata: Metadata = docsRootMetadata;
+
+('use client');
 
 import React from 'react';
 import { allDocs } from 'contentlayer/generated';
