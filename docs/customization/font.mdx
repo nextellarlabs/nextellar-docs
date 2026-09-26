@@ -85,6 +85,122 @@ const geistSans = Geist({
 - `"400"` represents regular weight, while `"700"` is bold.
 - You can add more values like `"300"` (light) or `"900"` (extra bold) if required.
 
+## Using Self-Hosted Fonts
+
+Instead of relying on Google Fonts, you can host font files locally in your project. Self-hosted fonts give you full control and can improve performance.
+
+### Step 1: Add Font Files to Your Project
+
+Place your font files in the `public/fonts` directory:
+
+```
+project-root/
+└── public/
+    └── fonts/
+        ├── my-font-regular.ttf
+        ├── my-font-bold.ttf
+        └── my-font-italic.ttf
+```
+
+### Step 2: Define @font-face in CSS
+
+Add `@font-face` declarations to your global CSS file (`src/app/globals.css`):
+
+```css
+@font-face {
+  font-family: 'My Custom Font';
+  src: url('/fonts/my-font-regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'My Custom Font';
+  src: url('/fonts/my-font-bold.ttf') format('truetype');
+  font-weight: bold;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'My Custom Font';
+  src: url('/fonts/my-font-italic.ttf') format('truetype');
+  font-weight: normal;
+  font-style: italic;
+}
+```
+
+### Step 3: Apply the Font to Your Layout
+
+In your `src/app/layout.tsx`, update the body to use the self-hosted font:
+
+```tsx
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <html lang="en" suppressHydrationWarning>
+      <body
+        style={{ fontFamily: "'My Custom Font', sans-serif" }}
+        className={`
+          text-sm
+          font-regular tracking-wide antialiased`}
+      >
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          {children}
+        </ThemeProvider>
+      </body>
+    </html>
+  );
+}
+```
+
+Alternatively, you can define a CSS variable and reference it in your Tailwind config:
+
+```css
+:root {
+  --font-custom: 'My Custom Font', sans-serif;
+}
+```
+
+Then in `tailwind.config.js`:
+
+```js
+module.exports = {
+  theme: {
+    extend: {
+      fontFamily: {
+        custom: 'var(--font-custom)',
+      },
+    },
+  },
+};
+```
+
+And use it in your layout:
+
+```tsx
+<body className="font-custom text-sm font-regular tracking-wide antialiased">
+```
+
+### Format Support
+
+The `@font-face` declaration supports several font formats. Use the appropriate format for your font files:
+
+| Format  | MIME Type              | Usage                          |
+| ------- | ---------------------- | ------------------------------ |
+| TTF     | `format('truetype')`   | Common for desktop/web fonts   |
+| OTF     | `format('opentype')`   | PostScript-based fonts         |
+| WOFF    | `format('woff')`       | Web-optimized, excellent support |
+| WOFF2   | `format('woff2')`      | Modern, superior compression   |
+| EOT     | `format('embedded-opentype')` | Legacy IE support (optional)   |
+
 ## Summary
 
 - The font is defined in `src/layer.tsx`.
@@ -92,5 +208,7 @@ const geistSans = Geist({
 - Font size and typography settings are managed using Tailwind CSS classes.
 - `tailwind.config.js` allows customization of font sizes and responsive breakpoints.
 - You can modify font weight by adding an array of values in the font configuration.
+- Self-hosted fonts are stored in `public/fonts/` and registered using `@font-face` declarations in your global CSS.
+- Self-hosted fonts offer better performance control and design flexibility compared to remote font services.
 
 This guide helps you easily modify fonts and typography settings according to your design requirements.

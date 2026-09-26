@@ -34,15 +34,18 @@ export default function Header() {
 
 ## Props
 
-```typescript
-interface WalletConnectButtonProps {
-  theme?: 'light' | 'dark';
-}
-```
-
-| Prop    | Type                | Default   | Description         |
-| ------- | ------------------- | --------- | ------------------- |
-| `theme` | `'light' \| 'dark'` | `'light'` | Button color scheme |
+| Prop             | Type                                                   | Default       | Description                                                                                                                       |
+| ---------------- | ------------------------------------------------------ | ------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `theme`          | `'light' \| 'dark'`                                    | `'light'`     | Button color scheme. Use `'light'` for light backgrounds or `'dark'` for dark backgrounds.                                        |
+| `onConnect`      | `(walletId: string) => void \| Promise<void>`          | -             | Optional callback invoked after a wallet is successfully connected. Receives the wallet ID as a parameter.                        |
+| `onDisconnect`   | `() => void \| Promise<void>`                          | -             | Optional callback invoked after the wallet is disconnected.                                                                       |
+| `onError`        | `(error: Error) => void`                               | -             | Optional callback for handling connection errors. Receives the error object.                                                      |
+| `autoConnect`    | `boolean`                                              | `true`        | If true, automatically reconnects to the last connected wallet on page load using localStorage.                                  |
+| `className`      | `string`                                               | -             | Additional CSS classes to apply to the button element.                                                                            |
+| `disabled`       | `boolean`                                              | `false`       | If true, disables the button and prevents wallet connection attempts.                                                            |
+| `showBalance`    | `boolean`                                              | `false`       | If true, displays the connected wallet's XLM balance next to the wallet name when connected.                                     |
+| `children`       | `React.ReactNode`                                      | `'Connect Wallet'` | Custom content to render inside the button when disconnected. Overrides default button text.                                  |
+| `...props`       | `React.ButtonHTMLAttributes<HTMLButtonElement>`        | -             | Supports all standard HTML button attributes (onClick, aria-label, id, etc.).                                                    |
 
 ## Theme Variants
 

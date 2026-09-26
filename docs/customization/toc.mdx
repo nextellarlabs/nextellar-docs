@@ -100,6 +100,54 @@ export const TocData = {
 };
 ```
 
+### Nested TOC Example
+
+To create a nested TOC structure with parent and child entries, define a parent section with a `pages` array containing child items. The following example demonstrates a nested TOC for a guide page:
+
+```tsx
+'guides/advanced-sdk': [
+  {
+    title: 'Advanced SDK Usage',
+    href: '/docs/guides/advanced-sdk#advanced-sdk-usage',
+    pages: [
+      {
+        title: 'Transaction Building',
+        href: '/docs/guides/advanced-sdk#transaction-building',
+      },
+      {
+        title: 'Custom Networks',
+        href: '/docs/guides/advanced-sdk#custom-networks',
+      },
+      {
+        title: 'Error Handling Patterns',
+        href: '/docs/guides/advanced-sdk#error-handling-patterns',
+      },
+    ],
+  },
+  {
+    title: 'Performance Optimization',
+    href: '/docs/guides/advanced-sdk#performance-optimization',
+    pages: [
+      {
+        title: 'Caching Strategies',
+        href: '/docs/guides/advanced-sdk#caching-strategies',
+      },
+      {
+        title: 'Batch Operations',
+        href: '/docs/guides/advanced-sdk#batch-operations',
+      },
+    ],
+  },
+];
+```
+
+In this example:
+
+- **Parent entries** (like "Advanced SDK Usage" and "Performance Optimization") are top-level TOC items with their own `href` and a `pages` array.
+- **Child entries** (like "Transaction Building", "Custom Networks", etc.) are nested inside the `pages` array of their parent.
+- Each parent and child entry has a unique `href` pointing to a section anchor (`#section-name`) on the documentation page.
+- Child entries do not have a `pages` property—they represent the deepest level of nesting.
+
 ### Adding a New TOC Entry
 
 To add a new TOC entry, insert a new key-value pair in `TocData`:
