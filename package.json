@@ -30,10 +30,12 @@
     "prepare": "husky",
     "test": "npm run test:unit",
     "test:unit": "vitest run",
+    "test:visual": "playwright test",
+    "test:visual:update": "playwright test --update-snapshots",
     "test:validation": "vitest run scripts/validate-search-index.test.ts",
     "validate:sidebar": "node scripts/validate-sidebar.cjs",
     "check:links": "node scripts/check-links.cjs",
-    "audit:frontmatter": "node scripts/audit-frontmatter-comprehensive.cjs"
+    "audit:frontmatter": "node scripts/audit-frontmatter-comprehensive.cjs",
     "check:links:all": "node scripts/link-checker.mjs",
     "check:links:external": "node scripts/link-checker.mjs --check-external"
   },
@@ -86,6 +88,7 @@
     "tailwindcss-animated": "^2.0.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4.0.13",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",

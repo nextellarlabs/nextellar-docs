@@ -17,13 +17,12 @@ Before running the screenshot script you need:
 - **Node.js** 20.18.0 or later
 - **pnpm** installed
 - The local dev server able to start (`pnpm dev` runs without errors)
-- **Playwright** browsers installed
+- **Playwright** Chromium browser installed
 
-Install Playwright if it is not yet a project dependency:
+Install the browser binary:
 
 ```bash
-pnpm add -D @playwright/test
-pnpm playwright install chromium
+pnpm exec playwright install chromium
 ```
 
 ## Storage and Naming Conventions
