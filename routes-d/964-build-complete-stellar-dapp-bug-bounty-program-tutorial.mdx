@@ -1,0 +1,189 @@
+---
+title: Build a Complete Stellar dApp Bug Bounty Program
+description: A step-by-step tutorial for launching an effective bug bounty program for Stellar dApps, covering scope, payouts, reporting channels, and templates. Verified against current Stellar/Soroban ecosystem standards (2026).
+date: 2026-08-24
+---
+
+# Build a Complete Stellar dApp Bug Bounty Program
+
+This guide shows how to launch a bug bounty program for a Stellar dApp. It covers scope definition, payout structures, reporting channels, policy templates, and ongoing program management. All recommendations are cross-referenced with current Stellar Development Foundation (SDF) and Soroban security practices.
+
+---
+
+
+
+## Severity Levels
+
+| Level | Description | Typical Reward Range |
+| ----- | ----------- | -------------------- |
+| Critical | Funds at risk, contract exploit, key compromise | $5,000 - $50,000+ |
+| High | Core flow broken, auth bypass, data leak | $2,500 - $10,000 |
+| Medium | Degraded functionality, non-critical bypass | $1,000 - $5,000 |
+| Low | UI/UX issue, minor information disclosure | $100 - $1,000 |
+
+Use a severity rubric aligned with the [OWASP Risk Rating Methodology](https://owasp.org/www-community/OWASP_Risk_Rating_Methodology) and the [Immunefi Vulnerability Severity Classification System V2.3](https://immunefi.com/bug-bounty/openzeppelin-stellar/information).
+
+---
+
+
+
+## 1. Define Your Scope
+
+### In-Scope Assets
+
+- Soroban smart contracts (WASM/Rust)
+- Horizon API integrations
+- Frontend dApp (Next.js/React)
+- Wallet connection flows
+- Transaction signing and submission
+- Off-chain backend services
+
+### Out-of-Scope Items
+
+- Self-XSS in user wallets
+- Rate limiting without proof of impact
+- Social engineering of team members
+- Physical attacks on infrastructure
+- Issues in third-party dependencies unless directly exploitable
+
+### Stellar-Specific Considerations
+
+- **Soroban contracts**: Include contract entry points, storage keys, and authorization logic.
+- **Stellar Asset Contracts**: Verify trustline and authorization edge cases.
+- **Network boundaries**: Clearly state whether Futurenet, Testnet, or Mainnet is in scope.
+
+---
+
+
+
+## 2. Set Up Payouts
+
+### Determining Bounty Amounts
+
+Base rewards on actual impact, not effort. For Soroban contracts, follow the SDF formula:
+
+> Reward = min(10% of funds directly affected, maximum cap)
+
+### Payment Methods
+
+- **XLM**: Native Stellar asset, low friction.
+- **USDC**: Stablecoin preference for researchers in regulated jurisdictions.
+- **XMR**: Privacy-preserving option for anonymous reporters (optional).
+
+### Payout Structure
+
+| Severity | Typical Range | Notes |
+| -------- | ------------- | ----- |
+| Critical | $5,000 - $50,000 | First report, PoC required |
+| High | $2,500 - $10,000 | First report, clear reproduction |
+| Medium | $1,000 - $5,000 | First report |
+| Low | $100 - $1,000 | At maintainer discretion |
+
+Set an overall program cap to manage treasury risk. The OpenZeppelin on Stellar program uses a $250,000 total cap with a $25,000 maximum single payout.
+
+---
+
+
+
+## 3. Establish Reporting Channels
+
+### Primary Channels
+
+1. **GitHub Security Advisories** (preferred for public repos)
+2. **Dedicated email**: `security@yourproject.io`
+3. **HackerOne / Immunefi** (if using a platform)
+
+### Stellar-Specific Disclosure
+
+- **Responsible disclosure window**: Allow 90 days before public disclosure, per SDF policy.
+- **Transaction evidence**: Encourage reporters to include hashes, ledger sequence, and contract IDs.
+- **Soroban event logs**: Provide guidance on extracting `ContractEvent` data for PoCs.
+
+### Internal Triage
+
+- Assign a security lead within 24 hours.
+- Acknowledge receipt within 48 hours.
+- Provide initial severity assessment within 7 days.
+
+---
+
+
+
+## 4. Create a Bug Bounty Policy Template
+
+```markdown
+# Bug Bounty Policy
+
+## Eligibility
+
+Open to all security researchers. Employees and contractors are ineligible.
+
+## Scope
+
+- **In scope**: [list assets]
+- **Out of scope**: [list exclusions]
+
+## Rules of Engagement
+
+1. Do not access, modify, or delete user data.
+2. Do not perform DoS or social engineering.
+3. Report via the channel above; do not publicly disclose before fix.
+4. One report per vulnerability; duplicates count only once.
+
+## Legal
+
+- Researchers must comply with applicable laws.
+- Safe harbor provisions for authorized testing.
+- [Add governing law and venue]
+```
+
+---
+
+
+
+## 5. Launch and Manage
+
+### Public Announcement
+
+Post to:
+- GitHub Security tab
+- Project documentation
+- Stellar developer Discord
+- HackerOne / Immunefi program page (if applicable)
+
+### Triage Workflow
+
+1. **Intake**: Log report, assign ID, acknowledge reporter.
+2. **Validate**: Reproduce in isolated environment.
+3. **Severity**: Apply OWASP + impact rubric.
+4. **Fix**: Assign engineer, set deadline.
+5. **Reward**: Approve payout, send via chosen method.
+
+### Reward Distribution
+
+- Issue payment within 30 days of fix deployment.
+- Require reporter wallet address for on-chain payouts.
+- Keep a public (or private) ledger of bounty awards for transparency.
+
+---
+
+
+
+## 6. Best Practices
+
+- **Keep the program active**: Review scope quarterly.
+- **Publish reports**: Redacted write-ups improve ecosystem security.
+- **Avoid over-promising**: Use "at our discretion" language for borderline issues.
+- **Cross-reference**: Align with SDF's [Bug Bounty Program](https://stellar.org/grants-and-funding/bug-bounty) and [Soroban security guidance](https://stellar.org/blog/developers/soroban-security-bug-bounty).
+
+---
+
+
+
+## Resources
+
+- [Stellar Bug Bounty Program](https://stellar.org/grants-and-funding/bug-bounty)
+- [Soroban Security Bug Bounty](https://stellar.org/blog/developers/soroban-security-bug-bounty)
+- [OpenZeppelin on Stellar Bounty (Immunefi)](https://immunefi.com/bug-bounty/openzeppelin-stellar/information)
+- [OWASP Risk Rating Methodology](https://owasp.org/www-community/OWASP_Risk_Rating_Methodology)
+- [Immunefi Severity Classification V2.3](https://immunefi.com/bug-bounty/openzeppelin-stellar/information)
