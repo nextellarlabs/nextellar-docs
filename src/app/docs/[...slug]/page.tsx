@@ -1,5 +1,5 @@
 import { allDocs } from 'contentlayer/generated';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { Mdx } from '@/components/mdx-components';
 import Breadcrumb from '@/components/bread-crumb';
 import AutoToc from '@/components/auto-toc';
@@ -7,6 +7,17 @@ import EditThisPage from '@/components/edit-this-page';
 import PrevNextNav from '@/components/prev-next-nav';
 import { format, parseISO } from 'date-fns';
 import { meta } from '../../../../config/meta';
+
+/**
+ * Legacy doc paths redirected to their canonical replacement.
+ * Keep in sync with the redirects table in docs/guides/redirects-map.mdx.
+ */
+const DOC_REDIRECTS: Record<string, string> = {
+  'hooks/wallet-connect-button': 'components/wallet-connect-button',
+  'components/connect-wallet-button': 'components/wallet-connect-button',
+};
+
+const resolvePath = (path: string) => DOC_REDIRECTS[path];
 
 type tParams = Promise<{ slug: string[] }>;
 
@@ -35,6 +46,8 @@ export const generateMetadata = async ({ params }: { params: tParams }) => {
   // Join the slug array back into a path string
   const awaitedParams = await params;
   const path = awaitedParams.slug.join('/');
+  const redirectTarget = resolvePath(path);
+  if (redirectTarget) redirect(`/docs/${redirectTarget}`);
   const doc = allDocs.find((doc) => doc._raw.flattenedPath === path);
 
   if (!doc) notFound();
@@ -54,6 +67,8 @@ const DocsPage = async ({ params }: { params: tParams }) => {
   const awaitedParams = await params;
   // Join the slug array back into a path string
   const path = awaitedParams.slug.join('/');
+  const redirectTarget = resolvePath(path);
+  if (redirectTarget) redirect(`/docs/${redirectTarget}`);
   const doc = allDocs.find((doc) => doc._raw.flattenedPath === path);
 
   if (!doc) notFound();
