@@ -26,9 +26,9 @@ export const meta = {
       'Open-source toolkit for building full-stack dApps with Next.js and Stellar — one-step scaffolding, wallets, payments, and smart-contract utilities.',
     images: [
       {
-        url: '/logos/logo-with-text-light.png',
-        width: 1200,
-        height: 630,
+        url: '/figmaAssets/group-1.png',
+        width: 1729,
+        height: 901,
         alt: 'Nextellar - Build Stellar dApps Faster',
       },
     ],
@@ -38,7 +38,7 @@ export const meta = {
     title: 'Nextellar — Build Stellar dApps Faster',
     description:
       'TypeScript-first CLI toolkit for bootstrapping production-ready Next.js + Stellar dApps. Open-source, fast, and modular.',
-    images: ['/logos/logo-with-text-light.png'],
+    images: ['/figmaAssets/group-1.png'],
     creator: '@nextellar', // replace with official handle when available
   },
   alternates: {

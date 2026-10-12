@@ -472,7 +472,9 @@ describe('useTransactionHistory', () => {
     (fetch as jest.Mock).mockReturnValue(new Promise(() => {}));
 
     const { result } = renderHook(() =>
-      useTransactionHistory('GBBD47UZQ5CSHGI3VTFMS5WVLOFXVF2ZSHNCUVRKLV3PCDTXVG5ZWXLY')
+      useTransactionHistory(
+        'GBBD47UZQ5CSHGI3VTFMS5WVLOFXVF2ZSHNCUVRKLV3PCDTXVG5ZWXLY'
+      )
     );
 
     expect(result.current.loading).toBe(true);
@@ -493,7 +495,9 @@ describe('useTransactionHistory', () => {
     });
 
     const { result } = renderHook(() =>
-      useTransactionHistory('GBBD47UZQ5CSHGI3VTFMS5WVLOFXVF2ZSHNCUVRKLV3PCDTXVG5ZWXLY')
+      useTransactionHistory(
+        'GBBD47UZQ5CSHGI3VTFMS5WVLOFXVF2ZSHNCUVRKLV3PCDTXVG5ZWXLY'
+      )
     );
 
     await waitFor(() => expect(result.current.loading).toBe(false));
@@ -509,7 +513,9 @@ describe('useTransactionHistory', () => {
     });
 
     const { result } = renderHook(() =>
-      useTransactionHistory('GBBD47UZQ5CSHGI3VTFMS5WVLOFXVF2ZSHNCUVRKLV3PCDTXVG5ZWXLY')
+      useTransactionHistory(
+        'GBBD47UZQ5CSHGI3VTFMS5WVLOFXVF2ZSHNCUVRKLV3PCDTXVG5ZWXLY'
+      )
     );
 
     await waitFor(() => expect(result.current.loading).toBe(false));
@@ -528,7 +534,9 @@ describe('useTransactionHistory', () => {
     });
 
     const { result } = renderHook(() =>
-      useTransactionHistory('GBBD47UZQ5CSHGI3VTFMS5WVLOFXVF2ZSHNCUVRKLV3PCDTXVG5ZWXLY')
+      useTransactionHistory(
+        'GBBD47UZQ5CSHGI3VTFMS5WVLOFXVF2ZSHNCUVRKLV3PCDTXVG5ZWXLY'
+      )
     );
 
     await waitFor(() => expect(result.current.loading).toBe(false));
@@ -544,9 +552,12 @@ describe('useTransactionHistory', () => {
 
   it('does not fetch when enabled is false', () => {
     renderHook(() =>
-      useTransactionHistory('GBBD47UZQ5CSHGI3VTFMS5WVLOFXVF2ZSHNCUVRKLV3PCDTXVG5ZWXLY', {
-        enabled: false,
-      })
+      useTransactionHistory(
+        'GBBD47UZQ5CSHGI3VTFMS5WVLOFXVF2ZSHNCUVRKLV3PCDTXVG5ZWXLY',
+        {
+          enabled: false,
+        }
+      )
     );
 
     expect(fetch).not.toHaveBeenCalled();
@@ -572,7 +583,9 @@ function wrapper({ children }: { children: React.ReactNode }) {
 it('uses provider horizonUrl', async () => {
   const { result } = renderHook(
     () =>
-      useTransactionHistory('GBBD47UZQ5CSHGI3VTFMS5WVLOFXVF2ZSHNCUVRKLV3PCDTXVG5ZWXLY'),
+      useTransactionHistory(
+        'GBBD47UZQ5CSHGI3VTFMS5WVLOFXVF2ZSHNCUVRKLV3PCDTXVG5ZWXLY'
+      ),
     { wrapper }
   );
 
@@ -588,7 +601,7 @@ Run tests:
 
 ```bash
 npm run test
-# or
+## or
 pnpm test:unit
 ```
 

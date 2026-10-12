@@ -6,6 +6,7 @@ import AutoToc from '@/components/auto-toc';
 import EditThisPage from '@/components/edit-this-page';
 import PrevNextNav from '@/components/prev-next-nav';
 import { format, parseISO } from 'date-fns';
+import { meta } from '../../../../config/meta';
 
 type tParams = Promise<{ slug: string[] }>;
 
@@ -15,6 +16,37 @@ type tParams = Promise<{ slug: string[] }>;
  * for consistency with the new routing structure.
  */
 export const generateStaticParams = async () => {
+  return allDocs
+    .filter((doc) => {
+      const path = doc._raw.flattenedPath;
+      // Exclude root index.mdx (handled by /docs/page.tsx)
+      // The root index has an empty flattenedPath
+      return path !== '' && path !== 'index' && path.length > 0;
+    })
+    .map((doc) => {
+      // For paths like "search-bar" create { slug: ['search-bar'] }
+      // For paths like "getting-started/introduction" create { slug: ['getting-started', 'introduction'] }
+      const slugArray = doc._raw.flattenedPath.split('/');
+      return { slug: slugArray };
+    });
+};
+
+export const generateMetadata = async ({ params }: { params: tParams }) => {
+  // Join the slug array back into a path string
+  const awaitedParams = await params;
+  const path = awaitedParams.slug.join('/');
+  const doc = allDocs.find((doc) => doc._raw.flattenedPath === path);
+
+  if (!doc) notFound();
+  return {
+    title: doc.title,
+    description: doc.description || 'A detailed guide to the topic.',
+    openGraph: {
+      title: doc.title,
+      description: doc.description || 'A detailed guide to the topic.',
+      images: meta.openGraph.images,
+    },
+  };
   return [];
 };
 

@@ -15,11 +15,11 @@ This document provides a definitive, source-verified feature matrix for all Next
 
 Nextellar ships **3 core templates** + **2 language variants** + **1 contract overlay**:
 
-| Category | Templates |
-|----------|-----------|
-| **Core Templates** | `default`, `minimal`, `defi` |
+| Category              | Templates                                         |
+| --------------------- | ------------------------------------------------- |
+| **Core Templates**    | `default`, `minimal`, `defi`                      |
 | **Language Variants** | TypeScript (default), JavaScript (`--javascript`) |
-| **Overlays** | Soroban contracts (`--with-contracts`) |
+| **Overlays**          | Soroban contracts (`--with-contracts`)            |
 
 This creates 6 primary template configurations (3 templates × 2 languages), plus optional contract support across all.
 
@@ -29,40 +29,40 @@ This creates 6 primary template configurations (3 templates × 2 languages), plu
 
 ### Hooks Availability
 
-| Hook | default (TS) | default (JS) | minimal (TS) | minimal (JS) | defi (TS) | defi (JS) |
-|------|:---:|:---:|:---:|:---:|:---:|:---:|
-| **`useStellarWallet`** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| **`useStellarBalances`** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| **`useStellarPayment`** | ✓ | ✓ | — | — | ✓ | ✓ |
-| **`useTransactionHistory`** | ✓ | ✓ | — | — | — | — |
-| **`useTrustlines`** | ✓ | ✓ | — | — | ✓ | ✓ |
-| **`useOfferBook`** | ✓ | ✓ | — | — | ✓ | ✓ |
-| **`useSorobanContract`** | ✓ | ✓ | — | — | — | — |
-| **`useSorobanEvents`** | ✓ | ✓ | — | — | — | — |
+| Hook                        | default (TS) | default (JS) | minimal (TS) | minimal (JS) | defi (TS) | defi (JS) |
+| --------------------------- | :----------: | :----------: | :----------: | :----------: | :-------: | :-------: |
+| **`useStellarWallet`**      |      ✓       |      ✓       |      ✓       |      ✓       |     ✓     |     ✓     |
+| **`useStellarBalances`**    |      ✓       |      ✓       |      ✓       |      ✓       |     ✓     |     ✓     |
+| **`useStellarPayment`**     |      ✓       |      ✓       |      —       |      —       |     ✓     |     ✓     |
+| **`useTransactionHistory`** |      ✓       |      ✓       |      —       |      —       |     —     |     —     |
+| **`useTrustlines`**         |      ✓       |      ✓       |      —       |      —       |     ✓     |     ✓     |
+| **`useOfferBook`**          |      ✓       |      ✓       |      —       |      —       |     ✓     |     ✓     |
+| **`useSorobanContract`**    |      ✓       |      ✓       |      —       |      —       |     —     |     —     |
+| **`useSorobanEvents`**      |      ✓       |      ✓       |      —       |      —       |     —     |     —     |
 
 ### Components
 
-| Component | default (TS) | default (JS) | minimal (TS) | minimal (JS) | defi (TS) | defi (JS) |
-|-----------|:---:|:---:|:---:|:---:|:---:|:---:|
-| **`WalletConnectButton`** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| **`NetworkSwitcher`** | ✓ | ✓ | — | — | — | — |
+| Component                 | default (TS) | default (JS) | minimal (TS) | minimal (JS) | defi (TS) | defi (JS) |
+| ------------------------- | :----------: | :----------: | :----------: | :----------: | :-------: | :-------: |
+| **`WalletConnectButton`** |      ✓       |      ✓       |      ✓       |      ✓       |     ✓     |     ✓     |
+| **`NetworkSwitcher`**     |      ✓       |      ✓       |      —       |      —       |     —     |     —     |
 
 ### Lib & Config Files
 
-| File | default (TS) | default (JS) | minimal (TS) | minimal (JS) | defi (TS) | defi (JS) |
-|------|:---:|:---:|:---:|:---:|:---:|:---:|
-| **`lib/stellar-wallet-kit.ts`** | ✓ | ✗ (.js) | ✓ | ✗ (.js) | ✓ | ✗ (.js) |
-| **`lib/storage.ts`** | ✓ | ✗ (.js) | ✓ | ✗ (.js) | ✗ | ✗ |
-| **`config/networks.ts`** | ✓ | ✗ (.ts) | — | — | — | — |
-| **`.env.example`** | ✓ | ✓ | — | — | — | — |
+| File                            | default (TS) | default (JS) | minimal (TS) | minimal (JS) | defi (TS) | defi (JS) |
+| ------------------------------- | :----------: | :----------: | :----------: | :----------: | :-------: | :-------: |
+| **`lib/stellar-wallet-kit.ts`** |      ✓       |   ✗ (.js)    |      ✓       |   ✗ (.js)    |     ✓     |  ✗ (.js)  |
+| **`lib/storage.ts`**            |      ✓       |   ✗ (.js)    |      ✓       |   ✗ (.js)    |     ✗     |     ✗     |
+| **`config/networks.ts`**        |      ✓       |   ✗ (.ts)    |      —       |      —       |     —     |     —     |
+| **`.env.example`**              |      ✓       |      ✓       |      —       |      —       |     —     |     —     |
 
 ### Soroban Support
 
-| Feature | default (TS) | default (JS) | minimal (TS) | minimal (JS) | defi (TS) | defi (JS) |
-|---------|:---:|:---:|:---:|:---:|:---:|:---:|
-| **Contract Calls** | ✓ | ✓ | — | — | — | — |
-| **Event Listening** | ✓ | ✓ | — | — | — | — |
-| **`--with-contracts` Support** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Feature                        | default (TS) | default (JS) | minimal (TS) | minimal (JS) | defi (TS) | defi (JS) |
+| ------------------------------ | :----------: | :----------: | :----------: | :----------: | :-------: | :-------: |
+| **Contract Calls**             |      ✓       |      ✓       |      —       |      —       |     —     |     —     |
+| **Event Listening**            |      ✓       |      ✓       |      —       |      —       |     —     |     —     |
+| **`--with-contracts` Support** |      ✓       |      ✓       |      ✓       |      ✓       |     ✓     |     ✓     |
 
 ---
 
@@ -73,19 +73,22 @@ This creates 6 primary template configurations (3 templates × 2 languages), plu
 **Purpose:** Full-featured Stellar + Soroban development.
 
 **Best For:**
+
 - New developers exploring Stellar
 - Comprehensive dApps needing broad feature access
 - Apps requiring transaction history
 - Soroban smart contract integration
 
 **TypeScript Scaffold:**
+
 ```bash
 npx nextellar my-app --template default
-# or simply:
+## or simply:
 npx nextellar my-app
 ```
 
 **Includes:**
+
 - ✓ All wallet hooks (8 total)
 - ✓ All components (2 total)
 - ✓ Full lib setup (networks, storage, wallet kit)
@@ -93,21 +96,25 @@ npx nextellar my-app
 - ✓ TypeScript configuration
 
 **JavaScript Variant:**
+
 ```bash
 npx nextellar my-app --template default --javascript
 ```
 
 **Changes from TypeScript:**
+
 - `.tsx` → `.jsx`
 - `.ts` → `.js`
 - `tsconfig.json` remains
 
 **With Contracts:**
+
 ```bash
 npx nextellar my-app --template default --with-contracts
 ```
 
 **Adds:**
+
 - `contracts/` directory with Rust sample
 - `contracts/hello_world/` Soroban contract
 - `contracts:build` npm script
@@ -116,28 +123,32 @@ npx nextellar my-app --template default --with-contracts
 
 ---
 
-### Template: `minimal`
+## Template: `minimal`
 
 **Purpose:** Lightweight wallet connection and balance checking.
 
 **Best For:**
+
 - Wallet-only interfaces
 - Simple balance checkers
 - Incremental feature addition
 - Minimal dependencies projects
 
 **TypeScript Scaffold:**
+
 ```bash
 npx nextellar my-app --template minimal
 ```
 
 **Includes:**
+
 - ✓ Core wallet hooks (2 total)
 - ✓ Wallet button component
 - ✓ Wallet kit setup
 - ✓ Storage lib (localStorage wrapper)
 
 **Does NOT Include:**
+
 - ✗ Payment, history, trustlines, offer book
 - ✗ Soroban hooks or components
 - ✗ Network switcher
@@ -145,21 +156,25 @@ npx nextellar my-app --template minimal
 - ✗ `config/networks.ts`
 
 **JavaScript Variant:**
+
 ```bash
 npx nextellar my-app --template minimal --javascript
 ```
 
 **Changes from TypeScript:**
+
 - `.tsx` → `.jsx`
 - `.ts` → `.js`
 - Same feature set
 
 **With Contracts:**
+
 ```bash
 npx nextellar my-app --template minimal --with-contracts
 ```
 
 **Adds:**
+
 - `contracts/` directory with Rust sample
 - Full contract scaffolding (same as other templates)
 
@@ -170,23 +185,27 @@ npx nextellar my-app --template minimal --with-contracts
 **Purpose:** DEX, trading, and DeFi-focused applications.
 
 **Best For:**
+
 - DEX interfaces
 - Trading applications
 - Asset management UIs
 - Order book integration
 
 **TypeScript Scaffold:**
+
 ```bash
 npx nextellar my-app --template defi
 ```
 
 **Includes:**
+
 - ✓ Wallet hooks (5 total: wallet, balances, payments, trustlines, offer book)
 - ✓ Wallet button component
 - ✓ Wallet kit setup
 - ✓ DeFi-focused hooks
 
 **Does NOT Include:**
+
 - ✗ Transaction history
 - ✗ Soroban hooks or components
 - ✗ Network switcher
@@ -195,21 +214,25 @@ npx nextellar my-app --template defi
 - ✗ `config/networks.ts`
 
 **JavaScript Variant:**
+
 ```bash
 npx nextellar my-app --template defi --javascript
 ```
 
 **Changes from TypeScript:**
+
 - `.tsx` → `.jsx`
 - `.ts` → `.js`
 - Same feature set
 
 **With Contracts:**
+
 ```bash
 npx nextellar my-app --template defi --with-contracts
 ```
 
 **Adds:**
+
 - `contracts/` directory with Rust sample
 - Full contract scaffolding
 
@@ -220,16 +243,19 @@ npx nextellar my-app --template defi --with-contracts
 ### TypeScript Variant (Default)
 
 **File Extensions:**
+
 - React components: `.tsx`
 - Utilities: `.ts`
 - Configuration: `.ts`
 
 **Includes:**
+
 - `tsconfig.json` with strict mode enabled
 - Type definitions for all hooks and components
 - Full IDE autocomplete support
 
 **Package.json Scripts:**
+
 - `npm run dev` — Next.js development server
 - `npm run build` — Production build with type checking
 - `npm run lint` — ESLint on all `.ts`/`.tsx` files
@@ -240,23 +266,27 @@ npx nextellar my-app --template defi --with-contracts
 ### JavaScript Variant (`--javascript`)
 
 **File Extensions:**
+
 - React components: `.jsx`
 - Utilities: `.js`
 - Configuration: `.js`
 
 **Key Differences:**
+
 - No `tsconfig.json` (JavaScript by default in Next.js 14+)
 - JSDoc comments for type hints
 - Same hooks and components available
 - Same npm scripts
 
 **Trade-offs:**
+
 - Less IDE type safety (but JSDoc provides hints)
 - Smaller bundle size (no TypeScript compiler overhead)
 - Faster builds in some cases
 - Better for teams unfamiliar with TypeScript
 
 **When to Use:**
+
 - Team prefers JavaScript
 - Migrating from existing JS codebases
 - Quick prototyping without type overhead
@@ -270,6 +300,7 @@ npx nextellar my-app --template defi --with-contracts
 **Applies To:** All templates (default, minimal, defi) + both languages (TS, JS)
 
 **Directory Structure Added:**
+
 ```
 contracts/
 ├── hello_world/           # Sample Soroban contract
@@ -282,6 +313,7 @@ contracts/
 ```
 
 **npm Scripts Added:**
+
 ```json
 {
   "scripts": {
@@ -293,12 +325,14 @@ contracts/
 ```
 
 **Environment Variables Added:**
+
 ```bash
-# .env.example
+## .env.example
 NEXT_PUBLIC_HELLO_WORLD_CONTRACT_ID=CAB3...
 ```
 
 **Verification:**
+
 - Sample contract compiles with `npm run contracts:build`
 - Tests pass with `npm run contracts:test`
 - Contract ID placeholder provided in `.env.example`
@@ -316,6 +350,7 @@ npx nextellar my-app --template default --with-contracts
 ```
 
 **You Get:**
+
 - ✓ All 8 wallet hooks
 - ✓ Soroban smart contract support
 - ✓ Transaction history
@@ -333,6 +368,7 @@ npx nextellar my-app --template minimal --javascript
 ```
 
 **You Get:**
+
 - ✓ Wallet connection (JavaScript)
 - ✓ Balance checking
 - ✓ Minimal dependencies
@@ -349,6 +385,7 @@ npx nextellar my-app --template defi
 ```
 
 **You Get:**
+
 - ✓ Payment sending
 - ✓ Asset trustlines
 - ✓ DEX order book
@@ -362,10 +399,10 @@ npx nextellar my-app --template defi
 **Recommendation:** Add features individually
 
 ```bash
-# Start minimal
+## Start minimal
 npx nextellar my-app --template minimal --javascript
 
-# Then add features as needed
+## Then add features as needed
 nextellar add soroban-contract
 nextellar add transaction-history
 nextellar add offer-book
@@ -395,10 +432,10 @@ This matrix was verified against the following source files:
 The `nextellar add` command allows adding features to any template after creation:
 
 ```bash
-# Start with minimal
+## Start with minimal
 npx nextellar my-app --template minimal
 
-# Add features incrementally
+## Add features incrementally
 nextellar add soroban-contract        # Adds Soroban support
 nextellar add transaction-history     # Adds history hook
 nextellar add offer-book              # Adds DEX order book
@@ -417,4 +454,3 @@ This allows fine-grained control over your starter scaffold.
 - [CLI Flags & Options](/docs/cli/flags) — Complete `--template`, `--javascript`, `--with-contracts` reference
 - [Extending the CLI](/docs/guides/extending-the-cli) — Adding features with `nextellar add`
 - [Contracts Quick Start](/docs/getting-started/contracts-quick-start) — Building and deploying contracts
-

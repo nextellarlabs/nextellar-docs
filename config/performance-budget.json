@@ -1,0 +1,8 @@
+{
+  "jsBytes": 500000,
+  "cssBytes": 100000,
+  "totalBytes": 800000,
+  "warnJsBytes": 600000,
+  "warnCssBytes": 150000,
+  "warnTotalBytes": 1000000
+}

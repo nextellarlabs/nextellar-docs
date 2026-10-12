@@ -10,6 +10,7 @@ tags: [soroban, contracts, rust, deployment, tutorial, smart-contracts]
 This tutorial walks you through building a complete Soroban smart contract from scratch, testing it locally, deploying to Stellar Testnet, and invoking it from your Nextellar frontend.
 
 By the end, you'll have:
+
 - A production-ready Rust Soroban contract (payment vault)
 - Passing unit tests
 - Deployed contract on Testnet
@@ -22,17 +23,17 @@ By the end, you'll have:
 Verify your environment is ready:
 
 ```bash
-# Check Node.js (≥ 20.18.0)
+## Check Node.js (≥ 20.18.0)
 node --version
 
-# Check Rust is installed
+## Check Rust is installed
 rustc --version
 
-# Add WASM target
+## Add WASM target
 rustup target add wasm32-unknown-unknown
 
-# Install Stellar CLI
-# https://developers.stellar.org/docs/build/smart-contracts/getting-started/setup#install-the-stellar-cli
+## Install Stellar CLI
+## https://developers.stellar.org/docs/build/smart-contracts/getting-started/setup#install-the-stellar-cli
 stellar --version
 ```
 
@@ -56,6 +57,7 @@ cd my-vault-dapp
 ```
 
 This creates:
+
 - `contracts/` directory with a sample `hello_world` contract
 - `npm run contracts:build` script
 - `npm run contracts:test` script
@@ -64,21 +66,21 @@ This creates:
 ### Step 1.2: Explore the Structure
 
 ```bash
-# View contract directory
+## View contract directory
 tree contracts/ -L 3
 
-# Should output:
-# contracts/
-# ├── Cargo.toml         (workspace manifest)
-# ├── hello_world/       (sample contract)
-# │   ├── Cargo.toml     (contract package manifest)
-# │   └── src/
-# │       ├── lib.rs     (contract code)
-# │       └── test.rs    (unit tests)
-# └── README.md
+## Should output:
+## contracts/
+## ├── Cargo.toml         (workspace manifest)
+## ├── hello_world/       (sample contract)
+## │   ├── Cargo.toml     (contract package manifest)
+## │   └── src/
+## │       ├── lib.rs     (contract code)
+## │       └── test.rs    (unit tests)
+## └── README.md
 ```
 
-### Step 1.3: Verify Compilation
+## Step 1.3: Verify Compilation
 
 Test that the sample contract builds:
 
@@ -87,6 +89,7 @@ npm run contracts:build
 ```
 
 You should see:
+
 ```
 Compiling soroban-hello-world v0.1.0
 Finished `release` profile...
@@ -142,7 +145,7 @@ impl VaultContract {
 
         // Set admin
         env.storage().instance().set(&DataKey::Admin, &admin);
-        
+
         // Set instance TTL (time-to-live) to prevent expiration
         env.storage().instance().extend_ttl(100_000, 300_000);
 
@@ -380,15 +383,15 @@ mod tests {
 ### Step 2.3: Build and Test Locally
 
 ```bash
-# Run unit tests
+## Run unit tests
 npm run contracts:test
 
-# Output should show all tests passing:
-# test test::test_initialize ... ok
-# test test::test_deposit_and_balance ... ok
-# test test::test_withdraw ... ok
-# test test::test_insufficient_balance ... ok
-# test test::test_invalid_amount ... ok
+## Output should show all tests passing:
+## test test::test_initialize ... ok
+## test test::test_deposit_and_balance ... ok
+## test test::test_withdraw ... ok
+## test test::test_insufficient_balance ... ok
+## test test::test_invalid_amount ... ok
 ```
 
 Verify the contract compiles:
@@ -396,9 +399,9 @@ Verify the contract compiles:
 ```bash
 npm run contracts:build
 
-# Should output:
-# Compiling soroban-vault-contract v0.1.0
-# Finished `release` profile...
+## Should output:
+## Compiling soroban-vault-contract v0.1.0
+## Finished `release` profile...
 ```
 
 ---
@@ -410,7 +413,7 @@ npm run contracts:build
 Configure the Stellar CLI for Testnet:
 
 ```bash
-# Set default network to testnet
+## Set default network to testnet
 stellar network add \
   --rpc-url https://soroban-testnet.stellar.org \
   --network-passphrase "Test SDF Network ; September 2015" \
@@ -419,43 +422,43 @@ stellar network add \
 stellar network use testnet
 ```
 
-### Step 3.2: Create/Fund a Deployment Account
+## Step 3.2: Create/Fund a Deployment Account
 
 You need an account with XLM to pay for deployment fees.
 
 ```bash
-# Generate a new keypair (save the secret in .env!)
+## Generate a new keypair (save the secret in .env!)
 stellar keys generate --secret deployment_key
 
-# Get the public key
+## Get the public key
 stellar keys show deployment_key
 
-# Fund it via Friendbot (testnet only)
+## Fund it via Friendbot (testnet only)
 curl "https://friendbot.stellar.org/?addr=<YOUR_PUBLIC_KEY>"
 
-# Verify funding
+## Verify funding
 stellar account info <YOUR_PUBLIC_KEY>
 ```
 
 Store the secret key securely:
 
 ```bash
-# .env (NEVER commit this!)
+## .env (NEVER commit this!)
 SOROBAN_DEPLOYMENT_KEY=SCXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 ```
 
-### Step 3.3: Build WASM Binary
+## Step 3.3: Build WASM Binary
 
 Build the contract for deployment:
 
 ```bash
 npm run contracts:build
 
-# WASM binary is now at:
-# contracts/hello_world/target/wasm32-unknown-unknown/release/soroban_hello_world.wasm
+## WASM binary is now at:
+## contracts/hello_world/target/wasm32-unknown-unknown/release/soroban_hello_world.wasm
 ```
 
-### Step 3.4: Deploy the Contract
+## Step 3.4: Deploy the Contract
 
 Deploy using the Stellar CLI:
 
@@ -464,13 +467,13 @@ stellar contract deploy \
   --wasm contracts/hello_world/target/wasm32-unknown-unknown/release/soroban_hello_world.wasm \
   --source deployment_key
 
-# Output:
-# Deployed contract ID: CAB3DDEFAFE7D5E3C6CBEF9D0F3D8F2E1A9B8C7D6E5F4A3B2C1D0E9F8A7B6C
+## Output:
+## Deployed contract ID: CAB3DDEFAFE7D5E3C6CBEF9D0F3D8F2E1A9B8C7D6E5F4A3B2C1D0E9F8A7B6C
 ```
 
 **Save this contract ID!** You'll need it for frontend invocation.
 
-### Step 3.5: Initialize the Contract
+## Step 3.5: Initialize the Contract
 
 Call the `initialize` function to set up the vault:
 
@@ -482,16 +485,16 @@ stellar contract invoke \
   -- initialize \
   --admin <YOUR_PUBLIC_KEY>
 
-# Output:
-# "Initialized successfully"
+## Output:
+## "Initialized successfully"
 ```
 
-### Step 3.6: Update Environment Variables
+## Step 3.6: Update Environment Variables
 
 Add the contract ID to `.env.local`:
 
 ```bash
-# .env.local
+## .env.local
 NEXT_PUBLIC_VAULT_CONTRACT_ID=CAB3DDEFAFE7D5E3C6CBEF9D0F3D8F2E1A9B8C7D6E5F4A3B2C1D0E9F8A7B6C
 NEXT_PUBLIC_SOROBAN_RPC_URL=https://soroban-testnet.stellar.org
 ```
@@ -697,7 +700,9 @@ export function VaultComponent() {
       </div>
 
       <div className="mb-4">
-        <label className="block text-sm font-medium mb-2">Withdraw Amount</label>
+        <label className="block text-sm font-medium mb-2">
+          Withdraw Amount
+        </label>
         <div className="flex gap-2">
           <input
             type="number"
@@ -718,7 +723,9 @@ export function VaultComponent() {
       </div>
 
       {txStatus && (
-        <p className={`text-sm font-medium ${txStatus.includes('Error') ? 'text-red-600' : 'text-green-600'}`}>
+        <p
+          className={`text-sm font-medium ${txStatus.includes('Error') ? 'text-red-600' : 'text-green-600'}`}
+        >
           {txStatus}
         </p>
       )}
@@ -740,7 +747,9 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 text-white">
       <div className="container mx-auto px-4 py-12">
-        <h1 className="text-4xl font-bold mb-4 text-center">Stellar Vault dApp</h1>
+        <h1 className="text-4xl font-bold mb-4 text-center">
+          Stellar Vault dApp
+        </h1>
         <p className="text-center text-gray-400 mb-8">
           Deposit and withdraw funds using a Soroban smart contract
         </p>
@@ -776,7 +785,8 @@ curl "https://friendbot.stellar.org/?addr=<YOUR_PUBLIC_KEY>"
 
 **Error:** `Contract not found` or `Invalid contract ID`
 
-**Solution:** 
+**Solution:**
+
 1. Verify the contract ID in `.env.local` is correct
 2. Confirm you deployed to Testnet (not Mainnet)
 3. Check the contract initialization was called
@@ -786,6 +796,7 @@ curl "https://friendbot.stellar.org/?addr=<YOUR_PUBLIC_KEY>"
 **Error:** `require_auth failed` or `User rejected`
 
 **Solution:**
+
 - The wallet must authorize the transaction
 - Check that the user's public key matches the `from` argument
 - Ensure the wallet is connected before invoking
@@ -799,4 +810,3 @@ curl "https://friendbot.stellar.org/?addr=<YOUR_PUBLIC_KEY>"
 - [Soroban Index](/docs/guides/soroban-index) — Full Soroban documentation index
 - [Contracts Quick Start](/docs/getting-started/contracts-quick-start) — Quick reference
 - [Testing](/docs/guides/testing) — Test your contract and frontend
-

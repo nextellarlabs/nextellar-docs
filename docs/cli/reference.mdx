@@ -69,22 +69,22 @@ nextellar create <project-name> [options]
 #### Examples
 
 ```bash
-# Basic TypeScript scaffolding
+## Basic TypeScript scaffolding
 npx nextellar my-dapp
 
-# DeFi template with pnpm and multiple wallets
+## DeFi template with pnpm and multiple wallets
 npx nextellar my-defi-app --template defi -p pnpm -w freighter,albedo,lobstr
 
-# JavaScript project targeting Mainnet without interactive prompts
+## JavaScript project targeting Mainnet without interactive prompts
 npx nextellar prod-app -j --network PUBLIC --yes
 
-# Minimal template with custom contract pre-configured
+## Minimal template with custom contract pre-configured
 npx nextellar contract-ui --template minimal --contract CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC
 ```
 
 ---
 
-### 2. `nextellar clean`
+## 2. `nextellar clean`
 
 Removes build artifacts, caches, and dependency directories to restore a pristine workspace state.
 
@@ -109,19 +109,19 @@ nextellar clean [options]
 #### Examples
 
 ```bash
-# Preview what would be removed
+## Preview what would be removed
 nextellar clean --dry-run
 
-# Clean build caches without prompting
+## Clean build caches without prompting
 nextellar clean --force
 
-# Complete purge including node_modules
+## Complete purge including node_modules
 nextellar clean --all --force
 ```
 
 ---
 
-### 3. `nextellar doctor`
+## 3. `nextellar doctor`
 
 Runs an automated system diagnostic check to verify that all prerequisites, CLI tools, package managers, and Stellar network endpoints are operational.
 

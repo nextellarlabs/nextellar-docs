@@ -16,7 +16,7 @@ Generate a TypeScript project (default).
 
 ````bash
 nextellar my-app --typescript
-# or
+## or
 nextellar my-app -t
 ```css
 
@@ -24,13 +24,13 @@ nextellar my-app -t
 **Type:** Boolean
 **Status:** Supported
 
-### --javascript, -j
+## --javascript, -j
 
 Generate a JavaScript project.
 
 ```bash
 nextellar my-app --javascript
-# or
+## or
 nextellar my-app -j
 ```css
 
@@ -85,7 +85,7 @@ Specify which wallet adapters to include.
 
 ```bash
 nextellar my-app --wallets freighter,xbull
-# or
+## or
 nextellar my-app -w freighter,albedo
 ```
 
@@ -101,13 +101,13 @@ For a complete list of supported wallets, examples, and detailed information abo
 **Examples:**
 
 ```bash
-# Only Freighter
+## Only Freighter
 nextellar my-app --wallets freighter
 
-# Custom combination (non-default)
+## Custom combination (non-default)
 nextellar my-app --wallets freighter,xbull
 
-# All supported wallets
+## All supported wallets
 nextellar my-app --wallets freighter,albedo,lobstr,xbull,hana
 ```
 
@@ -236,11 +236,11 @@ Skip prompts and use default values. `--yes` and `-y` are accepted aliases for `
 
 ```bash
 nextellar my-app --defaults
-# or
+## or
 nextellar my-app -d
-# or
+## or
 nextellar my-app --yes
-# or
+## or
 nextellar my-app -y
 ```
 
@@ -267,7 +267,7 @@ List all available features that can be added to the project.
 
 ```bash
 nextellar add --list
-# or
+## or
 nextellar add -l
 ````
 
@@ -276,13 +276,13 @@ nextellar add -l
 
 ---
 
-### --force, -f
+## --force, -f
 
 Force addition of a feature, overwriting existing files without prompting.
 
 ```bash
 nextellar add freighter --force
-# or
+## or
 nextellar add freighter -f
 ```
 
@@ -292,7 +292,7 @@ nextellar add freighter -f
 
 ---
 
-### --skip-install
+## --skip-install
 
 Add the feature's files without running the package manager install step.
 
@@ -476,13 +476,13 @@ nextellar deploy --size-threshold 20971520
 - 100 MB: `104857600`
 
 ```bash
-# Use the default 50 MB threshold
+## Use the default 50 MB threshold
 nextellar deploy
 
-# Enforce a stricter 20 MB limit
+## Enforce a stricter 20 MB limit
 nextellar deploy --size-threshold 20971520
 
-# Combine with dry-run to check bundle size without deploying
+## Combine with dry-run to check bundle size without deploying
 nextellar deploy --dry-run --size-threshold 20971520
 ```
 
@@ -496,19 +496,19 @@ Display CLI version.
 
 ````bash
 nextellar --version
-# or
+## or
 nextellar -v
 ```css
 
 **Output:** Version number (e.g., `1.0.4`)
 
-### --help, -h
+## --help, -h
 
 Display help information.
 
 ```bash
 nextellar --help
-# or
+## or
 nextellar -h
 ````
 
@@ -524,11 +524,11 @@ nextellar stellar-mainnet-app \
   --soroban-url https://soroban-rpc.stellar.org \
   --wallets freighter,xbull \
   --package-manager pnpm
-# Note: freighter,xbull is a custom wallet selection.
-# See [Wallet Configuration](/docs/cli/flags#wallet-configuration-wallets) for defaults and all supported adapters.
+## Note: freighter,xbull is a custom wallet selection.
+## See [Wallet Configuration](/docs/cli/flags#wallet-configuration-wallets) for defaults and all supported adapters.
 ```
 
-### Development Setup
+## Development Setup
 
 ```bash
 nextellar dev-app \
@@ -563,11 +563,11 @@ Nextellar respects these environment variables:
 Used for package manager detection.
 
 ```bash
-# Set by package managers automatically
+## Set by package managers automatically
 npm_config_user_agent="npm/10.2.0 node/v20.10.0"
 ```
 
-### NODE_ENV
+## NODE_ENV
 
 Environment mode (development/production).
 

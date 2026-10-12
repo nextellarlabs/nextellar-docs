@@ -153,11 +153,11 @@ npx nextellar my-app \
   --package-manager pnpm \
   --horizon-url https://horizon.stellar.org \
   --wallets freighter,xbull
-# Note: freighter,xbull is a custom wallet selection.
-# See [Wallet Configuration](/docs/cli/flags#wallet-configuration-wallets) for defaults and all supported adapters.
+## Note: freighter,xbull is a custom wallet selection.
+## See [Wallet Configuration](/docs/cli/flags#wallet-configuration-wallets) for defaults and all supported adapters.
 ```
 
-### Skip Installation
+## Skip Installation
 
 ````bash
 npx nextellar my-app --skip-install
@@ -190,11 +190,11 @@ Nextellar respects these environment variables:
 
 ````bash
 npx nextellar --version
-# or
+## or
 nextellar -v
 ```bash
 
-### Update to Latest
+## Update to Latest
 
 **npx (automatic):**
 
@@ -217,38 +217,38 @@ npm update -g nextellar
 **Solution:**
 
 ```bash
-# Use npx instead
+## Use npx instead
 npx nextellar my-app
 
-# Or reinstall globally
+## Or reinstall globally
 npm install -g nextellar
 ```
 
-### Permission Errors
+## Permission Errors
 
 **Issue:** `EACCES: permission denied`
 
 **Solution:**
 
 ```bash
-# Use npx (no permissions needed)
+## Use npx (no permissions needed)
 npx nextellar my-app
 
-# Or fix npm permissions
+## Or fix npm permissions
 sudo chown -R $(whoami) ~/.npm
 ```
 
-### Slow Installation
+## Slow Installation
 
 **Issue:** Installation takes too long
 
 **Solution:**
 
 ````bash
-# Increase timeout
+## Increase timeout
 npx nextellar my-app --install-timeout 3600000
 
-# Or skip and install manually
+## Or skip and install manually
 npx nextellar my-app --skip-install
 cd my-app
 npm install

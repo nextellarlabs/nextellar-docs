@@ -14,7 +14,7 @@ Use the table below to find the exact flag name, alias, default, and a short des
 | Category     | Flag                       | Alias    | Default                               | Description                                                                                                                    |
 | ------------ | -------------------------- | -------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | Language     | `--typescript`             | `-t`     | `true`                                | Generate a TypeScript project (default).                                                                                       |
-| Language     | `--javascript`             | `-j`     | `false`                               | Generate a JavaScript project instead of TypeScript. Supports all templates (default, minimal, defi).                           |
+| Language     | `--javascript`             | `-j`     | `false`                               | Generate a JavaScript project instead of TypeScript. Supports all templates (default, minimal, defi).                          |
 | Network      | `--horizon-url <url>`      |          | `https://horizon-testnet.stellar.org` | Override the default Horizon API endpoint.                                                                                     |
 | Network      | `--soroban-url <url>`      |          | `https://soroban-testnet.stellar.org` | Override the default Soroban RPC endpoint.                                                                                     |
 | Wallet       | `--wallets <list>`         | `-w`     | `freighter,albedo,lobstr`             | Comma-separated list of supported wallet adapters to include. See [Wallet Configuration](#wallet-configuration-wallets) below. |
@@ -63,7 +63,7 @@ Without `--force`, scaffolding into a directory that already exists fails immedi
 
 ```bash
 npx nextellar my-app
-# Error: Directory "my-app" already exists.
+## Error: Directory "my-app" already exists.
 ```
 
 Overwrite an existing directory with `--force`:
@@ -83,13 +83,13 @@ npx nextellar my-app --force
 Feature add options are used with `nextellar add`:
 
 ```bash
-# Force-overwrite existing files and choose a package manager
+## Force-overwrite existing files and choose a package manager
 nextellar add freighter --force --package-manager pnpm
 
-# Add feature files without running install
+## Add feature files without running install
 nextellar add freighter --skip-install
 
-# Use bun as the package manager
+## Use bun as the package manager
 nextellar add freighter --package-manager bun
 ```
 
@@ -103,7 +103,7 @@ Skip git initialization with `--no-git`:
 
 ```bash
 npx nextellar my-app --no-git
-# Scaffolds project without running `git init`
+## Scaffolds project without running `git init`
 ```
 
 Git is initialized by default (`--git-init` is `true`). Pass `--no-git` to opt out.
@@ -112,7 +112,7 @@ Skip all prompts with `--defaults` (also `-y` / `--yes`):
 
 ```bash
 npx nextellar my-app --defaults
-# or equivalently:
+## or equivalently:
 npx nextellar my-app --yes
 npx nextellar my-app -y
 ```
@@ -159,7 +159,7 @@ npx nextellar my-app --wallets freighter,albedo,lobstr,xbull,hana
 
 ```bash
 npx nextellar my-app
-# Includes: Freighter, Albedo, Lobstr
+## Includes: Freighter, Albedo, Lobstr
 ```
 
 **Single wallet:**
@@ -172,8 +172,8 @@ npx nextellar my-app --wallets freighter
 
 ```bash
 npx nextellar my-app --wallets freighter,xbull
-# Note: This is a custom selection, not the default.
-# Includes: Freighter, xBull (Albedo and Lobstr are excluded)
+## Note: This is a custom selection, not the default.
+## Includes: Freighter, xBull (Albedo and Lobstr are excluded)
 ```
 
 **All supported wallets:**
@@ -182,22 +182,22 @@ npx nextellar my-app --wallets freighter,xbull
 npx nextellar my-app --wallets freighter,albedo,lobstr,xbull,hana
 ```
 
-### Adapter Identifiers
+## Adapter Identifiers
 
 Use exact lowercase identifiers when specifying wallets. They are case-insensitive, but prefer lowercase for consistency:
 
 ```bash
-# Valid (preferred)
+## Valid (preferred)
 --wallets freighter,albedo,lobstr
 
-# Also valid (case-insensitive)
+## Also valid (case-insensitive)
 --wallets Freighter,Albedo,Lobstr
 
-# Invalid - will not be recognized
+## Invalid - will not be recognized
 --walletsFreighterWallet,AlbedoWallet
 ```
 
-### Unknown or Unrecognized Wallet IDs
+## Unknown or Unrecognized Wallet IDs
 
 If you pass an unrecognized wallet identifier, the CLI will:
 
@@ -209,12 +209,12 @@ For example:
 
 ```bash
 npx nextellar my-app --wallets freighter,unknown-wallet,albedo
-# Result: Only Freighter and Albedo are included; unknown-wallet is ignored
+## Result: Only Freighter and Albedo are included; unknown-wallet is ignored
 ```
 
 There is no warning or error for unrecognized adapters—they are simply omitted. If you want to verify which adapters were actually included, check the generated `src/lib/stellar-wallet-kit.ts` file in your project.
 
-### Why Does Default Matter?
+## Why Does Default Matter?
 
 The default set (`freighter,albedo,lobstr`) was chosen to balance:
 

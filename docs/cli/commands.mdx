@@ -39,31 +39,31 @@ nextellar <project-name> [options]
 **Examples:**
 
 ```bash
-# Basic usage
+## Basic usage
 nextellar my-stellar-app
 
-# With custom package manager
+## With custom package manager
 nextellar my-app --package-manager pnpm
 
-# Skip installation
+## Skip installation
 nextellar my-app --skip-install
 
-# Full customization (with custom wallet selection)
+## Full customization (with custom wallet selection)
 nextellar my-app \
   --package-manager yarn \
   --horizon-url https://horizon.stellar.org \
   --wallets freighter,xbull \
   --skip-install
-# Note: freighter,xbull is a custom wallet selection. See [Wallet Configuration](/docs/cli/flags#wallet-configuration-wallets) for defaults and options.
+## Note: freighter,xbull is a custom wallet selection. See [Wallet Configuration](/docs/cli/flags#wallet-configuration-wallets) for defaults and options.
 ```
 
-### Overwriting an existing directory
+## Overwriting an existing directory
 
 By default, scaffolding into a directory that already exists fails without changing anything:
 
 ```bash
 nextellar my-app
-# Error: Directory "my-app" already exists.
+## Error: Directory "my-app" already exists.
 ```
 
 Pass `--force` to overwrite it instead:
@@ -87,7 +87,7 @@ Display help information.
 
 ```bash
 nextellar --help
-# or
+## or
 nextellar -h
 ```
 
@@ -114,13 +114,13 @@ Options:
   -h, --help               Show help text
 ```
 
-### --version, -v
+## --version, -v
 
 Display CLI version.
 
 ```bash
 nextellar --version
-# or
+## or
 nextellar -v
 ```
 
@@ -159,17 +159,17 @@ nextellar add <feature-name> [options]
 **Examples:**
 
 ```bash
-# List all available features
+## List all available features
 nextellar add --list
 
-# Add a Soroban smart contract feature to the project
+## Add a Soroban smart contract feature to the project
 nextellar add soroban
 
-# Force add Freighter wallet support, overwriting existing configuration
+## Force add Freighter wallet support, overwriting existing configuration
 nextellar add freighter --force --package-manager pnpm
 ```
 
-### nextellar doctor
+## nextellar doctor
 
 Run environment diagnostics to verify your machine is ready for Nextellar development. The doctor command checks local tooling, network connectivity to Stellar endpoints, and available system resources.
 
@@ -188,7 +188,7 @@ nextellar doctor [options]
 By default `doctor` resolves endpoints from your project config, falling back to the testnet URLs (`https://horizon-testnet.stellar.org` and `https://soroban-testnet.stellar.org`). Pass `--horizon-url` or `--soroban-url` to check a custom or mainnet endpoint instead:
 
 ```bash
-# Check against mainnet endpoints
+## Check against mainnet endpoints
 nextellar doctor \
   --horizon-url https://horizon.stellar.org \
   --soroban-url https://soroban-rpc.stellar.org
@@ -213,10 +213,10 @@ nextellar doctor \
 **Examples:**
 
 ```bash
-# Run environment diagnostics
+## Run environment diagnostics
 nextellar doctor
 
-# Output results as JSON (useful in CI pipelines)
+## Output results as JSON (useful in CI pipelines)
 nextellar doctor --json
 ```
 
@@ -373,7 +373,7 @@ The command exits with code `0` when all required checks pass, or `1` when one o
 | `0`       | All required checks passed         |
 | `1`       | One or more required checks failed |
 
-#### Using `doctor --json` in CI/CD
+## Using `doctor --json` in CI/CD
 
 Because `nextellar doctor --json` exits non-zero when a required check fails, you can gate a pipeline on it directly, and parse the JSON for detail. Read the top-level `requiredFailures` field (there is no nested `summary` object).
 
@@ -412,17 +412,17 @@ doctor:
 **Parsing with `jq`**
 
 ```bash
-# List every failed check (required and optional)
+## List every failed check (required and optional)
 jq -r '.checks[] | select(.ok | not) | "\(.name): \(.detail)"' doctor.json
 
-# Check whether a specific check passed
+## Check whether a specific check passed
 jq -e '.checks[] | select(.id == "horizon") | .ok' doctor.json
 
-# One-line summary
+## One-line summary
 jq -r '"\(.passed) passed, \(.failed) failed, \(.requiredFailures) required failed"' doctor.json
 ```
 
-### nextellar upgrade
+## nextellar upgrade
 
 Upgrade an existing Nextellar project to the latest template files.
 
@@ -448,20 +448,20 @@ Run this command from the root of an existing Nextellar project. Use a dry run f
 **Examples:**
 
 ```bash
-# Preview upgrade changes (file diff only)
+## Preview upgrade changes (file diff only)
 nextellar upgrade --dry-run
 
-# Preview with changelog notes; exits non-zero if outdated (useful in CI)
+## Preview with changelog notes; exits non-zero if outdated (useful in CI)
 nextellar upgrade --check
 
-# Apply the upgrade interactively
+## Apply the upgrade interactively
 nextellar upgrade
 
-# Apply the upgrade without prompting
+## Apply the upgrade without prompting
 nextellar upgrade --yes
 ```
 
-### nextellar deploy
+## nextellar deploy
 
 Validate and prepare your project for production deployment. This command checks that your Horizon and Soroban RPC endpoints are properly configured, and builds a optimized production bundle of your Stellar dApp.
 
@@ -479,20 +479,20 @@ nextellar deploy [options]
 **Examples:**
 
 ```bash
-# Prepare project for deployment
+## Prepare project for deployment
 nextellar deploy
 
-# Run a dry-run validation without actual deployment
+## Run a dry-run validation without actual deployment
 nextellar deploy --dry-run
 
-# Fail if bundle exceeds 20 MB
+## Fail if bundle exceeds 20 MB
 nextellar deploy --size-threshold 20971520
 
-# Raise the threshold to 100 MB for large projects
+## Raise the threshold to 100 MB for large projects
 nextellar deploy --size-threshold 104857600
 ```
 
-### nextellar clean
+## nextellar clean
 
 Remove generated Nextellar build artifacts from the current project.
 
@@ -523,10 +523,10 @@ The clean command leaves these files and directories unchanged:
 **Examples:**
 
 ```bash
-# Remove .nextellar/build (if it exists)
+## Remove .nextellar/build (if it exists)
 nextellar clean
 
-# Safe to run even if already clean
+## Safe to run even if already clean
 nextellar clean
 ```
 
@@ -551,7 +551,7 @@ When nothing to clean:
 - Clean up after interrupted builds
 - Prepare for fresh builds in CI/CD pipelines
 
-### nextellar telemetry
+## nextellar telemetry
 
 Manage anonymous CLI telemetry preferences.
 
@@ -568,13 +568,13 @@ nextellar telemetry <action>
 **Examples:**
 
 ```bash
-# Check current telemetry status and config file location
+## Check current telemetry status and config file location
 nextellar telemetry status
 
-# Opt in to anonymous telemetry
+## Opt in to anonymous telemetry
 nextellar telemetry enable
 
-# Opt out of telemetry
+## Opt out of telemetry
 nextellar telemetry disable
 ```
 
@@ -719,20 +719,20 @@ Nextellar doesn't currently support command aliases, but you can create your own
 **Bash/Zsh:**
 
 ```bash
-# Add to ~/.bashrc or ~/.zshrc
+## Add to ~/.bashrc or ~/.zshrc
 alias nxt="npx nextellar"
 
-# Usage
+## Usage
 nxt my-app
 ```
 
 **PowerShell:**
 
 ```bash
-# Add to $PROFILE
+## Add to $PROFILE
 function nxt { npx nextellar $args }
 
-# Usage
+## Usage
 nxt my-app
 ```
 

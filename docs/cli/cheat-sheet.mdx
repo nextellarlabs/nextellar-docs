@@ -13,61 +13,61 @@ Quick reference for common Nextellar CLI commands and development workflow. Book
 ### Basic Project Setup
 
 ```bash
-# Create new Stellar dApp
+## Create new Stellar dApp
 nextellar my-stellar-app
 
-# Create with custom package manager
+## Create with custom package manager
 nextellar my-app --package-manager pnpm
 
-# Create without installing dependencies
+## Create without installing dependencies
 nextellar my-app --skip-install
 
-# Create with specific wallets only (custom selection)
+## Create with specific wallets only (custom selection)
 nextellar my-app --wallets freighter,xbull
-# See [Wallet Configuration](/docs/cli/flags#wallet-configuration-wallets) for defaults and all supported adapters
+## See [Wallet Configuration](/docs/cli/flags#wallet-configuration-wallets) for defaults and all supported adapters
 ```
 
-### Advanced Project Creation
+## Advanced Project Creation
 
 ```bash
-# Full customization
+## Full customization
 nextellar my-app \
   --package-manager yarn \
   --horizon-url https://horizon.stellar.org \
   --wallets freighter,albedo,lobstr \
   --skip-install
 
-# Use defaults (skip all prompts)
+## Use defaults (skip all prompts)
 nextellar my-app --defaults
 ```
 
-### Template Selection
+## Template Selection
 
 ```bash
-# Scaffold with the minimal template
+## Scaffold with the minimal template
 nextellar my-app --template minimal
 
-# Scaffold with the DeFi template
+## Scaffold with the DeFi template
 nextellar my-app --template defi
 
-# Scaffold a JavaScript project instead of TypeScript
+## Scaffold a JavaScript project instead of TypeScript
 nextellar my-app --javascript
 ```
 
-### Contracts
+## Contracts
 
 ```bash
-# Scaffold with Soroban smart contracts included
+## Scaffold with Soroban smart contracts included
 nextellar my-app --with-contracts
 
-# Build the scaffolded Soroban contracts
+## Build the scaffolded Soroban contracts
 npm run contracts:build
 ```
 
-### CI-Friendly Scaffold
+## CI-Friendly Scaffold
 
 ```bash
-# Non-interactive scaffold suitable for CI pipelines
+## Non-interactive scaffold suitable for CI pipelines
 nextellar my-app --defaults --skip-install --no-telemetry
 ```
 
@@ -76,45 +76,45 @@ nextellar my-app --defaults --skip-install --no-telemetry
 ### Content & Build
 
 ```bash
-# Build content layer (required after adding/editing MDX)
+## Build content layer (required after adding/editing MDX)
 pnpm build:content
 
-# Start development server
+## Start development server
 pnpm dev
 
-# Full production build
+## Full production build
 pnpm build
 
-# Start production server
+## Start production server
 pnpm start
 ```
 
-### Code Quality
+## Code Quality
 
 ```bash
-# Format code with Prettier
+## Format code with Prettier
 pnpm format
 
-# Check if code is formatted
+## Check if code is formatted
 pnpm format:check
 
-# Run ESLint
+## Run ESLint
 pnpm lint
 
-# Run tests
+## Run tests
 pnpm test
 ```
 
-### Documentation Validation
+## Documentation Validation
 
 ```bash
-# Validate internal links
+## Validate internal links
 pnpm check:links
 
-# Validate sidebar configuration
+## Validate sidebar configuration
 pnpm validate:sidebar
 
-# Run all validation checks
+## Run all validation checks
 pnpm build:content && pnpm check:links
 ```
 
@@ -123,30 +123,30 @@ pnpm build:content && pnpm check:links
 ### Adding Features
 
 ```bash
-# List all available features
+## List all available features
 nextellar add --list
 
-# Add Soroban smart contract support
+## Add Soroban smart contract support
 nextellar add soroban
 
-# Add wallet adapter
+## Add wallet adapter
 nextellar add freighter
 
-# Force add (overwrite existing files)
+## Force add (overwrite existing files)
 nextellar add soroban --force
 ```
 
-### Feature Examples
+## Feature Examples
 
 ```bash
-# Add multiple wallet adapters (custom selection)
+## Add multiple wallet adapters (custom selection)
 nextellar add wallets --wallets freighter,albedo,xbull
-# See [Wallet Configuration](/docs/cli/flags#wallet-configuration-wallets) for defaults and all supported adapters
+## See [Wallet Configuration](/docs/cli/flags#wallet-configuration-wallets) for defaults and all supported adapters
 
-# Add UI components
+## Add UI components
 nextellar add components
 
-# Add testing setup
+## Add testing setup
 nextellar add testing
 ```
 
@@ -155,33 +155,33 @@ nextellar add testing
 ### Add & Diagnose
 
 ```bash
-# Add the wallet connection feature
+## Add the wallet connection feature
 nextellar add wallet
 
-# List all available features
+## List all available features
 nextellar add --list
 
-# Run environment diagnostics as JSON (for CI)
+## Run environment diagnostics as JSON (for CI)
 nextellar doctor --json
 ```
 
-### Upgrade, Deploy & Cleanup
+## Upgrade, Deploy & Cleanup
 
 ```bash
-# Preview what an upgrade would change
+## Preview what an upgrade would change
 nextellar upgrade --dry-run
 
-# Validate a deployment without producing a bundle
+## Validate a deployment without producing a bundle
 nextellar deploy --dry-run
 
-# Remove generated build artifacts
+## Remove generated build artifacts
 nextellar clean
 ```
 
-### Telemetry
+## Telemetry
 
 ```bash
-# Check telemetry status and config file path
+## Check telemetry status and config file path
 nextellar telemetry status
 ```
 
@@ -190,23 +190,23 @@ nextellar telemetry status
 ### Production Preparation
 
 ```bash
-# Validate and prepare for deployment
+## Validate and prepare for deployment
 nextellar deploy
 
-# Dry run (validate without deploying)
+## Dry run (validate without deploying)
 nextellar deploy --dry-run
 
-# Deploy with specific configuration
+## Deploy with specific configuration
 nextellar deploy --env production
 ```
 
-### Build Verification
+## Build Verification
 
 ```bash
-# Verify production build works
+## Verify production build works
 pnpm build && pnpm start
 
-# Check bundle size
+## Check bundle size
 pnpm build && npx @next/bundle-analyzer
 ```
 
@@ -215,35 +215,35 @@ pnpm build && npx @next/bundle-analyzer
 ### CLI Information
 
 ```bash
-# Run environment diagnostics
+## Run environment diagnostics
 nextellar doctor
 nextellar doctor --json
 
-# Show CLI version
+## Show CLI version
 nextellar --version
 nextellar -v
 
-# Show help information
+## Show help information
 nextellar --help
 nextellar -h
 
-# Show help for specific command
+## Show help for specific command
 nextellar add --help
 nextellar deploy --help
 ```
 
-### Project Information
+## Project Information
 
 ```bash
-# Check Node.js version
+## Check Node.js version
 node --version
 
-# Check package manager version
+## Check package manager version
 pnpm --version
 npm --version
 yarn --version
 
-# List installed dependencies
+## List installed dependencies
 pnpm list
 npm list
 ```
@@ -253,31 +253,31 @@ npm list
 ### Branch Management
 
 ```bash
-# Create feature branch
+## Create feature branch
 git checkout -b feature/my-new-feature
 
-# Switch branches
+## Switch branches
 git checkout main
 git checkout feature/my-feature
 
-# Push new branch
+## Push new branch
 git push -u origin feature/my-feature
 ```
 
-### Commit Workflow
+## Commit Workflow
 
 ```bash
-# Stage changes
+## Stage changes
 git add .
 git add specific-file.mdx
 
-# Commit with message
+## Commit with message
 git commit -m "feat: add new documentation section"
 
-# Push changes
+## Push changes
 git push
 
-# Create pull request (with GitHub CLI)
+## Create pull request (with GitHub CLI)
 gh pr create --title "Add new feature" --body "Description"
 ```
 
@@ -286,33 +286,33 @@ gh pr create --title "Add new feature" --body "Description"
 ### Common Issues
 
 ```bash
-# Clear content cache
+## Clear content cache
 rm -rf .contentlayer && pnpm build:content
 
-# Clear Next.js cache
+## Clear Next.js cache
 rm -rf .next && pnpm build
 
-# Reinstall dependencies
+## Reinstall dependencies
 rm -rf node_modules pnpm-lock.yaml && pnpm install
 
-# Reset git state
+## Reset git state
 git reset --hard HEAD
 git clean -fd
 ```
 
-### Debugging
+## Debugging
 
 ```bash
-# Run with verbose output
+## Run with verbose output
 DEBUG=* pnpm dev
 
-# Check for TypeScript errors
+## Check for TypeScript errors
 pnpm tsc --noEmit
 
-# Validate package.json
+## Validate package.json
 pnpm audit
 
-# Check for outdated packages
+## Check for outdated packages
 pnpm outdated
 ```
 
@@ -321,32 +321,32 @@ pnpm outdated
 ### Prerequisites
 
 ```bash
-# Check Node.js version (requires 18+)
+## Check Node.js version (requires 18+)
 node --version
 
-# Install pnpm globally
+## Install pnpm globally
 npm install -g pnpm
 
-# Verify installation
+## Verify installation
 pnpm --version
 ```
 
-### Project Setup
+## Project Setup
 
 ```bash
-# Clone repository
+## Clone repository
 git clone https://github.com/nextellarlabs/nextellar-docs.git
 
-# Navigate to project
+## Navigate to project
 cd nextellar-docs
 
-# Install dependencies
+## Install dependencies
 pnpm install
 
-# Build content
+## Build content
 pnpm build:content
 
-# Start development
+## Start development
 pnpm dev
 ```
 
@@ -355,42 +355,42 @@ pnpm dev
 ### Adding New Documentation
 
 ```bash
-# 1. Create new MDX file
+## 1. Create new MDX file
 touch docs/guides/my-new-guide.mdx
 
-# 2. Add frontmatter and content
-# (edit file with your preferred editor)
+## 2. Add frontmatter and content
+## (edit file with your preferred editor)
 
-# 3. Build content
+## 3. Build content
 pnpm build:content
 
-# 4. Validate
+## 4. Validate
 pnpm check:links
 
-# 5. Test locally
+## 5. Test locally
 pnpm dev
 ```
 
-### Fixing Broken Links
+## Fixing Broken Links
 
 ```bash
-# 1. Find broken links
+## 1. Find broken links
 pnpm check:links
 
-# 2. Fix links in files
-# (edit files to correct link targets)
+## 2. Fix links in files
+## (edit files to correct link targets)
 
-# 3. Validate fix
+## 3. Validate fix
 pnpm check:links
 
-# 4. Rebuild content
+## 4. Rebuild content
 pnpm build:content
 ```
 
-### Preparing for PR
+## Preparing for PR
 
 ```bash
-# Complete validation workflow
+## Complete validation workflow
 pnpm format:check && \
 pnpm lint && \
 pnpm build:content && \
@@ -403,19 +403,19 @@ pnpm build
 ### VS Code (Recommended Editor)
 
 ```bash
-# Format document
+## Format document
 Ctrl+Shift+I (Windows/Linux)
 Cmd+Shift+I (macOS)
 
-# Command palette
+## Command palette
 Ctrl+Shift+P (Windows/Linux)
 Cmd+Shift+P (macOS)
 
-# Quick file open
+## Quick file open
 Ctrl+P (Windows/Linux)
 Cmd+P (macOS)
 
-# Integrated terminal
+## Integrated terminal
 Ctrl+` (Windows/Linux)
 Cmd+` (macOS)
 ```

@@ -38,12 +38,12 @@ The Nextellar documentation currently has several limitations that prevent easy 
 **Separate Content from Presentation**
 
 ```bash
-# Current structure
+## Current structure
 docs/
   guides/
     deployment.mdx  # Mixed content and UI
 
-# Improved structure
+## Improved structure
 content/
   en/
     guides/
@@ -65,7 +65,7 @@ lastUpdated: '2024-01-15'
 ---
 ```
 
-### 2. Technical Implementation
+## 2. Technical Implementation
 
 **Next.js i18n Integration**
 
@@ -95,13 +95,13 @@ const { t } = useTranslation()
 **Locale-aware Routing**
 
 ```bash
-# URL structure
+## URL structure
 /en/guides/deployment     # English
 /es/guides/deployment     # Spanish
 /fr/guides/deployment     # French
 ```
 
-### 3. Required Tooling
+## 3. Required Tooling
 
 **Translation Management System**
 
