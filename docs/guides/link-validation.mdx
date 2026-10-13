@@ -35,7 +35,7 @@ pnpm validate:sidebar
 
 ### Reading the output
 
-```
+```text
 🔍 COMPONENTS INVENTORY (SOURCE OF TRUTH)
 VALID (2): connect-wallet-button, use-window-size
 
@@ -85,7 +85,7 @@ pnpm check:links
 
 ### Reading the output
 
-```
+```text
 🔗 TESTING COMPONENT LINKS
 
 Testing 2 links...
@@ -123,7 +123,7 @@ node scripts/final-validation.cjs
 
 ### Reading the output
 
-```
+```text
 🔗 FINAL VALIDATION #127
 
 📊 STATISTICS
@@ -150,16 +150,16 @@ If any criterion fails, the script exits with code `1` and prints `⚠️ VALIDA
 Run the scripts in this order before every pull request:
 
 ```bash
-# 1. Validate sidebar entries against the filesystem
+## 1. Validate sidebar entries against the filesystem
 pnpm validate:sidebar
 
-# 2. Start the dev server (keep it running)
+## 2. Start the dev server (keep it running)
 pnpm dev
 
-# 3. In a second terminal, check live links
+## 3. In a second terminal, check live links
 pnpm check:links
 
-# 4. Generate the final acceptance summary
+## 4. Generate the final acceptance summary
 node scripts/final-validation.cjs
 ```
 

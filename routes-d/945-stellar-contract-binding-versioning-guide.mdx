@@ -1,0 +1,113 @@
+---
+title: Versioning Generated Stellar Contract Bindings
+description: How to think about semver for generated Soroban contract client bindings, plan migration paths across contract upgrades, and a worked example.
+---
+
+# Versioning Generated Stellar Contract Bindings
+
+Soroban lets you generate TypeScript (or other language) client bindings directly from a contract's WASM (`stellar contract bindings typescript`). Those bindings are code, and code needs a versioning strategy — but generated bindings have a wrinkle normal libraries don't: they're tied to a specific **on-chain contract**, which can itself be upgraded independently of your bindings package.
+
+---
+
+## Why generated bindings need their own versioning story
+
+A hand-written SDK version bumps when _you_ decide to change its API. Generated bindings version bumps are driven by two independent things:
+
+1. **Contract changes** — the deployed contract's interface changed (new method, changed argument types, removed method).
+2. **Generator/tooling changes** — the `stellar-cli` binding generator itself changed its output shape, even if the contract didn't change.
+
+If you don't separate these two triggers, you'll end up either bumping too aggressively (churning consumers on generator-only changes) or too conservatively (shipping a breaking contract-interface change as a patch).
+
+---
+
+## Semver considerations
+
+Map contract/binding changes onto semver deliberately:
+
+| Change                                                      | Semver bump                                                                                               | Why                                                                                 |
+| ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| New contract method added, old ones unchanged               | **Minor**                                                                                                 | Purely additive — existing callers unaffected                                       |
+| Existing method's argument types changed                    | **Major**                                                                                                 | Breaks any caller passing the old shape                                             |
+| Existing method removed                                     | **Major**                                                                                                 | Breaks any caller invoking it                                                       |
+| Return type shape changed (even if superficially similar)   | **Major**                                                                                                 | TypeScript consumers will get compile errors; runtime consumers may get silent bugs |
+| Contract redeployed at a new address, same interface        | **Patch** (if you bake the address into the package) or **no bump** (if the address is passed at runtime) | Depends on your packaging choice — see below                                        |
+| Binding generator output format changed, contract unchanged | **Patch**, typically                                                                                      | Internal implementation detail, unless it changes the public exported API shape     |
+
+A useful discipline: **treat the contract's interface as the actual public API surface**, and treat "which generator produced this file" as an implementation detail that shouldn't leak into your version number's meaning.
+
+### Should the contract address be baked into the package?
+
+Two common patterns:
+
+- **Address baked in** (e.g., a `@myproject/contract-bindings` package hardcodes the mainnet contract ID). Simpler for consumers, but now a contract redeploy _does_ require a bindings release, even with zero interface changes.
+- **Address passed at call time** (bindings export a client factory that takes an address argument). More flexible — the same bindings package works across testnet/mainnet/a redeployed contract — but pushes the responsibility for tracking the correct address onto the consumer.
+
+For most teams, passing the address at runtime and versioning the bindings purely on interface changes gives a cleaner semver story.
+
+---
+
+## Migration paths
+
+### From a minor bump (additive)
+
+No action required for existing consumers. New methods are simply available if they upgrade.
+
+### From a major bump (breaking)
+
+1. **Deprecate before removing, when possible.** If the contract still supports the old method alongside a new one during a transition window, ship a minor release that adds the new method and marks the old one `@deprecated` in the generated bindings' accompanying hand-written wrapper (generated code itself usually can't carry deprecation comments cleanly — wrap it).
+2. **Publish a migration note alongside the release**, not just a changelog line — show a before/after code diff for the specific breaking call.
+3. **Pin, don't float, major versions in consumer projects.** Since a major bump here often means "the on-chain contract changed," an unpinned consumer could silently start calling a contract version they haven't tested against.
+
+### Example migration note
+
+```markdown
+## Migrating from v2.x to v3.0
+
+The `transfer` method's `amount` argument changed from `number` to `bigint`
+to match the contract's `i128` type more precisely and avoid precision loss
+on large transfers.
+
+**Before (v2.x):**
+\`\`\`typescript
+await client.transfer({ to: recipient, amount: 1000 });
+\`\`\`
+
+**After (v3.0):**
+\`\`\`typescript
+await client.transfer({ to: recipient, amount: 1000n });
+\`\`\`
+```
+
+---
+
+## A small example: wrapping generated bindings for a stable public API
+
+Rather than exporting the raw generated client directly, wrap it — this gives you a place to absorb minor generator-format changes without forcing a version bump on consumers:
+
+```typescript
+// src/index.ts — your package's actual public entrypoint
+import { Client as GeneratedClient } from './generated/bindings';
+
+export interface MyContractClient {
+  transfer(args: { to: string; amount: bigint }): Promise<void>;
+}
+
+export function createClient(
+  contractId: string,
+  rpcUrl: string
+): MyContractClient {
+  const generated = new GeneratedClient({ contractId, rpcUrl });
+  return {
+    transfer: (args) => generated.transfer(args),
+  };
+}
+```
+
+Consumers depend on `MyContractClient`, a shape you control — a generator output-format change doesn't have to touch this file at all, and your semver bumps now purely track your own interface promise, not the generator's internal churn.
+
+---
+
+## Verifying this guide renders correctly
+
+- Confirm the code blocks compile against the actual generated bindings shape for your contract before publishing — the wrapper example above is illustrative, not copy-paste-exact for every contract.
+- Check the migration-note template renders its embedded code fences correctly through `pnpm build:content`.

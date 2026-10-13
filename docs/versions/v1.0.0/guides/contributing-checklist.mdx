@@ -1,0 +1,28 @@
+---
+title: Documentation Contributing Checklist
+description: Short checklist for documentation contributions covering formatting, links, and build verification.
+date: 2026-05-29
+---
+
+# Documentation Contributing Checklist
+
+- [ ] Add a new file in the appropriate `docs/` folder.
+- [ ] Include required frontmatter:
+  - `title`
+  - `description`
+- [ ] Use one `#` heading per page.
+- [ ] Keep headings sentence case and concise.
+- [ ] Use `-` bulleted lists and short list items.
+- [ ] Format inline code with backticks.
+- [ ] Use fenced code blocks with a language label.
+- [ ] Use absolute internal links like `/docs/...`.
+- [ ] Keep examples simple and copy/paste ready.
+- [ ] Run `pnpm build:content`.
+- [ ] Run `pnpm check:links`.
+- [ ] Preview your changes with `pnpm dev` if possible.
+
+## Notes
+
+- Use consistent terminology across docs.
+- Avoid mixing markdown emphasis markers in the same phrase.
+- Verify that new pages render cleanly in the dev server.

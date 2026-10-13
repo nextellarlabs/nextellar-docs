@@ -45,39 +45,110 @@ The **Steps** component provides a structured way to represent a multi-step proc
     </Preview>
   </TabsContent>
   <TabsContent value="code">
-    ```tsx
-    import { Steps, Step, StepTitle, StepContent } from "@/components/steps";
 
-    export default function Example() {
-      return (
-        <Steps>
-          <Step>
-            <StepTitle>Step 1: Fork the Repository</StepTitle>
-            <StepContent>
-              <div>
-                <p>Visit our GitHub repository and click the "Fork" button to create your own copy.</p>
-                <a href="https://github.com/your-repo/example" target="_blank" rel="noopener noreferrer">Fork the Repository on GitHub</a>
-              </div>
-            </StepContent>
-          </Step>
-          <Step>
-            <StepTitle>Step 2: Clone the Repository</StepTitle>
-            <StepContent>
-              <p>Use the following command to clone the repository to your local machine:</p>
-              <pre><code>git clone https://github.com/your-repo/example.git</code></pre>
-            </StepContent>
-          </Step>
-          <Step>
-            <StepTitle>Step 3: Install Dependencies</StepTitle>
-            <StepContent>
-              <p>Navigate into the project directory and run:</p>
-              <pre><code>npm install</code></pre>
-            </StepContent>
-          </Step>
-        </Steps>
-      );
-    }
+```tsx
+import { Step, StepContent, Steps, StepTitle } from '@/components/step';
 
+export default function Example() {
+  return (
+    <Steps>
+      <Step>
+        <StepTitle>Step 1: Fork the Repository</StepTitle>
+        <StepContent>
+          <p>
+            Visit our GitHub repository and click the Fork button to create your
+            own copy.
+          </p>
+        </StepContent>
+      </Step>
+      <Step>
+        <StepTitle>Step 2: Clone the Repository</StepTitle>
+        <StepContent>Clone the repository to your local machine.</StepContent>
+      </Step>
+      <Step>
+        <StepTitle>Step 3: Install Dependencies</StepTitle>
+        <StepContent>Run your package manager's install command.</StepContent>
+      </Step>
+    </Steps>
+  );
+}
+```
+
+  </TabsContent>
+</Tabs>
+
+## Nested Steps
+
+Place another `Steps` group inside `StepContent` when a stage has its own ordered sub-process. The nested group starts its numbering at one while the outer sequence continues independently.
+
+<Tabs defaultValue="preview" size="sm" className="w-full">
+  <TabsList className="grid w-full grid-cols-2 md:w-[30%]">
+    <Tab value="preview">Preview</Tab>
+    <Tab value="code">Code</Tab>
+  </TabsList>
+  <TabsContent value="preview">
+    <Preview>
+      <Steps>
+        <Step>
+          <StepTitle>Prepare the project</StepTitle>
+          <StepContent>
+            <p>Complete these setup tasks before building:</p>
+            <Steps className="mt-6">
+              <Step>
+                <StepTitle>Install dependencies</StepTitle>
+                <StepContent>Run your package manager's install command.</StepContent>
+              </Step>
+              <Step>
+                <StepTitle>Configure the environment</StepTitle>
+                <StepContent>Copy the example environment file and review its values.</StepContent>
+              </Step>
+            </Steps>
+          </StepContent>
+        </Step>
+        <Step>
+          <StepTitle>Start development</StepTitle>
+          <StepContent>Run the development server and open the application.</StepContent>
+        </Step>
+      </Steps>
+    </Preview>
+  </TabsContent>
+  <TabsContent value="code">
+
+```tsx
+import { Step, StepContent, Steps, StepTitle } from '@/components/step';
+
+export default function NestedStepsExample() {
+  return (
+    <Steps>
+      <Step>
+        <StepTitle>Prepare the project</StepTitle>
+        <StepContent>
+          <p>Complete these setup tasks before building:</p>
+          <Steps className="mt-6">
+            <Step>
+              <StepTitle>Install dependencies</StepTitle>
+              <StepContent>
+                Run your package manager's install command.
+              </StepContent>
+            </Step>
+            <Step>
+              <StepTitle>Configure the environment</StepTitle>
+              <StepContent>
+                Copy the example environment file and review its values.
+              </StepContent>
+            </Step>
+          </Steps>
+        </StepContent>
+      </Step>
+      <Step>
+        <StepTitle>Start development</StepTitle>
+        <StepContent>
+          Run the development server and open the application.
+        </StepContent>
+      </Step>
+    </Steps>
+  );
+}
 ```
 
   </TabsContent>
@@ -95,4 +166,3 @@ The **Steps** component provides a structured way to represent a multi-step proc
 | `numberClassName`  | `string`             | `""`      | Custom class for styling the step number circle.           |
 
 The **Steps** component is highly flexible and allows for styling customization to fit various UI requirements.
-```

@@ -1,0 +1,161 @@
+---
+title: Offline Reading Export
+description: Export the Nextellar documentation site for offline reading using a production build and local mirror.
+date: 2026-05-29
+---
+
+# Offline Reading Export
+
+This guide describes how to produce a local copy of the Nextellar docs you can read without network access.
+The recommended approach is a **production build** served locally, then a **static mirror** of that server into a folder you can open from disk or archive.
+
+## Export approach
+
+The docs site is a **Next.js** application with **Contentlayer** MDX content.
+It is not configured for `output: 'export'`, so there is no single pre-rendered HTML folder in the repository.
+
+Instead, offline reading works in two stages:
+
+1. **Build** — compile MDX and the Next.js app (`pnpm build`).
+2. **Mirror** — download pages and assets from the running production server into a local directory (`wget` or similar).
+
+After mirroring, open `index.html` entry points through the saved folder structure, or unpack the archive on a machine without Node.js installed.
+
+## Prerequisites
+
+- **Node.js** 18 or later (20.18.0+ recommended)
+- **pnpm** installed
+- **wget** (GNU wget 1.21+ on Linux/macOS; WSL on Windows)
+- Enough disk space for the build (`.next/`) and mirror output (~200–400 MB)
+
+## Steps to produce an offline bundle
+
+### 1. Install dependencies
+
+```bash
+pnpm install
+```
+
+### 2. Build the content layer and site
+
+```bash
+pnpm build:content
+pnpm build
+```
+
+`pnpm build:content` validates MDX frontmatter and generates the Contentlayer output.
+`pnpm build` produces the optimized Next.js production bundle.
+
+### 3. Start the production server
+
+In a separate terminal:
+
+```bash
+pnpm start
+```
+
+By default the site listens on `http://localhost:3000`.
+
+### 4. Mirror the site to a local folder
+
+Create an output directory and mirror from the running server:
+
+```bash
+mkdir -p offline-bundle
+wget \
+  --mirror \
+  --convert-links \
+  --adjust-extension \
+  --page-requisites \
+  --no-parent \
+  --directory-prefix=offline-bundle \
+  http://localhost:3000/docs/getting-started/introduction
+```
+
+To include more sections, repeat with additional seed URLs or widen the path:
+
+```bash
+wget \
+  --mirror \
+  --convert-links \
+  --adjust-extension \
+  --page-requisites \
+  --no-parent \
+  --directory-prefix=offline-bundle \
+  http://localhost:3000/docs/
+```
+
+The mirror saves HTML, CSS, JavaScript, fonts, and images under `offline-bundle/`.
+
+### 5. Archive for transfer (optional)
+
+```bash
+tar -czf nextellar-docs-offline.tar.gz offline-bundle/
+```
+
+Copy `nextellar-docs-offline.tar.gz` to the offline machine and extract it there.
+
+### 6. Stop the server
+
+When mirroring finishes, stop `pnpm start` with `Ctrl+C`.
+
+## Verifying the export
+
+1. Open a mirrored page in the browser, for example:
+   `offline-bundle/localhost:3000/docs/getting-started/introduction.html`
+   (exact paths depend on your `wget` version and `--adjust-extension` behavior).
+2. Confirm styles load and navigation between mirrored pages works.
+3. Spot-check a page with a Mermaid diagram (for example [SDK Overview](/docs/sdk/overview)) after JavaScript loads.
+
+If styles or scripts are missing, re-run `wget` with `--page-requisites` and ensure the production server was running for the full mirror.
+
+## Alternative: local server only
+
+If you can run Node.js offline but do not need a static mirror:
+
+```bash
+pnpm build:content && pnpm build
+pnpm start
+```
+
+Visit `http://localhost:3000/docs` in the browser.
+This is the simplest workflow for contributors reviewing docs on a flight or at a conference with no upstream network after the initial `pnpm install` and build.
+
+## Formatting and feature limitations
+
+| Feature                    | Offline mirror        | Notes                                                      |
+| -------------------------- | --------------------- | ---------------------------------------------------------- |
+| MDX prose and code blocks  | Supported             | Static HTML and bundled JS                                 |
+| Internal `/docs/...` links | Supported if mirrored | Use `--convert-links`                                      |
+| Mermaid diagrams           | Partial               | Rendered client-side; requires JS in the mirror            |
+| Search dialog              | Limited               | Search index may not work without the full app runtime     |
+| Theme toggle               | Partial               | Depends on mirrored `_next` assets and `localStorage`      |
+| External links             | Requires network      | GitHub, npm, and Stellar network URLs stay remote          |
+| Dynamic Next.js routes     | Partial               | Only mirrored paths are available                          |
+| `pnpm check:links`         | N/A for mirror        | Validates against a live dev server, not the export folder |
+
+Plain Markdown or PDF exports of individual pages are **not** part of this workflow.
+Mermaid source in fenced blocks will appear as code, not diagrams, in non-HTML exports.
+
+## Troubleshooting
+
+**Mirror is empty or incomplete**
+
+- Confirm `pnpm start` is running before `wget`.
+- Remove `offline-bundle/` and mirror again with `--page-requisites`.
+
+**Broken styling**
+
+- Ensure `_next/static/` assets were downloaded; increase wget recursion if needed.
+- Avoid mirroring from `pnpm dev`; use the production server (`pnpm start`).
+
+**Mermaid diagrams show as code**
+
+- Open the page in a browser with JavaScript enabled.
+- If diagrams still fail, the mirror may have blocked `_next` chunks; re-mirror with `--page-requisites`.
+
+## Related
+
+- [Contributing to Documentation](/docs/guides/contributing)
+- [Diagram and Image Style Guide](/docs/guides/diagram-image-style)
+- [Deployment](/docs/guides/deployment)

@@ -1,0 +1,48 @@
+---
+title: Soroban getEvents Topic Encoding
+description: Guide on encoding topics for the Soroban getEvents RPC method, including filter matching and examples.
+date: 2026-08-27
+---
+
+# Soroban getEvents Topic Encoding
+
+When querying the Soroban RPC `getEvents` method, you can filter events by their topics. Topics are emitted by smart contracts and must be properly encoded when filtering.
+
+## Topic Encoding Rules
+
+Soroban event topics are encoded as XDR `SCVal` strings, then base64 encoded.
+When constructing a topic filter for `getEvents`:
+
+- A topic filter can contain up to four topic segments.
+- Each segment can be exactly matched, or wildcarded.
+- The `*` string represents a single-segment wildcard.
+
+## Filter Matching
+
+When matching topics:
+
+- A filter matches an event if they have the same number of segments, and each segment matches exactly, or the filter uses a `*` wildcard for that segment.
+- If you provide a segment that is not a wildcard, it must be the base64-encoded XDR representation of the `SCVal` topic.
+
+## Example
+
+Below is an example of querying for a specific token transfer event using a topic filter in JavaScript. The topic is the symbol `"transfer"`, encoded as an `SCVal` symbol.
+
+```javascript
+import { xdr } from '@stellar/stellar-sdk';
+
+// Encode "transfer" as an SCVal symbol
+const transferSymbol = xdr.ScVal.scvSymbol('transfer');
+const encodedTransferTopic = transferSymbol.toXDR('base64');
+
+const request = {
+  startLedger: 1000,
+  filters: [
+    {
+      type: 'contract',
+      contractIds: ['C...'],
+      topics: [[encodedTransferTopic, '*']],
+    },
+  ],
+};
+```

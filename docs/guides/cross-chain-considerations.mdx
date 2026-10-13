@@ -34,7 +34,7 @@ An operator controls a wallet on each chain. To move asset X from Chain A to Ste
 
 **Message flow**:
 
-```
+```text
 User ──lock──► Chain A custody wallet
 Operator       ──observe──► Stellar mint tx
 User ◄──receive── Stellar wrapped asset
@@ -58,7 +58,7 @@ A decentralised relayer network (Wormhole, Axelar) observes finality on the sour
 
 **Message flow**:
 
-```
+```text
 Chain A tx ──finality──► Guardian network (19-of-19 multi-sig attestation)
                                      │
                           Relayer posts VAA on Stellar
@@ -86,7 +86,7 @@ This design uses a custodial bridge with a 3-of-5 multi-sig custody wallet on Et
 
 ### Components
 
-```
+```text
 Ethereum side:
   - CustodyMultiSig.sol   (3-of-5 Gnosis Safe)
   - BridgeEvents.sol      (emits Deposit / Withdrawal events)

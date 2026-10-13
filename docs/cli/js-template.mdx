@@ -1,0 +1,131 @@
+---
+title: Create a JavaScript project
+description: Scaffold the full Nextellar default template in JavaScript and understand the generated project structure.
+date: 2026-09-24
+---
+
+# Create a JavaScript project
+
+The default JavaScript template is Nextellar's full-featured starter for building a Stellar application without TypeScript. It combines wallet connection, payments, balances, trustlines, decentralized exchange data, transaction history, and Soroban helpers in a Next.js project.
+
+The generator stores this variant internally as `js-template`, but `js-template` is not a value accepted by `--template`. Select the public `default` template and add the JavaScript flag instead.
+
+## Scaffold the project
+
+Run the scaffold command with `--template default` and `--javascript`:
+
+```bash
+npx nextellar my-stellar-app --template default --javascript
+cd my-stellar-app
+npm run dev
+```
+
+Because `default` is the CLI's default template, this shorter command creates the same project:
+
+```bash
+npx nextellar my-stellar-app --javascript
+```
+
+Use `-j` as the short form of `--javascript`. To select another package manager, pass it during scaffolding:
+
+```bash
+npx nextellar my-stellar-app -j --package-manager pnpm
+```
+
+## What the template includes
+
+The generated application provides the broadest JavaScript feature set among the Nextellar starters:
+
+- Wallet connection and persistent wallet and network state
+- Native XLM and issued-asset balances
+- Payment transaction building and submission
+- Trustline management and Stellar decentralized exchange order-book queries
+- Transaction history with pagination
+- Soroban contract calls and event polling
+- Network switching, send and receive forms, transaction status, and error handling
+- Storybook stories for reusable interface components
+
+Choose this template when an application needs both Stellar payments and Soroban support. For a smaller wallet starter, use `--template minimal --javascript`. For a DeFi-focused starter without the Soroban and transaction-history hooks, use `--template defi --javascript`.
+
+## Project structure
+
+The scaffold uses `.js` and `.jsx` source files and provides `jsconfig.json` instead of `tsconfig.json`.
+
+```text
+my-stellar-app/
+|-- .nextellar/
+|   `-- config.json
+|-- .storybook/
+|-- public/
+|-- src/
+|   |-- app/
+|   |   |-- example/[id]/page.jsx
+|   |   |-- globals.css
+|   |   |-- layout.jsx
+|   |   `-- page.jsx
+|   |-- components/
+|   |-- config/
+|   |   `-- networks.js
+|   |-- contexts/
+|   |   |-- index.js
+|   |   `-- WalletProvider.jsx
+|   |-- hooks/
+|   |   |-- useOfferBook.js
+|   |   |-- useSorobanContract.js
+|   |   |-- useSorobanEvents.js
+|   |   |-- useStellarBalances.js
+|   |   |-- useStellarPayment.js
+|   |   |-- useStellarWallet.js
+|   |   |-- useTransactionHistory.js
+|   |   `-- useTrustlines.js
+|   `-- lib/
+|       |-- stellar-wallet-kit.js
+|       |-- stellarResultCodes.js
+|       `-- storage.js
+|-- .env.example
+|-- jsconfig.json
+|-- next.config.js
+`-- package.json
+```
+
+The main directories have distinct responsibilities:
+
+| Path             | Purpose                                                                  |
+| ---------------- | ------------------------------------------------------------------------ |
+| `src/app`        | Next.js routes, layouts, global styles, and the starter interface        |
+| `src/components` | Wallet, network, balance, payment, status, and error-boundary UI         |
+| `src/config`     | Testnet and mainnet endpoint and passphrase definitions                  |
+| `src/contexts`   | Shared wallet and network state through `WalletProvider`                 |
+| `src/hooks`      | Stellar, Soroban, payment, trustline, order-book, and history operations |
+| `src/lib`        | Wallet-kit setup, result-code messages, and browser storage helpers      |
+| `.nextellar`     | Scaffold metadata used by Nextellar tooling                              |
+| `.storybook`     | Storybook configuration for the generated component stories              |
+
+## Configure the application
+
+Copy the environment template before starting development:
+
+```bash
+cp .env.example .env.local
+```
+
+The generated defaults target Stellar testnet. Review the following public variables before connecting a wallet:
+
+| Variable                  | Purpose                                                |
+| ------------------------- | ------------------------------------------------------ |
+| `NEXT_PUBLIC_HORIZON_URL` | Selects the Stellar Horizon server                     |
+| `NEXT_PUBLIC_SOROBAN_URL` | Selects the Soroban remote procedure call (RPC) server |
+| `NEXT_PUBLIC_NETWORK`     | Selects `TESTNET` or `PUBLIC`                          |
+| `NEXT_PUBLIC_WALLETS`     | Lists enabled wallet adapters                          |
+| `NEXT_PUBLIC_APP_NAME`    | Sets the displayed application name                    |
+| `NEXT_PUBLIC_CONTRACT_ID` | Identifies an optional deployed Soroban contract       |
+
+Change the network, Horizon URL, and Soroban RPC URL together when moving from testnet to mainnet.
+
+## Related pages
+
+- [Scaffolding templates](/docs/cli/templates)
+- [Template comparison](/docs/cli/template-comparison)
+- [Using JavaScript](/docs/getting-started/javascript)
+- [JavaScript DeFi template](/docs/cli/js-defi)
+- [CLI flags and options](/docs/cli/flags)

@@ -6,36 +6,59 @@ date: 2026-06-02
 
 # useTransactionHistory
 
-The `useTransactionHistory` hook fetches and paginates transaction history for Stellar accounts with filtering and sorting capabilities.
+The `useTransactionHistory` hook fetches and paginates a Stellar account's operation or payment history from Horizon, using cursor-based pagination.
+
+<Note type="info">
+  This hook ships in the `default` and `js` templates. It is not currently
+  included in the `minimal` or `defi` templates.
+</Note>
+
+<Note>
+  **Ships in:** default, js
+  <br />
+  Not in your scaffold? Run `nextellar add history`
+</Note>
 
 ## Features
 
-- **Transaction History**: Fetch account transactions
-- **Pagination**: Load more transactions on demand
-- **Filtering**: Filter by type, date, amount
-- **Sorting**: Sort by date, amount, or type
-- **Real-Time**: Optional real-time updates
+- **Cursor-Based Pagination**: Load additional pages using Horizon's `paging_token` cursor
+- **Record Type Selection**: Fetch either raw `operations` or `payments` only
+- **Unfunded Account Handling**: A 404 from Horizon (account not yet funded) resolves to an empty list instead of an error
+- **Memory Management**: Caps items in memory at 1000, trimming the oldest entries once exceeded
+- **Duplicate-Request Guarding**: Concurrent `refresh()`/`fetchNextPage()` calls are ignored while a request is already in flight
 
 ## Basic Usage
 
 ```tsx
 import { useTransactionHistory } from '@/hooks/useTransactionHistory';
 
-export default function TransactionHistoryList() {
-  const { transactions, loading, loadMore, hasMore } =
-    useTransactionHistory('GABC123...');
+export default function TransactionHistoryList({
+  publicKey,
+}: {
+  publicKey?: string;
+}) {
+  const { items, loading, error, fetchNextPage, hasMore, refresh } =
+    useTransactionHistory(publicKey, { pageSize: 20, type: 'payments' });
 
-  if (loading) return <div>Loading...</div>;
+  if (loading && items.length === 0) return <div>Loading...</div>;
+  if (error) {
+    return (
+      <div>
+        <p>Error: {error.message}</p>
+        <button onClick={refresh}>Retry</button>
+      </div>
+    );
+  }
 
   return (
     <div>
-      {transactions.map((tx) => (
-        <div key={tx.id}>
-          <p>{tx.id}</p>
-          <p>{new Date(tx.created_at).toLocaleString()}</p>
+      {items.map((item) => (
+        <div key={item.id}>
+          <p>{item.type}</p>
+          <p>{new Date(item.created_at).toLocaleString()}</p>
         </div>
       ))}
-      {hasMore && <button onClick={loadMore}>Load More</button>}
+      {hasMore && <button onClick={fetchNextPage}>Load More</button>}
     </div>
   );
 }
@@ -45,64 +68,117 @@ export default function TransactionHistoryList() {
 
 ### Parameters
 
-````typescript
+```typescript
 useTransactionHistory(
-  publicKey: string,
+  publicKey?: string | null,
   options?: {
-    limit?: number;
-    order?: 'asc' | 'desc';
     horizonUrl?: string;
+    pageSize?: number;
+    type?: 'payments' | 'operations';
   }
 ): TransactionHistoryState
-```css
+```
 
-| Parameter    | Type              | Default      | Description           |
-| ------------ | ----------------- | ------------ | --------------------- |
-| `publicKey`  | `string`          | **Required** | Account public key    |
-| `limit`      | `number`          | `10`         | Transactions per page |
-| `order`      | `'asc' \| 'desc'` | `'desc'`     | Sort order            |
-| `horizonUrl` | `string`          | Testnet      | Horizon URL           |
+| Parameter    | Type                         | Default                               | Description                                                       |
+| ------------ | ---------------------------- | ------------------------------------- | ----------------------------------------------------------------- |
+| `publicKey`  | `string \| null`             | none                                  | Account to fetch history for. While omitted, `items` stays empty. |
+| `horizonUrl` | `string`                     | Provider's `horizonUrl`, else Testnet | Horizon endpoint to query.                                        |
+| `pageSize`   | `number`                     | `10`                                  | Records requested per page.                                       |
+| `type`       | `'payments' \| 'operations'` | `'operations'`                        | Fetch payment-only records or all account operations.             |
 
 ### Return Value
 
 ```typescript
 interface TransactionHistoryState {
-  transactions: Transaction[];
+  items: OperationItem[];
   loading: boolean;
-  error: Error | null;
-  loadMore: () => Promise<void>;
-  hasMore: boolean;
+  error?: Error | null;
+  fetchNextPage: () => Promise<void>;
   refresh: () => Promise<void>;
+  hasMore: boolean;
 }
-````
+```
+
+`OperationItem` is `Horizon.ServerApi.OperationRecord` from `@stellar/stellar-sdk` — each item is an operation (or payment) record with fields like `id`, `type`, `created_at`, `paging_token`, and, for payments, `amount`, `asset_type`, `from`, and `to`.
+
+- `fetchNextPage()` requests the next page after the current cursor and appends the results to `items`.
+- `refresh()` restarts pagination from the beginning and replaces `items` with the first page.
+- `hasMore` is `true` only when the most recent page returned a full `pageSize` of records **and** Horizon returned a next cursor; it becomes `false` once a shorter (final) page is reached.
+- Records are always returned newest first; there is no configurable sort order.
 
 ## Examples
 
-### Filter by Date Range
+### Pagination
 
-````tsx
-const { transactions } = useTransactionHistory(publicKey);
-
-const recentTxs = transactions.filter((tx) => {
-  const txDate = new Date(tx.created_at);
-  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-  return txDate > weekAgo;
-});
-```
-
-### Group by Type
+Render the current page and let the user request the next cursor only when Horizon reports that more records are available:
 
 ```tsx
-const paymentTxs = transactions.filter((tx) =>
-  tx.operations.some((op) => op.type === 'payment')
-);
+import { useTransactionHistory } from '@/hooks/useTransactionHistory';
+
+export function PaginatedHistory({ publicKey }: { publicKey?: string }) {
+  const { items, loading, error, fetchNextPage, hasMore, refresh } =
+    useTransactionHistory(publicKey, { pageSize: 20, type: 'payments' });
+
+  if (error) {
+    return (
+      <div>
+        <p role="alert">Unable to load transactions: {error.message}</p>
+        <button type="button" onClick={() => void refresh()}>
+          Try again
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <section>
+      <ul>
+        {items.map((item) => (
+          <li key={item.id}>
+            {item.type} - {new Date(item.created_at).toLocaleString()}
+          </li>
+        ))}
+      </ul>
+      {hasMore && (
+        <button
+          type="button"
+          onClick={() => void fetchNextPage()}
+          disabled={loading}
+        >
+          {loading ? 'Loading...' : 'Load more'}
+        </button>
+      )}
+      {!loading && items.length === 0 && <p>No transactions found.</p>}
+    </section>
+  );
+}
+```
+
+### Filter by Record Type
+
+```tsx
+const { items } = useTransactionHistory(publicKey, { type: 'payments' });
+
+const payments = items.filter((item) => item.type === 'payment');
+```
+
+### Filter by Date Range
+
+```tsx
+const { items } = useTransactionHistory(publicKey);
+
+const recentItems = items.filter((item) => {
+  const itemDate = new Date(item.created_at);
+  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  return itemDate > weekAgo;
+});
 ```
 
 ### Infinite Scroll
 
 ```tsx
-function InfiniteTransactionHistory() {
-  const { transactions, loadMore, hasMore } = useTransactionHistory(publicKey);
+function InfiniteTransactionHistory({ publicKey }: { publicKey?: string }) {
+  const { items, fetchNextPage, hasMore } = useTransactionHistory(publicKey);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -110,31 +186,27 @@ function InfiniteTransactionHistory() {
         window.innerHeight + window.scrollY >=
         document.body.offsetHeight - 500
       ) {
-        if (hasMore) loadMore();
+        if (hasMore) fetchNextPage();
       }
     };
 
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [hasMore, loadMore]);
+  }, [hasMore, fetchNextPage]);
 
-  return <div>{/* render transactions */}</div>;
+  return <div>{/* render items */}</div>;
 }
-````
+```
 
 ## Error Handling
 
 ### Empty History
 
-A brand-new account can legitimately have no transactions yet. Render an empty state instead of a failure message.
-
-### Cursor Failures
-
-If pagination cursors become invalid, reset the cursor state and reload the first page.
+A brand-new, unfunded account resolves to an empty `items` list rather than an error. Render an empty state instead of a failure message.
 
 ### Timeouts and Rate Limits
 
-Keep the current list visible while retrying the next request, and surface a retry button for transient failures.
+On a failed request, previous `items` are kept in place rather than cleared. Surface a retry button that calls `refresh()` for transient failures.
 
 ```tsx
 if (error) {
@@ -149,12 +221,13 @@ if (error) {
 
 ## Best Practices
 
-1. **Implement Pagination**: Don't load all transactions at once
-2. **Cache Results**: Use React Query for better performance
-3. **Show Loading States**: Provide feedback during loads
-4. **Handle Empty State**: Show message when no transactions
+1. **Implement Pagination**: Rely on `hasMore` and `fetchNextPage` rather than loading all history at once
+2. **Show Loading States**: Provide feedback during loads
+3. **Handle Empty State**: Show a message when `items` is empty and `loading` is `false`
+4. **Pick the Right Type**: Use `type: 'payments'` when you only need payment records, to avoid filtering unrelated operations client-side
 
 ## Related Hooks
 
 - [`useStellarWallet`](/docs/hooks/use-stellar-wallet) - Send transactions
 - [`useStellarPayment`](/docs/hooks/use-stellar-payment) - Build transactions
+- [`useOfferBook`](/docs/hooks/use-offer-book) - Query DEX activity

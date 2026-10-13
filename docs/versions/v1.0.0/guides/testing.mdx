@@ -1,0 +1,90 @@
+---
+title: Testing
+description: Document the repository testing setup and how to run unit tests with Vitest.
+date: 2026-06-01
+---
+
+# Testing
+
+This repository is configured for testing with **Vitest** and **jsdom**. The test setup is designed to run React and MDX-related code in a browser-like environment while using Vite-style module resolution.
+
+## Test tooling
+
+The repository test configuration includes:
+
+- `pnpm test:unit` — runs Vitest in the project root
+- `vitest.config.ts` — configures the test environment and React plugin
+- `jsdom` — simulates browser APIs when testing React components
+- `@vitejs/plugin-react` — enables JSX/TSX syntax during test execution
+
+### Vitest configuration
+
+```ts
+import { defineConfig } from 'vitest/config';
+import react from '@vitejs/plugin-react';
+
+export default defineConfig({
+  plugins: [react()],
+  test: {
+    environment: 'jsdom',
+    globals: true,
+  },
+});
+```
+
+### What this setup does
+
+- Runs unit tests in a DOM-compatible environment.
+- Provides global helpers like `describe`, `it`, `expect`, and `vi`.
+- Resolves imports with Vite-style path aliases.
+- Supports testing React components and hooks.
+
+## Running tests
+
+Use the configured unit test command:
+
+```bash
+pnpm test:unit
+```
+
+This runs all tests using Vitest. The root `test` script is a placeholder and should not be used for actual test execution.
+
+```bash
+pnpm test
+```
+
+> This command prints a generic message and exits successfully, but it does not run unit tests.
+
+### Watch mode
+
+For an interactive development workflow, run:
+
+```bash
+pnpm exec vitest watch
+```
+
+## Coverage state
+
+This repository does not currently include a dedicated coverage report command in `package.json`. Coverage is not tracked automatically by the default scripts.
+
+If you need coverage output, it can be generated manually once tests exist:
+
+```bash
+pnpm exec vitest run --coverage
+```
+
+## Current status
+
+- The repository includes test tooling and configuration, but there are currently no active test files under the source tree.
+- The `pnpm test:unit` command is the correct entry point for adding and running tests.
+- Test coverage is not enforced today and should be added when tests are introduced.
+
+## Notes
+
+- Add new tests alongside related code with filenames such as `*.test.ts`, `*.test.tsx`, or `*.spec.ts`.
+- Keep tests focused on React hooks, component behavior, and utility functions.
+- For documentation contribution guidance, see [Contributing to Documentation](/docs/guides/contributing).
+
+## Next Steps
+
+For mocking external API calls (like Stellar Horizon), see [Testing with MSW](/docs/integrations/testing) for Mock Service Worker setup.

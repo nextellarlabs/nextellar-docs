@@ -1,0 +1,197 @@
+---
+title: Path Payment Cost Analysis
+description: How to evaluate the true cost of a path payment on Stellar — reading pathfinding output correctly, weighing fee versus received-amount tradeoffs, and a worked example comparing two candidate paths.
+date: 2026-08-26
+---
+
+# Path Payment Cost Analysis
+
+A path payment lets a sender pay in one asset while the recipient receives another, routing the conversion through one or more intermediate assets and the DEX order books (or liquidity pools) that connect them. Horizon's pathfinding endpoints return several candidate routes for the same payment — this guide covers how to read that output, what actually drives the cost of a given path, and how to pick between competing routes instead of blindly taking the first one returned.
+
+---
+
+## 1. The Two Path Payment Operations
+
+Stellar has two path payment operations, and the cost-analysis question is _inverted_ between them:
+
+| Operation                  | You fix...                      | Horizon/pathfinding solves for...                       |
+| -------------------------- | ------------------------------- | ------------------------------------------------------- |
+| `PathPaymentStrictSend`    | Exact amount you send           | Minimum amount the recipient is guaranteed to receive   |
+| `PathPaymentStrictReceive` | Exact amount the recipient gets | Maximum amount you'd need to send (capped by `sendMax`) |
+
+Cost analysis differs accordingly: for `StrictSend`, worse paths show up as a **lower `destination_amount`** for the same input. For `StrictReceive`, worse paths show up as a **higher required source amount** for the same fixed output. Always compare paths against the operation type you intend to submit — a path that looks cheap under one framing can look expensive under the other, because both are answers to the same order book at slightly different offer depths.
+
+---
+
+## 2. Requesting Candidate Paths
+
+```typescript
+import { Horizon } from '@stellar/stellar-sdk';
+
+const server = new Horizon.Server('https://horizon-testnet.stellar.org');
+
+// Strict send: "I'm sending exactly 100 USDC, what could the recipient get in XLM?"
+const paths = await server
+  .strictSendPaths(
+    {
+      code: 'USDC',
+      issuer: 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
+    },
+    '100',
+    [{ code: 'XLM', issuer: undefined } as any] // native asset as destination
+  )
+  .call();
+
+console.log(paths.records);
+```
+
+Each record in `paths.records` looks like:
+
+```json
+{
+  "source_asset_type": "credit_alphanum4",
+  "source_asset_code": "USDC",
+  "source_amount": "100.0000000",
+  "destination_asset_type": "native",
+  "destination_amount": "612.3456789",
+  "path": [
+    {
+      "asset_type": "credit_alphanum4",
+      "asset_code": "yUSDC",
+      "asset_issuer": "GB..."
+    }
+  ]
+}
+```
+
+`destination_amount` here is what pathfinding _estimates_ — it's computed by walking the order books at query time, but the actual fill at submission time depends on what liquidity remains. Treat it as a quote, not a guarantee, which is exactly why the path payment operations require you to set a `destMin` (strict send) or `sendMax` (strict receive) — the protocol-level slippage bound.
+
+---
+
+## 3. What Actually Drives Cost
+
+Three factors determine whether a path is cheap or expensive, and pathfinding output doesn't surface all of them equally clearly:
+
+### a. Hop count and cumulative spread
+
+Every intermediate asset in `path` means crossing another order book (or AMM pool), and each one has its own bid/ask spread. A direct `USDC → XLM` path with a tight spread often beats a `USDC → yUSDC → XLM` path with two mediocre spreads, even though the two-hop path might show a _better_ top-of-book rate on the first leg — the effective rate is the product of all legs, not the best individual leg.
+
+### b. Depth at your trade size
+
+Pathfinding returns the best rate achievable for your _specific_ requested amount, walking the book until it satisfies the requested `source_amount` or `destination_amount`. A path that looks excellent for 100 USDC can degrade sharply at 10,000 USDC if the first few offers are thin — request paths at (or close to) your actual trade size rather than a small probe amount, since a probe at 1 USDC only reflects the very top of the book.
+
+### c. Base network fee (and why it's usually not the deciding factor)
+
+Every transaction pays the standard Stellar base fee (a small fixed amount per operation, in stroops, independent of the payment amount or number of path hops — the path itself is one `PathPaymentStrictSend`/`StrictReceive` operation regardless of hop count). For any payment above trivial size, the **DEX spread across hops dominates total cost by orders of magnitude** compared to the network fee. Don't spend analysis effort optimizing the base fee; spend it comparing effective exchange rates across candidate paths.
+
+---
+
+## 4. Computing the Effective Rate
+
+The number that actually matters for comparison is the **effective exchange rate**: destination amount divided by source amount (strict send) or source amount divided by destination amount (strict receive). Compare that ratio across every candidate path, not the raw amounts:
+
+```typescript
+interface PathRecord {
+  source_amount: string;
+  destination_amount: string;
+  path: unknown[];
+}
+
+function effectiveRate(path: PathRecord): number {
+  return parseFloat(path.destination_amount) / parseFloat(path.source_amount);
+}
+
+function rankPathsBySend(paths: PathRecord[]): PathRecord[] {
+  // Higher effective rate = more received per unit sent = better for strict send.
+  return [...paths].sort((a, b) => effectiveRate(b) - effectiveRate(a));
+}
+```
+
+For `StrictReceive`, invert the comparison — lower required source amount for the same fixed destination amount wins:
+
+```typescript
+function rankPathsByReceive(paths: PathRecord[]): PathRecord[] {
+  return [...paths].sort(
+    (a, b) => parseFloat(a.source_amount) - parseFloat(b.source_amount)
+  );
+}
+```
+
+---
+
+## 5. Worked Example: Two Candidate Paths
+
+Say a sender wants to send exactly 1,000 USDC and receive XLM. Horizon's `strictSendPaths` returns two candidates:
+
+| Path                     | Hops | `destination_amount` (XLM) | Effective rate |
+| ------------------------ | ---- | -------------------------- | -------------- |
+| A: `USDC → XLM` (direct) | 1    | 6,050.0000000              | 6.0500         |
+| B: `USDC → yUSDC → XLM`  | 2    | 6,112.3456789              | 6.1123         |
+
+Path B looks better by effective rate — about 1% more XLM for the same 1,000 USDC. But two things need checking before assuming B wins:
+
+1. **Slippage tolerance sizing.** If setting `destMin` at, say, 1% below the quoted `destination_amount`, Path B's tighter two-hop liquidity may move more between quote and submission than Path A's single deep venue — a 1% buffer that's safe for A might not be safe for B. Widening the buffer to protect against B's execution risk can erase some or all of its rate advantage.
+2. **Issuer/trustline risk on the intermediate asset.** Path B routes through `yUSDC`, a different issued asset than the one being sent. That's an additional counterparty whose peg or liquidity could be worse than it appears from the order book alone. A path with an unfamiliar intermediate issuer carries risk that a raw rate comparison doesn't capture — for anything beyond a trivial amount, it's worth resolving what `yUSDC`'s issuer is before routing meaningful value through it.
+
+The mechanical conclusion (better effective rate) and the deployment conclusion (which path to actually submit) aren't always the same decision — surface both to the user rather than auto-selecting the top rate.
+
+---
+
+## 6. Submitting with the Cost-Aware Bound
+
+Once a path is selected, use its `path` array directly as the intermediate hops and set the slippage bound off the _quoted_ amount, not an arbitrary number:
+
+```typescript
+import {
+  Asset,
+  Operation,
+  TransactionBuilder,
+  BASE_FEE,
+  Networks,
+} from '@stellar/stellar-sdk';
+
+const SLIPPAGE_BPS = 100; // 1%
+const destMin = (
+  parseFloat(chosenPath.destination_amount) *
+  (1 - SLIPPAGE_BPS / 10_000)
+).toFixed(7);
+
+const op = Operation.pathPaymentStrictSend({
+  sendAsset: new Asset(
+    'USDC',
+    'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN'
+  ),
+  sendAmount: '1000',
+  destination: recipientPublicKey,
+  destAsset: Asset.native(),
+  destMin,
+  path: chosenPath.path.map(
+    (hop: any) => new Asset(hop.asset_code, hop.asset_issuer)
+  ),
+});
+```
+
+**Edge cases to handle:**
+
+- **No path exists.** `strictSendPaths`/`strictReceivePaths` return an empty `records` array when no route connects the two assets at any price — surface this distinctly from "path exists but too expensive," since the fix (add liquidity, pick different assets) is different from a slippage problem.
+- **Recipient lacks a trustline for the destination asset.** Pathfinding doesn't check this. Verify the destination account can hold `destAsset` (or that it's a trustline-free asset like native XLM) before submitting — otherwise the transaction fails with `op_no_trust` after already consuming a fee.
+- **Quote goes stale.** Order books move continuously; a quote fetched more than a few seconds before submission should be re-fetched, especially for thinly-traded pairs where the effective rate in §5 can shift materially.
+- **Path becomes invalid between quote and submission.** If an offer in the path is pulled, the transaction fails with `op_too_few_offers` (strict send) or the equivalent under-fill error — this is exactly what `destMin`/`sendMax` are protecting against, so a failure here means the guard worked, not that something is broken.
+
+---
+
+## Summary
+
+- Compare paths by **effective rate** (destination/source ratio), not raw destination or source amounts — and know which of the two operations you're using, since "better" flips direction between them.
+- Request paths at your actual trade size; a small probe amount only reflects the top of the book and hides depth problems.
+- Hop count and per-hop spread dominate cost far more than the base network fee — optimize the route, not the transaction fee.
+- The best effective rate isn't automatically the best path to submit — factor in execution slippage risk and intermediate-issuer trust before choosing.
+- Set `destMin`/`sendMax` off the live quote, verify the destination trustline exists, and treat "no path found" as a distinct case from "path found but expensive."
+
+---
+
+## Related
+
+- [Soroban Integration](/docs/integrations/soroban) - For swaps executed via contracts rather than the DEX
+- [Transaction Batching](/docs/guides/transaction-batching) - Combining path payments with other operations
+- [Optimizing Transaction Sizes](/docs/guides/optimizing-transaction-sizes) - Fee and size considerations for multi-operation transactions

@@ -1,0 +1,687 @@
+---
+title: Transaction Lifecycle End-to-End Guide
+description: Complete walkthrough of building, signing, submitting, and tracking a Stellar transaction using Nextellar hooks. Includes TypeScript examples, error handling, and UI patterns.
+date: 2026-09-25
+tags: [transaction, lifecycle, build, sign, submit, track, hooks, tutorial]
+---
+
+# Transaction Lifecycle End-to-End Guide
+
+Every Stellar transaction travels through four phases: **Build** → **Sign** → **Submit** → **Track**. This guide walks through the complete lifecycle using Nextellar hooks, with production-ready TypeScript examples and error handling patterns.
+
+---
+
+## Overview
+
+```text
+┌─────────────┐
+│   Build     │  Construct XDR envelope
+│             │  with operations
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐
+│    Sign     │  Gather required signatures
+│             │  (single or multisig)
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐
+│   Submit    │  Send to Horizon/RPC
+│             │  for ledger inclusion
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐
+│    Track    │  Poll or stream for
+│             │  confirmation
+└─────────────┘
+```
+
+**Timing**: ~3-5 seconds end-to-end in normal conditions
+**Cost**: 100 stroops base + per-operation fees
+
+---
+
+## Part 1: Building the Transaction
+
+### Prerequisites
+
+```typescript
+import {
+  TransactionBuilder,
+  Networks,
+  Operation,
+  Asset,
+  Server,
+  Keypair,
+} from '@stellar/stellar-sdk';
+
+const server = new Server('https://horizon-testnet.stellar.org');
+const senderPublicKey = 'GXXXXX...'; // Alice's account
+const recipientPublicKey = 'GYYYY...'; // Bob's account
+const senderSecret = 'SXXXXX...'; // Alice's secret (never hardcode!)
+```
+
+### Step 1: Load Account for Sequence Number
+
+The sequence number must be exactly `current + 1`. This prevents replay attacks and transaction ordering issues.
+
+```typescript
+// ALWAYS load a fresh account before building
+const sourceAccount = await server.loadAccount(senderPublicKey);
+
+console.log('Current sequence number:', sourceAccount.sequenceNumber());
+// ➜ e.g., "123456789"
+```
+
+**Why Fresh?** If another transaction from this account landed since you loaded it, the sequence number increased. Reusing an old account object causes `tx_bad_seq` error.
+
+### Step 2: Configure Transaction Parameters
+
+```typescript
+const transactionBuilder = new TransactionBuilder(sourceAccount, {
+  basefee: 100, // stroops per operation
+  networkPassphrase: Networks.TESTNET, // testnet or public
+})
+  .setTimeout(30) // Reject if not submitted within 30 seconds
+  .addOperation(
+    Operation.payment({
+      destination: recipientPublicKey,
+      asset: Asset.native(), // Native XLM (not a trustline asset)
+      amount: '10', // 10 XLM
+    })
+  );
+
+console.log(`Transaction will expire in 30 seconds`);
+console.log(`Timeout block: ${Math.floor(Date.now() / 1000) + 30}`);
+```
+
+### Step 3: Build the Transaction
+
+```typescript
+const builtTransaction = transactionBuilder.build();
+
+console.log('Transaction XDR:', builtTransaction.toXDR());
+// ➜ Long base64-encoded string representing the transaction
+```
+
+### Complete Build Example
+
+```typescript
+async function buildPayment(
+  senderPublicKey: string,
+  recipientPublicKey: string,
+  amount: string
+): Promise<any> {
+  try {
+    // 1. Load account
+    const sourceAccount = await server.loadAccount(senderPublicKey);
+
+    // 2. Build transaction
+    const tx = new TransactionBuilder(sourceAccount, {
+      baseFee: 100,
+      networkPassphrase: Networks.TESTNET,
+    })
+      .addOperation(
+        Operation.payment({
+          destination: recipientPublicKey,
+          asset: Asset.native(),
+          amount,
+        })
+      )
+      .setTimeout(30)
+      .build();
+
+    return tx;
+  } catch (err: any) {
+    if (err.response?.status === 404) {
+      throw new Error(`Account not found: ${senderPublicKey}`);
+    }
+    throw err;
+  }
+}
+```
+
+### Multisig Transactions
+
+If an account requires multiple signers:
+
+```typescript
+// Alice (primary) + Bob (secondary) co-sign the transaction
+const tx = transactionBuilder.build();
+
+// Both must sign
+tx.sign(aliceKeypair);
+tx.sign(bobKeypair);
+
+// Verify both signatures are present
+console.log(`Signatures: ${tx.signatures.length}`);
+// ➜ 2 (one from Alice, one from Bob)
+```
+
+---
+
+## Part 2: Signing the Transaction
+
+### Client-Side Signing (Node.js / Backend)
+
+**Use only for server-to-server or backend workflows:**
+
+```typescript
+import { Keypair } from '@stellar/stellar-sdk';
+
+const keypair = Keypair.fromSecret(process.env.SENDER_SECRET);
+const tx = await buildPayment(senderPublicKey, recipientPublicKey, '10');
+
+tx.sign(keypair);
+
+console.log('Transaction signed');
+// ➜ Signature appended to XDR envelope
+```
+
+### Wallet Signing (Browser / dApp)
+
+**Always use wallet for user-facing apps. Never handle secret keys:**
+
+```typescript
+import { signTransaction } from '@stellar/freighter-api';
+
+// Build unsigned transaction
+const tx = await buildPayment(senderPublicKey, recipientPublicKey, '10');
+
+// Send to Freighter wallet for signing
+const signedXDR = await signTransaction(tx.toXDR(), {
+  networkPassphrase: Networks.TESTNET,
+});
+
+console.log('Transaction signed by wallet');
+```
+
+### Handling Wallet Rejections
+
+```typescript
+async function signWithWallet(tx: any): Promise<string> {
+  try {
+    const signedXDR = await signTransaction(tx.toXDR(), {
+      networkPassphrase: Networks.TESTNET,
+    });
+    return signedXDR;
+  } catch (err: any) {
+    if (err.message.includes('User denied')) {
+      throw new Error('User rejected signature request');
+    }
+    if (err.message.includes('timeout')) {
+      throw new Error('Wallet signing timed out');
+    }
+    throw err;
+  }
+}
+```
+
+### Using Nextellar Hooks for Signing
+
+```typescript
+// hooks/useTransactionSignature.ts
+import { useCallback } from 'react';
+import { useStellarWallet } from '@/hooks/useStellarWallet';
+
+export function useTransactionSignature() {
+  const { publicKey } = useStellarWallet();
+
+  const sign = useCallback(
+    async (tx: any): Promise<string> => {
+      if (!publicKey) {
+        throw new Error('Wallet not connected');
+      }
+
+      // Use Nextellar's built-in signing hook
+      const signedXDR = await window.nextellarWalletKit.sign(tx, {
+        publicKey,
+      });
+
+      return signedXDR;
+    },
+    [publicKey]
+  );
+
+  return { sign };
+}
+```
+
+---
+
+## Part 3: Submitting the Transaction
+
+### Submit to Horizon
+
+```typescript
+import { TransactionBuilder, Keypair } from '@stellar/stellar-sdk';
+
+async function submitTransaction(signedXDR: string): Promise<any> {
+  try {
+    // Reconstruct transaction from signed XDR
+    const tx = TransactionBuilder.fromXDR(signedXDR, Networks.TESTNET);
+
+    // Submit to Horizon
+    const result = await server.submitTransaction(tx);
+
+    console.log('Transaction included in ledger:', result.ledger);
+    console.log('Transaction hash:', result.hash);
+
+    return result;
+  } catch (err: any) {
+    const codes = err.response?.data?.extras?.result_codes;
+
+    if (codes?.transaction === 'tx_bad_seq') {
+      throw new Error('Sequence number mismatch. Account may have changed.');
+    }
+
+    if (codes?.transaction === 'tx_bad_auth') {
+      throw new Error('Missing required signature(s)');
+    }
+
+    if (codes?.operations?.[0] === 'op_underfunded') {
+      throw new Error('Insufficient balance for transaction');
+    }
+
+    throw err;
+  }
+}
+```
+
+### Submission Result
+
+```typescript
+{
+  id: "12345...",
+  hash: "abc123...",
+  ledger: 12345678,
+  envelope_xdr: "AAAAAgAAAA...",
+  result_xdr: "AAAAAAAAAGQAA...",
+  result_meta_xdr: "AAAAAgAAAAA...",
+  created_at: "2026-09-25T10:30:45Z"
+}
+```
+
+### Common Submission Errors
+
+| Error Code                    | Cause                        | Solution                           |
+| ----------------------------- | ---------------------------- | ---------------------------------- |
+| `tx_bad_seq`                  | Sequence number out of order | Reload account and rebuild         |
+| `tx_bad_auth`                 | Missing signatures           | Check all signers added signatures |
+| `op_underfunded`              | Insufficient balance         | Top up account                     |
+| `op_inner_transaction_failed` | Operation logic failed       | Check operation parameters         |
+| `tx_fee_bump_inner_failed`    | Fee-bump transaction issue   | Increase fee                       |
+
+---
+
+## Part 4: Tracking Transaction Confirmation
+
+### Polling Pattern
+
+```typescript
+async function pollForConfirmation(
+  txHash: string,
+  maxWaitSeconds: number = 60
+): Promise<any> {
+  const startTime = Date.now();
+
+  while (Date.now() - startTime < maxWaitSeconds * 1000) {
+    try {
+      const result = await server.transactions().transaction(txHash).call();
+
+      console.log('Transaction confirmed in ledger:', result.ledger);
+      return result;
+    } catch (err: any) {
+      if (err.status === 404) {
+        // Not yet in ledger
+        console.log('Waiting for confirmation...');
+        await new Promise((r) => setTimeout(r, 1000)); // Wait 1s, retry
+        continue;
+      }
+
+      throw err;
+    }
+  }
+
+  throw new Error('Transaction confirmation timeout');
+}
+```
+
+### Streaming Pattern (Real-Time)
+
+```typescript
+async function streamTransaction(txHash: string): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const stream = server
+      .transactions()
+      .transaction(txHash)
+      .stream({
+        onmessage: (tx) => {
+          console.log('Transaction confirmed!', tx);
+          stream.close();
+          resolve(tx);
+        },
+      })
+      .catch((err) => {
+        console.error('Stream error:', err);
+        reject(err);
+      });
+
+    // Timeout after 60 seconds
+    setTimeout(() => {
+      stream.close();
+      reject(new Error('Stream timeout'));
+    }, 60000);
+  });
+}
+```
+
+### Tracking Operation Results
+
+```typescript
+async function trackOperationResults(txHash: string): Promise<void> {
+  const tx = await server.transactions().transaction(txHash).call();
+
+  console.log(`Transaction Status: ${tx.successful ? 'SUCCESS' : 'FAILED'}`);
+  console.log(`Ledger: ${tx.ledger}`);
+  console.log(`Operations: ${tx.operation_count}`);
+
+  // Get operation results
+  const operations = await server.operations().transaction(txHash).call();
+
+  for (const op of operations.records) {
+    console.log(`Operation ${op.id}:`, {
+      type: op.type,
+      status: 'completed',
+      details: op,
+    });
+  }
+}
+```
+
+---
+
+## Part 5: Complete End-to-End Example
+
+```typescript
+import {
+  TransactionBuilder,
+  Networks,
+  Operation,
+  Asset,
+  Server,
+} from '@stellar/stellar-sdk';
+import { useStellarWallet } from '@/hooks/useStellarWallet';
+import { signTransaction } from '@stellar/freighter-api';
+
+export function useTransactionFlow() {
+  const { publicKey } = useStellarWallet();
+  const server = new Server('https://horizon-testnet.stellar.org');
+
+  const executePayment = async (
+    recipient: string,
+    amount: string
+  ): Promise<{
+    hash: string;
+    ledger: number;
+  }> => {
+    try {
+      // === PHASE 1: BUILD ===
+      console.log('1. Building transaction...');
+      const sourceAccount = await server.loadAccount(publicKey);
+
+      const tx = new TransactionBuilder(sourceAccount, {
+        baseFee: 100,
+        networkPassphrase: Networks.TESTNET,
+      })
+        .addOperation(
+          Operation.payment({
+            destination: recipient,
+            asset: Asset.native(),
+            amount,
+          })
+        )
+        .setTimeout(30)
+        .build();
+
+      console.log('✓ Transaction built');
+
+      // === PHASE 2: SIGN ===
+      console.log('2. Requesting signature from wallet...');
+      const signedXDR = await signTransaction(tx.toXDR(), {
+        networkPassphrase: Networks.TESTNET,
+      });
+
+      console.log('✓ Transaction signed');
+
+      // === PHASE 3: SUBMIT ===
+      console.log('3. Submitting to Horizon...');
+      const submittedTx = TransactionBuilder.fromXDR(
+        signedXDR,
+        Networks.TESTNET
+      );
+
+      const result = await server.submitTransaction(submittedTx);
+
+      console.log('✓ Transaction submitted:', result.hash);
+
+      // === PHASE 4: TRACK ===
+      console.log('4. Waiting for confirmation...');
+      const confirmed = await pollForConfirmation(result.hash);
+
+      console.log('✓ Transaction confirmed in ledger:', confirmed.ledger);
+
+      return {
+        hash: result.hash,
+        ledger: confirmed.ledger,
+      };
+    } catch (err) {
+      console.error('Transaction failed:', err);
+      throw err;
+    }
+  };
+
+  return { executePayment };
+}
+
+async function pollForConfirmation(
+  txHash: string,
+  maxWaitSeconds: number = 60
+): Promise<any> {
+  const startTime = Date.now();
+  const server = new Server('https://horizon-testnet.stellar.org');
+
+  while (Date.now() - startTime < maxWaitSeconds * 1000) {
+    try {
+      return await server.transactions().transaction(txHash).call();
+    } catch (err: any) {
+      if (err.status === 404) {
+        await new Promise((r) => setTimeout(r, 1000));
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  throw new Error('Confirmation timeout');
+}
+```
+
+---
+
+## Part 6: UI Integration Patterns
+
+### Status Indicator Component
+
+```typescript
+// components/TransactionStatus.tsx
+import { useEffect, useState } from 'react';
+
+export function TransactionStatus({ txHash }: { txHash: string }) {
+  const [status, setStatus] = useState<
+    'pending' | 'confirmed' | 'failed'
+  >('pending');
+
+  useEffect(() => {
+    const poll = async () => {
+      try {
+        const result = await server
+          .transactions()
+          .transaction(txHash)
+          .call();
+
+        setStatus(result.successful ? 'confirmed' : 'failed');
+      } catch (err: any) {
+        if (err.status !== 404) {
+          setStatus('failed');
+        }
+      }
+    };
+
+    const interval = setInterval(poll, 1000);
+    return () => clearInterval(interval);
+  }, [txHash]);
+
+  const colors = {
+    pending: 'bg-yellow-100 text-yellow-800',
+    confirmed: 'bg-green-100 text-green-800',
+    failed: 'bg-red-100 text-red-800',
+  };
+
+  return (
+    <div className={`px-4 py-2 rounded ${colors[status]}`}>
+      {status === 'pending' && '⏳ Pending...'}
+      {status === 'confirmed' && '✓ Confirmed'}
+      {status === 'failed' && '✗ Failed'}
+    </div>
+  );
+}
+```
+
+### Transaction Form
+
+```typescript
+export function PaymentForm() {
+  const { publicKey } = useStellarWallet();
+  const { executePayment } = useTransactionFlow();
+  const [recipient, setRecipient] = useState('');
+  const [amount, setAmount] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [txHash, setTxHash] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const { hash } = await executePayment(recipient, amount);
+      setTxHash(hash);
+    } catch (err) {
+      console.error('Payment failed:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <input
+        type="text"
+        placeholder="Recipient address (G...)"
+        value={recipient}
+        onChange={(e) => setRecipient(e.target.value)}
+        disabled={loading}
+      />
+      <input
+        type="number"
+        placeholder="Amount (XLM)"
+        value={amount}
+        onChange={(e) => setAmount(e.target.value)}
+        disabled={loading}
+      />
+      <button
+        type="submit"
+        disabled={loading || !publicKey}
+        className="px-4 py-2 bg-blue-500 text-white rounded"
+      >
+        {loading ? 'Processing...' : 'Send Payment'}
+      </button>
+
+      {txHash && <TransactionStatus txHash={txHash} />}
+    </form>
+  );
+}
+```
+
+---
+
+## Part 7: Error Recovery & Retry Logic
+
+### Automatic Retry
+
+```typescript
+async function executeWithRetry(
+  fn: () => Promise<any>,
+  maxRetries: number = 3
+): Promise<any> {
+  let lastError: any;
+
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      lastError = err;
+
+      // Don't retry on auth errors
+      if (
+        err.response?.data?.extras?.result_codes?.transaction === 'tx_bad_auth'
+      ) {
+        throw err;
+      }
+
+      // Exponential backoff
+      const delay = Math.pow(2, i) * 1000;
+      console.log(`Retry ${i + 1}/${maxRetries} after ${delay}ms`);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+
+  throw lastError;
+}
+
+// Usage
+const result = await executeWithRetry(() => executePayment(recipient, amount));
+```
+
+---
+
+## Part 8: Troubleshooting
+
+### Transaction Stuck in Pending
+
+1. Check if still within timeout window: `Date.now() < result.ledger_timeout`
+2. Verify network connectivity: `curl https://horizon-testnet.stellar.org/health`
+3. Resubmit if needed (will be deduplicated by hash)
+
+### High Latency
+
+1. Use edge-optimized RPC: `soroban-testnet.stellar.org` instead of default
+2. Increase timeout to 60 seconds for Soroban operations
+3. Consider batch transactions for multiple operations
+
+### Wallet Not Responding
+
+1. Ensure wallet extension is active
+2. Check browser console for errors
+3. Try refreshing page and reconnecting
+
+---
+
+## Related
+
+- [Wallet Integration Deep-Dive](/docs/guides/wallet-integration-deep-dive) — Signing strategies
+- [Error Handling Patterns](/docs/guides/error-handling-patterns) — Robust error management
+- [Transaction Batching](/docs/guides/transaction-batching) — Submit multiple operations
+- [Testing Transactions on Testnet](/docs/guides/testing-transactions-testnet) — Development workflow

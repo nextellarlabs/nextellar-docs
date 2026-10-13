@@ -1,0 +1,170 @@
+---
+title: CDN Strategy for Stellar dApp Wallet Assets and Hooks
+description: Guide to caching wallet-connect assets and SDK hooks behind a CDN — cache tier design and invalidation on release — with a working sample.
+date: 2026-08-27
+---
+
+# CDN Strategy for Stellar dApp Wallet Assets and Hooks
+
+A Stellar dApp typically ships three kinds of static, cacheable assets: wallet-connector bundles (Freighter/Albedo adapters), icon/logo assets for supported wallets, and the compiled hooks bundle (`useWallet`, `useContract`, etc.) consumed by the frontend. This guide covers a CDN cache-tier strategy for these assets and how to invalidate them safely on release.
+
+<Note type="warning">
+  This guide assumes a CDN that supports tiered caching and path-based
+  invalidation (e.g. CloudFront, Cloudflare, Fastly). Exact invalidation API
+  calls differ by provider — the strategy and cache-key design below transfer
+  regardless of which one you use.
+</Note>
+
+## Cache tiers
+
+Not all wallet assets change at the same rate. Splitting them into tiers lets you cache aggressively where it's safe and invalidate precisely where it isn't.
+
+| Tier          | Asset type                     | Example               | TTL                   | Cache key includes version? |
+| ------------- | ------------------------------ | --------------------- | --------------------- | --------------------------- |
+| Immutable     | Versioned hook/adapter bundles | `hooks-v3.2.0.min.js` | 1 year                | Yes (filename hash/version) |
+| Slow-changing | Wallet icons/logos             | `freighter-icon.svg`  | 1 week                | No                          |
+| Release-bound | Unversioned "latest" alias     | `hooks-latest.min.js` | 5 minutes             | No                          |
+| No-cache      | Wallet capability manifest     | `wallets.json`        | 0 (always revalidate) | No                          |
+
+The key design decision: **immutable tier assets are content-addressed** (the version or a content hash is in the filename), so they can be cached forever — a new release produces a new filename, never overwrites an old one. Only the "latest" alias and the capability manifest need short TTLs, because those are the only URLs that change meaning after a release.
+
+## Cache-key design
+
+```ts
+// lib/cdn-cache-policy.ts
+export type CacheTier =
+  | 'immutable'
+  | 'slow-changing'
+  | 'release-bound'
+  | 'no-cache';
+
+export interface CachePolicy {
+  tier: CacheTier;
+  maxAgeSeconds: number;
+  immutable: boolean;
+}
+
+const TIER_POLICIES: Record<CacheTier, CachePolicy> = {
+  immutable: { tier: 'immutable', maxAgeSeconds: 31536000, immutable: true },
+  'slow-changing': {
+    tier: 'slow-changing',
+    maxAgeSeconds: 604800,
+    immutable: false,
+  },
+  'release-bound': {
+    tier: 'release-bound',
+    maxAgeSeconds: 300,
+    immutable: false,
+  },
+  'no-cache': { tier: 'no-cache', maxAgeSeconds: 0, immutable: false },
+};
+
+export function classifyAsset(path: string): CacheTier {
+  if (/^\/hooks-v[\d.]+\.min\.js$/.test(path)) return 'immutable';
+  if (/^\/hooks-latest\.min\.js$/.test(path)) return 'release-bound';
+  if (/^\/wallets\.json$/.test(path)) return 'no-cache';
+  if (/^\/icons\//.test(path)) return 'slow-changing';
+  return 'no-cache';
+}
+
+export function cacheControlHeader(path: string): string {
+  const policy = TIER_POLICIES[classifyAsset(path)];
+  if (policy.maxAgeSeconds === 0) {
+    return 'no-cache, must-revalidate';
+  }
+  const directive = `public, max-age=${policy.maxAgeSeconds}`;
+  return policy.immutable ? `${directive}, immutable` : directive;
+}
+```
+
+```ts
+// lib/cdn-cache-policy.test.ts
+import { describe, expect, it } from 'vitest';
+import { cacheControlHeader, classifyAsset } from './cdn-cache-policy';
+
+describe('classifyAsset', () => {
+  it('classifies a versioned hooks bundle as immutable', () => {
+    expect(classifyAsset('/hooks-v3.2.0.min.js')).toBe('immutable');
+  });
+
+  it('classifies the latest alias as release-bound', () => {
+    expect(classifyAsset('/hooks-latest.min.js')).toBe('release-bound');
+  });
+
+  it('classifies the wallet manifest as no-cache', () => {
+    expect(classifyAsset('/wallets.json')).toBe('no-cache');
+  });
+
+  it('classifies wallet icons as slow-changing', () => {
+    expect(classifyAsset('/icons/freighter-icon.svg')).toBe('slow-changing');
+  });
+
+  it('defaults unknown paths to no-cache', () => {
+    expect(classifyAsset('/unknown-asset.bin')).toBe('no-cache');
+  });
+});
+
+describe('cacheControlHeader', () => {
+  it('marks immutable assets as immutable with a 1-year max-age', () => {
+    expect(cacheControlHeader('/hooks-v3.2.0.min.js')).toBe(
+      'public, max-age=31536000, immutable'
+    );
+  });
+
+  it('gives the latest alias a short max-age, not immutable', () => {
+    expect(cacheControlHeader('/hooks-latest.min.js')).toBe(
+      'public, max-age=300'
+    );
+  });
+
+  it('forces revalidation for the wallet manifest', () => {
+    expect(cacheControlHeader('/wallets.json')).toBe(
+      'no-cache, must-revalidate'
+    );
+  });
+});
+```
+
+## Invalidation on release
+
+Because immutable-tier assets are content-addressed, a release never needs to invalidate them — it just publishes new files under new names. Only two things need invalidating per release:
+
+1. The `-latest` alias (so it now points at the new version's content).
+2. The wallet capability manifest, if the release adds/removes a supported wallet.
+
+```bash
+#!/usr/bin/env bash
+# scripts/invalidate-cdn-on-release.sh
+set -euo pipefail
+
+VERSION="$1"  # e.g. v3.2.0
+DISTRIBUTION_ID="${CDN_DISTRIBUTION_ID:?set CDN_DISTRIBUTION_ID}"
+
+# Upload the new immutable bundle (never overwrites an existing version).
+aws s3 cp "dist/hooks-${VERSION}.min.js" "s3://${CDN_BUCKET}/hooks-${VERSION}.min.js" \
+  --cache-control "public, max-age=31536000, immutable"
+
+# Repoint the -latest alias at the new version's content.
+aws s3 cp "dist/hooks-${VERSION}.min.js" "s3://${CDN_BUCKET}/hooks-latest.min.js" \
+  --cache-control "public, max-age=300"
+
+# Invalidate only the two release-bound paths — never the immutable tier.
+aws cloudfront create-invalidation \
+  --distribution-id "$DISTRIBUTION_ID" \
+  --paths "/hooks-latest.min.js" "/wallets.json"
+```
+
+The important property: **invalidation scope is fixed and small regardless of release size.** Whether a release changes one hook or twenty, exactly two paths get invalidated — the immutable tier is never touched, so there's no cache-stampede risk on the assets clients hit most.
+
+## Verifying the guide
+
+```bash
+pnpm build:content
+pnpm check:links
+npx vitest run lib/cdn-cache-policy.test.ts
+```
+
+## Related docs
+
+- [Release Automation Guide](/routes-d/941-stellar-dapp-release-automation-guide)
+- [Versioning Docs Tutorial](/routes-d/954-docs-versioning-with-sdk-releases-tutorial)

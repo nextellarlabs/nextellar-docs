@@ -1,0 +1,40 @@
+Usage: nextellar <project-name> [options]
+
+Description: Create a new Stellar dApp project with Next.js, TypeScript, and wallet integration.
+
+Arguments:
+  <project-name>     Name of your project directory
+
+Options:
+  -t, --typescript              Generate a TypeScript project (default)
+  -j, --javascript              Generate a JavaScript project
+  --template <name>             Use a specific template (default, minimal, defi)
+  --with-contracts              Include Soroban smart contract support
+  --horizon-url <url>           Override default Horizon endpoint
+  --soroban-url <url>           Override default Soroban RPC endpoint
+  -w, --wallets <list>          Comma-separated list of wallet adapters
+  -d, --defaults                Skip prompts and use defaults
+  --skip-install                Skip dependency installation
+  --package-manager <pm>        Choose package manager (npm, yarn, pnpm, bun)
+  --install-timeout <ms>        Installation timeout in milliseconds
+  --force                       Overwrite existing directory (use with caution)
+  --no-telemetry                Disable telemetry for this invocation
+  -v, --version                 Show CLI version
+  -h, --help                    Show this help text
+
+Examples:
+  # Basic usage
+  nextellar my-stellar-app
+
+  # With custom package manager
+  nextellar my-app --package-manager pnpm
+
+  # Skip installation
+  nextellar my-app --skip-install
+
+  # Full customization
+  nextellar my-app \
+    --package-manager yarn \
+    --horizon-url https://horizon.stellar.org \
+    --wallets freighter,xbull \
+    --skip-install

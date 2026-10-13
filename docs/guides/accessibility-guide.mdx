@@ -1,0 +1,555 @@
+---
+title: 'Accessibility (a11y) Guide for Components'
+description: 'Learn how to build accessible components in Nextellar scaffolded apps'
+---
+
+import { Note } from '@/components/note';
+
+# Accessibility (a11y) Guide for Scaffolded Components
+
+Building accessible applications ensures your Nextellar dApp is usable by everyone, including people with disabilities using assistive technologies like screen readers, keyboard navigation, and voice commands.
+
+## Web Accessibility Principles (WCAG 2.1)
+
+The four core principles of web accessibility:
+
+1. **Perceivable** — Information must be perceivable to users
+2. **Operable** — Users must be able to operate all interface controls
+3. **Understandable** — Information and controls must be clear and understandable
+4. **Robust** — Content must work with assistive technologies
+
+<Note>
+  For production dApps, aim for WCAG 2.1 Level AA compliance at minimum. Test
+  with real assistive technologies, not just automated tools.
+</Note>
+
+## Semantic HTML
+
+Use semantic HTML elements to provide meaning to content:
+
+```tsx
+// ❌ Bad: Non-semantic markup
+<div onClick={handleClick} className="clickable">
+  Connect Wallet
+</div>
+
+// ✅ Good: Semantic button element
+<button onClick={handleClick}>
+  Connect Wallet
+</button>
+```
+
+### Common Semantic Elements
+
+| Element     | Purpose                         |
+| ----------- | ------------------------------- |
+| `<button>`  | Clickable actions               |
+| `<nav>`     | Navigation region               |
+| `<main>`    | Primary content                 |
+| `<aside>`   | Supplementary content           |
+| `<article>` | Self-contained content          |
+| `<section>` | Thematic grouping               |
+| `<header>`  | Introductory content            |
+| `<footer>`  | Footer content                  |
+| `<figure>`  | Referenced content with caption |
+
+## ARIA (Accessible Rich Internet Applications)
+
+Use ARIA attributes to enhance accessibility when semantic HTML alone isn't sufficient:
+
+### Common ARIA Attributes
+
+```tsx
+// Role: Define what an element does
+<div role="button" onClick={toggle}>Menu</div>
+
+// aria-label: Provide accessible name
+<button aria-label="Close dialog">✕</button>
+
+// aria-labelledby: Connect to visible label
+<h2 id="dialog-title">Confirm Transaction</h2>
+<div role="dialog" aria-labelledby="dialog-title">
+  {/* content */}
+</div>
+
+// aria-describedby: Provide description
+<input
+  aria-describedby="pwd-hint"
+  type="password"
+/>
+<small id="pwd-hint">Must be 8+ characters</small>
+
+// aria-expanded: Show state of collapsible content
+<button
+  aria-expanded={isOpen}
+  aria-controls="menu"
+  onClick={toggle}
+>
+  Menu
+</button>
+
+// aria-hidden: Hide from assistive technologies
+<span aria-hidden="true">★</span> Required
+
+// aria-live: Announce dynamic content updates
+<div aria-live="polite" aria-atomic="true">
+  {transactionStatus}
+</div>
+```
+
+## Keyboard Navigation
+
+All interactive elements must be keyboard accessible:
+
+```tsx
+// ✅ Good: Keyboard accessible button
+export function ConnectWalletButton() {
+  const [isConnecting, setIsConnecting] = useState(false);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+    // Space and Enter should activate the button
+    if (e.code === 'Space' || e.code === 'Enter') {
+      e.preventDefault();
+      handleConnect();
+    }
+  };
+
+  return (
+    <button
+      onClick={handleConnect}
+      onKeyDown={handleKeyDown}
+      disabled={isConnecting}
+      aria-busy={isConnecting}
+    >
+      {isConnecting ? 'Connecting...' : 'Connect Wallet'}
+    </button>
+  );
+}
+```
+
+### Focus Management
+
+```tsx
+// ❌ Bad: No visible focus indicator
+button {
+  outline: none; /* Don't do this! */
+}
+
+// ✅ Good: Provide clear focus indicator
+button {
+  &:focus-visible {
+    outline: 2px solid #0066cc;
+    outline-offset: 2px;
+  }
+}
+```
+
+## Screen Reader Optimization
+
+### Skip Links
+
+Help keyboard and screen reader users skip to main content:
+
+```tsx
+// In root layout or page
+import { SkipToContent } from '@/components/skip-to-content';
+
+export default function Layout({ children }) {
+  return (
+    <>
+      <SkipToContent />
+      {/* navigation */}
+      <main id="main-content">{children}</main>
+    </>
+  );
+}
+```
+
+### Meaningful Link Text
+
+```tsx
+// ❌ Bad: Generic link text
+<a href="/docs/wallet-integration">Click here</a>
+
+// ✅ Good: Descriptive link text
+<a href="/docs/wallet-integration">Wallet Integration Guide</a>
+
+// ✅ If link text must be generic, provide context
+<a href="/docs/wallet-integration" aria-label="Wallet Integration Guide">
+  Read more
+</a>
+```
+
+### Image Accessibility
+
+```tsx
+// ❌ Bad: Missing or generic alt text
+<img src="logo.png" />
+<img src="chart.png" alt="image" />
+
+// ✅ Good: Descriptive alt text
+<img src="logo.png" alt="Nextellar: Build Stellar dApps" />
+<img
+  src="transaction-flow.png"
+  alt="Transaction flow diagram showing wallet connection to Soroban contract"
+/>
+
+// For decorative images
+<img src="divider.png" alt="" aria-hidden="true" />
+```
+
+## Form Accessibility
+
+```tsx
+export function PaymentForm() {
+  const [amount, setAmount] = useState('');
+  const [errors, setErrors] = useState({});
+
+  return (
+    <form onSubmit={handleSubmit} aria-label="Send XLM Payment">
+      {/* ✅ Label associated with input */}
+      <div>
+        <label htmlFor="amount">
+          Amount (XLM)
+          <span aria-label="required">*</span>
+        </label>
+        <input
+          id="amount"
+          type="number"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          aria-invalid={!!errors.amount}
+          aria-describedby={errors.amount ? 'amount-error' : undefined}
+        />
+        {errors.amount && (
+          <div id="amount-error" role="alert" className="error">
+            {errors.amount}
+          </div>
+        )}
+      </div>
+
+      <button type="submit">Send Payment</button>
+    </form>
+  );
+}
+```
+
+## Modal/Dialog Accessibility
+
+```tsx
+import {
+  Dialog,
+  DialogTrigger,
+  DialogContent,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/dialog';
+
+export function ConfirmTransactionDialog() {
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <button>Confirm Transaction</button>
+      </DialogTrigger>
+      <DialogContent>
+        {/* ✅ Required for screen reader context */}
+        <DialogTitle>Confirm Transaction</DialogTitle>
+        <DialogDescription>
+          Review the transaction details before proceeding
+        </DialogDescription>
+
+        <div>
+          <p>Amount: 100 XLM</p>
+          <p>Destination: GDJLB...54QT</p>
+        </div>
+
+        <div className="flex gap-2">
+          <button>Cancel</button>
+          <button>Confirm</button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+```
+
+## Color Contrast
+
+Text must have sufficient contrast with its background:
+
+```css
+/* ✅ Good: Ratio 7.1:1 (AAA standard) */
+.heading {
+  color: #000;
+  background: #fff;
+}
+
+/* ❌ Poor: Ratio 3.5:1 (below AA) */
+.text {
+  color: #777;
+  background: #f0f0f0;
+}
+
+/* Test contrast: https://webaim.org/resources/contrastchecker/ */
+```
+
+## Dynamic Content Updates
+
+```tsx
+export function TransactionStatus({ status, message }) {
+  return (
+    <>
+      {/* ✅ Use aria-live to announce updates */}
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className="status-message"
+      >
+        {message}
+      </div>
+
+      {/* Show loading spinner accessibly */}
+      {status === 'loading' && (
+        <div role="status" aria-live="polite">
+          <span>Processing transaction</span>
+          <span aria-hidden="true">…</span>
+        </div>
+      )}
+
+      {/* Announce errors to screen readers */}
+      {status === 'error' && (
+        <div role="alert" className="error">
+          {message}
+        </div>
+      )}
+    </>
+  );
+}
+```
+
+## Common Nextellar Component Patterns
+
+### ConnectWalletButton
+
+```tsx
+// ✅ Already accessible with proper markup
+<ConnectWalletButton aria-label="Connect to Freighter wallet" />
+```
+
+### Transaction Display
+
+```tsx
+export function TransactionDetails({ tx }) {
+  return (
+    <article>
+      <h2>Transaction #{tx.id}</h2>
+      <dl>
+        <dt>Amount:</dt>
+        <dd>{tx.amount} XLM</dd>
+        <dt>Recipient:</dt>
+        <dd>{tx.recipient}</dd>
+        <dt>Status:</dt>
+        <dd aria-label={`Status: ${tx.status}`}>
+          {tx.status === 'success' && '✓'}
+          {tx.status === 'pending' && '⏳'}
+          {tx.status === 'failed' && '✕'}
+        </dd>
+      </dl>
+    </article>
+  );
+}
+```
+
+### Wallet Selection Menu
+
+```tsx
+export function WalletSelector() {
+  const [isOpen, setIsOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  return (
+    <div>
+      <button
+        ref={triggerRef}
+        onClick={() => setIsOpen(!isOpen)}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        aria-controls="wallet-menu"
+      >
+        Select Wallet
+        <span aria-hidden="true">▼</span>
+      </button>
+
+      {isOpen && (
+        <ul id="wallet-menu" role="listbox" className="menu">
+          {['Freighter', 'Albedo', 'xBull'].map((wallet) => (
+            <li key={wallet} role="option">
+              <button
+                onClick={() => {
+                  selectWallet(wallet);
+                  setIsOpen(false);
+                }}
+              >
+                {wallet}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+```
+
+## Testing Accessibility
+
+### Keyboard Testing
+
+- Tab through all interactive elements
+- Use Shift+Tab to navigate backwards
+- Press Enter/Space on buttons
+- Use arrow keys in menus
+
+### Screen Reader Testing
+
+| Tool      | Platform   | Cost                  |
+| --------- | ---------- | --------------------- |
+| NVDA      | Windows    | Free                  |
+| JAWS      | Windows    | Paid (common in orgs) |
+| VoiceOver | macOS, iOS | Free                  |
+| TalkBack  | Android    | Free                  |
+
+### Automated Testing
+
+```typescript
+// With Testing Library
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+
+describe('ConnectWalletButton a11y', () => {
+  it('should be keyboard accessible', async () => {
+    const user = userEvent.setup();
+    const { getByRole } = render(<ConnectWalletButton />);
+
+    const button = getByRole('button', { name: /connect/i });
+
+    // Tab to button
+    await user.tab();
+    expect(button).toHaveFocus();
+
+    // Activate with Enter
+    await user.keyboard('{Enter}');
+    expect(button).toHaveAttribute('aria-busy', 'true');
+  });
+});
+```
+
+### Using axe DevTools
+
+```bash
+npm install --save-dev @axe-core/react
+
+# Then test in browser with axe DevTools extension
+```
+
+## Best Practices for Stellar dApps
+
+### Transaction Confirmations
+
+```tsx
+export function TransactionConfirmation({ tx }) {
+  return (
+    <dialog open aria-labelledby="confirm-title">
+      <h2 id="confirm-title">Confirm Transaction</h2>
+
+      <table>
+        <tr>
+          <th scope="row">Operation:</th>
+          <td>{tx.operation}</td>
+        </tr>
+        <tr>
+          <th scope="row">Amount:</th>
+          <td aria-label={`${tx.amount} Lumens`}>{tx.amount} XLM</td>
+        </tr>
+      </table>
+
+      <button>Cancel</button>
+      <button>Confirm</button>
+    </dialog>
+  );
+}
+```
+
+### Error Handling
+
+```tsx
+export function PaymentError({ error }) {
+  return (
+    <div role="alert" className="error-message" aria-live="assertive">
+      <h3>Transaction Failed</h3>
+      <p>{error.message}</p>
+      <p>Error Code: {error.code}</p>
+      <button>Try Again</button>
+    </div>
+  );
+}
+```
+
+## Accessibility Checklist
+
+- ✅ All interactive elements are keyboard accessible
+- ✅ Focus indicators are clearly visible
+- ✅ Color is not the only way to convey information
+- ✅ Text contrast meets WCAG AA (4.5:1 minimum)
+- ✅ All images have descriptive alt text
+- ✅ Form labels are properly associated with inputs
+- ✅ Error messages are announced to screen readers
+- ✅ Page structure uses semantic HTML
+- ✅ Skip links are available
+- ✅ Language attribute is set on `<html>` element
+- ✅ No automatic redirects or autoplaying media
+- ✅ Animations respect `prefers-reduced-motion`
+
+## Reducing Motion
+
+```css
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+```
+
+In React:
+
+```tsx
+const prefersReducedMotion = window.matchMedia(
+  '(prefers-reduced-motion: reduce)'
+).matches;
+
+<motion.div
+  animate={prefersReducedMotion ? {} : { x: 100 }}
+  transition={{ duration: prefersReducedMotion ? 0 : 0.5 }}
+>
+  Content
+</motion.div>;
+```
+
+## Resources
+
+- [WCAG 2.1 Guidelines](https://www.w3.org/WAI/WCAG21/quickref/)
+- [MDN Accessibility](https://developer.mozilla.org/en-US/docs/Web/Accessibility)
+- [ARIA Authoring Practices](https://www.w3.org/WAI/ARIA/apg/)
+- [Web Aim](https://webaim.org/)
+- [The A11y Project](https://www.a11yproject.com/)
+- [Accessible Colors](https://accessible-colors.com/)
+- [Screen Reader Testing](https://www.nvaccess.org/)
+
+## Summary
+
+Accessibility isn't an afterthought—it's a fundamental aspect of good design and development. By following these patterns in your Nextellar components, you'll create dApps that work for everyone, improve SEO, and provide better user experience for all users.

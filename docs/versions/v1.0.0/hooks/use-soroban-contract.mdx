@@ -1,0 +1,264 @@
+---
+title: useSorobanContract
+description: Interact with Soroban smart contracts on Stellar
+date: 2026-06-02
+---
+
+# useSorobanContract
+
+The `useSorobanContract` hook provides a complete interface for interacting with Soroban smart contracts. It handles XDR value conversion, transaction simulation, and contract invocation.
+
+## Features
+
+- **Read-Only Calls**: Simulate contract functions without submitting transactions
+- **Build Invocations**: Create unsigned contract invocation XDR
+- **Dev-Only Submission**: Sign and submit with secret keys (testing)
+- **Automatic XDR Conversion**: JavaScript → Stellar type conversion
+- **Complex Types**: Support for maps, vectors, addresses, and custom types
+
+## Basic Usage
+
+```tsx
+import { useSorobanContract } from '@/hooks/useSorobanContract';
+
+export default function ContractDemo() {
+  const { callFunction, buildInvokeXDR, loading, error } = useSorobanContract({
+    contractId: 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQAHHXK3AWCM',
+    network: 'TESTNET',
+  });
+
+  const handleReadContract = async () => {
+    const result = await callFunction('get_balance', ['GABC123...']);
+    console.log('Balance:', result);
+  };
+
+  return (
+    <button onClick={handleReadContract} disabled={loading}>
+      Read Contract {loading && '(Loading...)'}
+    </button>
+  );
+}
+```
+
+## API Reference
+
+### Parameters
+
+```typescript
+useSorobanContract(options: {
+  contractId: string;
+  sorobanRpc?: string;
+  network?: 'TESTNET' | 'PUBLIC';
+}): SorobanContractReturn
+```
+
+| Parameter    | Type                    | Default                                 | Description                  |
+| ------------ | ----------------------- | --------------------------------------- | ---------------------------- |
+| `contractId` | `string`                | **Required**                            | Contract address (C-address) |
+| `sorobanRpc` | `string`                | `'https://soroban-testnet.stellar.org'` | Soroban RPC endpoint         |
+| `network`    | `'TESTNET' \| 'PUBLIC'` | `'TESTNET'`                             | Stellar network              |
+
+### Return Value
+
+```typescript
+interface SorobanContractReturn {
+  callFunction: (name: string, args: unknown[]) => Promise<unknown>;
+  buildInvokeXDR: (name: string, args: unknown[]) => Promise<string>;
+  submitInvokeWithSecret: (
+    xdr: string,
+    secret: string
+  ) => Promise<SendTransactionResponse>;
+  loading: boolean;
+  error: Error | null;
+}
+```
+
+## Methods
+
+### callFunction()
+
+Call a contract function in read-only mode (simulation).
+
+```tsx
+// Simple call
+const balance = await callFunction('get_balance', ['GABC123...']);
+
+// With multiple arguments
+const result = await callFunction('transfer', [
+  'GABC123...', // from
+  'GDEF456...', // to
+  1000, // amount
+]);
+```
+
+**Supported Argument Types:**
+
+- `string` → ScvString
+- `number` → ScvI32
+- `boolean` → ScvBool
+- `Address` → ScvAddress
+- `Array` → ScvVec
+- `Object` → ScvMap
+
+### buildInvokeXDR()
+
+Build an unsigned contract invocation XDR.
+
+```tsx
+const xdr = await buildInvokeXDR('mint', [
+  'GABC123...', // recipient
+  1000, // amount
+]);
+
+// Sign with wallet
+const signedXDR = await wallet.signTransaction(xdr);
+```
+
+### submitInvokeWithSecret()
+
+**DEV-ONLY**: Sign and submit contract invocation.
+
+```tsx
+const result = await submitInvokeWithSecret(xdr, 'SABC123...');
+console.log('Transaction status:', result.status);
+```
+
+> **Warning**: Never use in production. For testing only.
+
+## Advanced Examples
+
+### Complex Contract Calls
+
+```tsx
+// Call with Address type
+import { Address } from '@stellar/stellar-sdk';
+
+const recipient = new Address('GABC123...');
+const result = await callFunction('transfer', [recipient, 1000]);
+```
+
+### Handling Contract Events
+
+```tsx
+const { callFunction } = useSorobanContract({ contractId });
+
+const result = await callFunction('emit_event', ['test_event']);
+
+// Listen for events with useSorobanEvents hook
+```
+
+### Error Handling
+
+For shared recovery patterns across hooks, see [Hook Error Handling](/docs/guides/hook-error-handling).
+
+```tsx
+const { callFunction, error } = useSorobanContract({ contractId });
+
+try {
+  const result = await callFunction('get_data', []);
+} catch (err) {
+  if (error?.message.includes('not found')) {
+    console.log('Contract not deployed');
+  }
+}
+```
+
+## Type Conversion
+
+### JavaScript to XDR
+
+```tsx
+// String
+await callFunction('set_name', ['Alice']); // → ScvString
+
+// Number
+await callFunction('set_count', [42]); // → ScvI32
+
+// Boolean
+await callFunction('set_active', [true]); // → ScvBool
+
+// Array
+await callFunction('set_list', [[1, 2, 3]]); // → ScvVec
+
+// Object
+await callFunction('set_data', [{ key: 'value' }]); // → ScvMap
+```
+
+### XDR to JavaScript
+
+```tsx
+const result = await callFunction('get_data', []);
+
+// ScvString → string
+// ScvI32 → number
+// ScvBool → boolean
+// ScvVec → Array
+// ScvMap → Object
+```
+
+## Best Practices
+
+### 1. Cache Contract Instances
+
+```tsx
+const contractConfig = useMemo(
+  () => ({
+    contractId: 'CDLZ...',
+    network: 'TESTNET',
+  }),
+  []
+);
+
+const contract = useSorobanContract(contractConfig);
+```
+
+### 2. Handle Loading States
+
+```tsx
+const { callFunction, loading } = useSorobanContract({ contractId });
+
+if (loading) return <Spinner />;
+```
+
+### 3. Validate Contract Responses
+
+```tsx
+const result = await callFunction('get_balance', [address]);
+
+if (typeof result !== 'number') {
+  throw new Error('Invalid balance returned');
+}
+```
+
+## Related Hooks
+
+- [`useSorobanEvents`](/docs/hooks/use-soroban-events) - Listen to contract events
+- [`useStellarWallet`](/docs/hooks/use-stellar-wallet) - Sign contract invocations
+
+## Next Steps
+
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-6">
+  <a
+    href="/hooks/use-soroban-events"
+    className="block p-4 border rounded-lg hover:border-primary transition-colors"
+  >
+    <h4 className="font-semibold mb-2">useSorobanEvents</h4>
+    <span className="text-sm text-muted-foreground block">Listen to smart contract events</span>
+  </a>
+
+  <a
+    href="/guides/smart-contracts"
+    className="block p-4 border rounded-lg hover:border-primary transition-colors"
+  >
+    <h4 className="font-semibold mb-2">Smart Contracts Guide</h4>
+    <span className="text-sm text-muted-foreground block">Complete Soroban integration guide</span>
+  </a>
+
+  <a
+    href="/getting-started/contracts-quick-start"
+    className="block p-4 border rounded-lg hover:border-primary transition-colors"
+  >
+    <h4 className="font-semibold mb-2">Contracts Quick Start</h4>
+    <span className="text-sm text-muted-foreground block">Scaffold, deploy, and invoke a Soroban contract end to end</span>
+  </a>
+</div>

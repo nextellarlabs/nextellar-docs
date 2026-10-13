@@ -1,0 +1,165 @@
+---
+title: SEP-24 Anchor Client Library
+description: A full tutorial for building a SEP-24 anchor client library — session setup, the interactive deposit/withdraw flow, status polling, and error handling.
+date: 2026-08-25
+---
+
+# SEP-24 Anchor Client Library
+
+[SEP-24](https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0024.md) defines the interactive flow wallets use to let a user deposit fiat (or another off-chain asset) into a Stellar account, or withdraw a Stellar asset back out, through an anchor's hosted UI. This guide builds a small client library around the three parts of that flow: the authenticated session, the interactive popup, and status polling.
+
+---
+
+## Session Setup
+
+SEP-24 endpoints require a SEP-10 web auth token. Fetch the anchor's `stellar.toml` to discover its endpoints, then complete web auth before calling anything else.
+
+```ts
+import { StellarTomlResolver } from '@stellar/stellar-sdk';
+
+async function createAnchorSession(homeDomain: string, account: Keypair) {
+  const toml = await StellarTomlResolver.resolve(homeDomain);
+  const authEndpoint = toml.WEB_AUTH_ENDPOINT;
+  const transferServer = toml.TRANSFER_SERVER_SEP0024;
+  const signingKey = toml.SIGNING_KEY;
+
+  if (!authEndpoint || !transferServer || !signingKey) {
+    throw new Error(`${homeDomain} does not advertise SEP-24 support`);
+  }
+
+  const token = await completeSep10(authEndpoint, signingKey, account);
+  return new AnchorSession(transferServer, token);
+}
+```
+
+`completeSep10` follows the standard SEP-10 challenge/sign/submit cycle: `GET` a challenge transaction, sign it with the account's keypair, `POST` it back, and receive a JWT. Wrap this once and reuse it — every SEP-24 call below needs the resulting token as a bearer credential.
+
+## The Interactive Flow
+
+### 1. Discover supported assets
+
+```ts
+class AnchorSession {
+  constructor(
+    private transferServer: string,
+    private token: string
+  ) {}
+
+  async info() {
+    const res = await fetch(`${this.transferServer}/info`);
+    return res.json(); // { deposit: {...}, withdraw: {...}, fee: {...} }
+  }
+}
+```
+
+Check `deposit[asset_code].enabled` / `withdraw[asset_code].enabled` before offering an asset in the UI — not every anchor supports every asset for both directions.
+
+### 2. Start a deposit or withdrawal
+
+```ts
+async startDeposit(assetCode: string, account: string) {
+  const res = await fetch(`${this.transferServer}/transactions/deposit/interactive`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${this.token}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({ asset_code: assetCode, account }),
+  });
+  if (!res.ok) throw new AnchorError(await res.json());
+  return res.json(); // { type: 'interactive_customer_info_needed', url, id }
+}
+```
+
+Withdrawals use the mirrored `/transactions/withdraw/interactive` endpoint with the same request shape.
+
+### 3. Open the interactive popup
+
+The response's `url` is a one-time link to the anchor's hosted UI (KYC forms, bank details, amount entry). Open it in a popup or webview — don't embed it in a way that lets your app read its contents, since it may collect sensitive personal data the anchor is responsible for, not your app.
+
+```ts
+function openInteractivePopup(url: string) {
+  const popup = window.open(url, 'sep24_interactive', 'width=480,height=720');
+  if (!popup) throw new Error('Popup blocked — retry from a user gesture');
+  return popup;
+}
+```
+
+The `id` from the start-deposit response is what you'll use to poll status — store it alongside the transaction in your app's local state before opening the popup, since the user may close it before finishing.
+
+## Polling for Status
+
+The anchor's UI runs asynchronously — the user might complete KYC, then the anchor takes minutes or days to actually process a bank transfer. Poll `/transaction` for status changes rather than blocking on the popup closing.
+
+```ts
+type Sep24Status =
+  | 'incomplete'
+  | 'pending_user_transfer_start'
+  | 'pending_user_transfer_complete'
+  | 'pending_external'
+  | 'pending_anchor'
+  | 'pending_stellar'
+  | 'pending_trust'
+  | 'completed'
+  | 'refunded'
+  | 'expired'
+  | 'error'
+  | 'no_market'
+  | 'too_small'
+  | 'too_large';
+
+async function pollTransaction(
+  session: AnchorSession,
+  id: string,
+  onUpdate: (status: Sep24Status) => void,
+  { intervalMs = 3000, timeoutMs = 10 * 60_000 } = {}
+) {
+  const deadline = Date.now() + timeoutMs;
+  let lastStatus: Sep24Status | undefined;
+
+  while (Date.now() < deadline) {
+    const res = await fetch(`${session.transferServer}/transaction?id=${id}`, {
+      headers: { Authorization: `Bearer ${session.token}` },
+    });
+    const { transaction } = await res.json();
+
+    if (transaction.status !== lastStatus) {
+      lastStatus = transaction.status;
+      onUpdate(transaction.status);
+    }
+
+    if (
+      ['completed', 'refunded', 'expired', 'error'].includes(transaction.status)
+    ) {
+      return transaction;
+    }
+
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+
+  throw new Error(
+    `Polling timed out after ${timeoutMs}ms for transaction ${id}`
+  );
+}
+```
+
+Key statuses to surface distinctly in the UI:
+
+- `pending_user_transfer_start` — waiting on the user to send fiat (deposit) or the asset (withdraw); show instructions.
+- `pending_anchor` / `pending_external` — out of the user's hands; show a progress indicator, not an error.
+- `pending_trust` — the destination account needs a trustline for the asset before the anchor can complete a deposit; prompt the user to add it.
+- `completed` — done; the `stellar_transaction_id` field links to the on-chain payment.
+- `error` / `expired` — surface `message` from the transaction object, don't just say "failed."
+
+## Error Handling
+
+- **Network/auth errors** (SEP-10 token expired mid-flow): catch `401` responses from any SEP-24 call and re-run the session setup before retrying — don't silently drop the user's in-progress transaction.
+- **Anchor-side validation errors**: the `/transactions/deposit|withdraw/interactive` endpoints return `400` with a JSON `error` field for unsupported assets or malformed accounts — surface this directly, it's usually anchor-specific and user-actionable.
+- **Popup closed early**: if the popup closes before the transaction reaches a terminal or `pending_user_transfer_start` status, keep polling anyway — many anchors let the user resume from a link, and the transaction record persists server-side regardless of the popup.
+- **Timeouts**: cap total polling duration (see `timeoutMs` above) and let the caller decide whether to keep the transaction record around for a manual "check status" action later, rather than polling forever.
+
+## Verifying the Tutorial
+
+- Run the full flow against a testnet reference anchor (e.g. one of the SDF's test anchors) end to end: session → interactive deposit → complete the popup's test KYC form → poll to `completed`.
+- Confirm a `pending_trust` transaction correctly prompts for a trustline and resumes polling after one is added.
+- Force a SEP-10 token expiry mid-poll and confirm the client re-authenticates rather than surfacing a raw `401`.

@@ -25,6 +25,33 @@ Nextellar reduces the time developers spend configuring tools, managing dependen
 
 ---
 
+## Architecture at a Glance
+
+Nextellar sits between your application code and the Stellar network, wiring the CLI-scaffolded project, React hooks, and wallet/SDK layers together so you never touch raw Horizon or Soroban RPC calls directly:
+
+```text
+flowchart TB
+    CLI["Nextellar CLI<br/>Scaffolding & Config"]
+    APP["Your Next.js Application"]
+    HOOKS["8 React Hooks<br/>useStellarWallet · useStellarPayment · useStellarBalances · ..."]
+    CONTEXT["WalletProvider Context"]
+    WALLETS["Stellar Wallets Kit<br/>Freighter · Albedo · Lobstr · xBull · Hana"]
+    SDK["Stellar SDK<br/>Horizon · Soroban RPC"]
+    NETWORK["Stellar Network"]
+
+    CLI --> APP
+    APP --> HOOKS
+    HOOKS --> CONTEXT
+    CONTEXT --> WALLETS
+    CONTEXT --> SDK
+    WALLETS --> NETWORK
+    SDK --> NETWORK
+```
+
+The CLI generates your project structure once, up front. From there, the React hooks are the primary interface your components use — they read configuration from `WalletProvider` and delegate to the Stellar Wallets Kit for signing and to the Stellar SDK for Horizon and Soroban RPC calls, both of which talk to the Stellar network.
+
+---
+
 ## Why Nextellar?
 
 ### Zero-config setup
@@ -33,7 +60,7 @@ Instantly generate a fully configured Next.js application with wallet connectivi
 
 ### Stellar-first architecture
 
-Seamlessly interact with Stellars Horizon API and Soroban smart contracts using ready-made hooks, utilities, and prebuilt components.
+Seamlessly interact with the Stellar Horizon API and Soroban smart contracts using ready-made hooks, utilities, and prebuilt components.
 
 ### Modern tooling built in
 

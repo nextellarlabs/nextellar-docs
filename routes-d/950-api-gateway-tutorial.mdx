@@ -1,0 +1,753 @@
+---
+title: Putting an API Gateway in Front of Horizon
+description: A complete tutorial on placing an API gateway in front of the Stellar Horizon API, covering architecture, routing rules, auth strategies, per-wallet rate limiting, observability, caching, and a working Next.js sample.
+date: 2026-08-26
+---
+
+# Putting an API Gateway in Front of Horizon
+
+Stellar's Horizon API — available at `https://horizon-testnet.stellar.org` (testnet) and `https://horizon.stellar.org` (mainnet) — is an open, unauthenticated REST and Server-Sent Events (SSE) API. That openness is great for prototyping, but a production dApp eventually needs its own layer in front of it: authentication tied to wallet identities, per-user quotas, caching, and real observability. This tutorial walks through designing and building that layer as an API gateway, ending with a complete, runnable Next.js implementation.
+
+---
+
+## Why a Gateway?
+
+Horizon itself requires no API key and enforces rate limits per source IP (exceeding them returns `429 Too Many Requests` with a `Retry-After` header). Calling Horizon directly from every browser session leaves several gaps:
+
+- **No identity.** Horizon sees IP addresses, not users. You cannot give a power user more headroom or throttle an abuser specifically.
+- **Shared fate on rate limits.** Every one of your users competes for the same per-IP budget from wherever the requests originate — and worse, if you route through a single backend, that backend's IP becomes a chokepoint.
+- **No caching.** Most Horizon data is historical and immutable, yet direct clients re-fetch identical pages endlessly.
+- **No blast-radius control.** If Horizon is degraded or you switch providers, every client release is affected unless a server-side layer can absorb the change.
+
+A gateway solves all four — with one caveat to internalize up front: **your gateway concentrates traffic into your own egress IPs**, so you inherit Horizon's per-IP rate limit on behalf of everyone. Your gateway therefore needs its own quota management, aggressive caching, and strict honoring of upstream `Retry-After` values.
+
+---
+
+## Architecture Overview
+
+The gateway is a thin, stateless HTTP layer between your clients and Horizon:
+
+```
+Browser dApp ──HTTPS──▶ API Gateway ──fetch──▶ Horizon (testnet / mainnet)
+                            │     ▲
+                 verify JWT │     │ metrics · structured logs · traces
+                            ▼     │
+                       Redis (quotas, cache) · OTel backend
+```
+
+Design rules that keep it simple and fast:
+
+1. **Stateless handlers.** Quotas and cached responses live in Redis (or any shared store); any instance can serve any request.
+2. **Allowlist routing.** Only known Horizon path prefixes are proxied; everything else is rejected before touching the network.
+3. **Authenticate, then rate-limit, then fetch.** Identity determines the quota; the quota gates the upstream call.
+4. **Cache before network.** Check the local/CDN cache before forwarding anything to Horizon.
+5. **Pass bodies through untouched.** Horizon responses (especially XDR fields like `envelope_xdr`, `result_xdr`, and `result_meta_xdr`) are treated as opaque bytes — the gateway never re-parses or re-serializes them.
+
+---
+
+## Routing Rules
+
+Proxy Horizon with a **default-deny allowlist**: requests are rewritten from `/api/horizon/<resource>` to `<resource>` on the upstream host, preserving the query string (`cursor`, `limit`, `order`, and asset parameters all pass through unchanged).
+
+Match on path-prefix boundaries so `/transactions` covers `/transactions` and `/transactions/{hash}` but not `/transactionsfoo`:
+
+| Allowed prefix  | Upstream resource                               | Methods   | Default cache TTL      |
+| --------------- | ----------------------------------------------- | --------- | ---------------------- |
+| `/accounts`     | Account details, balances, signers, offers      | GET       | 2s                     |
+| `/transactions` | Transaction collections, single tx, POST submit | GET, POST | 20s lists / 24h single |
+| `/operations`   | Operation collections and single operations     | GET       | 20s / 24h single       |
+| `/payments`     | Payment-only operation feeds                    | GET       | 20s                    |
+| `/effects`      | Effect feeds                                    | GET       | 20s                    |
+| `/ledgers`      | Ledger collections and single ledgers           | GET       | 20s / 24h single       |
+| `/offers`       | Offer records                                   | GET       | 5s                     |
+| `/trades`       | Trade feeds                                     | GET       | 20s                    |
+| `/assets`       | Asset directory                                 | GET       | 300s                   |
+| `/order_book`   | Order book snapshots                            | GET       | 1s                     |
+| `/paths`        | Payment path finding                            | GET       | 1s                     |
+| `/fee_stats`    | Fee statistics                                  | GET       | 10s                    |
+
+Method policy: **GET** everywhere on the allowlist; **POST** is permitted only for `/transactions` (Horizon's transaction submission endpoint, which expects an `application/x-www-form-urlencoded` body containing the base64 `tx` envelope). Anything else gets `405`.
+
+Two special routing cases deserve first-class handling:
+
+- **Streaming.** Any request with `Accept: text/event-stream` (e.g. `GET /ledgers?cursor=now` with that header) must bypass buffering, timeouts, and caching entirely — the gateway pipes bytes as they arrive for the life of the connection.
+- **Health probing.** The Horizon root path (`GET /`) returns version metadata and makes a cheap upstream liveness probe; expose it on your own `/api/horizon/healthz` rather than allowing arbitrary paths.
+
+---
+
+## Authentication Strategies
+
+Horizon needs no credentials, so every credential in this system belongs to _your_ gateway. Three practical tiers, checked in order:
+
+### 1. Anonymous tier (default)
+
+No credentials. Lowest quota, keyed per client IP. Enough for public explorers and cold sessions.
+
+### 2. Static API keys (partner / server-to-server)
+
+For trusted backend callers. Store only SHA-256 hashes of the keys and compare with a constant-time function. Prefer issuing these callers short-lived JWTs too, so keys never transit the wire on every request.
+
+### 3. Wallet-signed JWT (end users)
+
+Bind a session to a Stellar public key using a challenge-response flow, in the spirit of SEP-10:
+
+1. Your auth service generates a random nonce and returns a **challenge transaction** template (source account set to the caller's public key, a text memo carrying the nonce, tight time bounds — e.g. valid for 90 seconds).
+2. The user signs it in their wallet (e.g. via Freighter's `signTransaction`) and posts the envelope XDR back.
+3. The gateway verifies the signature against the claimed public key, the freshness window, and the nonce, then mints a short-lived JWT whose `sub` claim is the `G…` address.
+4. Subsequent requests carry `Authorization: Bearer <jwt>`; the gateway trusts the verified signature and skips all Horizon-side identity questions.
+
+Verification of the challenge, using `@stellar/stellar-sdk`:
+
+```typescript
+import { Keypair, Networks, TransactionBuilder } from '@stellar/stellar-sdk';
+
+// Runs in the auth service (not the request hot path).
+// Returns the verified public key, or null if any check fails.
+export function verifyWalletChallenge(
+  envelopeXdr: string,
+  expectedNonce: string
+): string | null {
+  const tx = TransactionBuilder.fromXDR(envelopeXdr, Networks.TESTNET);
+
+  const now = Math.floor(Date.now() / 1000);
+  const fresh =
+    !!tx.timeBounds &&
+    now >= Number(tx.timeBounds.minTime) &&
+    now - 90 <= Number(tx.timeBounds.maxTime);
+
+  const memoValue = tx.memo.type === 'text' ? String(tx.memo.value ?? '') : '';
+  const nonceOk = memoValue === expectedNonce;
+
+  const signer = Keypair.fromPublicKey(tx.source);
+  const hash = tx.hash(); // sha256 of the signing payload
+  const signedBySource = tx.signatures.some((sig) =>
+    signer.verify(hash, sig.signature())
+  );
+
+  if (!(fresh && nonceOk && signedBySource)) return null;
+  return tx.source;
+}
+```
+
+Mint the session token with `jose`:
+
+```typescript
+import { SignJWT } from 'jose';
+
+export async function mintSessionJwt(publicKey: string, secret: Uint8Array) {
+  return new SignJWT({})
+    .setProtectedHeader({ alg: 'HS256' })
+    .setSubject(publicKey)
+    .setIssuer('nextellar-gateway')
+    .setIssuedAt()
+    .setExpirationTime('15m')
+    .sign(secret);
+}
+```
+
+For production hardening, align the challenge shape with SEP-10 (including `web_auth_domain` manage-data operations and server-key co-signing) rather than the simplified memo-nonce variant above — the verification mechanics stay the same.
+
+---
+
+## Rate Limiting Design
+
+Rate limit **per verified identity**, falling back to IP for anonymous traffic. Because the JWT's `sub` is the wallet address, per-wallet quotas fall out naturally:
+
+| Tier      | Identity key          | Reads/min | Submissions/min |
+| --------- | --------------------- | --------- | --------------- |
+| Anonymous | client IP             | 30        | 2               |
+| Wallet    | `wallet:{public key}` | 120       | 10              |
+| Partner   | partner ID            | 600       | 30              |
+
+These are starting points, not gospel — tune against your measured Horizon usage and the upstream limits you observe. Token bucket implementation:
+
+```typescript
+// lib/gateway/ratelimit.ts
+type Bucket = { tokens: number; updatedAt: number };
+
+const buckets = new Map<string, Bucket>();
+
+// Periodic sweep so idle identities do not accumulate forever.
+setInterval(() => {
+  const cutoff = Date.now() - 10 * 60_000;
+  for (const [key, bucket] of buckets) {
+    if (bucket.updatedAt < cutoff) buckets.delete(key);
+  }
+}, 60_000).unref();
+
+export function takeToken(
+  key: string,
+  perMinute: number
+): { ok: true } | { ok: false; retryAfterSeconds: number } {
+  const now = Date.now();
+  const burst = Math.max(perMinute, Math.ceil(perMinute / 2));
+  const bucket = buckets.get(key) ?? { tokens: burst, updatedAt: now };
+
+  const refilled = Math.min(
+    burst,
+    bucket.tokens + ((now - bucket.updatedAt) / 60_000) * perMinute
+  );
+
+  if (refilled >= 1) {
+    buckets.set(key, { tokens: refilled - 1, updatedAt: now });
+    return { ok: true };
+  }
+
+  buckets.set(key, { tokens: refilled, updatedAt: now });
+  const missing = 1 - refilled;
+  return {
+    ok: false,
+    retryAfterSeconds: Math.max(1, Math.ceil((missing / perMinute) * 60)),
+  };
+}
+```
+
+Behavioral rules:
+
+- Reject locally with `429` and a computed `Retry-After` **before** hitting Horizon whenever a bucket is empty.
+- When _Horizon_ answers `429` (you exceeded its per-IP limit), surface the same status and its `Retry-After` to the client unchanged, and trip a circuit-breaker that lowers your local budgets temporarily.
+- The in-memory `Map` above is per-instance; swap it for Redis (e.g. a Lua token-bucket script) the moment you run more than one replica.
+
+---
+
+## Caching Considerations
+
+Ledger-closed Stellar data is **append-only**: once a ledger closes (roughly every 5 seconds), its contents never change. That gives a clean immutability model:
+
+| Data                                                                | Mutability                            | Cache strategy                                               |
+| ------------------------------------------------------------------- | ------------------------------------- | ------------------------------------------------------------ |
+| Single ledger (`/ledgers/{seq}`)                                    | Immutable                             | Long TTL (hours–days)                                        |
+| Single transaction (`/transactions/{hash}`)                         | Immutable                             | Long TTL                                                     |
+| Single operation (`/operations/{id}`)                               | Immutable                             | Long TTL                                                     |
+| Collections (`/transactions`, `/operations`, `/effects`, `/trades`) | Grow every ledger                     | Short TTL (seconds); cursor-stable URLs paginate cleanly     |
+| Account details (`/accounts/{id}`)                                  | Change on every relevant ledger close | Very short TTL (1–2s) or stale-while-revalidate              |
+| `/order_book`, `/paths`                                             | Volatile market data                  | Tiny TTL (≈1s) or none                                       |
+| Streaming requests                                                  | Continuous                            | Never cached, never buffered                                 |
+| `POST /transactions`                                                | Side effect                           | Never cached; deduplicate retries by envelope hash if useful |
+
+Additional guidance:
+
+- **Cache key = normalized URL including query.** `cursor`, `limit`, and `order` change the response; ignoring them serves wrong pages. The upside: cursor-based page URLs are stable, so paginated history caches beautifully.
+- **Serve `stale-while-revalidate`** for account details — showing a balance up to ~5 seconds old while refreshing in the background is usually acceptable UX and dramatically cuts upstream load.
+- **Cap memory.** Bound the cache (entry count or byte size) with simple eviction; a shared Redis keeps replicas consistent.
+- **Never transform XDR.** Cache the exact upstream bytes so `result_xdr` and friends round-trip bit-for-bit.
+
+---
+
+## Observability
+
+You cannot operate what you cannot see. Four pillars:
+
+### Metrics
+
+Expose Prometheus-style metrics on an internal-only port (never behind the proxied routes):
+
+- `http_requests_total{route, method, status, tier}` — traffic shape per route template.
+- `http_request_duration_seconds{route}` — latency histogram; watch p50/p95/p99.
+- `gateway_cache_requests_total{result="hit|miss"}` — cache hit ratio.
+- `gateway_upstream_responses_total{status}` — especially `429` and `5xx` counts from Horizon.
+- `gateway_active_streams` — live SSE connections (a leak here exhausts sockets).
+
+### Structured logging
+
+One JSON line per request with fixed fields — `request_id`, `route_template`, `tier`, `status`, `duration_ms`, `cache` — and **no free-form URLs**, since raw paths and query strings mix high-cardinality identifiers with occasionally sensitive data (memos, cursors). Redact aggressively and consistently; see the [Log Redaction Strategy guide](/docs/guides/log-redaction-strategy) for field-level rules.
+
+```typescript
+// lib/gateway/logger.ts
+export function logEvent(fields: Record<string, unknown>) {
+  console.log(JSON.stringify({ ts: new Date().toISOString(), ...fields }));
+}
+```
+
+### Tracing
+
+Enable OpenTelemetry with automatic `fetch` instrumentation, propagate W3C `traceparent` headers upstream, and attach low-cardinality attributes (`horizon.route`, `gateway.tier`) so a slow request can be traced from browser → gateway → Horizon across dashboards.
+
+### Alerting
+
+| Signal                                     | Threshold (example)          | Action                                                       |
+| ------------------------------------------ | ---------------------------- | ------------------------------------------------------------ |
+| p95 gateway latency                        | above 800ms for 5 min        | Page on-call; check upstream health probe                    |
+| Upstream `429` rate                        | above 5/min sustained        | Throttle tiers automatically; investigate abusive identities |
+| Upstream `5xx` rate                        | above 1% over 5 min          | Failover posture; enable stale-if-error serving              |
+| Active streams dropping                    | spike in connect/close churn | Check LB idle timeouts and Horizon stability                 |
+| Error-budget burn (all `5xx` from gateway) | 2x normal pace               | Freeze deploys; consult the runbook                          |
+
+Wire alerts to your incident process; the [Incident Response Runbook](/docs/guides/incident-response-runbook) covers roles and escalation. Broader instrumentation patterns for Stellar apps are described in [Transaction Observability](/docs/guides/transaction-observability).
+
+---
+
+## Working Sample: Next.js Route Handler Gateway
+
+A complete, minimal-but-real gateway as a Next.js App Router catch-all route. File layout:
+
+```
+lib/gateway/
+  config.ts      # upstream URL, allowlist, TTL policy
+  auth.ts        # identity resolution (JWT / API key / anonymous)
+  ratelimit.ts   # token bucket (shown above)
+  cache.ts       # tiny bounded response cache
+  logger.ts      # structured logging (shown above)
+app/api/horizon/
+  [...path]/route.ts   # the gateway itself
+```
+
+```typescript
+// lib/gateway/config.ts
+export const HORIZON_URL =
+  process.env.HORIZON_UPSTREAM_URL ?? 'https://horizon-testnet.stellar.org';
+
+/** Default-deny allowlist of proxied Horizon prefixes. */
+export const ALLOWED_PREFIXES = [
+  '/accounts',
+  '/transactions',
+  '/operations',
+  '/payments',
+  '/effects',
+  '/ledgers',
+  '/offers',
+  '/trades',
+  '/assets',
+  '/order_book',
+  '/paths',
+  '/fee_stats',
+] as const;
+
+/** The only writable upstream path. */
+export const SUBMIT_PATH = '/transactions';
+
+/** Short TTLs (seconds) applied to collection endpoints. */
+export const COLLECTION_TTL: Record<string, number> = {
+  '/accounts': 2,
+  '/transactions': 20,
+  '/operations': 20,
+  '/payments': 20,
+  '/effects': 20,
+  '/ledgers': 20,
+  '/trades': 20,
+  '/offers': 5,
+  '/assets': 300,
+  '/order_book': 1,
+  '/paths': 1,
+  '/fee_stats': 10,
+};
+
+/** Ledger-closed singleton resources never change — cache for a day. */
+export const IMMUTABLE_TTL_SECONDS = 86_400;
+
+export const SINGLE_RESOURCE_PATTERNS = [
+  /^\/ledgers\/\d+$/,
+  /^\/transactions\/[0-9a-f]{64}$/i,
+  /^\/operations\/\d+$/,
+];
+
+export function cacheTtlSeconds(pathname: string): number | null {
+  if (SINGLE_RESOURCE_PATTERNS.some((re) => re.test(pathname))) {
+    return IMMUTABLE_TTL_SECONDS;
+  }
+  const prefix = ALLOWED_PREFIXES.find(
+    (p) => pathname === p || pathname.startsWith(`${p}/`)
+  );
+  return prefix ? (COLLECTION_TTL[prefix] ?? null) : null;
+}
+```
+
+```typescript
+// lib/gateway/cache.ts
+type Entry = { body: string; expiresAt: number };
+
+const MAX_ENTRIES = 500;
+const store = new Map<string, Entry>();
+
+export function cacheGet(key: string): string | null {
+  const hit = store.get(key);
+  if (!hit) return null;
+  if (hit.expiresAt < Date.now()) {
+    store.delete(key);
+    return null;
+  }
+  return hit.body;
+}
+
+export function cacheSet(key: string, body: string, ttlSeconds: number): void {
+  if (store.size >= MAX_ENTRIES) {
+    const oldest = store.keys().next().value;
+    if (oldest !== undefined) store.delete(oldest);
+  }
+  store.set(key, { body, expiresAt: Date.now() + ttlSeconds * 1000 });
+}
+```
+
+```typescript
+// lib/gateway/auth.ts
+import { createHash, timingSafeEqual } from 'node:crypto';
+import { jwtVerify } from 'jose';
+import type { NextRequest } from 'next/server';
+
+const API_KEY_HASHES = (process.env.GATEWAY_API_KEY_HASHES ?? '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+const JWT_SECRET = new TextEncoder().encode(
+  process.env.GATEWAY_JWT_SECRET ?? ''
+);
+
+export type Identity = {
+  tier: 'anonymous' | 'wallet' | 'partner';
+  quotaKey: string;
+  readQuotaPerMin: number;
+  writeQuotaPerMin: number;
+};
+
+const ANON = {
+  tier: 'anonymous',
+  readQuotaPerMin: 30,
+  writeQuotaPerMin: 2,
+} as const;
+const WALLET = {
+  tier: 'wallet',
+  readQuotaPerMin: 120,
+  writeQuotaPerMin: 10,
+} as const;
+const PARTNER = {
+  tier: 'partner',
+  readQuotaPerMin: 600,
+  writeQuotaPerMin: 30,
+} as const;
+
+export async function resolveIdentity(req: NextRequest): Promise<Identity> {
+  const ip =
+    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
+  const auth = req.headers.get('authorization') ?? '';
+
+  if (auth.startsWith('Bearer ')) {
+    const token = auth.slice('Bearer '.length);
+
+    // 1. Wallet session JWT -> sub is the verified G... address.
+    try {
+      const { payload } = await jwtVerify(token, JWT_SECRET);
+      if (typeof payload.sub === 'string' && payload.sub.startsWith('G')) {
+        return { ...WALLET, quotaKey: `wallet:${payload.sub}` };
+      }
+    } catch {
+      // Not a valid session JWT; fall through to the API-key check.
+    }
+
+    // 2. Static partner key (accepted raw for simplicity; compare hashed).
+    const hashed = createHash('sha256').update(token).digest();
+    const allowed = API_KEY_HASHES.some((hex) => {
+      const expected = Buffer.from(hex, 'hex');
+      return (
+        expected.length === hashed.length && timingSafeEqual(expected, hashed)
+      );
+    });
+    if (allowed) return { ...PARTNER, quotaKey: 'partner:shared' };
+  }
+
+  // 3. Anonymous fallback, throttled per client IP.
+  return { ...ANON, quotaKey: `ip:${ip}` };
+}
+```
+
+```typescript
+// app/api/horizon/[...path]/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import {
+  ALLOWED_PREFIXES,
+  COLLECTION_TTL,
+  HORIZON_URL,
+  SUBMIT_PATH,
+  cacheTtlSeconds,
+} from '@/lib/gateway/config';
+import { resolveIdentity } from '@/lib/gateway/auth';
+import { takeToken } from '@/lib/gateway/ratelimit';
+import { cacheGet, cacheSet } from '@/lib/gateway/cache';
+import { logEvent } from '@/lib/gateway/logger';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
+type Ctx = { params: Promise<{ path: string[] }> };
+
+function jsonResponse(
+  status: number,
+  payload: unknown,
+  extraHeaders: Record<string, string> = {}
+) {
+  return NextResponse.json(payload, {
+    status,
+    headers: { via: 'nextellar-gateway', ...extraHeaders },
+  });
+}
+
+function matchPrefix(pathname: string): string | null {
+  for (const prefix of ALLOWED_PREFIXES) {
+    if (pathname === prefix || pathname.startsWith(`${prefix}/`)) return prefix;
+  }
+  return null;
+}
+
+async function proxy(req: NextRequest, segments: string[]): Promise<Response> {
+  const started = performance.now();
+  const requestId = crypto.randomUUID();
+  const routePath = `/${segments.join('/')}`;
+  // Low-cardinality template for logs/metrics (no ids, no query).
+  const routeTemplate = `/${segments.slice(0, 2).join('/')}`;
+
+  const prefix = matchPrefix(routePath);
+  if (!prefix) {
+    return jsonResponse(404, { error: 'route_not_allowed' });
+  }
+
+  const identity = await resolveIdentity(req);
+  const isSubmit = req.method === 'POST';
+
+  if (isSubmit && routePath !== SUBMIT_PATH) {
+    return jsonResponse(405, { error: 'method_not_allowed' });
+  }
+
+  const perMinute = isSubmit
+    ? identity.writeQuotaPerMin
+    : identity.readQuotaPerMin;
+  const limit = takeToken(identity.quotaKey, perMinute);
+  if (!limit.ok) {
+    logEvent({
+      level: 'warn',
+      msg: 'rate_limited',
+      request_id: requestId,
+      route: routeTemplate,
+      tier: identity.tier,
+    });
+    return jsonResponse(
+      429,
+      { error: 'rate_limited', retry_after_seconds: limit.retryAfterSeconds },
+      { 'retry-after': String(limit.retryAfterSeconds) }
+    );
+  }
+
+  const wantsStream = (req.headers.get('accept') ?? '').includes(
+    'text/event-stream'
+  );
+  const cacheable = !isSubmit && !wantsStream && req.method === 'GET';
+  const ttl = cacheTtlSeconds(routePath);
+  const cacheKey = `${routePath}?${req.nextUrl.searchParams}`;
+
+  if (cacheable && ttl) {
+    const hit = cacheGet(cacheKey);
+    if (hit !== null) {
+      logEvent({
+        level: 'info',
+        msg: 'request',
+        request_id: requestId,
+        route: routeTemplate,
+        status: 200,
+        tier: identity.tier,
+        cache: 'hit',
+        duration_ms: Math.round(performance.now() - started),
+      });
+      return new Response(hit, {
+        status: 200,
+        headers: {
+          'content-type': 'application/json; charset=utf-8',
+          'x-cache': 'HIT',
+          'x-request-id': requestId,
+          via: 'nextellar-gateway',
+        },
+      });
+    }
+  }
+
+  const upstream = new URL(routePath, HORIZON_URL);
+  upstream.search = req.nextUrl.search;
+
+  // Streams stay open indefinitely; reads get a hard deadline.
+  const controller = new AbortController();
+  const abortTimer = wantsStream
+    ? undefined
+    : setTimeout(() => controller.abort(), 10_000);
+
+  try {
+    const res = await fetch(upstream, {
+      method: req.method,
+      headers: {
+        accept: req.headers.get('accept') ?? 'application/json',
+        'user-agent': 'nextellar-gateway/1.0',
+        ...(isSubmit
+          ? {
+              'content-type':
+                req.headers.get('content-type') ??
+                'application/x-www-form-urlencoded',
+            }
+          : {}),
+        ...(req.headers.get('traceparent')
+          ? { traceparent: req.headers.get('traceparent') as string }
+          : {}),
+      },
+      body: isSubmit ? await req.text() : undefined,
+      signal: controller.signal,
+      cache: 'no-store',
+    });
+
+    // Pass upstream pressure straight through to the caller.
+    if (res.status === 429) {
+      const retryAfter = res.headers.get('retry-after') ?? '1';
+      return jsonResponse(
+        429,
+        { error: 'upstream_rate_limited' },
+        { 'retry-after': retryAfter }
+      );
+    }
+
+    // Live SSE: pipe bytes as they arrive; no buffering, no caching.
+    if (wantsStream && res.ok && res.body) {
+      logEvent({
+        level: 'info',
+        msg: 'stream_opened',
+        request_id: requestId,
+        route: routeTemplate,
+        tier: identity.tier,
+      });
+      return new Response(res.body, {
+        status: 200,
+        headers: {
+          'content-type': 'text/event-stream',
+          'cache-control': 'no-store, no-transform',
+          'x-accel-buffering': 'no',
+          'x-request-id': requestId,
+          via: 'nextellar-gateway',
+        },
+      });
+    }
+
+    const text = await res.text();
+
+    if (cacheable && ttl && res.ok) {
+      cacheSet(cacheKey, text, ttl);
+    }
+
+    logEvent({
+      level: res.ok ? 'info' : 'error',
+      msg: 'request',
+      request_id: requestId,
+      route: routeTemplate,
+      status: res.status,
+      tier: identity.tier,
+      cache: 'miss',
+      duration_ms: Math.round(performance.now() - started),
+    });
+
+    return new Response(text, {
+      status: res.status,
+      headers: {
+        'content-type': res.headers.get('content-type') ?? 'application/json',
+        'cache-control':
+          cacheable && ttl
+            ? `public, max-age=${Math.min(ttl, 5)}, stale-while-revalidate=${ttl}`
+            : 'no-store',
+        'x-cache': 'MISS',
+        'x-request-id': requestId,
+        via: 'nextellar-gateway',
+      },
+    });
+  } catch (err) {
+    const aborted = err instanceof Error && err.name === 'AbortError';
+    logEvent({
+      level: 'error',
+      msg: aborted ? 'upstream_timeout' : 'upstream_error',
+      request_id: requestId,
+      route: routeTemplate,
+      tier: identity.tier,
+      duration_ms: Math.round(performance.now() - started),
+    });
+    return jsonResponse(aborted ? 504 : 502, {
+      error: aborted ? 'upstream_timeout' : 'upstream_error',
+    });
+  } finally {
+    if (abortTimer !== undefined) clearTimeout(abortTimer);
+  }
+}
+
+export async function GET(req: NextRequest, ctx: Ctx) {
+  const { path } = await ctx.params;
+  return proxy(req, path ?? []);
+}
+
+export const POST = GET;
+```
+
+Environment configuration:
+
+```bash
+# .env.local
+HORIZON_UPSTREAM_URL=https://horizon-testnet.stellar.org
+GATEWAY_JWT_SECRET=replace-with-at-least-32-random-bytes
+GATEWAY_API_KEY_HASHES=
+# ^ comma-separated sha256 hex digests of partner keys, e.g.
+#   echo -n "$KEY" | openssl dgst -sha256 -hex
+```
+
+Implementation notes:
+
+- `COLLECTION_TTL` is imported for completeness; the effective per-request TTL flows through `cacheTtlSeconds`.
+- The `x-accel-buffering: no` header disables nginx-style response buffering so SSE survives reverse proxies.
+- Submission bodies are forwarded verbatim (`application/x-www-form-urlencoded` with the `tx` field), so Horizon receives exactly the envelope the wallet produced — the response's `envelope_xdr`, `result_xdr`, and `result_meta_xdr` come back untouched.
+- Swap the in-memory cache and token bucket for Redis before running multiple replicas.
+
+---
+
+## Verify It Works
+
+With `npm run dev` running on `localhost:3000`:
+
+```bash
+# 1. Fund a test account via friendbot, then read it through the gateway.
+PUB=GXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXAAAAAAA
+curl -s "https://friendbot.stellar.org?addr=$PUB" > /dev/null
+curl -s "http://localhost:3000/api/horizon/accounts/$PUB" | jq '{sequence, balances}'
+
+# 2. Anonymous reads work but draw from the small per-IP pool.
+curl -si "http://localhost:3000/api/horizon/ledgers?limit=1" \
+  | grep -Ei '^(HTTP|x-ratelimit|via)'
+
+# 3. Immutable single resources hit the cache on repeat views.
+TX_HASH=PUT_A_TRANSACTION_HASH_HERE
+curl -si "http://localhost:3000/api/horizon/transactions/$TX_HASH" | grep -i x-cache
+
+# 4. Submit a signed transaction with a wallet JWT (XDR passthrough, never cached).
+curl -s -X POST "http://localhost:3000/api/horizon/transactions" \
+  -H "Authorization: Bearer $WALLET_JWT" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  --data-urlencode "tx=$ENVELOPE_XDR" | jq '{hash, successful, result_xdr}'
+
+# 5. Streaming remains a live SSE connection end to end.
+curl -N -H "Accept: text/event-stream" \
+  "http://localhost:3000/api/horizon/ledgers?cursor=now&limit=1"
+
+# 6. Unknown routes are denied before any network call.
+curl -si "http://localhost:3000/api/horizon/some/future/path" | grep HTTP
+```
+
+Expected results: step 1 shows the funded sequence number and native balance; step 2 includes `via: nextellar-gateway`; step 3 flips from `x-cache: MISS` to `x-cache: HIT` on the second identical request; step 4 echoes Horizon's own submission response; step 5 prints `data:` events roughly every 5 seconds as testnet ledgers close; step 6 returns `404 route_not_allowed`.
+
+---
+
+## Summary
+
+- Horizon is open and IP-rate-limited; a gateway adds identity, quotas, caching, and observability — but concentrates upstream pressure onto your egress IPs, so manage it deliberately.
+- Route with a default-deny allowlist, rewrite `/api/horizon/*` transparently, permit POST only for `/transactions`, and treat SSE streams as untouchable pass-through pipes.
+- Authenticate in tiers: anonymous per-IP, hashed static keys for partners, and wallet-signed challenges minted into short-lived JWTs whose `sub` enables natural per-wallet rate limits.
+- Exploit ledger immutability: cache singletons for days, collections for seconds, volatile market data for about a second, and never cache submissions or streams.
+- Instrument everything — route-template metrics, redacted JSON logs, propagated traces — and alert on latency, upstream `429`/`5xx` rates, and stream churn.
+- Always honor upstream `Retry-After`, both to be polite and to protect your own budget.
+
+---
+
+## Related docs
+
+- [Rate Limiting Horizon Requests](/docs/guides/rate-limiting-horizon-requests) — Quota design fundamentals for Horizon traffic
+- [Horizon vs Soroban RPC](/docs/guides/horizon-vs-soroban-rpc) — Choosing the right Stellar API surface
+- [dApp DoS Hardening](/docs/guides/dapp-dos-hardening) — Defense-in-depth against abusive traffic
+- [Log Redaction Strategy](/docs/guides/log-redaction-strategy) — Field-level rules for safe structured logs
+- [Incident Response Runbook](/docs/guides/incident-response-runbook) — Operating procedures for gateway incidents
+- [Performance Budget Guide](/docs/guides/performance-budget-guide) — Latency budgets the gateway must meet
+- [Transaction Observability](/docs/guides/transaction-observability) — End-to-end transaction monitoring patterns

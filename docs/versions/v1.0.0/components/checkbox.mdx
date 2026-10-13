@@ -1,0 +1,89 @@
+---
+title: 'Checkbox'
+description: 'A fully customizable, theme-aware checkbox component built with Tailwind CSS and React. Perfect for accessible and elegant form controls.'
+date: 2025-04-20
+---
+
+# Checkbox Component Documentation
+
+The **Checkbox** component is a flexible, accessible checkbox built using Tailwind CSS and React. It supports all native `<input type="checkbox">` props and is fully theme-aware using your design tokens. It can be used standalone or composed inside custom labels.
+
+## Preview and Code Snippet
+
+<Tabs defaultValue="preview" size="sm" className="w-full">
+  <TabsList className="grid w-full md:w-[30%] grid-cols-2">
+    <Tab value="preview">Preview</Tab>
+    <Tab value="code">Code</Tab>
+  </TabsList>
+  <TabsContent value="preview">
+    <Preview>
+      <div className="flex flex-col gap-4 items-start">
+        <label className="flex items-center gap-2">
+          <Checkbox defaultChecked />
+          <Label>Default Checked</Label>
+        </label>
+        <label className="flex items-center gap-2">
+          <Checkbox />
+          <Label>Unchecked</Label>
+        </label>
+        <label className="flex items-center gap-2">
+          <Checkbox disabled />
+          <Label intent="muted">Disabled</Label>
+        </label>
+      </div>
+    </Preview>
+  </TabsContent>
+  <TabsContent value="code">
+    ```tsx
+    import { Checkbox } from "@/components/checkbox";
+
+    export default function Example() {
+      return (
+        <div className="flex flex-col gap-4 items-start">
+          <label className="flex items-center gap-2">
+            <Checkbox defaultChecked />
+            <Label >Default Checked</Label>
+          </label>
+          <label className="flex items-center gap-2">
+            <Checkbox />
+            <Label >Unchecked</Label>
+          </label>
+          <label className="flex items-center gap-2">
+            <Checkbox disabled />
+            <Label intent="muted">Disabled</Label>
+          </label>
+        </div>
+      );
+    }
+    ```
+
+  </TabsContent>
+</Tabs>
+
+## Props
+
+| Prop             | Type                                          | Default | Description                                                        |
+| ---------------- | --------------------------------------------- | ------- | ------------------------------------------------------------------ |
+| `id`             | `string`                                      |         | Optional ID for the checkbox element. Auto-generated if omitted.   |
+| `className`      | `string`                                      | `""`    | Additional classes for the outer box.                              |
+| `disabled`       | `boolean`                                     | `false` | Disables the checkbox.                                             |
+| `checked`        | `boolean`                                     |         | Controls the checkbox state (used in controlled components).       |
+| `defaultChecked` | `boolean`                                     |         | Initial checked state (for uncontrolled components).               |
+| `...props`       | `React.InputHTMLAttributes<HTMLInputElement>` |         | All other native checkbox attributes like `onChange`, `name`, etc. |
+
+## Styling
+
+- Fully theme-aware using Tailwind CSS classes like `peer-checked:bg-primary`.
+- Uses your design tokens (`border`, `primary`, etc.) to match your global theme.
+- Customize size, colors, or icons easily via Tailwind utility overrides.
+
+## Example Usage
+
+```tsx
+<Checkbox
+  name="acceptTerms"
+  checked={accepted}
+  onChange={(e) => setAccepted(e.target.checked)}
+  className="border-green-500"
+/>
+```

@@ -1,0 +1,91 @@
+---
+title: Create a JavaScript DeFi project
+description: Scaffold a JavaScript Next.js project with Nextellar's Stellar wallet, payment, trustline, balance, and offer-book features.
+date: 2026-09-24
+---
+
+# Create a JavaScript DeFi project
+
+Use the JavaScript DeFi template to start a Next.js application with Stellar wallet and decentralized finance (DeFi) building blocks, without TypeScript.
+
+## Scaffold the project
+
+Pass the `defi` template and JavaScript flag together. `js-defi` is the internal template directory, not a valid value for `--template`.
+
+```bash
+npx nextellar my-defi-app --template defi --javascript
+cd my-defi-app
+npm run dev
+```
+
+Use `-j` as the short form of `--javascript`. You can also select another supported package manager:
+
+```bash
+npx nextellar my-defi-app --template defi -j --package-manager pnpm
+```
+
+## Configure the generated application
+
+Copy the environment template before starting development:
+
+```bash
+cp .env.example .env.local
+```
+
+Review these public environment variables:
+
+| Variable                  | Purpose                                                |
+| ------------------------- | ------------------------------------------------------ |
+| `NEXT_PUBLIC_HORIZON_URL` | Selects the Stellar Horizon server                     |
+| `NEXT_PUBLIC_SOROBAN_URL` | Selects the Soroban remote procedure call (RPC) server |
+| `NEXT_PUBLIC_NETWORK`     | Selects `TESTNET` or `PUBLIC`                          |
+| `NEXT_PUBLIC_WALLETS`     | Lists enabled wallet adapters                          |
+| `NEXT_PUBLIC_APP_NAME`    | Sets the application name                              |
+| `NEXT_PUBLIC_CONTRACT_ID` | Identifies an optional deployed contract               |
+
+The generated defaults target Stellar testnet. Change the network and endpoints together before connecting a mainnet wallet.
+
+## Use the included DeFi features
+
+The template includes JavaScript hooks for common Stellar operations:
+
+| Hook                 | Use it to                                           |
+| -------------------- | --------------------------------------------------- |
+| `useStellarWallet`   | Connect and disconnect supported wallets            |
+| `useStellarBalances` | Load native XLM and issued-asset balances           |
+| `useStellarPayment`  | Build and submit Stellar payments                   |
+| `useTrustlines`      | Read trustlines and build change-trust transactions |
+| `useOfferBook`       | Read Stellar decentralized exchange offers          |
+
+The generated UI includes wallet connection, network switching, balances, send and receive forms, transaction status, and error handling. Storybook stories cover the reusable interface components.
+
+## Understand the JavaScript project structure
+
+The scaffold uses `.js` and `.jsx` files with `jsconfig.json`. It doesn't generate `tsconfig.json` or TypeScript source files.
+
+```text
+src/
+├── app/
+├── components/
+├── config/networks.js
+├── contexts/WalletProvider.jsx
+├── hooks/
+└── lib/
+```
+
+The `WalletProvider` context stores the active wallet and network state. The files in `src/hooks` expose Stellar operations to your components.
+
+## Know the template limits
+
+The JavaScript DeFi template doesn't include the Soroban contract hooks or transaction-history hook from the full default template. Add Soroban contracts during scaffolding with `--with-contracts`, or choose the default template when you need its broader hook set.
+
+```bash
+npx nextellar my-defi-app --template defi --javascript --with-contracts
+```
+
+## Related pages
+
+- [Scaffolding templates](/docs/cli/templates)
+- [Template comparison](/docs/cli/template-comparison)
+- [Using JavaScript](/docs/getting-started/javascript)
+- [CLI flags and options](/docs/cli/flags)

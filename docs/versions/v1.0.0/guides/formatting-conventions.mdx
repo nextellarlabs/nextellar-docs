@@ -1,0 +1,82 @@
+---
+title: Formatting Conventions
+description: Common heading, list, code, link, and inline formatting conventions used across Nextellar documentation.
+date: 2026-05-29
+---
+
+# Formatting Conventions
+
+Use consistent formatting so docs are easy to scan and render cleanly. This page documents the conventions used for headings, lists, code, links, and emphasis.
+
+## Headings
+
+- Use a single `#` heading at the top of each page.
+- Use sentence case and keep headings short.
+- Avoid punctuation at the end of headings.
+- Use nested headings only for structure: `##`, `###`, etc.
+
+Example:
+
+```md
+# Formatting Conventions
+
+## Headings
+```
+
+## Lists
+
+- Use hyphens `-` for bulleted lists.
+- Keep list items short and focused.
+- Start each item with a capital letter.
+- Use nested lists only when a second level improves clarity.
+
+Example:
+
+```md
+- Use a single H1 per page.
+- Keep list items concise.
+```
+
+## Code formatting
+
+- Wrap inline code with backticks: `` `command` ``.
+- Use fenced code blocks with a language label.
+- Keep code examples simple and copy/paste ready.
+- Do not add trailing punctuation inside code fences.
+
+Example:
+
+```bash
+pnpm build:content
+```
+
+## Inline emphasis
+
+- Use `**bold**` for strong emphasis.
+- Use `*italic*` for lighter emphasis.
+- Do not mix `*` and `_` markers in the same phrase.
+- Prefer plain language over emphasis when possible.
+
+Example:
+
+```md
+Use **bold** text for important terms and _italic_ text for emphasis.
+```
+
+## Links
+
+- Use absolute internal links that start with `/docs/`.
+- Use descriptive link text instead of "click here".
+- Keep external links clear and short.
+
+Example:
+
+```md
+[Read the contributing guide](/docs/guides/contributing)
+```
+
+## Keep it easy to scan
+
+- Use short paragraphs with one or two sentences.
+- Add examples for rules that might be unclear.
+- Avoid long blocks of uninterrupted text.

@@ -42,6 +42,16 @@ yarn-error.log*
 next-env.d.ts
 
 .contentlayer
+.pnpm-store
 fix.md
 
 .keybase
+
+# Root-level generated reports and debugging artifacts
+/*_SUMMARY.md
+/debug-eslint.*
+/eslint-err.txt
+/eslint-error.log
+/temp_find_bullets.py
+/temp_generated.mdx
+/test_output.txt

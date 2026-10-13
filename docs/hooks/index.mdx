@@ -38,6 +38,23 @@ Hooks automatically use `WalletProvider` settings when available.
 
 Below is the complete list of hooks included in Nextellar projects. These React hooks abstract away the complexities of the Stellar SDK, providing a seamless developer experience. Browse the categories below to find the specific tools for your integration needs.
 
+## Hooks Overview Matrix
+
+A quick reference of every hook, its category, and what it does. Click a hook name to open its full reference page.
+
+| Hook                                                           | Category    | Purpose                                                                               |
+| -------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------- |
+| [`useStellarWallet`](/docs/hooks/use-stellar-wallet)           | Wallet      | Connect, disconnect, and sign with Freighter, Albedo, Lobstr, xBull, or Hana wallets. |
+| [`useStellarBalances`](/docs/hooks/use-stellar-balances)       | Account     | Fetch and poll XLM and custom asset balances, handling unfunded accounts gracefully.  |
+| [`useTrustlines`](/docs/hooks/use-trustlines)                  | Account     | Query an account's trustlines and build change-trust XDRs to add or remove them.      |
+| [`useTransactionHistory`](/docs/hooks/use-transaction-history) | Account     | Load and paginate an account's transaction and operation history with cursors.        |
+| [`useStellarPayment`](/docs/hooks/use-stellar-payment)         | Transaction | Build payment XDRs for wallet signing and submit signed payments to Horizon.          |
+| [`useOfferBook`](/docs/hooks/use-offer-book)                   | DEX         | Query Stellar DEX orderbook bids and asks for an asset pair with optional polling.    |
+| [`useSorobanContract`](/docs/hooks/use-soroban-contract)       | Soroban     | Read contract state via simulation and build invoke transactions for signing.         |
+| [`useSorobanEvents`](/docs/hooks/use-soroban-events)           | Soroban     | Subscribe to Soroban contract events with cursor-based pagination and polling.        |
+
+Related building blocks: [`WalletProvider`](/docs/hooks/wallet-provider) supplies shared config that every hook auto-consumes, [`WalletConnectButton`](/docs/hooks/wallet-connect-button) is a ready-made UI on top of `useStellarWallet`, and [Hook Reference & Edge Cases](/docs/hooks/hook-reference-edge-cases) covers failure modes for each hook.
+
 ---
 
 ## **Wallet & Account Hooks**
@@ -92,7 +109,7 @@ Nextellar's hooks are designed to stay out of your way and let you build fast. E
 
 All hooks automatically consume configuration from `WalletProvider` when available:
 
-`````tsx
+```tsx
 // Provider sets global config
 <WalletProvider horizonUrl="https://horizon.stellar.org">
   <App />
@@ -119,12 +136,12 @@ const { balances } = useStellarBalances(publicKey, {
 
 Hooks work without a provider too:
 
-````tsx
+```tsx
 // No WalletProvider needed
 const { balances } = useStellarBalances(publicKey, {
   horizonUrl: 'https://horizon-testnet.stellar.org',
 });
-```css
+```
 
 ---
 
@@ -140,13 +157,13 @@ const { data, loading, error, refresh } = useSomeHook();
 if (loading) return <Spinner />;
 if (error) return <button onClick={refresh}>Retry</button>;
 return <DisplayData data={data} />;
-`````
+```
 
 ### XDR Building Pattern
 
 Transaction hooks follow a consistent pattern for wallet integration:
 
-````tsx
+```tsx
 // 1. Build unsigned XDR
 const xdr = await buildPaymentXDR({ from, to, amount });
 
@@ -155,7 +172,7 @@ const signedXdr = await wallet.signTransaction(xdr);
 
 // 3. Submit signed transaction
 const result = await submitSignedXDR(signedXdr);
-```typescript
+```
 
 ---
 
@@ -165,4 +182,3 @@ const result = await submitSignedXDR(signedXdr);
 - [CLI Commands](/docs/cli/commands) — Scaffold options
 - [WalletProvider](/docs/hooks/wallet-provider) — Global wallet context
 - [Hook Error Handling](/docs/guides/hook-error-handling) — Shared recovery patterns and common failures
-````

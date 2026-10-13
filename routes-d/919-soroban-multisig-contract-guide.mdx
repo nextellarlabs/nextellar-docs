@@ -1,0 +1,584 @@
+---
+title: Comprehensive Soroban Multisig Contract Guide
+description: Document a Soroban multisig contract pattern — proposal, sign, execute, and threshold rules — with a working sample.
+date: 2026-08-28
+---
+
+# Comprehensive Soroban Multisig Contract Guide
+
+A **multisig contract** requires a threshold of designated owners to approve an action before it executes — the on-chain equivalent of a joint bank account that needs, say, 2 of 3 signatures. Soroban has no native multi-party escrow primitive, so this pattern is built entirely in contract logic: a proposal is submitted, owners sign it one at a time in separate transactions, and once enough signatures accumulate, anyone can trigger execution. This guide covers the full lifecycle, threshold configuration, and a working sample that moves a token payment.
+
+---
+
+## Design Overview
+
+```
+Owner ──propose(to, amount, token)───► Multisig Contract
+                                            │
+                                            ├── require_auth() on proposer (must be an owner)
+                                            └── store Proposal { to, amount, token, approvals: [proposer], executed: false }
+
+Owner ──approve(proposal_id)─────────► Multisig Contract
+                                            │
+                                            ├── require_auth() on approver (must be an owner)
+                                            ├── assert approver not already in approvals
+                                            └── approvals.push(approver)
+
+Anyone ──execute(proposal_id)────────► Multisig Contract ──transfer(contract → to)──► Token Contract
+                                            │
+                                            ├── assert approvals.len() >= threshold
+                                            ├── assert NOT executed
+                                            └── mark executed = true (single-use)
+```
+
+The contract itself never decides _what_ counts as approval beyond "this address is an owner and hasn't already signed this proposal" — threshold logic is pure arithmetic (`approvals.len() >= threshold`), which is what makes the pattern auditable at a glance.
+
+<Note type="info">
+  This guide builds a **payment multisig** (approve → move tokens) as the worked
+  example, but the same proposal/approve/execute skeleton generalizes to any
+  action: swapping the payload for a cross-contract call lets the same contract
+  gate upgrades, parameter changes, or admin actions behind the same threshold.
+</Note>
+
+---
+
+## Project Layout
+
+```
+my-multisig-contract/
+├── Cargo.toml
+└── contracts/
+    └── multisig/
+        ├── Cargo.toml
+        └── src/
+            ├── lib.rs
+            ├── contract.rs
+            ├── storage.rs
+            └── test.rs
+```
+
+### Contract Cargo.toml
+
+```toml
+[package]
+name = "soroban-multisig-contract"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+soroban-sdk = "21.0.0"
+
+[dev-dependencies]
+soroban-sdk = { version = "21.0.0", features = ["testutils"] }
+
+[profile.release]
+opt-level = "z"
+overflow-checks = true
+debug = false
+panic = "abort"
+codegen-units = 1
+```
+
+---
+
+## Storage Layout
+
+```rust
+// contracts/multisig/src/storage.rs
+use soroban_sdk::{contracttype, vec, Address, Env, Vec};
+
+#[derive(Clone)]
+#[contracttype]
+pub struct Proposal {
+    pub to: Address,
+    pub token: Address,
+    pub amount: i128,
+    pub approvals: Vec<Address>,
+    pub executed: bool,
+}
+
+#[derive(Clone)]
+#[contracttype]
+pub enum DataKey {
+    Owners,
+    Threshold,
+    NextId,
+    Proposal(u64),
+}
+
+pub fn read_owners(env: &Env) -> Vec<Address> {
+    env.storage()
+        .instance()
+        .get(&DataKey::Owners)
+        .unwrap_or_else(|| vec![env])
+}
+
+pub fn read_threshold(env: &Env) -> u32 {
+    env.storage().instance().get(&DataKey::Threshold).unwrap_or(0)
+}
+
+pub fn is_owner(env: &Env, addr: &Address) -> bool {
+    read_owners(env).contains(addr)
+}
+
+pub fn next_id(env: &Env) -> u64 {
+    let id: u64 = env.storage().instance().get(&DataKey::NextId).unwrap_or(0);
+    env.storage().instance().set(&DataKey::NextId, &(id + 1));
+    id
+}
+
+pub fn read_proposal(env: &Env, id: u64) -> Proposal {
+    env.storage()
+        .persistent()
+        .get(&DataKey::Proposal(id))
+        .unwrap_or_else(|| panic!("proposal not found"))
+}
+
+pub fn write_proposal(env: &Env, id: u64, proposal: &Proposal) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::Proposal(id), proposal);
+    env.storage()
+        .persistent()
+        .extend_ttl(&DataKey::Proposal(id), 100_000, 100_000);
+}
+```
+
+---
+
+## Contract Implementation
+
+```rust
+// contracts/multisig/src/contract.rs
+#![no_std]
+use soroban_sdk::{contract, contractimpl, token, vec, Address, Env, Vec};
+use crate::storage::{
+    is_owner, next_id, read_owners, read_proposal, read_threshold, write_proposal, DataKey,
+    Proposal,
+};
+
+#[contract]
+pub struct MultisigContract;
+
+#[contractimpl]
+impl MultisigContract {
+    /// One-time setup. `threshold` must be between 1 and `owners.len()` inclusive.
+    pub fn initialize(env: Env, owners: Vec<Address>, threshold: u32) {
+        if env.storage().instance().has(&DataKey::Owners) {
+            panic!("already initialized");
+        }
+        assert!(!owners.is_empty(), "owners cannot be empty");
+        assert!(
+            threshold >= 1 && threshold <= owners.len(),
+            "threshold must be between 1 and owners.len()"
+        );
+
+        // Every owner must consent to being added to this multisig.
+        for owner in owners.iter() {
+            owner.require_auth();
+        }
+
+        env.storage().instance().set(&DataKey::Owners, &owners);
+        env.storage().instance().set(&DataKey::Threshold, &threshold);
+    }
+
+    /// Proposes a token payment. The proposer's approval is counted automatically.
+    pub fn propose(env: Env, proposer: Address, to: Address, token: Address, amount: i128) -> u64 {
+        proposer.require_auth();
+        assert!(is_owner(&env, &proposer), "not an owner");
+        assert!(amount > 0, "amount must be positive");
+
+        let id = next_id(&env);
+        write_proposal(
+            &env,
+            id,
+            &Proposal {
+                to,
+                token,
+                amount,
+                approvals: vec![&env, proposer],
+                executed: false,
+            },
+        );
+
+        env.events()
+            .publish((soroban_sdk::symbol_short!("propose"), id), amount);
+        id
+    }
+
+    /// Records `approver`'s approval on a proposal. Idempotent per owner —
+    /// re-approving does nothing but does not error, so a client can safely
+    /// retry.
+    pub fn approve(env: Env, approver: Address, proposal_id: u64) {
+        approver.require_auth();
+        assert!(is_owner(&env, &approver), "not an owner");
+
+        let mut proposal = read_proposal(&env, proposal_id);
+        assert!(!proposal.executed, "already executed");
+
+        if !proposal.approvals.contains(&approver) {
+            proposal.approvals.push_back(approver);
+            write_proposal(&env, proposal_id, &proposal);
+        }
+
+        env.events().publish(
+            (soroban_sdk::symbol_short!("approve"), proposal_id),
+            proposal.approvals.len(),
+        );
+    }
+
+    /// Executes a proposal once it has reached the owner threshold. Callable
+    /// by anyone — the authorization was already collected during `approve`.
+    pub fn execute(env: Env, proposal_id: u64) {
+        let mut proposal = read_proposal(&env, proposal_id);
+        assert!(!proposal.executed, "already executed");
+
+        let threshold = read_threshold(&env);
+        assert!(
+            proposal.approvals.len() >= threshold,
+            "not enough approvals"
+        );
+
+        let client = token::Client::new(&env, &proposal.token);
+        client.transfer(
+            &env.current_contract_address(),
+            &proposal.to,
+            &proposal.amount,
+        );
+
+        proposal.executed = true;
+        write_proposal(&env, proposal_id, &proposal);
+
+        env.events()
+            .publish((soroban_sdk::symbol_short!("execute"), proposal_id), proposal.amount);
+    }
+
+    /// Rotates owners/threshold. Requires a passing proposal executed through
+    /// this same contract in production — exposed directly here only to keep
+    /// the sample focused; see the note below.
+    pub fn get_proposal(env: Env, id: u64) -> Proposal {
+        read_proposal(&env, id)
+    }
+
+    pub fn get_owners(env: Env) -> Vec<Address> {
+        read_owners(&env)
+    }
+
+    pub fn get_threshold(env: Env) -> u32 {
+        read_threshold(&env)
+    }
+}
+```
+
+<Note type="warning">
+  This sample omits owner rotation (`add_owner` / `remove_owner` /
+  `change_threshold`) to keep the contract focused, but a production multisig
+  needs one. The correct way to add it is to make rotation **itself** a proposal
+  type gated behind the same threshold — never a function any single owner (or
+  the deployer) can call directly, or the "multisig" property is fake: one
+  compromised key could unilaterally lower the threshold to 1 and drain funds.
+</Note>
+
+---
+
+## Threshold Rules
+
+| Configuration                         | Approvals needed                      | Notes                                                                                                                                                                                                                                                                                                                                                        |
+| ------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `owners = [A, B, C]`, `threshold = 2` | Any 2 of 3                            | Standard "2-of-3" — tolerates one unavailable or compromised key.                                                                                                                                                                                                                                                                                            |
+| `owners = [A, B, C]`, `threshold = 3` | All 3                                 | Maximum safety, zero fault tolerance — any one missing key blocks execution forever.                                                                                                                                                                                                                                                                         |
+| `owners = [A, B, C]`, `threshold = 1` | Any 1                                 | Functionally _not_ a multisig — any single owner can act alone. `initialize` still allows this (it's a valid N-of-N configuration), but the guide's contract does not warn against it; validate this in your frontend if `threshold = 1` should be disallowed for your use case.                                                                             |
+| Duplicate addresses in `owners`       | Effectively lowers the real threshold | The sample's `initialize` does not currently deduplicate `owners`. A repeated address that signs once only appears once in `approvals` (since `approve` checks `contains`), so duplicates don't let one key sign twice — but they do inflate `owners.len()` used for validating `threshold`, so **always deduplicate `owners` before calling `initialize`.** |
+
+<Note type="warning">
+  `threshold` is measured against `approvals.len()`, which counts **distinct**
+  owners who called `approve` — not signatures in a cryptographic sense. Because
+  each `approve` call is its own authorized transaction
+  (`approver.require_auth()`), there is no way to forge an approval without that
+  owner's key signing a transaction, so this simpler counting model is safe.
+</Note>
+
+---
+
+## Client Invocation (TypeScript)
+
+```typescript
+// lib/multisig-client.ts
+import {
+  Contract,
+  Address,
+  TransactionBuilder,
+  BASE_FEE,
+  Networks,
+  nativeToScVal,
+  scValToNative,
+  rpc,
+} from '@stellar/stellar-sdk';
+
+const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL!;
+const MULTISIG_ID = process.env.NEXT_PUBLIC_MULTISIG_CONTRACT!;
+
+async function invoke(
+  method: string,
+  keypair: { publicKey(): string; sign(tx: any): void },
+  ...args: any[]
+) {
+  const server = new rpc.Server(RPC_URL);
+  const account = await server.getAccount(keypair.publicKey());
+  const contract = new Contract(MULTISIG_ID);
+
+  const tx = new TransactionBuilder(account, {
+    fee: BASE_FEE,
+    networkPassphrase: Networks.MAINNET,
+  })
+    .addOperation(contract.call(method, ...args))
+    .setTimeout(30)
+    .build();
+
+  const prepared = await server.prepareTransaction(tx);
+  keypair.sign(prepared);
+  return server.sendTransaction(prepared);
+}
+
+export function propose(
+  proposerKeypair: { publicKey(): string; sign(tx: any): void },
+  to: string,
+  token: string,
+  amount: bigint
+) {
+  return invoke(
+    'propose',
+    proposerKeypair,
+    new Address(proposerKeypair.publicKey()).toScVal(),
+    new Address(to).toScVal(),
+    new Address(token).toScVal(),
+    nativeToScVal(amount, { type: 'i128' })
+  );
+}
+
+export function approve(
+  approverKeypair: { publicKey(): string; sign(tx: any): void },
+  proposalId: bigint
+) {
+  return invoke(
+    'approve',
+    approverKeypair,
+    new Address(approverKeypair.publicKey()).toScVal(),
+    nativeToScVal(proposalId, { type: 'u64' })
+  );
+}
+
+export function execute(
+  // Any funded account can submit execute — approvals were already collected.
+  submitterKeypair: { publicKey(): string; sign(tx: any): void },
+  proposalId: bigint
+) {
+  return invoke(
+    'execute',
+    submitterKeypair,
+    nativeToScVal(proposalId, { type: 'u64' })
+  );
+}
+
+// Read-only: simulate rather than submit, no signature required.
+export async function getProposal(proposalId: bigint) {
+  const server = new rpc.Server(RPC_URL);
+  const contract = new Contract(MULTISIG_ID);
+  const account = new (await import('@stellar/stellar-sdk')).Account(
+    'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN',
+    '0'
+  );
+
+  const tx = new TransactionBuilder(account, {
+    fee: BASE_FEE,
+    networkPassphrase: Networks.MAINNET,
+  })
+    .addOperation(
+      contract.call('get_proposal', nativeToScVal(proposalId, { type: 'u64' }))
+    )
+    .setTimeout(5)
+    .build();
+
+  const sim = (await server.simulateTransaction(
+    tx
+  )) as rpc.SimulateTransactionSuccessResponse;
+  return scValToNative(sim.result!.retval);
+}
+```
+
+---
+
+## CLI Walkthrough
+
+```bash
+stellar contract build
+stellar contract deploy \
+  --wasm target/wasm32-unknown-unknown/release/soroban_multisig_contract.wasm \
+  --source alice --network testnet
+
+# 2-of-3 multisig
+stellar contract invoke --id <MULTISIG_ID> --source alice --network testnet -- \
+  initialize --owners '["<ALICE_G...>","<BOB_G...>","<CAROL_G...>"]' --threshold 2
+
+stellar contract invoke --id <MULTISIG_ID> --source alice --network testnet -- \
+  propose --proposer alice --to dave --token <TOKEN_ID> --amount 1000
+
+stellar contract invoke --id <MULTISIG_ID> --source bob --network testnet -- \
+  approve --approver bob --proposal_id 0
+
+# Threshold reached (alice's proposal counts as her approval + bob's) — anyone can execute:
+stellar contract invoke --id <MULTISIG_ID> --source alice --network testnet -- \
+  execute --proposal_id 0
+```
+
+---
+
+## Test Suite
+
+```rust
+// contracts/multisig/src/test.rs
+#![cfg(test)]
+use super::*;
+use soroban_sdk::testutils::Address as _;
+use soroban_sdk::{token, vec, Env};
+
+fn setup_token(env: &Env, admin: &Address) -> (Address, token::Client<'static>) {
+    let contract_id = env.register_stellar_asset_contract_v2(admin.clone());
+    let client = token::Client::new(env, &contract_id.address());
+    (contract_id.address(), client)
+}
+
+#[test]
+fn threshold_reached_executes_payment() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let alice = Address::generate(&env);
+    let bob = Address::generate(&env);
+    let carol = Address::generate(&env);
+    let dave = Address::generate(&env);
+
+    let (token_id, token_client) = setup_token(&env, &admin);
+
+    let contract_id = env.register(MultisigContract, ());
+    let client = MultisigContractClient::new(&env, &contract_id);
+    client.initialize(&vec![&env, alice.clone(), bob.clone(), carol.clone()], &2);
+    token_client.mint(&contract_id, &1_000);
+
+    let id = client.propose(&alice, &dave, &token_id, &400);
+    client.approve(&bob, &id); // 2nd approval reaches threshold
+
+    client.execute(&id);
+
+    assert_eq!(token_client.balance(&dave), 400);
+    assert_eq!(token_client.balance(&contract_id), 600);
+}
+
+#[test]
+#[should_panic(expected = "not enough approvals")]
+fn execute_below_threshold_panics() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let alice = Address::generate(&env);
+    let bob = Address::generate(&env);
+    let carol = Address::generate(&env);
+    let dave = Address::generate(&env);
+
+    let (token_id, token_client) = setup_token(&env, &admin);
+
+    let contract_id = env.register(MultisigContract, ());
+    let client = MultisigContractClient::new(&env, &contract_id);
+    client.initialize(&vec![&env, alice.clone(), bob.clone(), carol.clone()], &2);
+    token_client.mint(&contract_id, &1_000);
+
+    let id = client.propose(&alice, &dave, &token_id, &400);
+    client.execute(&id); // only 1 approval (the proposer's)
+}
+
+#[test]
+fn duplicate_approval_is_idempotent() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let alice = Address::generate(&env);
+    let bob = Address::generate(&env);
+    let carol = Address::generate(&env);
+    let dave = Address::generate(&env);
+
+    let (token_id, token_client) = setup_token(&env, &admin);
+
+    let contract_id = env.register(MultisigContract, ());
+    let client = MultisigContractClient::new(&env, &contract_id);
+    client.initialize(&vec![&env, alice.clone(), bob.clone(), carol.clone()], &2);
+    token_client.mint(&contract_id, &1_000);
+
+    let id = client.propose(&alice, &dave, &token_id, &400);
+    client.approve(&alice, &id); // proposer re-approves, must not double-count
+    client.approve(&alice, &id);
+
+    let proposal = client.get_proposal(&id);
+    assert_eq!(proposal.approvals.len(), 1); // still just alice
+}
+
+#[test]
+#[should_panic(expected = "already executed")]
+fn double_execute_panics() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let alice = Address::generate(&env);
+    let bob = Address::generate(&env);
+    let carol = Address::generate(&env);
+    let dave = Address::generate(&env);
+
+    let (token_id, token_client) = setup_token(&env, &admin);
+
+    let contract_id = env.register(MultisigContract, ());
+    let client = MultisigContractClient::new(&env, &contract_id);
+    client.initialize(&vec![&env, alice.clone(), bob.clone(), carol.clone()], &2);
+    token_client.mint(&contract_id, &1_000);
+
+    let id = client.propose(&alice, &dave, &token_id, &400);
+    client.approve(&bob, &id);
+    client.execute(&id);
+    client.execute(&id); // must panic
+}
+
+#[test]
+#[should_panic(expected = "not an owner")]
+fn non_owner_cannot_propose() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let alice = Address::generate(&env);
+    let bob = Address::generate(&env);
+    let carol = Address::generate(&env);
+    let outsider = Address::generate(&env);
+    let dave = Address::generate(&env);
+    let admin = Address::generate(&env);
+
+    let (token_id, _) = setup_token(&env, &admin);
+
+    let contract_id = env.register(MultisigContract, ());
+    let client = MultisigContractClient::new(&env, &contract_id);
+    client.initialize(&vec![&env, alice, bob, carol], &2);
+
+    client.propose(&outsider, &dave, &token_id, &400);
+}
+```
+
+---
+
+## Related docs
+
+- [Comprehensive Soroban Token Contract Implementation Guide](/docs/guides/soroban-token-contract-guide) — the SEP-41 token the multisig moves
+- [Complete Soroban Timelock Contract Tutorial](/docs/guides/soroban-timelock-contract-tutorial) — pair a timelock with a multisig proposer for delayed, group-approved execution
+- [Soroban Host Functions](/docs/guides/soroban-host-functions) — storage, auth, and cross-contract call primitives

@@ -44,7 +44,7 @@ Use the built-in palette instead of custom hex values in diagram source when pos
 
 Embed Mermaid in MDX with a fenced `mermaid` code block:
 
-```mermaid
+```text
 flowchart LR
   A[Reader] --> B[Docs page]
   B --> C[Static asset]
@@ -80,7 +80,7 @@ For retina clarity, export at 2× density only when the cropped region stays und
 
 ### Inline images in MDX
 
-```mdx
+```markdown
 ![Wallet connection flow](/images/style-guide/flowchart-example.svg)
 ```
 
@@ -100,13 +100,13 @@ Do not commit images wider than `1600px` unless they are full-page references.
 
 Every image must include alt text that describes the content, not the file name.
 
-```mdx
+```markdown
 ![Flowchart showing a reader opening a docs page and loading a static asset](/images/style-guide/flowchart-example.svg)
 ```
 
 Optional captions use italic text on the line below the image:
 
-```mdx
+```markdown
 ![Labeled diagram with numbered callouts for WalletProvider and useStellarWallet](/images/style-guide/labeled-frame-example.svg)
 
 _Figure 1. Provider wraps hooks at the app root._
@@ -162,7 +162,7 @@ The site renders Mermaid at build/runtime in the browser.
 
 When an image cannot use theme tokens (for example, a branded illustration), provide paired assets:
 
-```mdx
+```markdown
 <img
   src="/images/example-light.svg"
   alt="Architecture overview"

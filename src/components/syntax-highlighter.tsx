@@ -27,12 +27,67 @@ interface CustomSyntaxHighlighterProps {
   indicatorColor?: string; // Accepts hex or Tailwind class
 }
 
+// Custom dark theme with WCAG AA compliant contrast
+const customDarkThemeAA = {
+  ...oneDark,
+  'code[class*="language-"]': {
+    ...oneDark['code[class*="language-"]'],
+    color: '#e8e8e8', // Lighter text for better contrast
+  },
+  'pre[class*="language-"]': {
+    ...oneDark['pre[class*="language-"]'],
+    backgroundColor: '#1a1a1a', // Slightly lighter background
+  },
+  'token.comment': {
+    color: '#8e9ba8', // Increased brightness from default
+  },
+  'token.string': {
+    color: '#8ec07c', // Brighter green
+  },
+  'token.number': {
+    color: '#d4a574', // Brighter orange
+  },
+  'token.builtin': {
+    color: '#fabd2f', // Brighter yellow
+  },
+  'token.char': {
+    color: '#8ec07c',
+  },
+  'token.selector': {
+    color: '#fb4934', // Brighter red
+  },
+  'token.attr-name': {
+    color: '#fabd2f', // Brighter yellow
+  },
+  'token.attr-value': {
+    color: '#8ec07c',
+  },
+  'token.keyword': {
+    color: '#fb4934', // Brighter red
+  },
+  'token.operator': {
+    color: '#83a598', // Lighter blue
+  },
+  'token.punctuation': {
+    color: '#d3d3d3', // Lighter punctuation
+  },
+  'token.function': {
+    color: '#83a598', // Lighter blue
+  },
+  'token.class-name': {
+    color: '#fabd2f', // Brighter yellow
+  },
+  'token.tag': {
+    color: '#fb4934', // Brighter red
+  },
+};
+
 const CustomSyntaxHighlighter: React.FC<CustomSyntaxHighlighterProps> = ({
   tabs,
   className,
   themeMode = 'dark',
   lightTheme = oneLight,
-  darkTheme = oneDark,
+  darkTheme = customDarkThemeAA,
   indicatorColor,
 }) => {
   const [activeTabKey, setActiveTabKey] = useState<string>(

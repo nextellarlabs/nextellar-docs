@@ -1,0 +1,232 @@
+---
+title: Soroban Charity Donation Contract Tutorial
+description: A step-by-step tutorial for building a transparent charity donation contract on Stellar Soroban, covering donations, payouts, and on-chain auditability.
+date: 2026-08-27
+---
+
+# Soroban Charity Donation Contract Tutorial
+
+This tutorial builds a charity donation contract where every donation and payout is recorded on-chain, so donors can independently verify that funds reach the intended charity address — without trusting an off-chain ledger.
+
+---
+
+## Donation Path
+
+Anyone can donate to a registered campaign:
+
+1. A campaign is created with a **charity address** (where funds are ultimately paid out), an optional **goal amount**, and a **deadline**.
+2. A donor calls `donate(campaign_id, amount)`. The contract transfers `amount` from the donor into the contract and records the donation against the donor's address and the campaign.
+3. Every donation emits an event with the donor, campaign, and amount — this is the on-chain audit trail donors and auditors rely on instead of an off-chain database.
+
+Donations are irrevocable once made (no refund path in this simple design) — the campaign creator commits to using funds for the stated charity, and the transparency comes from every donation and payout being publicly verifiable on-chain, not from a refund mechanism.
+
+---
+
+## Payout Path
+
+Funds only leave the contract through the `release_funds` function, which:
+
+1. Can only be called by the **contract's designated releaser** — in this tutorial, the charity address itself, kept separate from arbitrary withdrawal to make clear that only the intended recipient can ever receive funds.
+2. Transfers the **entire current campaign balance** to the charity address — there's no partial-withdrawal path in this simple version, which keeps the audit trail simple: one payout event per release, and the campaign's `total_donated` figure can always be checked against payout events to confirm nothing was diverted.
+3. Emits a payout event recording the amount and campaign, so the full donation-to-payout flow is visible on-chain end to end.
+
+---
+
+## Transparency Considerations
+
+- **No admin override**: nothing in this contract lets anyone but the charity address itself trigger a payout, and payouts always go to that same fixed address set at campaign creation — there's no "withdraw to arbitrary address" function that could be used to divert funds.
+- **Immutable charity address**: the charity address is set once at campaign creation and cannot be changed, so a compromised admin key elsewhere in the system can't redirect future payouts.
+- **Public running totals**: `total_donated` and `total_released` are both stored on-chain and readable by anyone via `get_campaign`, so a donor can always verify that all released funds are accounted for (`total_released <= total_donated`).
+- **Event log as the audit trail**: rather than relying on this contract's storage alone, an auditor can replay every `donate` and `release_funds` event from ledger history to reconstruct the full flow of funds independently.
+
+---
+
+## Client Invocation
+
+```bash
+# Create a campaign for a charity address, with an optional goal
+soroban contract invoke \
+  --id $CHARITY_CONTRACT_ID \
+  --source admin \
+  --network testnet \
+  -- create_campaign \
+  --charity $CHARITY_ADDRESS \
+  --goal 100000000
+
+# A donor gives 10 XLM (in stroops) to campaign 0
+soroban contract invoke \
+  --id $CHARITY_CONTRACT_ID \
+  --source donor \
+  --network testnet \
+  -- donate \
+  --donor $DONOR_ADDRESS \
+  --campaign_id 0 \
+  --amount 100000000
+
+# The charity releases the current balance to itself
+soroban contract invoke \
+  --id $CHARITY_CONTRACT_ID \
+  --source charity \
+  --network testnet \
+  -- release_funds \
+  --campaign_id 0
+```
+
+From a TypeScript client:
+
+```typescript
+import {
+  Contract,
+  TransactionBuilder,
+  Networks,
+  nativeToScVal,
+} from '@stellar/stellar-sdk';
+
+const charityContract = new Contract(CHARITY_CONTRACT_ID);
+
+const donateOp = charityContract.call(
+  'donate',
+  nativeToScVal(donorAddress, { type: 'address' }),
+  nativeToScVal(campaignId, { type: 'u64' }),
+  nativeToScVal(amountInStroops, { type: 'i128' })
+);
+
+const tx = new TransactionBuilder(donorAccount, {
+  fee: BASE_FEE,
+  networkPassphrase: Networks.TESTNET,
+})
+  .addOperation(donateOp)
+  .setTimeout(30)
+  .build();
+```
+
+---
+
+## Soroban Smart Contract Sample
+
+```rust
+#![no_std]
+use soroban_sdk::{contract, contractimpl, contracttype, contracterror, Address, Env, Symbol, symbol_short};
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Campaign {
+    pub charity: Address,
+    pub goal: i128,
+    pub total_donated: i128,
+    pub total_released: i128,
+}
+
+#[contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[repr(u32)]
+pub enum Error {
+    InvalidAmount = 1,
+    CampaignNotFound = 2,
+    NothingToRelease = 3,
+}
+
+fn campaign_key(id: u64) -> (Symbol, u64) {
+    (symbol_short!("CAMP"), id)
+}
+
+#[contract]
+pub struct CharityDonationContract;
+
+#[contractimpl]
+impl CharityDonationContract {
+    pub fn create_campaign(env: Env, charity: Address, goal: i128) -> Result<u64, Error> {
+        charity.require_auth();
+
+        let id: u64 = env
+            .storage()
+            .instance()
+            .get(&symbol_short!("NEXT_ID"))
+            .unwrap_or(0);
+
+        let campaign = Campaign {
+            charity,
+            goal,
+            total_donated: 0,
+            total_released: 0,
+        };
+
+        env.storage().persistent().set(&campaign_key(id), &campaign);
+        env.storage()
+            .instance()
+            .set(&symbol_short!("NEXT_ID"), &(id + 1));
+
+        Ok(id)
+    }
+
+    /// Records a donation. Emits a `donate` event so the transfer is
+    /// independently auditable from ledger history.
+    pub fn donate(env: Env, donor: Address, campaign_id: u64, amount: i128) -> Result<(), Error> {
+        donor.require_auth();
+
+        if amount <= 0 {
+            return Err(Error::InvalidAmount);
+        }
+
+        let mut campaign: Campaign = env
+            .storage()
+            .persistent()
+            .get(&campaign_key(campaign_id))
+            .ok_or(Error::CampaignNotFound)?;
+
+        // In production: transfer `amount` from `donor` into this contract.
+
+        campaign.total_donated += amount;
+        env.storage().persistent().set(&campaign_key(campaign_id), &campaign);
+
+        env.events().publish(
+            (symbol_short!("donate"), campaign_id),
+            (donor, amount),
+        );
+
+        Ok(())
+    }
+
+    /// Releases the campaign's full current balance to its charity address.
+    /// Only the charity address itself may call this.
+    pub fn release_funds(env: Env, campaign_id: u64) -> Result<i128, Error> {
+        let mut campaign: Campaign = env
+            .storage()
+            .persistent()
+            .get(&campaign_key(campaign_id))
+            .ok_or(Error::CampaignNotFound)?;
+
+        campaign.charity.require_auth();
+
+        let available = campaign.total_donated - campaign.total_released;
+        if available <= 0 {
+            return Err(Error::NothingToRelease);
+        }
+
+        // In production: transfer `available` from this contract to `campaign.charity`.
+
+        campaign.total_released += available;
+        env.storage().persistent().set(&campaign_key(campaign_id), &campaign);
+
+        env.events().publish(
+            (symbol_short!("release"), campaign_id),
+            available,
+        );
+
+        Ok(available)
+    }
+
+    pub fn get_campaign(env: Env, campaign_id: u64) -> Result<Campaign, Error> {
+        env.storage()
+            .persistent()
+            .get(&campaign_key(campaign_id))
+            .ok_or(Error::CampaignNotFound)
+    }
+}
+```
+
+---
+
+## Summary
+
+This contract's transparency comes from three deliberate constraints: an immutable charity address set at creation, a payout path only the charity itself can trigger, and public running totals plus events that let any donor replay the full history of funds without trusting an off-chain system. Together these make it possible to verify that every donated stroop either sits in the contract or was released to the stated charity — nothing else.

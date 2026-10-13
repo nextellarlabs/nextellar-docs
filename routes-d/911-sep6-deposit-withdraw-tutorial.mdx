@@ -1,0 +1,462 @@
+---
+title: Comprehensive SEP-6 Deposit and Withdraw Tutorial
+description: Implement the SEP-6 non-interactive deposit and withdraw flow end to end — request shapes, status polling, and SEP-12 KYC integration points — with a working sample.
+date: 2026-08-25
+---
+
+# Comprehensive SEP-6 Deposit and Withdraw Tutorial
+
+**SEP-6** defines a non-interactive (machine-to-machine) protocol for depositing external assets into Stellar and withdrawing Stellar assets back out through an Anchor. Unlike SEP-24 (which redirects the user to an Anchor-hosted interactive webview), SEP-6 is built for apps that want to render their **own** UI around the deposit/withdraw flow and talk to the Anchor purely over HTTP. This tutorial implements the flow end to end: discovery, authentication, KYC, deposit, withdraw, and status polling.
+
+---
+
+## Protocol Overview
+
+<Note type="info">
+  SEP-6 is intentionally low-level — your application owns the UI and calls the
+  Anchor's REST endpoints directly. If you'd rather have the Anchor host the
+  entire flow in a popup, see SEP-24 instead; this tutorial is specifically for
+  the non-interactive SEP-6 case.
+</Note>
+
+```
+Client App                         Anchor Server                    Stellar Network
+    │                                    │                                  │
+    │── GET /.well-known/stellar.toml ──►│                                  │
+    │◄── TRANSFER_SERVER, SIGNING_KEY ───│                                  │
+    │                                    │                                  │
+    │── GET /sep6/info ──────────────────►│                                  │
+    │◄── supported assets + KYC fields ──│                                  │
+    │                                    │                                  │
+    │── SEP-10 auth challenge/response ──►│                                  │
+    │◄── JWT ─────────────────────────────│                                  │
+    │                                    │                                  │
+    │── PUT /sep12/customer (JWT) ───────►│                                  │
+    │◄── customer_id + status ───────────│                                  │
+    │                                    │                                  │
+    │── GET /sep6/deposit (JWT) ─────────►│                                  │
+    │◄── id + how + status ──────────────│                                  │
+    │                                    │── issues asset on deposit ──────►│
+    │── GET /sep6/transaction (poll) ────►│                                  │
+    │◄── status: completed ──────────────│                                  │
+```
+
+---
+
+## Step 1: Discover the Anchor (`stellar.toml`)
+
+Every Anchor publishes a `stellar.toml` file at its home domain describing its capabilities.
+
+```bash
+curl -s https://testanchor.stellar.org/.well-known/stellar.toml
+```
+
+```toml
+SIGNING_KEY="GCSGSR6KQQ5BP2FXVPWRL6SWPUSFWLVONLII2Q2ZH8AAPGMPMYWECSZH"
+TRANSFER_SERVER="https://testanchor.stellar.org/sep6"
+KYC_SERVER="https://testanchor.stellar.org/sep12"
+WEB_AUTH_ENDPOINT="https://testanchor.stellar.org/auth"
+
+[[CURRENCIES]]
+code = "USDC"
+issuer = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
+```
+
+Parse and store `TRANSFER_SERVER`, `KYC_SERVER`, `WEB_AUTH_ENDPOINT`, and `SIGNING_KEY` — every subsequent request is built from these values.
+
+---
+
+## Step 2: `GET /info` — Capabilities & Required Fields
+
+```bash
+curl -s https://testanchor.stellar.org/sep6/info
+```
+
+Response shape:
+
+```json
+{
+  "deposit": {
+    "USDC": {
+      "enabled": true,
+      "min_amount": 10,
+      "max_amount": 10000,
+      "fields": {
+        "email_address": {
+          "description": "Your email address",
+          "optional": false
+        }
+      }
+    }
+  },
+  "withdraw": {
+    "USDC": {
+      "enabled": true,
+      "types": {
+        "bank_account": {
+          "fields": {
+            "dest": { "description": "Bank account number" },
+            "dest_extra": { "description": "Bank routing number" }
+          }
+        }
+      }
+    }
+  },
+  "fee": { "enabled": true },
+  "transactions": { "enabled": true },
+  "transaction": { "enabled": true }
+}
+```
+
+Use this response to decide which fields your deposit/withdraw form needs to collect, and whether the Anchor requires separate SEP-12 KYC data on top of the `fields` listed here.
+
+---
+
+## Step 3: SEP-10 Authentication
+
+Both `/deposit` and `/withdraw` require a JWT obtained via SEP-10 Web Authentication.
+
+```bash
+# 1. Request a challenge transaction
+curl -s "https://testanchor.stellar.org/auth?account=GYOUR_STELLAR_ADDRESS"
+```
+
+```json
+{
+  "transaction": "AAAAAgAAAAA...(base64 XDR challenge transaction)...",
+  "network_passphrase": "Test SDF Network ; September 2015"
+}
+```
+
+Sign the returned transaction envelope with your Stellar keypair (client-side, never send your secret key to the Anchor), then submit it back:
+
+```bash
+# 2. Submit the signed challenge
+curl -s -X POST https://testanchor.stellar.org/auth \
+  -H "Content-Type: application/json" \
+  -d '{"transaction": "AAAAAgAAAAA...(signed)..."}'
+```
+
+```json
+{ "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." }
+```
+
+Attach this `token` as `Authorization: Bearer <token>` on every subsequent request. SEP-10 JWTs are typically valid for 24 hours — check the `exp` claim and re-authenticate before it lapses.
+
+---
+
+## Step 4: SEP-12 KYC Integration
+
+Before the Anchor will process a deposit or withdraw for a new customer, submit their KYC data via SEP-12's `/customer` endpoint.
+
+```bash
+curl -s -X PUT https://testanchor.stellar.org/sep12/customer \
+  -H "Authorization: Bearer $JWT" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "account": "GYOUR_STELLAR_ADDRESS",
+    "first_name": "Ada",
+    "last_name": "Lovelace",
+    "email_address": "ada@example.com",
+    "birth_date": "1815-12-10"
+  }'
+```
+
+```json
+{
+  "id": "d1ce3c1c-a1e6-4d28-b5be-aa0e3c91c2c3",
+  "status": "NEEDS_INFO",
+  "fields": {
+    "bank_account_number": {
+      "description": "US bank account number",
+      "optional": true
+    }
+  }
+}
+```
+
+**Integration points to handle in your app:**
+
+- `status: NEEDS_INFO` — re-submit `PUT /customer` with the additional `fields` listed in the response.
+- `status: PROCESSING` — the Anchor is manually reviewing; poll `GET /customer` on an interval (e.g. every 10–30s) rather than blocking the UI.
+- `status: ACCEPTED` — proceed to `/deposit` or `/withdraw`.
+- `status: REJECTED` — surface a generic "unable to verify identity" message; do not expose the Anchor's internal rejection reason to the end user.
+
+```bash
+# Poll KYC status
+curl -s https://testanchor.stellar.org/sep12/customer?account=GYOUR_STELLAR_ADDRESS \
+  -H "Authorization: Bearer $JWT"
+```
+
+<Note type="warning">
+  Do not persist raw KYC fields (name, birth date, bank details) in your own
+  database. The Anchor is the data controller. If you cache anything locally,
+  store only the opaque `id` (customer id) and `status` string so you can skip
+  re-submission on the next visit.
+</Note>
+
+---
+
+## Step 5: Initiate a Deposit
+
+```bash
+curl -s "https://testanchor.stellar.org/sep6/deposit?asset_code=USDC&account=GYOUR_STELLAR_ADDRESS&amount=100" \
+  -H "Authorization: Bearer $JWT"
+```
+
+Request query parameters:
+
+| Field        | Required | Description                                                                                 |
+| ------------ | -------- | ------------------------------------------------------------------------------------------- |
+| `asset_code` | Yes      | The Stellar asset code to receive (e.g. `USDC`).                                            |
+| `account`    | Yes      | The Stellar account to credit.                                                              |
+| `amount`     | No       | Requested deposit amount; the Anchor may ignore this and let the user specify it off-chain. |
+| `memo_type`  | No       | `text`, `id`, or `hash` — required if the destination account needs a memo.                 |
+
+Response:
+
+```json
+{
+  "id": "82fhs729f63dh0v4",
+  "how": "Make a payment to Bank: 121122676, Account: 13719713158835300",
+  "min_amount": 10,
+  "max_amount": 10000,
+  "eta": 1800,
+  "extra_info": {
+    "message": "Deposit sent from a US bank account will arrive in 2-3 business days."
+  }
+}
+```
+
+The `id` returned here is the **transaction id** you will poll in Step 7. `how` is a human-readable instruction to show the user — display it verbatim; do not try to parse structured banking data out of it, since its format is Anchor-specific free text.
+
+---
+
+## Step 6: Initiate a Withdrawal
+
+```bash
+curl -s -X POST https://testanchor.stellar.org/sep6/withdraw \
+  -H "Authorization: Bearer $JWT" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "asset_code=USDC&type=bank_account&dest=123456789&dest_extra=021000021&account=GYOUR_STELLAR_ADDRESS"
+```
+
+Request fields:
+
+| Field        | Required | Description                                                              |
+| ------------ | -------- | ------------------------------------------------------------------------ |
+| `asset_code` | Yes      | Asset to withdraw.                                                       |
+| `type`       | Yes      | Withdrawal method — e.g. `bank_account`, `cash`. From `/info`'s `types`. |
+| `dest`       | Yes      | Destination identifier for that type (e.g. bank account number).         |
+| `dest_extra` | No       | Extra routing info (e.g. bank routing number).                           |
+| `account`    | No       | Stellar account withdrawing from, if different from the JWT subject.     |
+
+Response:
+
+```json
+{
+  "account_id": "GDANCHOR6WITHDRAWALADDRESSEXAMPLE",
+  "memo_type": "id",
+  "memo": "88271",
+  "id": "9c33f7ea-1234-4a4a-8a1b-abcdef123456",
+  "min_amount": 10,
+  "max_amount": 10000,
+  "eta": 172800
+}
+```
+
+Now send the Stellar payment yourself: submit a Stellar `payment` operation to `account_id`, attaching `memo` (typed as `memo_type`) so the Anchor can match your on-chain payment to this withdrawal request.
+
+```ts
+import {
+  TransactionBuilder,
+  Operation,
+  Memo,
+  Networks,
+  BASE_FEE,
+} from '@stellar/stellar-sdk';
+
+const tx = new TransactionBuilder(sourceAccount, {
+  fee: BASE_FEE,
+  networkPassphrase: Networks.TESTNET,
+})
+  .addOperation(
+    Operation.payment({
+      destination: 'GDANCHOR6WITHDRAWALADDRESSEXAMPLE',
+      asset: usdcAsset,
+      amount: '50',
+    })
+  )
+  .addMemo(Memo.id('88271'))
+  .setTimeout(60)
+  .build();
+```
+
+<Note type="warning">
+  Omitting or mistyping the memo is the single most common integration bug in
+  SEP-6 withdrawals — the Anchor cannot attribute an unmemo'd payment to your
+  withdrawal request, and funds can become stuck in manual reconciliation.
+</Note>
+
+---
+
+## Step 7: Poll Transaction Status
+
+Both deposits and withdrawals are tracked through the same `/transaction` endpoint, keyed by the `id` returned in Steps 5/6.
+
+```bash
+curl -s "https://testanchor.stellar.org/sep6/transaction?id=82fhs729f63dh0v4" \
+  -H "Authorization: Bearer $JWT"
+```
+
+```json
+{
+  "transaction": {
+    "id": "82fhs729f63dh0v4",
+    "kind": "deposit",
+    "status": "pending_external",
+    "status_eta": 1800,
+    "amount_in": "100.00",
+    "amount_out": "98.00",
+    "amount_fee": "2.00",
+    "started_at": "2026-08-25T10:00:00Z"
+  }
+}
+```
+
+### Status Values & Required Client Handling
+
+| Status                        | Meaning                                   | Client action                                    |
+| ----------------------------- | ----------------------------------------- | ------------------------------------------------ |
+| `incomplete`                  | Missing required info                     | Prompt user for missing fields, resubmit         |
+| `pending_user_transfer_start` | Waiting on the user to send fiat/crypto   | Show `how` instructions again                    |
+| `pending_external`            | Anchor is processing (e.g. bank clearing) | Poll every 15–30s; show an ETA from `status_eta` |
+| `pending_anchor`              | Anchor manual processing                  | Poll on a longer interval (e.g. every 60s)       |
+| `completed`                   | Funds delivered                           | Stop polling; show success + `amount_out`        |
+| `error`                       | Something failed                          | Stop polling; show `message` field, offer retry  |
+| `refunded`                    | Anchor returned the funds                 | Stop polling; show refund details                |
+
+```ts
+async function pollTransaction(
+  id: string,
+  jwt: string,
+  onUpdate: (tx: any) => void
+) {
+  const terminal = new Set(['completed', 'error', 'refunded']);
+  while (true) {
+    const res = await fetch(
+      `https://testanchor.stellar.org/sep6/transaction?id=${id}`,
+      {
+        headers: { Authorization: `Bearer ${jwt}` },
+      }
+    );
+    const { transaction } = await res.json();
+    onUpdate(transaction);
+    if (terminal.has(transaction.status)) return transaction;
+    await new Promise((r) => setTimeout(r, 15_000));
+  }
+}
+```
+
+---
+
+## Full Client Wrapper
+
+```ts
+// lib/sep6.ts
+export class Sep6Client {
+  constructor(
+    private transferServer: string,
+    private kycServer: string,
+    private jwt: string
+  ) {}
+
+  async info() {
+    const res = await fetch(`${this.transferServer}/info`);
+    return res.json();
+  }
+
+  async submitKyc(fields: Record<string, string>) {
+    const res = await fetch(`${this.kycServer}/customer`, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${this.jwt}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(fields),
+    });
+    if (!res.ok) throw new Error(`KYC submission failed: ${res.status}`);
+    return res.json();
+  }
+
+  async deposit(params: {
+    asset_code: string;
+    account: string;
+    amount?: string;
+  }) {
+    const qs = new URLSearchParams(params as Record<string, string>);
+    const res = await fetch(`${this.transferServer}/deposit?${qs}`, {
+      headers: { Authorization: `Bearer ${this.jwt}` },
+    });
+    if (!res.ok) throw new Error(`Deposit request failed: ${res.status}`);
+    return res.json();
+  }
+
+  async withdraw(params: {
+    asset_code: string;
+    type: string;
+    dest: string;
+    dest_extra?: string;
+  }) {
+    const res = await fetch(`${this.transferServer}/withdraw`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${this.jwt}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams(params).toString(),
+    });
+    if (!res.ok) throw new Error(`Withdraw request failed: ${res.status}`);
+    return res.json();
+  }
+
+  async transaction(id: string) {
+    const res = await fetch(`${this.transferServer}/transaction?id=${id}`, {
+      headers: { Authorization: `Bearer ${this.jwt}` },
+    });
+    if (!res.ok) throw new Error(`Transaction lookup failed: ${res.status}`);
+    const { transaction } = await res.json();
+    return transaction;
+  }
+}
+```
+
+---
+
+## Troubleshooting
+
+### `403 Forbidden` on `/deposit` or `/withdraw`
+
+The JWT is missing, expired, or was issued for a different `account`. Re-run the SEP-10 flow.
+
+### KYC stuck at `NEEDS_INFO` indefinitely
+
+Re-check the `fields` object on every `PUT /customer` response — the Anchor may request _additional_ fields after each submission round, not all up front.
+
+### Withdrawal payment isn't recognized
+
+Confirm the memo type and value exactly match what `/withdraw` returned (`memo_type` + `memo`). A `text` memo truncated at 28 bytes, or an `id` memo sent as `hash`, will both fail silent matching on the Anchor's side.
+
+### `pending_external` never resolves on testnet
+
+Some reference Anchor implementations only progress `pending_external` transactions via manual triggers. Check the Anchor's documentation for a testnet-specific "simulate completion" endpoint.
+
+---
+
+## Related docs
+
+- [Anchor Onboarding with KYC](/docs/guides/anchor-onboarding-kyc) — the Nextellar CLI's higher-level wrapper around this same flow
+- [Recurring Payments via CLI](/docs/guides/recurring-payments-cli) — automate payments on a schedule
+- [SEP-6 Specification](https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0006.md) — full protocol reference
+- [SEP-12 Specification](https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0012.md) — KYC data API reference
+- [SEP-10 Specification](https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0010.md) — Stellar Web Authentication

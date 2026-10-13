@@ -8,6 +8,12 @@ date: 2026-06-02
 
 A production-ready React component for wallet connection with a polished dropdown interface. Handles the complete connection flow, displays wallet info, and provides quick actions.
 
+<Note>
+  **Ships in:** default, js
+  <br />
+  Not in your scaffold? Run `nextellar add wallet`
+</Note>
+
 ## Features
 
 - **One-Click Connect**: Opens wallet selection modal
@@ -49,7 +55,7 @@ The component uses inline shadcn/ui-inspired styles with Tailwind classes. It's 
 
 ### Default Appearance
 
-```
+```text
 [Connect Wallet]  → [Freighter ▼]
                             GABC...XYZ
                             View on Stellar Expert ↗
@@ -65,22 +71,29 @@ The component is located at `src/components/WalletConnectButton.tsx`. You can:
 3. **Change icons**: Swap Lucide icons
 4. **Integrate with UI library**: Replace with your component library
 
-### Example: Custom Styling
+### Custom Styling
+
+Replace the default button markup in `WalletConnectButton.tsx` with a styled button that keeps the same connection behavior:
 
 ````tsx
-// In WalletConnectButton.tsx
-<button
-  onClick={connected ? toggleDropdown : connect}
-  className="
-    bg-purple-600 hover:bg-purple-700
-    text-white font-medium
-    px-4 py-2 rounded-lg
-    transition-colors
-  "
->
-  {connected ? walletName : 'Connect Wallet'}
-</button>
+import { useWallet } from '@/contexts';
+
+export function WalletConnectButton() {
+  const { connected, connect, disconnect, walletName } = useWallet();
+
+  return (
+    <button
+      type="button"
+      onClick={connected ? disconnect : connect}
+      className="rounded-full bg-slate-900 px-5 py-2.5 font-semibold text-white shadow-sm transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2"
+    >
+      {connected ? `Connected: ${walletName ?? 'Wallet'}` : 'Connect Wallet'}
+    </button>
+  );
+}
 ```
+
+Because this is a replacement for the component's button markup, the example remains runnable while allowing the connection state and actions to stay in the wallet context.
 
 ## Dependencies
 

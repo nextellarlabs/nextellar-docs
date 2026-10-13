@@ -1,0 +1,627 @@
+---
+title: Building a Soroban Decentralized Identifier (DID) Contract
+description: End-to-end tutorial for a Soroban DID registry contract — DID creation, key rotation, document updates, and revocation — with a working sample and client invocation.
+date: 2026-08-27
+---
+
+# Building a Soroban Decentralized Identifier (DID) Contract
+
+A **DID (Decentralized Identifier)** contract lets a Stellar account publish a self-owned identity document — a set of verification keys and service endpoints — that other contracts and off-chain services can resolve and trust, without relying on a centralized identity provider. This tutorial builds a minimal `did:soroban:` method contract: registration, document updates, key rotation, and revocation.
+
+<Note type="info">
+  This follows the shape of the [W3C DID Core](https://www.w3.org/TR/did-core/)
+  data model (a DID resolves to a DID Document containing verification methods)
+  adapted to Soroban's storage model, but does not implement a full DID method
+  specification. Treat it as a foundation, not a spec-compliant `did:soroban`
+  resolver.
+</Note>
+
+---
+
+## How It Works
+
+```
+Owner ──register(initial_key, service_endpoint)──► DID Registry
+                                                     │
+                                                     ├── require_auth() on owner
+                                                     ├── verify no existing DID for owner
+                                                     └── store DidDocument { keys: [initial_key], endpoint, revoked: false }
+
+Owner ──rotate_key(old_key, new_key)────────────────► DID Registry
+                                                     │
+                                                     ├── require_auth() on owner
+                                                     ├── verify old_key is a current verification key
+                                                     └── replace old_key with new_key in keys[]
+
+Owner ──update_endpoint(new_endpoint)───────────────► DID Registry
+                                                     │
+                                                     ├── require_auth() on owner
+                                                     └── overwrite service_endpoint
+
+Owner ──revoke()─────────────────────────────────────► DID Registry
+                                                     │
+                                                     ├── require_auth() on owner
+                                                     └── set revoked = true (DID stays resolvable, marked invalid)
+
+Anyone ──resolve(owner)──────────────────────────────► DID Registry
+                                                     └── returns DidDocument (read-only, no auth)
+```
+
+A DID here is identified by the owning Stellar `Address` itself (`did:soroban:<address>`), so there is no separate identifier-allocation step — the account _is_ the identifier, and the contract manages what it currently attests to.
+
+---
+
+## Project Layout
+
+```
+did-registry/
+├── Cargo.toml
+└── contracts/
+    └── did-registry/
+        ├── Cargo.toml
+        └── src/
+            ├── lib.rs
+            ├── types.rs
+            ├── document.rs
+            ├── error.rs
+            └── test.rs
+```
+
+### Contract Cargo.toml
+
+```toml
+[package]
+name = "soroban-did-registry"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+soroban-sdk = "21.0.0"
+
+[dev-dependencies]
+soroban-sdk = { version = "21.0.0", features = ["testutils"] }
+```
+
+---
+
+## Types and Storage
+
+```rust
+// src/types.rs
+use soroban_sdk::{contracttype, Address, String, Vec};
+
+/// A minimal DID Document: one or more verification keys (any of which can
+/// authorize document updates), a single service endpoint URL, and a
+/// revocation flag. A production method would support multiple typed
+/// verification relationships (authentication, assertion, key agreement)
+/// and multiple service entries — this keeps the storage shape simple.
+#[derive(Clone)]
+#[contracttype]
+pub struct DidDocument {
+    pub owner: Address,
+    pub keys: Vec<Address>,
+    pub service_endpoint: String,
+    pub created_at: u64,
+    pub updated_at: u64,
+    pub revoked: bool,
+}
+
+#[contracttype]
+pub enum DataKey {
+    /// Keyed by the owning Address — the DID identifier itself.
+    Document(Address),
+}
+```
+
+```rust
+// src/error.rs
+use soroban_sdk::contracterror;
+
+#[contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[repr(u32)]
+pub enum Error {
+    AlreadyRegistered = 1,
+    NotFound = 2,
+    Unauthorized = 3,
+    Revoked = 4,
+    KeyNotFound = 5,
+    DuplicateKey = 6,
+    CannotRemoveLastKey = 7,
+}
+```
+
+---
+
+## Registration and Resolution
+
+```rust
+// src/document.rs (part 1 — register, resolve)
+use soroban_sdk::{Address, Env, String, Vec};
+use crate::error::Error;
+use crate::types::{DataKey, DidDocument};
+
+pub fn register(
+    env: &Env,
+    owner: Address,
+    initial_key: Address,
+    service_endpoint: String,
+) -> Result<(), Error> {
+    owner.require_auth();
+
+    let key = DataKey::Document(owner.clone());
+    if env.storage().persistent().has(&key) {
+        return Err(Error::AlreadyRegistered);
+    }
+
+    let mut keys = Vec::new(env);
+    keys.push_back(initial_key);
+
+    let now = env.ledger().timestamp();
+    let document = DidDocument {
+        owner: owner.clone(),
+        keys,
+        service_endpoint,
+        created_at: now,
+        updated_at: now,
+        revoked: false,
+    };
+
+    env.storage().persistent().set(&key, &document);
+    Ok(())
+}
+
+/// Read-only resolution — no auth required, matching how DID resolution
+/// works off-chain (anyone can look up a public DID Document).
+pub fn resolve(env: &Env, owner: Address) -> Result<DidDocument, Error> {
+    env.storage()
+        .persistent()
+        .get(&DataKey::Document(owner))
+        .ok_or(Error::NotFound)
+}
+```
+
+---
+
+## Key Rotation, Endpoint Updates, and Revocation
+
+```rust
+// src/document.rs (part 2 — mutations)
+use soroban_sdk::{Address, Env, String};
+use crate::error::Error;
+use crate::types::DataKey;
+
+fn load_active_document(
+    env: &Env,
+    owner: &Address,
+) -> Result<crate::types::DidDocument, Error> {
+    let document: crate::types::DidDocument = env
+        .storage()
+        .persistent()
+        .get(&DataKey::Document(owner.clone()))
+        .ok_or(Error::NotFound)?;
+
+    if document.revoked {
+        return Err(Error::Revoked);
+    }
+
+    Ok(document)
+}
+
+pub fn rotate_key(env: &Env, owner: Address, old_key: Address, new_key: Address) -> Result<(), Error> {
+    owner.require_auth();
+
+    let mut document = load_active_document(env, &owner)?;
+
+    let position = document.keys.iter().position(|k| k == old_key).ok_or(Error::KeyNotFound)?;
+    if document.keys.iter().any(|k| k == new_key) {
+        return Err(Error::DuplicateKey);
+    }
+
+    document.keys.set(position as u32, new_key);
+    document.updated_at = env.ledger().timestamp();
+
+    env.storage()
+        .persistent()
+        .set(&DataKey::Document(owner), &document);
+    Ok(())
+}
+
+/// Adds an additional verification key without removing an existing one —
+/// useful for multi-device setups where you want more than one key valid
+/// at once, unlike `rotate_key` which is a 1:1 replacement.
+pub fn add_key(env: &Env, owner: Address, new_key: Address) -> Result<(), Error> {
+    owner.require_auth();
+
+    let mut document = load_active_document(env, &owner)?;
+
+    if document.keys.iter().any(|k| k == new_key) {
+        return Err(Error::DuplicateKey);
+    }
+
+    document.keys.push_back(new_key);
+    document.updated_at = env.ledger().timestamp();
+
+    env.storage()
+        .persistent()
+        .set(&DataKey::Document(owner), &document);
+    Ok(())
+}
+
+pub fn remove_key(env: &Env, owner: Address, key: Address) -> Result<(), Error> {
+    owner.require_auth();
+
+    let mut document = load_active_document(env, &owner)?;
+
+    if document.keys.len() <= 1 {
+        // A DID with zero verification keys can never authorize another
+        // update again — refuse to remove the last one.
+        return Err(Error::CannotRemoveLastKey);
+    }
+
+    let position = document.keys.iter().position(|k| k == key).ok_or(Error::KeyNotFound)?;
+    document.keys.remove(position as u32);
+    document.updated_at = env.ledger().timestamp();
+
+    env.storage()
+        .persistent()
+        .set(&DataKey::Document(owner), &document);
+    Ok(())
+}
+
+pub fn update_endpoint(env: &Env, owner: Address, new_endpoint: String) -> Result<(), Error> {
+    owner.require_auth();
+
+    let mut document = load_active_document(env, &owner)?;
+    document.service_endpoint = new_endpoint;
+    document.updated_at = env.ledger().timestamp();
+
+    env.storage()
+        .persistent()
+        .set(&DataKey::Document(owner), &document);
+    Ok(())
+}
+
+/// Revocation is a soft-delete: the document remains resolvable (so
+/// verifiers can distinguish "never existed" from "was revoked") but the
+/// `revoked` flag blocks all further mutations.
+pub fn revoke(env: &Env, owner: Address) -> Result<(), Error> {
+    owner.require_auth();
+
+    let mut document = load_active_document(env, &owner)?;
+    document.revoked = true;
+    document.updated_at = env.ledger().timestamp();
+
+    env.storage()
+        .persistent()
+        .set(&DataKey::Document(owner), &document);
+    Ok(())
+}
+```
+
+---
+
+## Contract Entrypoints
+
+```rust
+// src/lib.rs
+#![no_std]
+
+mod document;
+mod error;
+mod types;
+
+#[cfg(test)]
+mod test;
+
+use error::Error;
+use soroban_sdk::{contract, contractimpl, Address, Env, String};
+use types::DidDocument;
+
+#[contract]
+pub struct DidRegistry;
+
+#[contractimpl]
+impl DidRegistry {
+    pub fn register(env: Env, owner: Address, initial_key: Address, service_endpoint: String) -> Result<(), Error> {
+        document::register(&env, owner, initial_key, service_endpoint)
+    }
+
+    pub fn resolve(env: Env, owner: Address) -> Result<DidDocument, Error> {
+        document::resolve(&env, owner)
+    }
+
+    pub fn rotate_key(env: Env, owner: Address, old_key: Address, new_key: Address) -> Result<(), Error> {
+        document::rotate_key(&env, owner, old_key, new_key)
+    }
+
+    pub fn add_key(env: Env, owner: Address, new_key: Address) -> Result<(), Error> {
+        document::add_key(&env, owner, new_key)
+    }
+
+    pub fn remove_key(env: Env, owner: Address, key: Address) -> Result<(), Error> {
+        document::remove_key(&env, owner, key)
+    }
+
+    pub fn update_endpoint(env: Env, owner: Address, new_endpoint: String) -> Result<(), Error> {
+        document::update_endpoint(&env, owner, new_endpoint)
+    }
+
+    pub fn revoke(env: Env, owner: Address) -> Result<(), Error> {
+        document::revoke(&env, owner)
+    }
+}
+```
+
+---
+
+## Privacy Considerations
+
+<Note type="warning">
+  Everything written to contract storage is public — including via archived
+  ledger history, even after a value is overwritten. Do not put personally
+  identifiable information (names, emails, physical addresses) directly in
+  `service_endpoint` or any future document fields. Store only a pointer (a URL
+  to an off-chain, access-controlled document, or a content hash) and keep the
+  actual PII off-chain.
+</Note>
+
+- **Correlation risk**: because a DID is keyed by the owning `Address`, resolving it links that address to whatever the `service_endpoint` points to. If the endpoint is meant to be pseudonymous, don't reuse an address that's already publicly tied to a real identity elsewhere.
+- **Revocation is not deletion**: `revoke()` sets a flag; the document (including all past keys, visible via ledger history) remains permanently readable. This is a Soroban storage property, not something this contract can opt out of — design your off-chain systems assuming DID history is public and immutable.
+- **Key rotation cadence**: encourage periodic `rotate_key` calls for long-lived DIDs, the same way you'd rotate a signing key in any PKI system — a single long-lived key is a bigger blast radius if compromised.
+
+---
+
+## Tests
+
+```rust
+// src/test.rs
+#![cfg(test)]
+
+use soroban_sdk::{testutils::Address as _, Address, Env, String};
+use crate::{error::Error, DidRegistry, DidRegistryClient};
+
+fn setup(env: &Env) -> DidRegistryClient {
+    let contract_id = env.register(DidRegistry, ());
+    DidRegistryClient::new(env, &contract_id)
+}
+
+#[test]
+fn register_creates_a_resolvable_document() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let client = setup(&env);
+
+    let owner = Address::generate(&env);
+    let key = Address::generate(&env);
+    let endpoint = String::from_str(&env, "https://example.com/did-service");
+
+    client.register(&owner, &key, &endpoint);
+    let doc = client.resolve(&owner);
+
+    assert_eq!(doc.owner, owner);
+    assert_eq!(doc.keys.len(), 1);
+    assert!(!doc.revoked);
+}
+
+#[test]
+fn double_registration_rejected() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let client = setup(&env);
+
+    let owner = Address::generate(&env);
+    let key = Address::generate(&env);
+    let endpoint = String::from_str(&env, "https://example.com/a");
+
+    client.register(&owner, &key, &endpoint);
+    let result = client.try_register(&owner, &key, &endpoint);
+
+    assert_eq!(result, Err(Ok(Error::AlreadyRegistered)));
+}
+
+#[test]
+fn rotate_key_replaces_old_key_with_new_key() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let client = setup(&env);
+
+    let owner = Address::generate(&env);
+    let old_key = Address::generate(&env);
+    let new_key = Address::generate(&env);
+    let endpoint = String::from_str(&env, "https://example.com/a");
+
+    client.register(&owner, &old_key, &endpoint);
+    client.rotate_key(&owner, &old_key, &new_key);
+
+    let doc = client.resolve(&owner);
+    assert!(doc.keys.iter().any(|k| k == new_key));
+    assert!(!doc.keys.iter().any(|k| k == old_key));
+}
+
+#[test]
+fn rotate_unknown_key_rejected() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let client = setup(&env);
+
+    let owner = Address::generate(&env);
+    let real_key = Address::generate(&env);
+    let unrelated_key = Address::generate(&env);
+    let new_key = Address::generate(&env);
+    let endpoint = String::from_str(&env, "https://example.com/a");
+
+    client.register(&owner, &real_key, &endpoint);
+    let result = client.try_rotate_key(&owner, &unrelated_key, &new_key);
+
+    assert_eq!(result, Err(Ok(Error::KeyNotFound)));
+}
+
+#[test]
+fn remove_last_key_rejected() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let client = setup(&env);
+
+    let owner = Address::generate(&env);
+    let key = Address::generate(&env);
+    let endpoint = String::from_str(&env, "https://example.com/a");
+
+    client.register(&owner, &key, &endpoint);
+    let result = client.try_remove_key(&owner, &key);
+
+    assert_eq!(result, Err(Ok(Error::CannotRemoveLastKey)));
+}
+
+#[test]
+fn remove_key_succeeds_when_multiple_keys_exist() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let client = setup(&env);
+
+    let owner = Address::generate(&env);
+    let key_a = Address::generate(&env);
+    let key_b = Address::generate(&env);
+    let endpoint = String::from_str(&env, "https://example.com/a");
+
+    client.register(&owner, &key_a, &endpoint);
+    client.add_key(&owner, &key_b);
+    client.remove_key(&owner, &key_a);
+
+    let doc = client.resolve(&owner);
+    assert_eq!(doc.keys.len(), 1);
+    assert!(doc.keys.iter().any(|k| k == key_b));
+}
+
+#[test]
+fn revoked_document_rejects_further_mutations_but_still_resolves() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let client = setup(&env);
+
+    let owner = Address::generate(&env);
+    let key = Address::generate(&env);
+    let new_key = Address::generate(&env);
+    let endpoint = String::from_str(&env, "https://example.com/a");
+
+    client.register(&owner, &key, &endpoint);
+    client.revoke(&owner);
+
+    let doc = client.resolve(&owner);
+    assert!(doc.revoked);
+
+    let result = client.try_rotate_key(&owner, &key, &new_key);
+    assert_eq!(result, Err(Ok(Error::Revoked)));
+}
+
+#[test]
+fn update_endpoint_by_non_owner_rejected() {
+    let env = Env::default();
+    // No mock_all_auths(): resolving requires no auth, but require_auth()
+    // inside update_endpoint must fail without an authorized invocation.
+    let client = setup(&env);
+
+    let owner = Address::generate(&env);
+    let key = Address::generate(&env);
+    let endpoint = String::from_str(&env, "https://example.com/a");
+    let new_endpoint = String::from_str(&env, "https://example.com/b");
+
+    env.mock_all_auths();
+    client.register(&owner, &key, &endpoint);
+
+    env.set_auths(&[]);
+    let result = client.try_update_endpoint(&owner, &new_endpoint);
+    assert!(result.is_err());
+}
+```
+
+---
+
+## Client Invocation (TypeScript)
+
+```ts
+import {
+  Contract,
+  TransactionBuilder,
+  rpc,
+  Networks,
+  BASE_FEE,
+  Address,
+  nativeToScVal,
+  Keypair,
+} from '@stellar/stellar-sdk';
+
+const server = new rpc.Server('https://soroban-testnet.stellar.org');
+const contract = new Contract('<DID_REGISTRY_CONTRACT_ID>');
+
+async function registerDid(
+  ownerKeypair: Keypair,
+  initialKey: string,
+  serviceEndpoint: string
+) {
+  const account = await server.getAccount(ownerKeypair.publicKey());
+  const tx = new TransactionBuilder(account, {
+    fee: BASE_FEE,
+    networkPassphrase: Networks.TESTNET,
+  })
+    .addOperation(
+      contract.call(
+        'register',
+        new Address(ownerKeypair.publicKey()).toScVal(),
+        new Address(initialKey).toScVal(),
+        nativeToScVal(serviceEndpoint, { type: 'string' })
+      )
+    )
+    .setTimeout(30)
+    .build();
+
+  const prepared = await server.prepareTransaction(tx);
+  prepared.sign(ownerKeypair);
+  return server.sendTransaction(prepared);
+}
+
+// resolve() takes no auth — simulate rather than submit a transaction.
+async function resolveDid(ownerPublicKey: string) {
+  const account = await server.getAccount(ownerPublicKey);
+  const tx = new TransactionBuilder(account, {
+    fee: BASE_FEE,
+    networkPassphrase: Networks.TESTNET,
+  })
+    .addOperation(
+      contract.call('resolve', new Address(ownerPublicKey).toScVal())
+    )
+    .setTimeout(30)
+    .build();
+
+  const simulated = await server.simulateTransaction(tx);
+  return simulated;
+}
+```
+
+---
+
+## Deploying & Invoking with the CLI
+
+```bash
+stellar contract build
+stellar contract deploy \
+  --wasm target/wasm32-unknown-unknown/release/soroban_did_registry.wasm \
+  --source alice --network testnet
+
+stellar contract invoke --id <CONTRACT_ID> --source alice --network testnet -- \
+  register --owner alice --initial_key alice --service_endpoint "https://example.com/did-service"
+
+stellar contract invoke --id <CONTRACT_ID> --source alice --network testnet -- \
+  resolve --owner alice
+```
+
+---
+
+## Related docs
+
+- [Soroban Host Functions](/docs/guides/soroban-host-functions) — storage, auth, and cross-contract call primitives
+- [Privacy Considerations](/docs/guides/privacy-considerations) — general privacy guidance for on-chain data
+- [Signing with Hardware Wallets](/docs/guides/signing-with-hardware-wallets) — pairs well with key rotation for high-value DIDs

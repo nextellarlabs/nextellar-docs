@@ -1,0 +1,176 @@
+---
+title: Stellar dApp Code Freeze Process
+description: A step-by-step code freeze process for stabilizing a Stellar dApp or docs project ahead of major releases, covering entry criteria, exit criteria, exception handling, and rollback planning.
+date: 2026-08-26
+---
+
+# Stellar dApp Code Freeze Process
+
+A code freeze is a scheduled period before a major release during which new features, refactors, and dependency upgrades stop landing so the release branch can be stabilized and validated. For a Stellar dApp this matters more than in typical web projects: once contracts and transaction flows ship to mainnet, regressions can put user funds at risk rather than just cause cosmetic bugs.
+
+This guide defines the freeze phases, entry and exit criteria, how exceptions are handled, and how to communicate status. It applies both to dApp releases and to major versions of the Nextellar scaffolding CLI and docs.
+
+---
+
+## What Code Freeze Means
+
+During a freeze:
+
+- **Allowed**: bug fixes for release-blocking issues, documentation updates, translation updates, test additions, release tooling changes.
+- **Not allowed**: new features, breaking API changes, dependency bumps unrelated to fixes, contract interface changes, schema migrations.
+
+Freeze applies to the release branch (`release/<version>`) and, after branching, to `main` commits that will be cherry-picked into it. Feature work continues on feature branches — a freeze stops merges _into the release_, not development overall.
+
+---
+
+## Timeline & Phases
+
+A typical major release follows five phases over roughly two weeks:
+
+| Phase               | Duration (typical) | Purpose                                                         |
+| ------------------- | ------------------ | --------------------------------------------------------------- |
+| Freeze announcement | T-3 days           | Announce the date, cut scope, land last planned features        |
+| Hard freeze         | Day 0 – T-7 days   | Only fix-forward bug fixes merged into `release/<version>`      |
+| Stabilization       | T-7 – T-2 days     | Release candidate builds, regression testing, docs finalization |
+| Release             | T-day              | Tag, publish, deploy                                            |
+| Thaw                | Immediately after  | Reopen `main`, resume normal merge flow                         |
+
+Phase transitions are announced in the release channel by the release captain. Slipping a phase requires an explicit decision (see [Exception handling](#exception-handling)), never silence.
+
+---
+
+## Entry Criteria
+
+The hard freeze starts only when **all** of the following are true:
+
+- **CI green** — the full pipeline (lint, typecheck, unit tests, integration tests against Testnet) passes on the release branch.
+- **Open P0/P1 bugs resolved or waived** — every P0 and P1 issue is either fixed on the release branch or has a recorded waiver approved by the release captain.
+- **Documentation complete** — release notes drafted, breaking-change guides written (see [Migration Guide](/docs/guides/migration) for the expected format), README and changelog entries ready.
+- **Translations done** — all locale files updated and reviewed for the strings touched in this release.
+- **Release branch created** — `release/<version>` is cut from `main` and protected.
+- **Rollback plan reviewed** — the plan described below is written and walked through by someone other than its author.
+
+If any criterion fails at T-0, the freeze start slips — do not freeze with known red CI.
+
+---
+
+## Exit Criteria
+
+The release ships only when **all** of the following are true:
+
+- **Release candidate validated** — the final RC build passes the full regression suite, including wallet flows (connect, sign, submit) on Testnet, and a smoke test on Mainnet where applicable.
+- **Sign-offs collected** — engineering lead, QA lead, and product owner have each approved the RC in writing (a comment on the release tracking issue counts).
+- **Changelog finalized** — the changelog entry lists every user-visible change with correct version numbers and dates.
+- **Docs published-ready** — documentation for new behavior is merged and renders without build errors.
+- **No open waivers without owners** — each accepted exception has a named owner and a follow-up issue.
+
+Exit criteria are checked in the release review meeting; the release captain records the outcome on the tracking issue before tagging.
+
+---
+
+## Exception Handling
+
+Freezes need escape valves, but they must be deliberate and auditable.
+
+### Severity-based exception process
+
+| Severity      | Default during freeze                        | Approver required                   |
+| ------------- | -------------------------------------------- | ----------------------------------- |
+| P0 — Critical | Fix immediately, cherry-pick into RC         | Release captain (retro-approval OK) |
+| P1 — High     | Fix + merge if fix lands within 24h of RC    | Release captain                     |
+| P2 — Medium   | Defer unless trivially safe (< 20 line diff) | Engineering lead                    |
+| P3 — Low      | Always defer to next release                 | N/A                                 |
+
+### Who can approve waivers
+
+- **P0/P1 fixes**: release captain alone.
+- **Scope cuts** (shipping without a planned feature): release captain plus product owner.
+- **Timeline slips** (delaying the whole release): engineering lead.
+- **Emergency contract or key changes on Mainnet**: follow the [Incident Response Runbook](/docs/guides/incident-response-runbook) instead — incidents bypass this process entirely.
+
+### Emergency fixes during freeze
+
+For a P0 found in an RC:
+
+1. Post in the release channel with reproduction steps and impact.
+2. Land the minimal fix on `main` first, then cherry-pick onto `release/<version>`.
+3. Cut a new RC — never patch a tagged artifact in place.
+4. Re-run the full validation suite; partial re-testing is not acceptable for P0 fixes touching transaction or signing paths.
+
+### Documenting exceptions
+
+Every exception gets a row in the freeze log (kept in the release tracking issue): the exception, severity, approver, rationale, and follow-up issue link. Undocumented exceptions discovered later block the next release's entry criteria.
+
+---
+
+## Communication
+
+Clear status signals prevent wasted work and surprise scope changes.
+
+- **Announcements** use the template below and go out in the team channel and the release tracking issue at least three days before hard freeze.
+- **Status labels** are applied to every PR during the freeze window: `freeze-approved` (merged), `freeze-deferred` (post-release milestone), `freeze-blocker` (must-fix before exit). CI dashboards filter on these labels.
+- **Daily status** — the release captain posts a short standup note during stabilization: current RC number, open blockers, waiver count, and confidence level (green/yellow/red).
+
+### Freeze announcement template
+
+```markdown
+# Code Freeze Announcement — <project> v<version>
+
+- **Hard freeze starts:** <date, time, timezone>
+- **Target release date:** <date>
+- **Release branch:** release/<version>
+- **Release captain:** <name>
+
+## Scope
+
+Shipping in this release:
+
+- <feature or fix 1>
+- <feature or fix 2>
+
+Explicitly deferred to v<next-version>:
+
+- <deferred item>
+
+## During the freeze
+
+- Only P0/P1 fixes may merge to release/<version>.
+- Label PRs with `freeze-approved`, `freeze-deferred`, or `freeze-blocker`.
+- Exceptions require approval from <approver role>.
+
+Questions → #<release-channel>
+```
+
+---
+
+## Rollback Plan
+
+Every freeze must end with a tested way back. Before exit, document:
+
+1. **Artifact rollback** — how to redeploy the previous release tag (container image or npm dist-tag) and who executes it. See [Deployment](/docs/guides/deployment) for environment-specific steps.
+2. **Data compatibility** — confirm the new release reads data written by the old one, or record the migration path and its reversal procedure. Soroban contracts are immutable, so contract-side rollbacks mean deploying a prior contract address and pointing clients at it via config.
+3. **Feature flags** — any risky behavior shipped behind a flag can be disabled without redeploying; see [Feature Flagging dApp Flows](/docs/guides/feature-flagging-dapp-flows).
+4. **Client cache** — note CDN or service-worker caches that may serve stale assets and how to purge them.
+
+A release cannot exit stabilization until the rollback steps have been rehearsed once on staging.
+
+---
+
+## Acceptance Checklist
+
+- [ ] Guide renders without build errors
+- [ ] Internal links resolve to existing docs pages
+- [ ] All five phases covered with durations and purposes
+- [ ] Entry and exit criteria are exhaustive and checkable
+- [ ] Exception process names specific approvers per severity
+- [ ] Reusable announcement template included
+
+---
+
+## Related docs
+
+- [Incident Response Runbook](/docs/guides/incident-response-runbook) — Emergency procedures that override the freeze
+- [Migration Guide](/docs/guides/migration) — Breaking-change documentation format for major releases
+- [Deployment](/docs/guides/deployment) — Environment-specific rollout and rollback steps
+- [Contributing Checklist](/docs/guides/contributing-checklist) — Pre-merge checks that keep the release branch healthy
+- [Performance Budget Guide](/docs/guides/performance-budget-guide) — Budget checks that gate the release candidate

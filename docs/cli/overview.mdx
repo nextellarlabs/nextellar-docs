@@ -20,9 +20,9 @@ Nextellar CLI is a one-command solution that:
 
 ## Quick Start
 
-````bash
+```bash
 npx nextellar my-stellar-app
-````
+```
 
 That's it! Your Stellar dApp is ready in under 2 minutes.
 
@@ -57,7 +57,7 @@ No installation required. Run directly:
 
 ```bash
 npx nextellar my-app
-````
+```
 
 **Pros:**
 
@@ -73,10 +73,10 @@ npx nextellar my-app
 
 Install once, use everywhere:
 
-````bash
+```bash
 npm install -g nextellar
 nextellar my-app
-````
+```
 
 **Pros:**
 
@@ -96,7 +96,7 @@ nextellar my-app
 ```bash
 yarn global add nextellar
 nextellar my-app
-````
+```
 
 **pnpm:**
 
@@ -146,22 +146,24 @@ cd my-app
 npm run dev
 ```
 
-### Custom Configuration
+### Custom Configuration (with custom wallet selection)
 
 ```bash
 npx nextellar my-app \
   --package-manager pnpm \
   --horizon-url https://horizon.stellar.org \
   --wallets freighter,xbull
+## Note: freighter,xbull is a custom wallet selection.
+## See [Wallet Configuration](/docs/cli/flags#wallet-configuration-wallets) for defaults and all supported adapters.
 ```
 
-### Skip Installation
+## Skip Installation
 
-````bash
+```bash
 npx nextellar my-app --skip-install
 cd my-app
 pnpm install  # Install with your preferred package manager
-````
+```
 
 ### Verify Environment
 
@@ -169,7 +171,7 @@ Before scaffolding, confirm your machine meets the requirements:
 
 ```bash
 npx nextellar doctor
-````
+```
 
 Use `nextellar doctor --json` in CI pipelines. See [CLI Commands](/docs/cli/commands) for full output examples.
 
@@ -186,19 +188,19 @@ Nextellar respects these environment variables:
 
 ### Check Version
 
-````bash
+```bash
 npx nextellar --version
-# or
+## or
 nextellar -v
-````
+```
 
-### Update to Latest
+## Update to Latest
 
 **npx (automatic):**
 
 ```bash
 npx nextellar@latest my-app
-````
+```
 
 **Global install:**
 
@@ -215,48 +217,48 @@ npm update -g nextellar
 **Solution:**
 
 ```bash
-# Use npx instead
+## Use npx instead
 npx nextellar my-app
 
-# Or reinstall globally
+## Or reinstall globally
 npm install -g nextellar
 ```
 
-### Permission Errors
+## Permission Errors
 
 **Issue:** `EACCES: permission denied`
 
 **Solution:**
 
 ```bash
-# Use npx (no permissions needed)
+## Use npx (no permissions needed)
 npx nextellar my-app
 
-# Or fix npm permissions
+## Or fix npm permissions
 sudo chown -R $(whoami) ~/.npm
 ```
 
-### Slow Installation
+## Slow Installation
 
 **Issue:** Installation takes too long
 
 **Solution:**
 
-````bash
-# Increase timeout
+```bash
+## Increase timeout
 npx nextellar my-app --install-timeout 3600000
 
-# Or skip and install manually
+## Or skip and install manually
 npx nextellar my-app --skip-install
 cd my-app
 npm install
-````
+```
 
 ## Next Steps
 
 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-6">
   <a
-    href="/cli/commands"
+    href="/docs/cli/commands"
     className="block p-4 border rounded-lg hover:border-primary transition-colors"
   >
     <h4 className="font-semibold mb-2">CLI Commands</h4>
@@ -264,7 +266,7 @@ npm install
   </a>
 
 <a
-  href="/cli/options"
+  href="/docs/cli/options"
   className="block p-4 border rounded-lg hover:border-primary transition-colors"
 >
   <h4 className="font-semibold mb-2">CLI Options</h4>
@@ -274,7 +276,7 @@ npm install
 </a>
 
 <a
-  href="/cli/configuration"
+  href="/docs/cli/configuration"
   className="block p-4 border rounded-lg hover:border-primary transition-colors"
 >
   <h4 className="font-semibold mb-2">Configuration</h4>
@@ -284,7 +286,7 @@ npm install
 </a>
 
   <a
-    href="/troubleshooting/installation-issues"
+    href="/docs/troubleshooting/common-error-messages"
     className="block p-4 border rounded-lg hover:border-primary transition-colors"
   >
     <h4 className="font-semibold mb-2">Troubleshooting</h4>
@@ -296,4 +298,4 @@ npm install
 
 - [Installation Guide](/docs/getting-started/installation) - Detailed installation instructions
 - [Quick Start](/docs/getting-started/quick-start) - Build your first app
-- [Project Structure](/docs/getting-started/project-structure) - Understand the generated code
+- [Project Structure](/docs/getting-started/installation#project-structure) - Understand the generated code

@@ -1,0 +1,256 @@
+---
+title: Release Notes Workflow
+description: Learn how Nextellar release notes are written, published, and maintained across versions.
+date: 2026-05-29
+---
+
+# Release Notes Workflow
+
+This guide explains how release notes are created, published, and maintained for Nextellar. It covers the process, where notes live, and provides a template for writing consistent release notes.
+
+## Overview
+
+Release notes document changes, improvements, and fixes in each Nextellar release. They help users understand what's new, what's changed, and what they need to do to upgrade.
+
+Release notes are published in two places:
+
+1. **GitHub Releases** — The primary source for release announcements
+2. **Documentation Site** — Archived release notes for historical reference
+
+## Where Release Notes Live
+
+### GitHub Releases (Primary)
+
+Release notes are published on the [Nextellar GitHub repository releases page](https://github.com/nextellarlabs/nextellar/releases).
+
+**Location**: `https://github.com/nextellarlabs/nextellar/releases`
+
+Each release includes:
+
+- Version number (e.g., `v2.1.0`)
+- Release date
+- Changelog with categorized changes
+- Links to related documentation
+- Installation instructions
+
+### Documentation Site (Archive)
+
+Historical release notes are archived in the documentation at `/docs/guides/release-notes.mdx`.
+
+**Location**: `/docs/guides/release-notes.mdx`
+
+This page serves as:
+
+- A searchable archive of all releases
+- A reference for users reviewing past changes
+- A migration guide companion for version upgrades
+
+## Release Notes Process
+
+### 1. Planning the Release
+
+Before writing release notes, gather information about the release:
+
+- **Version number** — Follow [semantic versioning](https://semver.org/) (e.g., `v2.1.0`)
+- **Release date** — Target date for publication
+- **Changes** — Collect all merged PRs and issues since the last release
+- **Breaking changes** — Identify any changes that require user action
+- **Migration guide** — Determine if a migration guide update is needed
+
+### 2. Categorizing Changes
+
+Organize changes into these categories:
+
+| Category             | Description                       | Example                                         |
+| -------------------- | --------------------------------- | ----------------------------------------------- |
+| **Features**         | New functionality added           | "Added support for Soroban smart contracts"     |
+| **Improvements**     | Enhancements to existing features | "Improved wallet connection performance by 40%" |
+| **Bug Fixes**        | Issues resolved                   | "Fixed balance refresh on network switch"       |
+| **Breaking Changes** | Changes requiring user action     | "Renamed `network` prop to `networkPassphrase`" |
+| **Dependencies**     | Updated packages                  | "Updated Stellar SDK to v21.0.0"                |
+| **Documentation**    | Docs updates                      | "Added Soroban integration guide"               |
+
+### 3. Writing Release Notes
+
+Use the template below to write release notes. Keep entries concise and user-focused.
+
+**Template:**
+
+```markdown
+## v2.1.0 — May 29, 2026
+
+### Features
+
+- Added support for Soroban smart contracts via `useSorobanContract` hook.
+- New `useOfferBook` hook for DEX integration.
+- CLI now supports interactive prompting for scaffold options.
+
+### Improvements
+
+- Improved wallet connection performance by 40%.
+- Enhanced error messages for better debugging.
+- Reduced bundle size by 15% through tree-shaking optimizations.
+
+### Bug Fixes
+
+- Fixed balance refresh when switching networks.
+- Resolved issue with Freighter wallet on Firefox.
+- Fixed TypeScript types for payment options.
+
+### Breaking Changes
+
+- `WalletProvider` prop `network` renamed to `networkPassphrase`.
+- `useStellarWallet` hook no longer auto-fetches balances on connect.
+- CLI flag `--wallets` renamed to `--wallet-adapters`.
+
+### Dependencies
+
+- Updated `@stellar/stellar-sdk` to v21.0.0.
+- Updated `next` to v16.1.3.
+
+### Migration Guide
+
+See the [Migration Guide](/docs/guides/migration) for detailed upgrade instructions.
+```
+
+### 4. Publishing to GitHub
+
+1. Go to [Nextellar Releases](https://github.com/nextellarlabs/nextellar/releases)
+2. Click **"Draft a new release"**
+3. Fill in the release details:
+   - **Tag version**: `v2.1.0` (must match package.json version)
+   - **Release title**: `v2.1.0 — Release Name` (optional)
+   - **Description**: Paste the formatted release notes
+4. Check **"Set as the latest release"** if applicable
+5. Click **"Publish release"**
+
+### 5. Archiving to Documentation
+
+After publishing to GitHub:
+
+1. Open `/docs/guides/release-notes.mdx`
+2. Add the new release at the top of the archive section
+3. Include a link to the GitHub release
+4. Run `pnpm build:content` to rebuild
+5. Run `pnpm check:links` to validate links
+6. Commit and merge the changes
+
+**Example archive entry:**
+
+```markdown
+## v2.1.0 — May 29, 2026
+
+[View on GitHub](https://github.com/nextellarlabs/nextellar/releases/tag/v2.1.0)
+
+### Features
+
+- Added support for Soroban smart contracts via `useSorobanContract` hook.
+- New `useOfferBook` hook for DEX integration.
+- CLI now supports interactive prompting for scaffold options.
+
+[Full release notes on GitHub →](https://github.com/nextellarlabs/nextellar/releases/tag/v2.1.0)
+```
+
+## Release Notes Template
+
+Use this template when writing release notes:
+
+```markdown
+## vX.Y.Z — Month DD, YYYY
+
+### Features
+
+- Feature 1 description.
+- Feature 2 description.
+
+### Improvements
+
+- Improvement 1 description.
+- Improvement 2 description.
+
+### Bug Fixes
+
+- Bug fix 1 description.
+- Bug fix 2 description.
+
+### Breaking Changes
+
+- Breaking change 1 with migration path.
+- Breaking change 2 with migration path.
+
+### Dependencies
+
+- Updated package to version X.Y.Z.
+
+### Migration Guide
+
+See the [Migration Guide](/docs/guides/migration) for detailed upgrade instructions.
+```
+
+## Best Practices
+
+### Writing Clear Release Notes
+
+- **Be user-focused** — Explain what users can do with the change, not just what changed
+- **Use active voice** — "Added support for X" instead of "Support for X was added"
+- **Link to documentation** — Reference relevant guides and API docs
+- **Highlight breaking changes** — Make them impossible to miss
+- **Include migration paths** — Show users how to upgrade
+- **Keep it concise** — One sentence per item, no paragraphs
+
+### Examples
+
+**Good:**
+
+```
+Added `useSorobanContract` hook for smart contract interaction
+```
+
+**Better:**
+
+```
+Added `useSorobanContract` hook for building Soroban smart contract interactions with automatic error handling and type safety
+```
+
+**Best:**
+
+```
+Added `useSorobanContract` hook for building Soroban smart contract interactions. See the [Soroban integration guide](/docs/integrations/soroban) for examples.
+```
+
+### Timing
+
+- **Major releases** (v1.0.0, v2.0.0) — Announce 1-2 weeks in advance
+- **Minor releases** (v1.1.0, v1.2.0) — Publish immediately after release
+- **Patch releases** (v1.0.1, v1.0.2) — Publish immediately after release
+
+### Versioning
+
+Follow [semantic versioning](https://semver.org/):
+
+- **Major** (v1.0.0 → v2.0.0) — Breaking changes
+- **Minor** (v1.0.0 → v1.1.0) — New features (backward compatible)
+- **Patch** (v1.0.0 → v1.0.1) — Bug fixes (backward compatible)
+
+## Validation Checklist
+
+Before publishing release notes, verify:
+
+- [ ] Version number follows semantic versioning
+- [ ] All changes are categorized correctly
+- [ ] Breaking changes are clearly marked
+- [ ] Migration guide is updated (if needed)
+- [ ] Links to documentation are correct
+- [ ] Release notes build without errors: `pnpm build:content`
+- [ ] Internal links pass validation: `pnpm check:links`
+- [ ] Frontmatter includes title, description, and date
+- [ ] GitHub release is published before documentation update
+- [ ] Documentation PR is reviewed and approved
+
+## Related Resources
+
+- [Migration Guide](/docs/guides/migration) — Version upgrade instructions
+- [Contributing Guide](/docs/guides/contributing) — Documentation contribution process
+- [Add a Docs Page](/docs/guides/add-docs-page) — Creating new documentation pages
+- [Semantic Versioning](https://semver.org/) — Version numbering standards
+- [GitHub Releases Documentation](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases) — Publishing releases on GitHub

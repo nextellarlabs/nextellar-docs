@@ -225,4 +225,15 @@ html {
   .btn-border {
     border: 1px solid var(--color-button-border);
   }
+
+  /* Screen reader only — hides content visually but keeps it accessible */
+  .sr-only {
+    @apply absolute w-px h-px p-0 -m-px overflow-hidden border-0 whitespace-nowrap;
+  }
+
+  /* Allow sr-only to be focusable and visible on focus */
+  .sr-only:focus,
+  .focus\:not-sr-only:focus {
+    @apply not-sr-only;
+  }
 }

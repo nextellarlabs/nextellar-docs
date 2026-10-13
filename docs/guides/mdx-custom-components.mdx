@@ -36,7 +36,7 @@ MDX pages can use the components registered in `src/components/mdx-components.ts
 | `CodeTabs`                | `tabs: Record<string, { syntax: string; language: string }>`                                                        | Each tab needs a stable key and syntax string.                                                |
 | `CustomSyntaxHighlighter` | `tabs`, `className?`, `themeMode?: "light" \| "dark"`, `lightTheme?`, `darkTheme?`, `indicatorColor?`               | Use `CodeTabs` unless you need theme or indicator options.                                    |
 
-```mdx
+```markdown
 <Note>Run `pnpm build:content` after adding any new MDX file.</Note>
 ```
 
@@ -55,7 +55,7 @@ MDX pages can use the components registered in `src/components/mdx-components.ts
 | `Tab`         | `value: string`, `children`, `className?`        | Must be rendered inside `Tabs`.                                  |
 | `TabsContent` | `value: string`, `children`, `className?`        | Must be rendered inside `Tabs`. Hidden content is not mounted.   |
 
-````mdx
+````markdown
 <Tabs defaultValue="npm">
   <TabsList>
     <Tab value="testnet">Testnet</Tab>
@@ -76,7 +76,7 @@ MDX pages can use the components registered in `src/components/mdx-components.ts
 | `StepContent` | Standard `div` props                                                                                                               | Must be a child of `Step` to appear in the expected position. |
 | `Stepper`     | `steps: { title: ReactNode; content: ReactNode }[]`, `mode?: "vertical" \| "horizontal"`, class override props                     | Best for compact generated step lists.                        |
 
-```mdx
+```markdown
 <Steps>
   <Step>
     <StepTitle>Install dependencies</StepTitle>
@@ -89,11 +89,11 @@ MDX pages can use the components registered in `src/components/mdx-components.ts
 </Steps>
 
 <Stepper
-  mode="horizontal"
-  steps={[
-    { title: 'Draft', content: 'Create the MDX page.' },
-    { title: 'Link', content: 'Add sidebar and related links.' },
-  ]}
+mode="horizontal"
+steps={[
+{ title: 'Draft', content: 'Create the MDX page.' },
+{ title: 'Link', content: 'Add sidebar and related links.' },
+]}
 />
 ```
 
@@ -105,7 +105,7 @@ MDX pages can use the components registered in `src/components/mdx-components.ts
 | `Folder`     | `element: string`, `defaultOpen?: boolean`, standard `div` props | Must be inside `FolderTree`.                        |
 | `File`       | Standard `div` props                                             | Use plain file names or short inline content.       |
 
-```mdx
+```markdown
 <FolderTree>
   <Folder element="src" defaultOpen={true}>
     <Folder element="hooks">
@@ -139,7 +139,7 @@ MDX pages can use the components registered in `src/components/mdx-components.ts
   </Folder>
 </FolderTree>
 
-```mdx
+```markdown
 <Button variant="primary" size="sm">
   Connect wallet
 </Button>
@@ -182,9 +182,9 @@ MDX pages can use the components registered in `src/components/mdx-components.ts
 | `PopMenu`            | `position?`, `isPositioning?`, `onClose?`, standard `div` props                                                                                          | Normally let `Menu` provide positioning props.                       |
 | `MenuItem`           | Standard `button` props                                                                                                                                  | Must be inside `PopMenu` for menu semantics.                         |
 
-```mdx
+```markdown
 <CodeTabs
-  tabs={{
+tabs={{
     tsx: { syntax: 'const { address } = useStellarWallet();', language: 'tsx' },
     js: { syntax: 'const { address } = useStellarWallet();', language: 'js' },
   }}
@@ -210,7 +210,7 @@ MDX pages can use the components registered in `src/components/mdx-components.ts
 | `SidebarHeaderTitle` | Standard heading props                                                                                                                                                | Use in `SidebarHeader`.                                   |
 | `UserAvatar`         | Standard `div` props                                                                                                                                                  | Use in `SidebarFooter` for examples.                      |
 
-```mdx
+```markdown
 <SidebarProvider defaultOpen={true}>
   <SidebarLayout>
     <Sidebar>
@@ -261,7 +261,7 @@ MDX pages can use the components registered in `src/components/mdx-components.ts
 | `BookOpen`  | Lucide icon props | Pair with text for accessibility.               |
 | `Component` | Lucide icon props | Pair with text for accessibility.               |
 
-```mdx
+```markdown
 <div className="flex gap-3">
   <Home className="h-4 w-4" />
   <Users className="h-4 w-4" />
@@ -286,15 +286,16 @@ The MDX renderer also customizes standard Markdown output for `h1`, `h2`, `h3`, 
 | Lists and tables        | Standard HTML props                           | Keep tables narrow enough to scan on mobile.           |
 | `code`                  | `className` with `language-*` for code fences | Fenced `mermaid` code blocks render through `Mermaid`. |
 
-````mdx
+````markdown
 ## Example Heading
 
 Use [internal links](/docs/guides/link-validation) with the `/docs` prefix.
 
-```mermaid
+````mermaid
 graph LR
   Docs --> Build
-```
+```text
+````
 ````
 
 ## Related

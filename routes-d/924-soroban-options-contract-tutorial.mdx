@@ -1,0 +1,279 @@
+---
+title: Soroban Options Contract Tutorial
+description: A step-by-step tutorial for building a small European-style options contract on Stellar Soroban, covering creation, exercise, and expiry.
+date: 2026-08-27
+---
+
+# Soroban Options Contract Tutorial
+
+This tutorial builds a small European-style call option contract: the writer locks up collateral, sells the option to a holder, and the holder may exercise it only at expiry if the option is in the money.
+
+---
+
+## Option Creation
+
+The writer creates an option by specifying:
+
+- **Underlying amount**: how much of the base asset the option covers.
+- **Strike price**: the price the holder pays per unit if they exercise.
+- **Premium**: the price the holder pays upfront to acquire the option.
+- **Expiry**: the ledger timestamp after which the option can be exercised (European-style — exercise is only allowed at or after expiry, not before).
+
+Creating an option locks the writer's underlying collateral into the contract for the life of the option, so the writer cannot spend it elsewhere until the option is exercised or expires worthless.
+
+---
+
+## Exercise
+
+At or after expiry, the holder may call `exercise`:
+
+1. The contract reads the current price (from an oracle in a real deployment).
+2. If the current price is **above** the strike (the call is in the money), the holder pays `strike_price * underlying_amount` to the writer and receives the locked underlying collateral.
+3. If the current price is **at or below** the strike, the option is worthless — the holder has no reason to exercise, and the writer can reclaim their collateral once the option expires unexercised.
+
+The holder is never obligated to exercise — a European call is a right, not a duty. This contract enforces that by only allowing `exercise` to succeed when it is profitable, and separately allowing the writer to reclaim collateral once the exercise window has passed.
+
+---
+
+## Expiry Handling
+
+This contract uses a single expiry timestamp with no separate "exercise window end" — the holder may exercise at any point from `expiry` onward until the writer reclaims unexercised collateral. In a production system you would typically add a hard exercise deadline (e.g. 24 hours after expiry) after which the writer can always reclaim, to prevent collateral from being locked indefinitely.
+
+---
+
+## Client Invocation
+
+Using the Soroban CLI against a deployed contract:
+
+```bash
+# Writer creates an option: 100 units underlying, strike 5.00, premium 0.50, expires in 1 day
+soroban contract invoke \
+  --id $OPTIONS_CONTRACT_ID \
+  --source writer \
+  --network testnet \
+  -- create_option \
+  --writer $WRITER_ADDRESS \
+  --underlying_amount 100 \
+  --strike_price 50000000 \
+  --premium 5000000 \
+  --expiry $(($(date +%s) + 86400))
+
+# Holder buys the option (pays the premium, receives the option NFT/id)
+soroban contract invoke \
+  --id $OPTIONS_CONTRACT_ID \
+  --source holder \
+  --network testnet \
+  -- buy_option \
+  --holder $HOLDER_ADDRESS \
+  --option_id 0
+
+# After expiry, holder exercises if in the money
+soroban contract invoke \
+  --id $OPTIONS_CONTRACT_ID \
+  --source holder \
+  --network testnet \
+  -- exercise \
+  --option_id 0 \
+  --current_price 60000000
+```
+
+From a TypeScript client using the Stellar SDK:
+
+```typescript
+import { Contract, TransactionBuilder, Networks } from '@stellar/stellar-sdk';
+
+const optionsContract = new Contract(OPTIONS_CONTRACT_ID);
+
+const exerciseOp = optionsContract.call(
+  'exercise',
+  nativeToScVal(optionId, { type: 'u64' }),
+  nativeToScVal(currentPrice, { type: 'i128' })
+);
+
+const tx = new TransactionBuilder(holderAccount, {
+  fee: BASE_FEE,
+  networkPassphrase: Networks.TESTNET,
+})
+  .addOperation(exerciseOp)
+  .setTimeout(30)
+  .build();
+```
+
+---
+
+## Soroban Smart Contract Sample
+
+```rust
+#![no_std]
+use soroban_sdk::{contract, contractimpl, contracttype, contracterror, Address, Env, Symbol, symbol_short};
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Option_ {
+    pub writer: Address,
+    pub holder: Option<Address>,
+    pub underlying_amount: i128,
+    pub strike_price: i128,
+    pub premium: i128,
+    pub expiry: u64,
+    pub exercised: bool,
+    pub reclaimed: bool,
+}
+
+#[contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[repr(u32)]
+pub enum Error {
+    InvalidAmount = 1,
+    InvalidExpiry = 2,
+    NotFound = 3,
+    AlreadyBought = 4,
+    NotYetExpired = 5,
+    AlreadyExercised = 6,
+    OutOfTheMoney = 7,
+    NoHolder = 8,
+    AlreadyReclaimed = 9,
+}
+
+fn option_key(id: u64) -> (Symbol, u64) {
+    (symbol_short!("OPT"), id)
+}
+
+#[contract]
+pub struct OptionsContract;
+
+#[contractimpl]
+impl OptionsContract {
+    pub fn create_option(
+        env: Env,
+        writer: Address,
+        underlying_amount: i128,
+        strike_price: i128,
+        premium: i128,
+        expiry: u64,
+    ) -> Result<u64, Error> {
+        writer.require_auth();
+
+        if underlying_amount <= 0 || strike_price <= 0 || premium < 0 {
+            return Err(Error::InvalidAmount);
+        }
+        if expiry <= env.ledger().timestamp() {
+            return Err(Error::InvalidExpiry);
+        }
+
+        // In production: transfer `underlying_amount` of the underlying asset
+        // from `writer` into this contract as collateral.
+
+        let id: u64 = env
+            .storage()
+            .instance()
+            .get(&symbol_short!("NEXT_ID"))
+            .unwrap_or(0);
+
+        let option = Option_ {
+            writer,
+            holder: None,
+            underlying_amount,
+            strike_price,
+            premium,
+            expiry,
+            exercised: false,
+            reclaimed: false,
+        };
+
+        env.storage().persistent().set(&option_key(id), &option);
+        env.storage()
+            .instance()
+            .set(&symbol_short!("NEXT_ID"), &(id + 1));
+
+        Ok(id)
+    }
+
+    pub fn buy_option(env: Env, holder: Address, option_id: u64) -> Result<(), Error> {
+        holder.require_auth();
+
+        let mut option: Option_ = env
+            .storage()
+            .persistent()
+            .get(&option_key(option_id))
+            .ok_or(Error::NotFound)?;
+
+        if option.holder.is_some() {
+            return Err(Error::AlreadyBought);
+        }
+
+        // In production: transfer `option.premium` from `holder` to `option.writer`.
+
+        option.holder = Some(holder);
+        env.storage().persistent().set(&option_key(option_id), &option);
+        Ok(())
+    }
+
+    /// Exercises the option if it is past expiry and in the money.
+    /// `current_price` would come from an oracle client in a real deployment.
+    pub fn exercise(env: Env, option_id: u64, current_price: i128) -> Result<(), Error> {
+        let mut option: Option_ = env
+            .storage()
+            .persistent()
+            .get(&option_key(option_id))
+            .ok_or(Error::NotFound)?;
+
+        let holder = option.holder.clone().ok_or(Error::NoHolder)?;
+        holder.require_auth();
+
+        if env.ledger().timestamp() < option.expiry {
+            return Err(Error::NotYetExpired);
+        }
+        if option.exercised {
+            return Err(Error::AlreadyExercised);
+        }
+        if current_price <= option.strike_price {
+            return Err(Error::OutOfTheMoney);
+        }
+
+        // In production:
+        //   1. transfer `option.strike_price * option.underlying_amount` from
+        //      `holder` to `option.writer`
+        //   2. transfer `option.underlying_amount` of the underlying from this
+        //      contract to `holder`
+
+        option.exercised = true;
+        env.storage().persistent().set(&option_key(option_id), &option);
+        Ok(())
+    }
+
+    /// Lets the writer reclaim their collateral once the option has expired
+    /// unexercised.
+    pub fn reclaim(env: Env, option_id: u64) -> Result<(), Error> {
+        let mut option: Option_ = env
+            .storage()
+            .persistent()
+            .get(&option_key(option_id))
+            .ok_or(Error::NotFound)?;
+
+        option.writer.require_auth();
+
+        if env.ledger().timestamp() < option.expiry {
+            return Err(Error::NotYetExpired);
+        }
+        if option.exercised {
+            return Err(Error::AlreadyExercised);
+        }
+        if option.reclaimed {
+            return Err(Error::AlreadyReclaimed);
+        }
+
+        // In production: transfer `option.underlying_amount` back to `option.writer`.
+
+        option.reclaimed = true;
+        env.storage().persistent().set(&option_key(option_id), &option);
+        Ok(())
+    }
+}
+```
+
+---
+
+## Summary
+
+This options contract walks through the full lifecycle a European call needs: creation with locked collateral, a one-time purchase transferring the premium, exercise gated on expiry and moneyness, and a reclaim path for the writer when the option expires worthless. Token transfers are left as comments pointing at the real `token::Client` calls, so this sample stays focused on the options logic itself.

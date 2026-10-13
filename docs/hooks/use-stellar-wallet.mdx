@@ -8,6 +8,12 @@ date: 2026-06-02
 
 The `useStellarWallet` hook provides a complete solution for connecting to Stellar wallets, managing account state, and executing payments. It's the foundation of wallet integration in Nextellar apps.
 
+<Note>
+  **Ships in:** default, js
+  <br />
+  Not in your scaffold? Run `nextellar add wallet`
+</Note>
+
 ## Features
 
 - **Multi-Wallet Support**: Freighter, Albedo, Lobstr, xBull, Hana
@@ -19,7 +25,7 @@ The `useStellarWallet` hook provides a complete solution for connecting to Stell
 
 ## Basic Usage
 
-`````tsx
+```tsx
 import { useStellarWallet } from '@/hooks/useStellarWallet';
 
 export default function WalletDemo() {
@@ -46,12 +52,12 @@ export default function WalletDemo() {
 
 ### Parameters
 
-````typescript
+```typescript
 useStellarWallet(
   horizonUrl?: string,
   network?: string
 ): StellarWalletState
-```css
+```
 
 | Parameter    | Type     | Default                                 | Description                |
 | ------------ | -------- | --------------------------------------- | -------------------------- |
@@ -73,7 +79,7 @@ interface StellarWalletState {
     opts: PaymentOptions
   ) => Promise<HorizonApi.SubmitTransactionResponse>;
 }
-`````
+```
 
 #### Properties
 
@@ -81,11 +87,11 @@ interface StellarWalletState {
 
 Whether a wallet is currently connected.
 
-````tsx
+```tsx
 {
   connected && <p>Wallet is connected!</p>;
 }
-```css
+```
 
 ---
 
@@ -95,7 +101,7 @@ The connected wallet's Stellar public key (G-address).
 
 ```tsx
 <p>Your address: {publicKey}</p>
-```css
+```
 
 ---
 
@@ -105,7 +111,7 @@ Name of the connected wallet (e.g., "Freighter", "Albedo").
 
 ```tsx
 <p>Connected via {walletName}</p>
-```css
+```
 
 ---
 
@@ -120,7 +126,7 @@ interface Balance {
   asset_code?: string;
   asset_issuer?: string;
 }
-````
+```
 
 ```tsx
 {
@@ -138,7 +144,7 @@ interface Balance {
 
 Opens the wallet selection modal and connects to the chosen wallet.
 
-````tsx
+```tsx
 const handleConnect = async () => {
   try {
     await connect();
@@ -149,7 +155,7 @@ const handleConnect = async () => {
     }
   }
 };
-```css
+```
 
 ---
 
@@ -159,7 +165,7 @@ Disconnects the current wallet and clears all state.
 
 ```tsx
 <button onClick={disconnect}>Disconnect</button>
-```bash
+```
 
 ---
 
@@ -172,7 +178,7 @@ const handleRefresh = async () => {
   await refreshBalances();
   console.log('Balances updated!');
 };
-```css
+```
 
 ---
 
@@ -187,7 +193,7 @@ interface PaymentOptions {
   asset?: 'XLM' | { code: string; issuer: string };
   memo?: string;
 }
-````
+```
 
 ```tsx
 const result = await sendPayment({
@@ -235,7 +241,7 @@ await sendPayment({
 
 Show all assets the account holds:
 
-````tsx
+```tsx
 function BalanceList() {
   const { balances, connected } = useStellarWallet();
 
@@ -264,7 +270,7 @@ function BalanceList() {
     </div>
   );
 }
-```bash
+```
 
 ### Auto-Refresh Balances After Payment
 
@@ -290,7 +296,7 @@ function SendPaymentWithRefresh() {
 
   return <button onClick={handleSend}>Send 10 XLM</button>;
 }
-````
+```
 
 ### Handling Unfunded Accounts
 
@@ -476,6 +482,7 @@ await sendPayment({
 - [`useStellarPayment`](/docs/hooks/use-stellar-payment) - Advanced payment building and submission
 - [`useStellarBalances`](/docs/hooks/use-stellar-balances) - Detailed balance tracking with real-time updates
 - [`useTransactionHistory`](/docs/hooks/use-transaction-history) - View account transaction history
+- [`useTrustlines`](/docs/hooks/use-trustlines#adding-and-removing-a-trustline) - Add and remove trustlines for the connected account
 
 ## Common Issues
 
@@ -503,10 +510,10 @@ const handleConnect = async () => {
 
 **Solution**:
 
-````tsx
+```tsx
 // Manually refresh after funding
 await refreshBalances();
-```bash
+```
 
 ### Payment Fails with "op_underfunded"
 
@@ -518,7 +525,7 @@ await refreshBalances();
 
 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-6">
   <a
-    href="/hooks/use-stellar-payment"
+    href="/docs/hooks/use-stellar-payment"
     className="block p-4 border rounded-lg hover:border-primary transition-colors"
   >
     <h4 className="font-semibold mb-2">useStellarPayment</h4>
@@ -526,7 +533,7 @@ await refreshBalances();
   </a>
 
 <a
-  href="/hooks/use-soroban-contract"
+  href="/docs/hooks/use-soroban-contract"
   className="block p-4 border rounded-lg hover:border-primary transition-colors"
 >
   <h4 className="font-semibold mb-2">useSorobanContract</h4>
@@ -536,7 +543,7 @@ await refreshBalances();
 </a>
 
 <a
-  href="/guides/wallet-integration"
+  href="/docs/sdk/wallet-integration"
   className="block p-4 border rounded-lg hover:border-primary transition-colors"
 >
   <h4 className="font-semibold mb-2">Wallet Integration Guide</h4>
@@ -546,7 +553,7 @@ await refreshBalances();
 </a>
 
   <a
-    href="/examples/payment-app"
+    href="/docs/examples/payment-app"
     className="block p-4 border rounded-lg hover:border-primary transition-colors"
   >
     <h4 className="font-semibold mb-2">Payment App Example</h4>
@@ -559,4 +566,3 @@ await refreshBalances();
 <p className="text-sm text-center text-muted-foreground mt-8">
   <a href="#"> Back to top</a>
 </p>
-````

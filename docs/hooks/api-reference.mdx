@@ -1,0 +1,429 @@
+---
+title: Complete Hooks API Reference
+description: Authoritative API reference for all 12 Nextellar React hooks — parameters, return values, error types, and verification examples.
+date: 2026-09-24
+---
+
+# Complete Hooks API Reference
+
+Nextellar provides 12 production-ready React hooks designed for building decentralized applications on the Stellar blockchain and Soroban smart contract platform.
+
+This document serves as the comprehensive, authoritative API reference for all 12 hooks. Each hook entry specifies its TypeScript signature, configuration parameters, return object, possible runtime error types, and a verified code example.
+
+---
+
+## Hooks Summary Matrix
+
+| #   | Hook                                                | Category        | Description                                                                  |
+| --- | --------------------------------------------------- | --------------- | ---------------------------------------------------------------------------- |
+| 1   | [`useStellarWallet`](#1-usestellarwallet)           | Wallet          | Connects, disconnects, and signs transactions with browser wallets.          |
+| 2   | [`useStellarBalances`](#2-usestellarbalances)       | Account         | Fetches native XLM and issued token balances with polling support.           |
+| 3   | [`useStellarPayment`](#3-usestellarpayment)         | Payments        | Builds and submits payment transactions to the Stellar network.              |
+| 4   | [`useTrustlines`](#4-usetrustlines)                 | Account         | Checks, creates, and modifies asset trustlines.                              |
+| 5   | [`useTransactionHistory`](#5-usetransactionhistory) | Account         | Loads and paginates historical transactions and operations.                  |
+| 6   | [`useOfferBook`](#6-useofferbook)                   | DEX             | Queries Stellar DEX order books for bids, asks, and spreads.                 |
+| 7   | [`useSorobanContract`](#7-usesorobancontract)       | Smart Contracts | Simulates and invokes Soroban smart contract methods.                        |
+| 8   | [`useSorobanEvents`](#8-usesorobanevents)           | Smart Contracts | Subscribes to and polls real-time Soroban contract events.                   |
+| 9   | [`useWalletContext`](#9-usewalletcontext)           | Context         | Accesses global wallet and network state from `WalletProvider`.              |
+| 10  | [`useNetworkGuard`](#10-usenetworkguard)            | Network         | Detects and prompts when the connected wallet network mismatches the app.    |
+| 11  | [`useStellarAssetPrice`](#11-usestellarassetprice)  | DEX / Oracles   | Fetches current market exchange rates and trade prices for asset pairs.      |
+| 12  | [`useWindowSize`](#12-usewindowsize)                | UI Utility      | Provides responsive viewport dimensions and mobile/desktop breakpoint flags. |
+
+---
+
+## 1. `useStellarWallet`
+
+Manages wallet lifecycle, multi-wallet selection (Freighter, Albedo, Lobstr, xBull, Hana), address state, and transaction/blob signing.
+
+### Signature
+
+```typescript
+function useStellarWallet(options?: WalletOptions): UseStellarWalletReturn;
+```
+
+### Parameters (`WalletOptions`)
+
+| Parameter         | Type                                                       | Default       | Description                                       |
+| ----------------- | ---------------------------------------------------------- | ------------- | ------------------------------------------------- |
+| `preferredWallet` | `'freighter' \| 'albedo' \| 'lobstr' \| 'xbull' \| 'hana'` | `'freighter'` | Default wallet extension to connect.              |
+| `network`         | `'PUBLIC' \| 'TESTNET' \| 'FUTURENET'`                     | `'TESTNET'`   | Target Stellar network.                           |
+| `autoConnect`     | `boolean`                                                  | `false`       | Automatically attempt re-connection on page load. |
+
+### Return Values (`UseStellarWalletReturn`)
+
+| Property          | Type                                                                      | Description                                                |
+| ----------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| `publicKey`       | `string \| null`                                                          | Connected account address (`G...`).                        |
+| `isConnected`     | `boolean`                                                                 | `true` if a wallet is actively connected.                  |
+| `isConnecting`    | `boolean`                                                                 | `true` while awaiting user wallet approval.                |
+| `walletType`      | `string \| null`                                                          | The active wallet identifier (e.g., `'freighter'`).        |
+| `connect`         | `(walletType?: string) => Promise<string>`                                | Triggers the wallet connection popup.                      |
+| `disconnect`      | `() => Promise<void>`                                                     | Clears active wallet connection state.                     |
+| `signTransaction` | `(xdr: string, opts?: { networkPassphrase?: string }) => Promise<string>` | Requests wallet signature for an XDR transaction envelope. |
+| `error`           | `Error \| null`                                                           | Current wallet error, if any.                              |
+
+### Errors
+
+- `WalletNotInstalledError`: The requested wallet extension is not installed in the browser.
+- `UserRejectedError`: The user rejected the connection or signature request in the wallet modal.
+- `NetworkMismatchError`: The wallet network does not match the application configuration.
+
+### Example
+
+```tsx
+import { useStellarWallet } from '@/hooks/useStellarWallet';
+
+export function WalletConnect() {
+  const { isConnected, publicKey, connect, disconnect, isConnecting, error } =
+    useStellarWallet();
+
+  if (isConnected) {
+    return (
+      <button onClick={() => disconnect()}>
+        Disconnect ({publicKey?.slice(0, 4)}...)
+      </button>
+    );
+  }
+
+  return (
+    <div>
+      <button onClick={() => connect('freighter')} disabled={isConnecting}>
+        {isConnecting ? 'Connecting...' : 'Connect Freighter'}
+      </button>
+      {error && <p className="text-red-500">{error.message}</p>}
+    </div>
+  );
+}
+```
+
+---
+
+## 2. `useStellarBalances`
+
+Retrieves account balances for native XLM and all issued assets.
+
+### Signature
+
+```typescript
+function useStellarBalances(
+  address: string | null,
+  options?: BalancesOptions
+): UseStellarBalancesReturn;
+```
+
+### Parameters
+
+| Parameter                 | Type             | Default            | Description                                       |
+| ------------------------- | ---------------- | ------------------ | ------------------------------------------------- |
+| `address`                 | `string \| null` | Required           | Stellar public address (`G...`).                  |
+| `options.pollingInterval` | `number`         | `0` (disabled)     | Milliseconds between automated balance refetches. |
+| `options.horizonUrl`      | `string`         | Configured default | Custom Horizon endpoint URL.                      |
+
+### Return Values
+
+| Property        | Type                  | Description                                                                         |
+| --------------- | --------------------- | ----------------------------------------------------------------------------------- |
+| `balances`      | `BalanceLine[]`       | Array of balance objects (asset code, issuer, balance, buying/selling liabilities). |
+| `nativeBalance` | `string \| null`      | Formatted native XLM balance string.                                                |
+| `loading`       | `boolean`             | `true` during initial load or refresh.                                              |
+| `error`         | `Error \| null`       | Error object if the Horizon query fails.                                            |
+| `refetch`       | `() => Promise<void>` | Manually triggers a balance update.                                                 |
+
+### Errors
+
+- `AccountNotFoundError`: The target account is not yet funded or active on the network.
+- `HorizonNetworkError`: Failed to reach the Horizon API endpoint.
+
+---
+
+## 3. `useStellarPayment`
+
+Builds and executes one-click payment transactions on Stellar.
+
+### Signature
+
+```typescript
+function useStellarPayment(options?: PaymentOptions): UseStellarPaymentReturn;
+```
+
+### Parameters (`PaymentParams` passed to `submitPayment`)
+
+| Parameter     | Type     | Default     | Description                                               |
+| ------------- | -------- | ----------- | --------------------------------------------------------- |
+| `destination` | `string` | Required    | Valid recipient public address (`G...`).                  |
+| `amount`      | `string` | Required    | Payment amount as decimal string (e.g. `'10.5'`).         |
+| `assetCode`   | `string` | `'XLM'`     | Asset code to transfer.                                   |
+| `assetIssuer` | `string` | `undefined` | Asset issuer public key (required for non-native assets). |
+| `memo`        | `string` | `undefined` | Optional transaction memo text (max 28 bytes).            |
+
+### Return Values
+
+| Property          | Type                                                | Description                                             |
+| ----------------- | --------------------------------------------------- | ------------------------------------------------------- |
+| `submitPayment`   | `(params: PaymentParams) => Promise<PaymentResult>` | Builds, signs with wallet, and submits to Horizon.      |
+| `buildPaymentXDR` | `(params: PaymentParams) => Promise<string>`        | Builds raw unsigned transaction XDR string.             |
+| `isSubmitting`    | `boolean`                                           | `true` while signing or submitting transaction.         |
+| `txHash`          | `string \| null`                                    | Confirmed transaction hash on success.                  |
+| `error`           | `Error \| null`                                     | Captured submission error.                              |
+| `reset`           | `() => void`                                        | Resets submission state and clears previous hash/error. |
+
+### Errors
+
+- `UnderfundedError`: Insufficient account balance to cover payment amount plus network reserve.
+- `InvalidDestinationError`: Destination address is malformed or invalid checksum.
+- `TransactionFailedError`: Submission rejected by Horizon (e.g. `op_no_trust`, `tx_bad_seq`).
+
+---
+
+## 4. `useTrustlines`
+
+Inspects existing asset trustlines and generates change-trust transaction envelopes.
+
+### Signature
+
+```typescript
+function useTrustlines(
+  address: string | null,
+  options?: TrustlinesOptions
+): UseTrustlinesReturn;
+```
+
+### Parameters
+
+| Parameter            | Type             | Default            | Description                |
+| -------------------- | ---------------- | ------------------ | -------------------------- |
+| `address`            | `string \| null` | Required           | Target account address.    |
+| `options.horizonUrl` | `string`         | Configured default | Custom Horizon server URL. |
+
+### Return Values
+
+| Property              | Type                                             | Description                                              |
+| --------------------- | ------------------------------------------------ | -------------------------------------------------------- |
+| `trustlines`          | `TrustlineInfo[]`                                | Array of existing trustlines on the account.             |
+| `hasTrustline`        | `(assetCode: string, issuer: string) => boolean` | Helper function to check if a specific trustline exists. |
+| `buildChangeTrustXDR` | `(params: ChangeTrustParams) => Promise<string>` | Constructs an XDR envelope to add or adjust trust limit. |
+| `loading`             | `boolean`                                        | `true` while querying account trustlines.                |
+| `error`               | `Error \| null`                                  | Error object if trustline fetch fails.                   |
+
+---
+
+## 5. `useTransactionHistory`
+
+Fetches paginated transactions and payment operations for an account.
+
+### Signature
+
+```typescript
+function useTransactionHistory(
+  address: string | null,
+  options?: HistoryOptions
+): UseTransactionHistoryReturn;
+```
+
+### Parameters
+
+| Parameter       | Type              | Default  | Description                           |
+| --------------- | ----------------- | -------- | ------------------------------------- |
+| `address`       | `string \| null`  | Required | Stellar account address.              |
+| `options.limit` | `number`          | `10`     | Number of records per page (max 200). |
+| `options.order` | `'asc' \| 'desc'` | `'desc'` | Sort order by ledger close time.      |
+
+### Return Values
+
+| Property       | Type                  | Description                                  |
+| -------------- | --------------------- | -------------------------------------------- |
+| `transactions` | `TransactionRecord[]` | Array of completed transaction summaries.    |
+| `loading`      | `boolean`             | `true` while loading records.                |
+| `hasMore`      | `boolean`             | `true` if next pagination page is available. |
+| `nextPage`     | `() => Promise<void>` | Loads the next page of transactions.         |
+| `error`        | `Error \| null`       | Captured API error.                          |
+
+---
+
+## 6. `useOfferBook`
+
+Streams and polls order book bids, asks, and spreads from the Stellar decentralized exchange.
+
+### Signature
+
+```typescript
+function useOfferBook(params: OfferBookParams): UseOfferBookReturn;
+```
+
+### Parameters (`OfferBookParams`)
+
+| Parameter         | Type             | Default        | Description                                                  |
+| ----------------- | ---------------- | -------------- | ------------------------------------------------------------ |
+| `sellingAsset`    | `AssetSpecifier` | Required       | Selling asset definition (`{ code: 'XLM' }`).                |
+| `buyingAsset`     | `AssetSpecifier` | Required       | Buying asset definition (`{ code: 'USDC', issuer: '...' }`). |
+| `pollingInterval` | `number`         | `0` (disabled) | Periodic refresh interval in milliseconds.                   |
+
+### Return Values
+
+| Property  | Type             | Description                                               |
+| --------- | ---------------- | --------------------------------------------------------- |
+| `bids`    | `OrderEntry[]`   | Array of buy orders sorted by price descending.           |
+| `asks`    | `OrderEntry[]`   | Array of sell orders sorted by price ascending.           |
+| `spread`  | `string \| null` | Calculated difference between lowest ask and highest bid. |
+| `loading` | `boolean`        | `true` during fetch operations.                           |
+| `error`   | `Error \| null`  | Network or parsing error.                                 |
+
+---
+
+## 7. `useSorobanContract`
+
+Provides pre-flight simulation, argument encoding, and transaction execution for Soroban smart contracts.
+
+### Signature
+
+```typescript
+function useSorobanContract(
+  contractId: string,
+  options?: SorobanContractOptions
+): UseSorobanContractReturn;
+```
+
+### Parameters
+
+| Parameter        | Type     | Default            | Description                                 |
+| ---------------- | -------- | ------------------ | ------------------------------------------- |
+| `contractId`     | `string` | Required           | Deployed Soroban contract address (`C...`). |
+| `options.rpcUrl` | `string` | Configured default | Soroban JSON-RPC endpoint.                  |
+
+### Return Values
+
+| Property         | Type                                                        | Description                                          |
+| ---------------- | ----------------------------------------------------------- | ---------------------------------------------------- |
+| `simulate`       | `(method: string, args?: any[]) => Promise<SimulateResult>` | Executes read-only contract simulation.              |
+| `invokeContract` | `(params: InvokeParams) => Promise<InvokeResult>`           | Simulates, signs via wallet, and submits invocation. |
+| `isSimulating`   | `boolean`                                                   | `true` while awaiting RPC simulation.                |
+| `isSubmitting`   | `boolean`                                                   | `true` while awaiting on-chain ledger inclusion.     |
+| `error`          | `Error \| null`                                             | Simulation or execution error.                       |
+
+---
+
+## 8. `useSorobanEvents`
+
+Subscribes to and polls ledger events emitted by Soroban smart contracts.
+
+### Signature
+
+```typescript
+function useSorobanEvents(
+  options: SorobanEventsOptions
+): UseSorobanEventsReturn;
+```
+
+### Parameters
+
+| Parameter         | Type         | Default  | Description                                |
+| ----------------- | ------------ | -------- | ------------------------------------------ |
+| `contractIds`     | `string[]`   | Required | List of contract IDs to filter events for. |
+| `topics`          | `string[][]` | `[]`     | Topic filters for matching events.         |
+| `pollingInterval` | `number`     | `5000`   | Polling interval in milliseconds.          |
+
+### Return Values
+
+| Property       | Type                   | Description                             |
+| -------------- | ---------------------- | --------------------------------------- |
+| `events`       | `SorobanEventRecord[]` | Array of parsed contract event records. |
+| `latestLedger` | `number`               | Latest ledger sequence scanned.         |
+| `loading`      | `boolean`              | `true` during event polling.            |
+| `error`        | `Error \| null`        | Captured RPC error.                     |
+
+---
+
+## 9. `useWalletContext`
+
+Accesses shared global wallet and configuration state from the parent `WalletProvider`.
+
+### Signature
+
+```typescript
+function useWalletContext(): WalletContextValue;
+```
+
+### Return Values
+
+| Property        | Type                                   | Description                         |
+| --------------- | -------------------------------------- | ----------------------------------- |
+| `network`       | `'PUBLIC' \| 'TESTNET' \| 'FUTURENET'` | Configured application network.     |
+| `horizonUrl`    | `string`                               | Active Horizon endpoint.            |
+| `sorobanRpcUrl` | `string`                               | Active Soroban RPC endpoint.        |
+| `wallets`       | `string[]`                             | List of enabled wallet identifiers. |
+
+---
+
+## 10. `useNetworkGuard`
+
+Validates that the user's connected wallet extension is operating on the exact network required by the dApp.
+
+### Signature
+
+```typescript
+function useNetworkGuard(expectedNetwork?: string): UseNetworkGuardReturn;
+```
+
+### Return Values
+
+| Property              | Type                  | Description                                               |
+| --------------------- | --------------------- | --------------------------------------------------------- |
+| `isMismatch`          | `boolean`             | `true` if wallet network does not match expected network. |
+| `currentNetwork`      | `string \| null`      | The wallet's current active network.                      |
+| `expectedNetwork`     | `string`              | The dApp's configured network.                            |
+| `promptNetworkSwitch` | `() => Promise<void>` | Prompts user to switch network in wallet extension.       |
+
+---
+
+## 11. `useStellarAssetPrice`
+
+Queries decentralized exchange trade aggregates or oracle contracts to determine asset pair valuation.
+
+### Signature
+
+```typescript
+function useStellarAssetPrice(
+  baseAsset: AssetSpecifier,
+  counterAsset: AssetSpecifier
+): UseStellarAssetPriceReturn;
+```
+
+### Return Values
+
+| Property    | Type             | Description                             |
+| ----------- | ---------------- | --------------------------------------- |
+| `price`     | `string \| null` | Most recent execution price.            |
+| `change24h` | `number \| null` | 24-hour price change percentage.        |
+| `loading`   | `boolean`        | `true` while querying trade aggregates. |
+| `error`     | `Error \| null`  | Network or price resolution error.      |
+
+---
+
+## 12. `useWindowSize`
+
+Provides responsive viewport dimensions and layout breakpoint flags for adaptive mobile/desktop UI components.
+
+### Signature
+
+```typescript
+function useWindowSize(): UseWindowSizeReturn;
+```
+
+### Return Values
+
+| Property    | Type      | Description                                             |
+| ----------- | --------- | ------------------------------------------------------- |
+| `width`     | `number`  | Viewport inner width in pixels.                         |
+| `height`    | `number`  | Viewport inner height in pixels.                        |
+| `isMobile`  | `boolean` | `true` when viewport width is below 768px (`md`).       |
+| `isTablet`  | `boolean` | `true` when viewport width is between 768px and 1024px. |
+| `isDesktop` | `boolean` | `true` when viewport width is above 1024px (`lg`).      |
+
+---
+
+## Related Resources
+
+- [Hooks Overview](/docs/hooks) — Architectural guide to Nextellar hooks
+- [Wallet Provider Configuration](/docs/hooks/wallet-provider) — Global provider setup
+- [Hook Edge Cases](/docs/hooks/hook-reference-edge-cases) — Deep dive into unmounts and race conditions
+- [Testing Guide](/docs/guides/testing) — Unit testing custom hooks with Vitest

@@ -1,38 +1,70 @@
 ---
-title: API
-description: API documentation and reference
-date: 2026-06-01
+title: Hosted API
+description: A hosted REST/GraphQL API for Nextellar is planned but not yet available.
+date: 2026-08-03
 ---
 
-# API Documentation
+import { Note } from '@/components/note';
 
-For complete API documentation, please refer to the following resources:
+# Hosted API
 
-## SDK Reference
+<Note type="warning">
+  **Roadmap — not yet available.** Nextellar currently has no hosted API
+  endpoint. The CLI bootstraps your project locally; the only outbound network
+  call it makes is an opt-in telemetry ping. A hosted API is on the roadmap but
+  has not shipped.
+</Note>
 
-- [API Explorer](/docs/api/explorer) - Interactive workflow-based API surface
-- [SDK Overview](/docs/sdk/overview) - Architecture and key features
-- [API Reference](/docs/sdk/api-reference) - Type definitions and utilities
-- [Wallet Integration](/docs/sdk/wallet-integration) - Multi-wallet configuration
+## What is planned
 
-## Hooks API
+- A REST / GraphQL surface that mirrors the React-hook API, usable from
+  server-side or non-React environments.
+- Authentication via API keys tied to a Nextellar account.
+- Rate-limited access to Stellar Horizon and Soroban RPC through a managed
+  proxy, so you do not need to expose third-party endpoints directly.
 
-Complete documentation for all React hooks:
+### Authentication (planned)
 
-- [useStellarWallet](/docs/hooks/use-stellar-wallet) - Wallet connection.
-- [useStellarBalances](/docs/hooks/use-stellar-balances) - Balance tracking.
-- [useStellarPayment](/docs/hooks/use-stellar-payment) - Payments.
-- [useTrustlines](/docs/hooks/use-trustlines) - Trustline management.
-- [useTransactionHistory](/docs/hooks/use-transaction-history) - Transaction history.
-- [useSorobanContract](/docs/hooks/use-soroban-contract) - Smart contracts.
-- [useSorobanEvents](/docs/hooks/use-soroban-events) - Contract events.
-- [useOfferBook](/docs/hooks/use-offer-book) - DEX orderbook.
+Requests to the hosted API will be authenticated with an API key issued to
+your Nextellar account, sent as a bearer token:
 
-## Context API
+```bash
+curl https://api.nextellar.dev/v1/balances/GA5Z... \
+  -H "Authorization: Bearer <your-api-key>"
+```
 
-- [WalletProvider](/docs/hooks/wallet-provider) - Global wallet context.
+Keys will be scoped per project and revocable from the account dashboard.
+There is no API key to generate today — this shape is not final until the
+API ships.
 
-## CLI Reference
+### Rate limits (planned)
 
-- [CLI Commands](/docs/cli/commands) - Full command reference.
-- [CLI Options](/docs/cli/options) - Configuration options.
+Requests will be rate-limited per API key to keep the managed Horizon/Soroban
+proxy fair for all users. The plan is a sliding-window limit with the
+remaining quota surfaced in response headers, for example:
+
+```text
+X-RateLimit-Limit: 60
+X-RateLimit-Remaining: 42
+X-RateLimit-Reset: 1717000000
+```
+
+Exceeding the limit will return `429 Too Many Requests`. Exact limits and
+tiers have not been finalized and will be published when the API ships.
+
+## Until it ships
+
+Everything you need today lives in the local SDK:
+
+| Resource                     | Link                                               |
+| ---------------------------- | -------------------------------------------------- |
+| React hooks reference        | [Hooks](/docs/hooks/use-stellar-wallet)            |
+| SDK overview                 | [SDK Overview](/docs/sdk/overview)                 |
+| Type definitions & utilities | [API Reference](/docs/sdk/api-reference)           |
+| Wallet integration           | [Wallet Integration](/docs/sdk/wallet-integration) |
+| CLI commands                 | [CLI Commands](/docs/cli/commands)                 |
+
+## Follow the roadmap
+
+Track progress and leave feedback on the
+[Nextellar GitHub repository](https://github.com/nextellarlabs/nextellar/issues).

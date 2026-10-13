@@ -1,0 +1,81 @@
+name: Build Budget Check
+
+on:
+  pull_request:
+    paths:
+      - 'contentlayer.config.ts'
+      - 'docs/**'
+      - 'versions/**'
+      - 'package.json'
+      - '.github/workflows/build-budget.yml'
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'contentlayer.config.ts'
+      - 'docs/**'
+      - 'versions/**'
+      - 'package.json'
+      - '.github/workflows/build-budget.yml'
+
+jobs:
+  contentlayer-budget:
+    name: Contentlayer Build Budget
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Contentlayer with timing
+        id: build
+        run: |
+          # Run the build and capture timing
+          START_TIME=$(date +%s%N)
+          npm run build:content
+          END_TIME=$(date +%s%N)
+          
+          # Calculate duration in milliseconds
+          DURATION_MS=$(( (END_TIME - START_TIME) / 1000000 ))
+          echo "duration_ms=$DURATION_MS" >> $GITHUB_OUTPUT
+          echo "Build completed in ${DURATION_MS}ms"
+
+      - name: Check build budget
+        run: |
+          # Run budget check with the measured build time
+          # Budget is set to 6500ms (6.5 seconds)
+          # This allows ~30% headroom above the optimized baseline
+          node scripts/check-build-budget.js ${{ steps.build.outputs.duration_ms }} \
+            --budget=6500 \
+            --label="Contentlayer Build (CI: ubuntu-latest)"
+
+      - name: Comment PR with build metrics
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const duration = ${{ steps.build.outputs.duration_ms }};
+            const durationSec = (duration / 1000).toFixed(2);
+            const budget = 6500;
+            const budgetSec = (budget / 1000).toFixed(2);
+            const percent = ((duration / budget) * 100).toFixed(1);
+            
+            const status = duration > budget ? '❌ FAILED' : '✅ PASSED';
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## 📊 Contentlayer Build Budget Check\n\n${status}\n\n| Metric | Value |\n|--------|-------|\n| Build Time | ${durationSec}s |\n| Budget | ${budgetSec}s |\n| Usage | ${percent}% |\n| Status | ${duration > budget ? '⚠️ Over budget' : '✨ Within budget'} |\n\nThe Contentlayer build is ${percent}% of the allowed budget.`
+            });

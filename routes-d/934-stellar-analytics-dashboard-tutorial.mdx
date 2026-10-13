@@ -1,0 +1,577 @@
+---
+title: Building a Stellar dApp Analytics Dashboard
+description: A complete tutorial for building a small analytics dashboard for a Stellar dApp — event tracking, aggregation, privacy considerations, and a working React sample.
+date: 2026-08-27
+---
+
+# Building a Stellar dApp Analytics Dashboard
+
+This tutorial builds a small, self-hosted **analytics dashboard** for a Stellar dApp: an event-ingestion endpoint, an aggregation store, and a React dashboard that renders the aggregates as charts. It assumes you're already tracking events client-side — see the [Analytics Integration Guide](/docs/guides/analytics-integration-guide) for what to track and why — and picks up from "I have events" to "I have a dashboard."
+
+<Note type="info">
+  This is a minimal, self-hosted reference implementation (in-memory
+  aggregation, one Next.js route). For production traffic, swap the in-memory
+  store for a real time-series database (see [Caching Layer
+  Tutorial](/docs/guides/caching-layer-tutorial) for a Redis-backed pattern that
+  generalizes to this) — the ingestion and aggregation *shape* stays the same.
+</Note>
+
+---
+
+## What This Dashboard Tracks
+
+Following the event taxonomy from the [Analytics Integration Guide](/docs/guides/analytics-integration-guide#events-worth-tracking), this dashboard aggregates four metrics:
+
+| Metric                      | Source event                                                             | Aggregation                                 |
+| --------------------------- | ------------------------------------------------------------------------ | ------------------------------------------- |
+| Daily active wallets        | `dapp_initialized`                                                       | Count of distinct `wallet_address` per day  |
+| Wallet connect success rate | `wallet_connect_attempted` / `wallet_connect_succeeded`                  | Ratio per day                               |
+| Transaction success rate    | `transaction_submitted` / `transaction_confirmed` / `transaction_failed` | Ratio per day                               |
+| Top contract calls          | `contract_invoked`                                                       | Count grouped by `contract_id` + `function` |
+
+---
+
+## Architecture
+
+```
+Client (dApp)                Ingestion Route              Aggregation Store            Dashboard
+─────────────                ────────────────              ──────────────────           ─────────
+trackEvent(name, props) ──►  POST /api/analytics/ingest
+                                    │
+                                    ├── validate event shape
+                                    ├── strip/hash any raw wallet address    (privacy)
+                                    └── append to day-bucketed store  ────►  Map<day, Metrics>
+
+                                                                                              GET /api/analytics/summary
+                                                                             ◄──────────────────────┘
+                                                                                              │
+                                                                                    Dashboard renders charts
+```
+
+Ingestion and aggregation are deliberately separate steps: the ingestion route does the minimum work to validate and privacy-scrub an event, then a background aggregation step (here, done inline for simplicity) rolls it into the day bucket. This keeps ingestion latency low even if aggregation logic grows more complex later.
+
+---
+
+## Privacy Considerations
+
+<Note type="warning">
+  Wallet addresses are pseudonymous, not anonymous — an address that appears in
+  your dashboard alongside timestamps and transaction amounts can often be
+  re-identified by cross-referencing a public block explorer. Treat addresses in
+  analytics data with the same care as any other user identifier.
+</Note>
+
+- **Hash, don't store raw addresses for counting.** "Daily active wallets" only needs to know _how many distinct_ addresses were active, not _which_ ones — hash the address with a server-side secret salt before it ever reaches the aggregation store, so raw addresses never sit in your analytics database.
+- **Aggregate before you persist.** The dashboard should read pre-aggregated daily rollups, not raw per-event rows keyed by address — that way a database breach exposes counts and ratios, not a linkable per-user activity log.
+- **Don't track transaction amounts per-address.** Amount + address + timestamp is enough to identify a specific real-world transaction on a public ledger explorer. Track amount _distributions_ (e.g. bucketed ranges) if you need financial insight, not raw per-user amounts.
+- **Retention limits.** Decide a retention window (e.g. 90 days of daily rollups) and actually enforce it — indefinite retention of behavioral data is a growing regulatory liability even when individually-identifying fields are stripped.
+
+---
+
+## Ingestion Route
+
+```ts
+// app/api/analytics/ingest/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { createHash } from 'crypto';
+import { recordEvent } from '@/lib/analytics-store';
+
+const VALID_EVENTS = new Set([
+  'dapp_initialized',
+  'wallet_connect_attempted',
+  'wallet_connect_succeeded',
+  'transaction_submitted',
+  'transaction_confirmed',
+  'transaction_failed',
+  'contract_invoked',
+]);
+
+// Server-only salt — never expose this value client-side. Rotating it
+// periodically breaks cross-day correlation of the same wallet, at the
+// cost of slightly undercounting "distinct wallets" across a rotation
+// boundary (a reasonable trade-off for stronger privacy).
+const HASH_SALT = process.env.ANALYTICS_HASH_SALT ?? '';
+
+function hashWalletAddress(address: string): string {
+  return createHash('sha256')
+    .update(`${HASH_SALT}:${address}`)
+    .digest('hex')
+    .slice(0, 16);
+}
+
+export async function POST(req: NextRequest): Promise<NextResponse> {
+  let body: { event?: unknown; wallet_address?: unknown; properties?: unknown };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
+
+  const { event, wallet_address, properties } = body;
+
+  if (typeof event !== 'string' || !VALID_EVENTS.has(event)) {
+    return NextResponse.json(
+      {
+        error: `event is required and must be one of: ${Array.from(VALID_EVENTS).join(', ')}`,
+      },
+      { status: 400 }
+    );
+  }
+
+  // Wallet address is optional (some events, like contract_invoked from a
+  // background job, have no associated end-user wallet) but hashed
+  // immediately when present — the raw address is never persisted.
+  const walletHash =
+    typeof wallet_address === 'string' && wallet_address.length > 0
+      ? hashWalletAddress(wallet_address)
+      : null;
+
+  recordEvent({
+    event,
+    walletHash,
+    properties:
+      typeof properties === 'object' && properties !== null ? properties : {},
+    day: new Date().toISOString().slice(0, 10), // YYYY-MM-DD, UTC bucket
+  });
+
+  return NextResponse.json({ recorded: true }, { status: 201 });
+}
+```
+
+---
+
+## Aggregation Store
+
+```ts
+// lib/analytics-store.ts
+export interface RecordedEvent {
+  event: string;
+  walletHash: string | null;
+  properties: Record<string, unknown>;
+  day: string; // YYYY-MM-DD
+}
+
+export interface DailyMetrics {
+  day: string;
+  activeWallets: Set<string>;
+  walletConnectAttempted: number;
+  walletConnectSucceeded: number;
+  transactionsSubmitted: number;
+  transactionsConfirmed: number;
+  transactionsFailed: number;
+  contractCalls: Map<string, number>; // "contractId:function" -> count
+}
+
+function emptyDay(day: string): DailyMetrics {
+  return {
+    day,
+    activeWallets: new Set(),
+    walletConnectAttempted: 0,
+    walletConnectSucceeded: 0,
+    transactionsSubmitted: 0,
+    transactionsConfirmed: 0,
+    transactionsFailed: 0,
+    contractCalls: new Map(),
+  };
+}
+
+const store = new Map<string, DailyMetrics>();
+
+export function recordEvent(evt: RecordedEvent): void {
+  let day = store.get(evt.day);
+  if (!day) {
+    day = emptyDay(evt.day);
+    store.set(evt.day, day);
+  }
+
+  switch (evt.event) {
+    case 'dapp_initialized':
+      if (evt.walletHash) day.activeWallets.add(evt.walletHash);
+      break;
+    case 'wallet_connect_attempted':
+      day.walletConnectAttempted += 1;
+      break;
+    case 'wallet_connect_succeeded':
+      day.walletConnectSucceeded += 1;
+      break;
+    case 'transaction_submitted':
+      day.transactionsSubmitted += 1;
+      break;
+    case 'transaction_confirmed':
+      day.transactionsConfirmed += 1;
+      break;
+    case 'transaction_failed':
+      day.transactionsFailed += 1;
+      break;
+    case 'contract_invoked': {
+      const contractId =
+        typeof evt.properties.contract_id === 'string'
+          ? evt.properties.contract_id
+          : 'unknown';
+      const fn =
+        typeof evt.properties.function === 'string'
+          ? evt.properties.function
+          : 'unknown';
+      const key = `${contractId}:${fn}`;
+      day.contractCalls.set(key, (day.contractCalls.get(key) ?? 0) + 1);
+      break;
+    }
+  }
+}
+
+export interface DailySummary {
+  day: string;
+  activeWallets: number;
+  walletConnectSuccessRate: number | null;
+  transactionSuccessRate: number | null;
+  topContractCalls: Array<{ key: string; count: number }>;
+}
+
+export function summarize(sinceDays: number): DailySummary[] {
+  const days = Array.from(store.values())
+    .sort((a, b) => a.day.localeCompare(b.day))
+    .slice(-sinceDays);
+
+  return days.map((d) => ({
+    day: d.day,
+    activeWallets: d.activeWallets.size,
+    walletConnectSuccessRate:
+      d.walletConnectAttempted > 0
+        ? d.walletConnectSucceeded / d.walletConnectAttempted
+        : null,
+    transactionSuccessRate:
+      d.transactionsSubmitted > 0
+        ? d.transactionsConfirmed / d.transactionsSubmitted
+        : null,
+    topContractCalls: Array.from(d.contractCalls.entries())
+      .map(([key, count]) => ({ key, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5),
+  }));
+}
+
+/** Exposed for tests — clears all recorded events between test cases. */
+export function resetStore(): void {
+  store.clear();
+}
+```
+
+---
+
+## Summary Route
+
+```ts
+// app/api/analytics/summary/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { summarize } from '@/lib/analytics-store';
+
+const DEFAULT_DAYS = 14;
+const MAX_DAYS = 90;
+
+export async function GET(req: NextRequest): Promise<NextResponse> {
+  const daysParam = req.nextUrl.searchParams.get('days');
+  let days = DEFAULT_DAYS;
+
+  if (daysParam !== null) {
+    const parsed = Number(daysParam);
+    if (!Number.isInteger(parsed) || parsed <= 0 || parsed > MAX_DAYS) {
+      return NextResponse.json(
+        { error: `days must be an integer between 1 and ${MAX_DAYS}` },
+        { status: 400 }
+      );
+    }
+    days = parsed;
+  }
+
+  return NextResponse.json({ days: summarize(days) });
+}
+```
+
+---
+
+## Dashboard Component
+
+```tsx
+// components/AnalyticsDashboard.tsx
+'use client';
+
+import { useEffect, useState } from 'react';
+
+interface DailySummary {
+  day: string;
+  activeWallets: number;
+  walletConnectSuccessRate: number | null;
+  transactionSuccessRate: number | null;
+  topContractCalls: Array<{ key: string; count: number }>;
+}
+
+function formatPercent(rate: number | null): string {
+  return rate === null ? '—' : `${(rate * 100).toFixed(1)}%`;
+}
+
+export default function AnalyticsDashboard() {
+  const [data, setData] = useState<DailySummary[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch('/api/analytics/summary?days=14')
+      .then((res) => {
+        if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+        return res.json();
+      })
+      .then((body) => {
+        if (!cancelled) setData(body.days);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err.message);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (error) {
+    return <p role="alert">Failed to load analytics: {error}</p>;
+  }
+
+  if (!data) {
+    return <p role="status">Loading analytics…</p>;
+  }
+
+  const latest = data[data.length - 1];
+
+  return (
+    <div className="grid gap-6">
+      <section className="grid grid-cols-3 gap-4">
+        <div className="rounded-xl border p-4">
+          <p className="text-sm text-gray-500">Active Wallets (today)</p>
+          <p className="text-2xl font-semibold">{latest?.activeWallets ?? 0}</p>
+        </div>
+        <div className="rounded-xl border p-4">
+          <p className="text-sm text-gray-500">Wallet Connect Success</p>
+          <p className="text-2xl font-semibold">
+            {formatPercent(latest?.walletConnectSuccessRate ?? null)}
+          </p>
+        </div>
+        <div className="rounded-xl border p-4">
+          <p className="text-sm text-gray-500">Transaction Success</p>
+          <p className="text-2xl font-semibold">
+            {formatPercent(latest?.transactionSuccessRate ?? null)}
+          </p>
+        </div>
+      </section>
+
+      <section>
+        <h3 className="text-sm font-medium mb-2">Top Contract Calls (today)</h3>
+        <ul className="divide-y">
+          {(latest?.topContractCalls ?? []).map(({ key, count }) => (
+            <li key={key} className="flex justify-between py-2 text-sm">
+              <span className="font-mono">{key}</span>
+              <span>{count}</span>
+            </li>
+          ))}
+          {latest?.topContractCalls.length === 0 && (
+            <li className="py-2 text-sm text-gray-400">
+              No contract calls recorded yet.
+            </li>
+          )}
+        </ul>
+      </section>
+    </div>
+  );
+}
+```
+
+---
+
+## Verifying the Tutorial
+
+Ingest a few events and confirm they show up in the summary:
+
+```bash
+curl -X POST http://localhost:3000/api/analytics/ingest \
+  -H "Content-Type: application/json" \
+  -d '{"event":"dapp_initialized","wallet_address":"GABC...XYZ"}'
+
+curl -X POST http://localhost:3000/api/analytics/ingest \
+  -H "Content-Type: application/json" \
+  -d '{"event":"wallet_connect_attempted"}'
+
+curl -X POST http://localhost:3000/api/analytics/ingest \
+  -H "Content-Type: application/json" \
+  -d '{"event":"wallet_connect_succeeded"}'
+
+curl -X POST http://localhost:3000/api/analytics/ingest \
+  -H "Content-Type: application/json" \
+  -d '{"event":"contract_invoked","properties":{"contract_id":"CABC...","function":"transfer"}}'
+
+curl http://localhost:3000/api/analytics/summary?days=1
+```
+
+The summary response should show `activeWallets: 1`, `walletConnectSuccessRate: 1`, and one entry in `topContractCalls` for `CABC...:transfer`.
+
+Tests for the aggregation logic:
+
+```ts
+// lib/analytics-store.test.ts
+import { describe, it, expect, beforeEach } from 'vitest';
+import { recordEvent, summarize, resetStore } from './analytics-store';
+
+describe('analytics-store', () => {
+  beforeEach(() => {
+    resetStore();
+  });
+
+  it('counts distinct active wallets per day, not raw events', () => {
+    const day = '2026-08-27';
+    recordEvent({
+      event: 'dapp_initialized',
+      walletHash: 'hash-a',
+      properties: {},
+      day,
+    });
+    recordEvent({
+      event: 'dapp_initialized',
+      walletHash: 'hash-a',
+      properties: {},
+      day,
+    }); // same wallet again
+    recordEvent({
+      event: 'dapp_initialized',
+      walletHash: 'hash-b',
+      properties: {},
+      day,
+    });
+
+    const [summary] = summarize(1);
+    expect(summary.activeWallets).toBe(2);
+  });
+
+  it('computes wallet connect success rate as succeeded / attempted', () => {
+    const day = '2026-08-27';
+    recordEvent({
+      event: 'wallet_connect_attempted',
+      walletHash: null,
+      properties: {},
+      day,
+    });
+    recordEvent({
+      event: 'wallet_connect_attempted',
+      walletHash: null,
+      properties: {},
+      day,
+    });
+    recordEvent({
+      event: 'wallet_connect_succeeded',
+      walletHash: null,
+      properties: {},
+      day,
+    });
+
+    const [summary] = summarize(1);
+    expect(summary.walletConnectSuccessRate).toBe(0.5);
+  });
+
+  it('returns null success rate when there were zero attempts', () => {
+    const [summary] = summarize(1);
+    expect(summary).toBeUndefined(); // no events recorded at all -> no day bucket
+  });
+
+  it('returns null transaction success rate for a day with zero submissions', () => {
+    const day = '2026-08-27';
+    recordEvent({
+      event: 'dapp_initialized',
+      walletHash: 'hash-a',
+      properties: {},
+      day,
+    });
+
+    const [summary] = summarize(1);
+    expect(summary.transactionSuccessRate).toBeNull();
+  });
+
+  it('groups contract calls by contract_id and function, sorted descending', () => {
+    const day = '2026-08-27';
+    const props = (contract_id: string, fn: string) => ({
+      contract_id,
+      function: fn,
+    });
+    recordEvent({
+      event: 'contract_invoked',
+      walletHash: null,
+      properties: props('C1', 'transfer'),
+      day,
+    });
+    recordEvent({
+      event: 'contract_invoked',
+      walletHash: null,
+      properties: props('C1', 'transfer'),
+      day,
+    });
+    recordEvent({
+      event: 'contract_invoked',
+      walletHash: null,
+      properties: props('C2', 'swap'),
+      day,
+    });
+
+    const [summary] = summarize(1);
+    expect(summary.topContractCalls[0]).toEqual({
+      key: 'C1:transfer',
+      count: 2,
+    });
+    expect(summary.topContractCalls[1]).toEqual({ key: 'C2:swap', count: 1 });
+  });
+
+  it('limits summarize to the requested number of most recent days', () => {
+    recordEvent({
+      event: 'dapp_initialized',
+      walletHash: 'a',
+      properties: {},
+      day: '2026-08-25',
+    });
+    recordEvent({
+      event: 'dapp_initialized',
+      walletHash: 'b',
+      properties: {},
+      day: '2026-08-26',
+    });
+    recordEvent({
+      event: 'dapp_initialized',
+      walletHash: 'c',
+      properties: {},
+      day: '2026-08-27',
+    });
+
+    const summary = summarize(2);
+    expect(summary.map((s) => s.day)).toEqual(['2026-08-26', '2026-08-27']);
+  });
+
+  it('defaults an unknown contract_id/function to "unknown" rather than throwing', () => {
+    const day = '2026-08-27';
+    recordEvent({
+      event: 'contract_invoked',
+      walletHash: null,
+      properties: {},
+      day,
+    });
+
+    const [summary] = summarize(1);
+    expect(summary.topContractCalls[0]).toEqual({
+      key: 'unknown:unknown',
+      count: 1,
+    });
+  });
+});
+```
+
+---
+
+## Related docs
+
+- [Analytics Integration for Stellar dApps](/docs/guides/analytics-integration-guide) — what to track client-side and why, before this tutorial's aggregation/dashboard layer
+- [Caching Layer Tutorial](/docs/guides/caching-layer-tutorial) — swap the in-memory store here for a production-grade backing store
+- [Privacy Considerations](/docs/guides/privacy-considerations) — general privacy guidance this tutorial's hashing approach builds on

@@ -1,0 +1,556 @@
+---
+title: Storybook for Stellar Wallet Components
+description: Set up Storybook 8 for Freighter-powered UI, mock @stellar/freighter-api at the module boundary, and drive connected, disconnected, rejected, and timeout states with CSF3 stories and play-function interaction tests.
+date: 2026-08-26
+---
+
+# Storybook for Stellar Wallet Components
+
+Wallet UI lives or dies by its edge cases: the connect button, the account modal, the balance display. Most of those states — user rejection, a hidden popup, a missing extension — are painful to reproduce manually against the real Freighter extension. Storybook lets you develop and regression-test every state in isolation, provided you cut the dependency on the actual wallet. This tutorial walks through installing Storybook in a Nextellar (Next.js + Tailwind) project, mocking `@stellar/freighter-api` at the module boundary, and building a fully tested `ConnectWalletButton`.
+
+---
+
+## Installing Storybook
+
+From the project root, run the Storybook initializer. It detects the Next.js app and installs the `@storybook/nextjs` framework automatically:
+
+```bash
+npx storybook@latest init
+```
+
+This scaffolds:
+
+- `.storybook/main.ts` — configuration (framework, addons, story globs).
+- `.storybook/preview.tsx` — global decorators and parameters.
+- `src/stories/` — example stories you can delete once your own exist.
+- Scripts in `package.json`:
+
+```json
+{
+  "scripts": {
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build",
+    "test-storybook": "test-storybook"
+  }
+}
+```
+
+Start it with `npm run storybook` and confirm the example stories render before moving on.
+
+---
+
+## Configuring Storybook for Next.js + Tailwind
+
+Because the `@storybook/nextjs` framework compiles stories with the same webpack and PostCSS pipeline as your app, Tailwind works out of the box — you only need to import your global stylesheet in `preview.tsx`:
+
+```tsx
+import type { Preview } from '@storybook/react';
+import '../app/globals.css';
+
+const preview: Preview = {
+  parameters: {
+    controls: { matchers: { color: /(background|color)$/i, date: /Date$/i } },
+  },
+};
+
+export default preview;
+```
+
+If you theme with CSS variables and want a light/dark toggle in the toolbar, add `@storybook/addon-themes` and register a class-based decorator — optional, but useful for verifying wallet modals in both themes.
+
+The key customization for this tutorial is in `.storybook/main.ts`: an alias that swaps the real Freighter package for a mock **inside Storybook only** (explained below):
+
+```typescript
+import type { StorybookConfig } from '@storybook/nextjs';
+import path from 'path';
+
+const config: StorybookConfig = {
+  stories: ['../src/**/*.mdx', '../src/**/*.stories.@(js|jsx|mjs|ts|tsx)'],
+  addons: ['@storybook/addon-essentials', '@storybook/addon-a11y'],
+  framework: {
+    name: '@storybook/nextjs',
+    options: {},
+  },
+  staticDirs: ['../public'],
+  webpackFinal: async (config) => {
+    config.resolve!.alias!['@stellar/freighter-api'] = path.resolve(
+      __dirname,
+      '../src/mocks/freighter-mock.ts'
+    );
+    return config;
+  },
+};
+
+export default config;
+```
+
+---
+
+## Story Structure Conventions
+
+Use CSF3 (Component Story Format 3): a default export describing the component, named exports for individual stories. Conventions worth standardizing across a dApp:
+
+- **File location**: colocate stories with components — `src/components/wallet/ConnectWalletButton.stories.tsx` next to `ConnectWalletButton.tsx`.
+- **Story ID hierarchy**: group all wallet primitives under a top-level `Wallet/` category so the sidebar mirrors your domain:
+
+```text
+src/
+  components/
+    wallet/
+      ConnectWalletButton.tsx
+      ConnectWalletButton.stories.tsx
+      WalletModal.tsx
+      WalletModal.stories.tsx
+      BalanceDisplay.tsx
+      BalanceDisplay.stories.tsx
+```
+
+- **Titles**: `title: 'Wallet/ConnectWalletButton'` — one folder level per domain concept, never mirroring filesystem paths verbatim.
+- **Exports**: PascalCase, one word per state or scenario — `Disconnected`, `ConnectsSuccessfully`, `UserRejectsAccess`. The export name becomes the story name.
+- **Tags**: add `tags: ['autodocs']` on the meta so every wallet component gets auto-generated documentation pages.
+- **Args**: declare callbacks with `fn()` from `@storybook/test` in `meta.args` so every story gets a fresh, observable spy.
+
+---
+
+## Mocking @stellar/freighter-api
+
+Why not MSW? Service workers intercept HTTP, but `@stellar/freighter-api` talks to the browser extension over `window.postMessage` bridges installed by the Freighter content script — there is no network traffic to intercept. The reliable seam is the **module boundary**: build a mock module exporting the same functions, and alias the package to it in `.storybook/main.ts` (shown above). Your production bundle never sees the mock; Storybook never sees the extension.
+
+Create `src/mocks/freighter-mock.ts`. It reproduces the object-shaped responses of `freighter-api` v3+ (`{ address }`, `{ signedTxXdr, signerAddress }`, etc.) and supports four scenarios: connected, rejected, uninstalled, and a popup that never settles (for timeout testing). Note that older `freighter-api` versions returned bare strings instead of objects — adjust the signatures if you pinned an old release.
+
+```typescript
+/**
+ * Test double for @stellar/freighter-api, aliased in .storybook/main.ts.
+ * Storybook loads this INSTEAD of the real package.
+ */
+export interface FreighterMockOptions {
+  mode?: 'connected' | 'rejected' | 'uninstalled' | 'timeout';
+  delayMs?: number;
+  publicKey?: string;
+  network?: string;
+}
+
+export const MOCK_PUBLIC_KEY =
+  'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+
+type ResolvedState = {
+  mode: NonNullable<FreighterMockOptions['mode']>;
+  delayMs: number;
+  publicKey: string;
+  network: string;
+};
+
+const DEFAULT_STATE: ResolvedState = {
+  mode: 'connected',
+  delayMs: 300,
+  publicKey: MOCK_PUBLIC_KEY,
+  network: 'TESTNET',
+};
+
+let state: ResolvedState = DEFAULT_STATE;
+
+export function setFreighterMockState(
+  options: FreighterMockOptions = {}
+): void {
+  state = { ...DEFAULT_STATE, ...options };
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Shared gate for every exported call. */
+async function settle(): Promise<void> {
+  if (state.mode === 'timeout') {
+    await new Promise<void>(() => {}); // never settles — abandoned popup
+  }
+  await sleep(state.delayMs);
+  if (state.mode === 'uninstalled') {
+    throw new Error('Freighter wallet is not installed.');
+  }
+}
+
+export async function requestAccess(): Promise<{
+  address: string;
+  error?: string;
+}> {
+  await settle();
+  if (state.mode === 'rejected') {
+    return { address: '', error: 'The user rejected access.' };
+  }
+  return { address: state.publicKey };
+}
+
+export async function getAddress(): Promise<{
+  address: string;
+  error?: string;
+}> {
+  await settle();
+  if (state.mode === 'rejected') {
+    return { address: '', error: 'Not connected.' };
+  }
+  return { address: state.publicKey };
+}
+
+export async function getNetwork(): Promise<{
+  network: string;
+  error?: string;
+}> {
+  await settle();
+  return { network: state.network };
+}
+
+export async function isAllowed(): Promise<boolean> {
+  return state.mode === 'connected';
+}
+
+export async function setAllowed(): Promise<boolean> {
+  return true;
+}
+
+export async function signTransaction(
+  txXdr: string,
+  _opts?: { networkPassphrase?: string; address?: string }
+): Promise<{ signedTxXdr: string; signerAddress: string }> {
+  await settle();
+  if (state.mode === 'rejected') {
+    throw new Error('The user rejected signing.');
+  }
+  return {
+    signedTxXdr: `MOCK_SIGNED_${txXdr.slice(0, 16)}`,
+    signerAddress: state.publicKey,
+  };
+}
+
+export async function requestNetworkSwitch(
+  _network: string
+): Promise<{ network: string; error?: string }> {
+  await settle();
+  if (state.mode === 'rejected') {
+    return { network: '', error: 'The user rejected the network switch.' };
+  }
+  return { network: state.network };
+}
+```
+
+Wire the mock into every story through a global decorator in `.storybook/preview.tsx`. Each story declares its scenario declaratively via `parameters.freighter`:
+
+```tsx
+import type { Preview, Decorator } from '@storybook/react';
+import '../app/globals.css';
+import { setFreighterMockState } from '../src/mocks/freighter-mock';
+
+export interface FreighterParameter {
+  mode?: 'connected' | 'rejected' | 'uninstalled' | 'timeout';
+  delayMs?: number;
+  publicKey?: string;
+}
+
+const withFreighterMock: Decorator = (Story, context) => {
+  setFreighterMockState(context.parameters.freighter ?? {});
+  return <Story />;
+};
+
+const preview: Preview = {
+  parameters: {
+    freighter: { mode: 'connected', delayMs: 300 },
+    controls: { matchers: { color: /(background|color)$/i, date: /Date$/i } },
+  },
+  decorators: [withFreighterMock],
+};
+
+export default preview;
+```
+
+Because the decorator runs before each render, stories are hermetic: switching between stories always resets the mock.
+
+---
+
+## Working Sample: ConnectWalletButton.tsx
+
+Here is the component under test. It requests access through `requestAccess()`, races the popup against a dApp-side timeout (the real Freighter promise never times out on its own — see Handling Freighter Interaction Timeouts), and treats both rejection styles uniformly: some `freighter-api` versions resolve with an `error` field, others throw.
+
+`src/components/wallet/ConnectWalletButton.tsx`:
+
+```tsx
+'use client';
+
+import { useCallback, useState } from 'react';
+import { requestAccess } from '@stellar/freighter-api';
+
+type Status = 'disconnected' | 'connecting' | 'connected' | 'error';
+
+interface ConnectWalletButtonProps {
+  /** Called once Freighter grants access. */
+  onConnected?: (address: string) => void;
+  /** Give up waiting for the popup after this long (ms). */
+  timeoutMs?: number;
+}
+
+function truncateAddress(address: string): string {
+  return `${address.slice(0, 4)}…${address.slice(-4)}`;
+}
+
+export function ConnectWalletButton({
+  onConnected,
+  timeoutMs = 60_000,
+}: ConnectWalletButtonProps) {
+  const [status, setStatus] = useState<Status>('disconnected');
+  const [address, setAddress] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const connect = useCallback(async () => {
+    setStatus('connecting');
+    setError(null);
+
+    let timerId: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timerId = setTimeout(
+        () => reject(new Error('FREIGHTER_TIMEOUT')),
+        timeoutMs
+      );
+    });
+
+    try {
+      const result = await Promise.race([requestAccess(), timeout]);
+
+      if (result.error || !result.address) {
+        setStatus('error');
+        setError(result.error ?? 'Freighter did not return a public key.');
+        return;
+      }
+
+      setAddress(result.address);
+      setStatus('connected');
+      onConnected?.(result.address);
+    } catch (err) {
+      setStatus('error');
+      setError(
+        err instanceof Error && err.message === 'FREIGHTER_TIMEOUT'
+          ? 'Timed out waiting for Freighter. Is the popup open?'
+          : err instanceof Error
+            ? err.message
+            : 'Something went wrong while connecting.'
+      );
+    } finally {
+      clearTimeout(timerId);
+    }
+  }, [onConnected, timeoutMs]);
+
+  const disconnect = () => {
+    setAddress(null);
+    setStatus('disconnected');
+  };
+
+  if (status === 'connected' && address) {
+    return (
+      <div className="flex items-center gap-2">
+        <span
+          data-testid="wallet-address"
+          className="rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 font-mono text-xs font-medium text-emerald-800"
+        >
+          {truncateAddress(address)}
+        </span>
+        <button
+          onClick={disconnect}
+          className="rounded-lg px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground"
+        >
+          Disconnect
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <button
+        onClick={connect}
+        disabled={status === 'connecting'}
+        className="rounded-lg bg-foreground px-4 py-1.5 text-sm font-medium text-background disabled:opacity-60"
+      >
+        {status === 'connecting' ? 'Connecting…' : 'Connect Wallet'}
+      </button>
+      {error && (
+        <p role="alert" className="mt-2 text-sm text-destructive">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+```
+
+---
+
+## Stories for Every Wallet State
+
+`src/components/wallet/ConnectWalletButton.stories.tsx`. Each story pins a mock scenario through `parameters.freighter`, and the happy-path and failure stories include play functions so the states are exercised, not just rendered:
+
+```tsx
+import type { Meta, StoryObj } from '@storybook/react';
+import { expect, fn, userEvent, waitFor, within } from '@storybook/test';
+import { ConnectWalletButton } from './ConnectWalletButton';
+import { MOCK_PUBLIC_KEY } from '../../mocks/freighter-mock';
+
+const meta = {
+  title: 'Wallet/ConnectWalletButton',
+  component: ConnectWalletButton,
+  tags: ['autodocs'],
+  args: {
+    onConnected: fn(),
+  },
+} satisfies Meta<typeof ConnectWalletButton>;
+
+export default meta;
+type Story = StoryObj<typeof meta>;
+
+/** Fresh visitor: extension installed, access not yet granted. */
+export const Disconnected: Story = {};
+
+/** Happy path: the mocked requestAccess() resolves with a public key. */
+export const ConnectsSuccessfully: Story = {
+  parameters: { freighter: { mode: 'connected', delayMs: 150 } },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+
+    await userEvent.click(
+      canvas.getByRole('button', { name: /connect wallet/i })
+    );
+
+    await waitFor(
+      () => {
+        expect(canvas.getByTestId('wallet-address')?.textContent).toMatch(
+          /^GAAA/
+        );
+      },
+      { timeout: 2000 }
+    );
+
+    await expect(args.onConnected).toHaveBeenCalledWith(MOCK_PUBLIC_KEY);
+    await expect(canvas.queryByRole('alert')).toBeNull();
+  },
+};
+
+/** Transient state: promise pending, button disabled and labelled "Connecting…". */
+export const Connecting: Story = {
+  parameters: { freighter: { mode: 'timeout' } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      canvas.getByRole('button', { name: /connect wallet/i })
+    );
+    const pending = canvas.getByRole('button', {
+      name: /connecting/i,
+    }) as HTMLButtonElement;
+    await expect(pending.disabled).toBe(true);
+  },
+};
+
+/** User closes or denies the Freighter popup. */
+export const UserRejectsAccess: Story = {
+  parameters: { freighter: { mode: 'rejected', delayMs: 100 } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      canvas.getByRole('button', { name: /connect wallet/i })
+    );
+    await waitFor(() => {
+      expect(canvas.queryByRole('alert')?.textContent).toMatch(/rejected/i);
+    });
+    await expect(
+      canvas.getByRole('button', { name: /connect wallet/i })
+    ).toBeDefined();
+  },
+};
+
+/** Popup never settles; the dApp-side timeout wins the race. */
+export const PopupTimesOut: Story = {
+  args: { timeoutMs: 300 },
+  parameters: { freighter: { mode: 'timeout' } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      canvas.getByRole('button', { name: /connect wallet/i })
+    );
+    await waitFor(
+      () => {
+        expect(canvas.queryByRole('alert')?.textContent).toMatch(/timed out/i);
+      },
+      { timeout: 3000 }
+    );
+  },
+};
+
+/** No extension detected — the mock throws before resolving. */
+export const FreighterNotInstalled: Story = {
+  parameters: { freighter: { mode: 'uninstalled', delayMs: 100 } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      canvas.getByRole('button', { name: /connect wallet/i })
+    );
+    await waitFor(() => {
+      expect(canvas.queryByRole('alert')?.textContent).toMatch(
+        /not installed/i
+      );
+    });
+  },
+};
+```
+
+Notes:
+
+- `PopupTimesOut` overrides `timeoutMs` down to 300 ms — never wait 60 seconds in a story. The production default stays realistic.
+- The `Connecting` and `PopupTimesOut` stories share `mode: 'timeout'` (a promise that never settles) but differ in how long the component waits, demonstrating that the timeout belongs to your dApp, not the wallet.
+- Every failure story asserts the button returns to a clickable retry state — the recovery affordance matters as much as the error copy.
+
+---
+
+## Interaction Tests with Play Functions
+
+Play functions run real assertions inside the Storybook iframe using utilities from `@storybook/test` (the Storybook 8 consolidation of the old `@storybook/jest`):
+
+- `fn()` creates a spy; calls appear in the Interactions panel and are asserted with `toHaveBeenCalled...`.
+- `within(canvasElement)` binds Testing Library queries to the story's DOM.
+- `userEvent.click` performs realistic event sequences (focus, pointer events) rather than dispatching synthetic clicks.
+- `expect` is Vitest's assertion API. Prefer core matchers (`toBeNull`, `toBeDefined`, `toHaveBeenCalledWith`, `textContent` checks); jest-dom matchers such as `toBeInTheDocument` require extra setup and are not bundled.
+- `waitFor` polls until an assertion stops throwing — essential because `requestAccess()` is asynchronous even in the mock.
+
+Run the suite headlessly in CI against a built Storybook:
+
+```bash
+npx http-server storybook-static --port 6006 --silent &
+npx test-storybook --url http://localhost:6006
+```
+
+Or iterate interactively: `npm run storybook`, open a story with a play function, and watch the Interactions panel step through each assertion.
+
+---
+
+## Visual Regression Notes
+
+Interaction tests verify behavior; visual regression verifies appearance. Guidelines for wallet components specifically:
+
+- **Deterministic mock data**: always render the fixed `MOCK_PUBLIC_KEY` (or a seeded balance), never `Math.random()` or `Date.now()` output — nondeterminism turns every snapshot review into noise.
+- **One story per visual state**: `Disconnected`, `Connecting`, `UserRejectsAccess`, and the connected chip are distinct snapshots. This is why failure states exist as standalone stories rather than being reached only through play functions.
+- **Neutralize animation**: skeletons and shimmer effects flake screenshots. Honor `prefers-reduced-motion` in CSS and, if you use Chromatic, enable `pauseAnimationAtEnd` in its parameters.
+- **Pin the viewport**: set `parameters.viewport.defaultViewport` on the meta (e.g., `iphone14` and desktop variants) since wallet modals reflow aggressively on small screens.
+- **Tooling**: Chromatic is the lowest-friction option with the Storybook test runner; Percy or reg-suit + `test-storybook --e2e` screenshots work equally well if you prefer self-hosting diffs.
+
+---
+
+## Summary
+
+- Alias `@stellar/freighter-api` to a hand-written mock in `.storybook/main.ts` — extension messaging cannot be intercepted with MSW.
+- Model the mock around four modes: connected, rejected, uninstalled, and a never-settling timeout, applied per story via `parameters.freighter` and a global decorator.
+- Cover the full state machine — disconnected, connecting, connected, rejected, timeout, not installed — with CSF3 stories under a `Wallet/` category.
+- Assert behavior with play functions (`fn`, `userEvent`, `expect`, `waitFor` from `@storybook/test`) and run them headlessly with `test-storybook` in CI.
+- Keep visual snapshots deterministic: fixed keys and balances, one story per state, animations neutralized.
+
+---
+
+## Related docs
+
+- [Handling Freighter Interaction Timeouts](/docs/guides/handling-freighter-timeout) — the dApp-side timeout race the `PopupTimesOut` story exercises
+- [Handling Freighter User Rejections](/docs/guides/handling-freighter-user-reject) — UX patterns behind the `UserRejectsAccess` state
+- [Prompting for Network Switch](/docs/guides/prompting-for-network-switch) — mocking `requestNetworkSwitch` flows in stories
+- [Wallet UX Patterns](/docs/guides/wallet-ux-patterns) — connection patterns this button implements
+- [Testing](/docs/guides/testing) — where component tests fit in the broader strategy

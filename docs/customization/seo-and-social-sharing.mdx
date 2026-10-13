@@ -62,6 +62,62 @@ export const meta = {
 | `twitter.card`     | `summary_large_image` for rich link previews          |
 | `robots`           | `index, follow` for public pages                      |
 
+### Configure an Open Graph image
+
+Create a 1200 × 630 px image and save it as `public/og-image.png`. Reference the file from both Open Graph and X metadata so shared links use the same image.
+
+```tsx
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  metadataBase: new URL('https://docs.example.com'),
+  openGraph: {
+    images: [
+      {
+        url: '/og-image.png',
+        width: 1200,
+        height: 630,
+        alt: 'Acme documentation',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    images: ['/og-image.png'],
+  },
+};
+```
+
+`metadataBase` converts the relative image path into an absolute URL. Deploy the site before testing because social crawlers can't read files from `localhost`.
+
+#### Social card preview
+
+The rendered card should preserve the image's 1.91:1 aspect ratio. Its exact text and chrome depend on the social platform.
+
+<Preview className="h-auto p-6">
+  <div className="w-full max-w-xl overflow-hidden rounded-xl border bg-background shadow-sm">
+    <div className="flex aspect-[1.91/1] items-center justify-center bg-gradient-to-br from-slate-950 via-indigo-950 to-violet-700 p-8 text-center text-white">
+      <div>
+        <p className="m-0 text-sm uppercase tracking-[0.2em] text-indigo-200">
+          Acme docs
+        </p>
+        <p className="mt-3 text-3xl font-semibold leading-tight">
+          Build on Stellar with confidence
+        </p>
+      </div>
+    </div>
+    <div className="space-y-1 p-4 text-left">
+      <p className="m-0 text-xs uppercase text-muted-foreground">
+        docs.example.com
+      </p>
+      <p className="m-0 font-semibold">Acme documentation</p>
+      <p className="m-0 text-sm text-muted-foreground">
+        Guides and API references for Stellar developers.
+      </p>
+    </div>
+  </div>
+</Preview>
+
 ## Per-page metadata
 
 Override the site defaults for any page by exporting a `metadata` object from the page's `layout.tsx` or `page.tsx`, or by using `generateMetadata` for dynamic values.

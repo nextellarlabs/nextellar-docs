@@ -1,0 +1,29 @@
+---
+title: Stellar-SDK Transaction Builder Timeout
+description: Note on the default timeout settings for the TransactionBuilder in stellar-sdk.
+date: 2026-08-27
+---
+
+# Stellar-SDK Transaction Builder Timeout
+
+When building transactions with `@stellar/stellar-sdk`, the `TransactionBuilder` imposes time bounds on the transaction to ensure it doesn't stay pending indefinitely.
+
+## Default Timeout
+
+By default, `TransactionBuilder.setTimeout` will set the upper bound (valid until) of the transaction to **infinity** (0) if you don't call it. However, if you invoke `setTimeout(seconds)`, it sets the maximum time from the current time that the transaction is valid. In many scaffolding tools or wrapper functions, a default timeout (e.g., 30 seconds) is applied.
+
+## Overrides
+
+You can explicitly set or override the timeout when configuring the `TransactionBuilder` by chaining the `setTimeout` method.
+
+```javascript
+import { TransactionBuilder, Networks } from '@stellar/stellar-sdk';
+
+// Build a transaction with an explicit 60-second timeout
+const builder = new TransactionBuilder(sourceAccount, {
+  fee: '100',
+  networkPassphrase: Networks.TESTNET
+})
+.addOperation(...)
+.setTimeout(60); // Valid for 60 seconds from now
+```

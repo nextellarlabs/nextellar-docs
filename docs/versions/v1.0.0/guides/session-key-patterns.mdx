@@ -1,0 +1,252 @@
+---
+title: Session Key Patterns on Stellar
+description: Use session keys to let Stellar dApps sign transactions without requiring a hardware wallet approval for every action — setup, scoping, expiry, and revocation.
+date: 2026-06-25
+---
+
+# Session Key Patterns on Stellar
+
+Requiring a hardware wallet or extension approval for every transaction creates friction. Session keys solve this: a temporary keypair is authorised to sign on behalf of the user's main account for a limited scope and duration. When the session ends, the key is revoked.
+
+---
+
+## How Session Keys Work on Stellar
+
+Stellar accounts support multiple signers with configurable weights. A session key is added as a low-weight signer — enough to authorise normal operations, but not enough to change account settings (which require a higher threshold).
+
+```
+User account: GUSER…
+  high threshold: 2  (key changes require master key)
+  med threshold:  1  (payments ok with session key alone)
+  low threshold:  1
+
+Signers:
+  GMASTER… weight=2  (hardware wallet, always required for account changes)
+  GSESSION… weight=1  (ephemeral session key, added for this session)
+```
+
+---
+
+## Step 1 — Generate the Session Keypair
+
+The session keypair is generated in-browser and the private key is stored only in memory (or `sessionStorage`):
+
+```ts
+// lib/session-key.ts
+import { Keypair } from '@stellar/stellar-sdk';
+
+export function generateSessionKey(): { publicKey: string; secretKey: string } {
+  const kp = Keypair.random();
+  return { publicKey: kp.publicKey(), secretKey: kp.secret() };
+}
+
+// Store secret in sessionStorage — cleared on tab close
+export function storeSessionKey(secretKey: string) {
+  sessionStorage.setItem('session_secret', secretKey);
+}
+
+export function getSessionKeypair(): Keypair | null {
+  const secret = sessionStorage.getItem('session_secret');
+  if (!secret) return null;
+  return Keypair.fromSecret(secret);
+}
+```
+
+---
+
+## Step 2 — Add Session Key as Signer (User Signs Once)
+
+The user signs a `setOptions` transaction with their master key (hardware wallet) to add the session key:
+
+```ts
+// lib/session-key.ts (continued)
+import {
+  Operation,
+  TransactionBuilder,
+  Networks,
+  BASE_FEE,
+} from '@stellar/stellar-sdk';
+import { Horizon } from '@stellar/stellar-sdk';
+
+const server = new Horizon.Server(process.env.NEXT_PUBLIC_HORIZON_URL!);
+
+export async function addSessionSigner(
+  userAddress: string,
+  sessionPublicKey: string,
+  expirationLedger: number // unused by setOptions directly; enforce in your contract
+) {
+  const account = await server.loadAccount(userAddress);
+  const tx = new TransactionBuilder(account, {
+    fee: BASE_FEE,
+    networkPassphrase: Networks.MAINNET,
+  })
+    .addOperation(
+      Operation.setOptions({
+        signer: {
+          ed25519PublicKey: sessionPublicKey,
+          weight: 1,
+        },
+      })
+    )
+    .setTimeout(30)
+    .build();
+  // User signs with master key (hardware wallet prompt — one time only)
+  return tx;
+}
+```
+
+---
+
+## Step 3 — Use Session Key for Subsequent Transactions
+
+After the session key is added, the dApp can sign transactions directly without prompting the user:
+
+```ts
+// lib/session-key.ts (continued)
+import { Transaction } from '@stellar/stellar-sdk';
+
+export function signWithSessionKey(tx: Transaction): Transaction {
+  const kp = getSessionKeypair();
+  if (!kp) throw new Error('No active session key');
+  tx.sign(kp);
+  return tx;
+}
+```
+
+---
+
+## Step 4 — Scope Limiting via Soroban
+
+For tighter control, use a Soroban contract to enforce what operations a session key may authorise:
+
+```rust
+// contracts/session-scope/src/lib.rs
+#![no_std]
+use soroban_sdk::{contract, contractimpl, contracttype, Address, Env};
+
+#[contracttype]
+pub struct SessionPolicy {
+    pub session_key:      Address,
+    pub owner:            Address,
+    pub max_amount:       i128,
+    pub expires_ledger:   u32,
+    pub revoked:          bool,
+}
+
+#[contracttype]
+pub enum DataKey {
+    Policy(Address), // keyed by session key address
+}
+
+#[contract]
+pub struct SessionScopeContract;
+
+#[contractimpl]
+impl SessionScopeContract {
+    pub fn register(
+        env: Env,
+        owner: Address,
+        session_key: Address,
+        max_amount: i128,
+        expires_in: u32,
+    ) {
+        owner.require_auth();
+        let policy = SessionPolicy {
+            session_key: session_key.clone(),
+            owner,
+            max_amount,
+            expires_ledger: env.ledger().sequence() + expires_in,
+            revoked: false,
+        };
+        env.storage().persistent().set(&DataKey::Policy(session_key), &policy);
+    }
+
+    pub fn assert_allowed(env: Env, session_key: Address, amount: i128) {
+        let policy: SessionPolicy = env
+            .storage().persistent()
+            .get(&DataKey::Policy(session_key))
+            .expect("no session policy");
+        assert!(!policy.revoked,                               "session revoked");
+        assert!(env.ledger().sequence() < policy.expires_ledger, "session expired");
+        assert!(amount <= policy.max_amount,                   "amount exceeds session limit");
+    }
+
+    pub fn revoke(env: Env, owner: Address, session_key: Address) {
+        owner.require_auth();
+        let mut policy: SessionPolicy = env
+            .storage().persistent()
+            .get(&DataKey::Policy(session_key.clone()))
+            .expect("no session policy");
+        assert!(policy.owner == owner, "not owner");
+        policy.revoked = true;
+        env.storage().persistent().set(&DataKey::Policy(session_key), &policy);
+    }
+}
+```
+
+---
+
+## Step 5 — Revoke the Session Key
+
+When the user logs out or the session expires, remove the session signer:
+
+```ts
+export async function revokeSessionKey(
+  userAddress: string,
+  sessionPublicKey: string
+) {
+  const account = await server.loadAccount(userAddress);
+  const tx = new TransactionBuilder(account, {
+    fee: BASE_FEE,
+    networkPassphrase: Networks.MAINNET,
+  })
+    .addOperation(
+      Operation.setOptions({
+        signer: {
+          ed25519PublicKey: sessionPublicKey,
+          weight: 0, // weight 0 removes the signer
+        },
+      })
+    )
+    .setTimeout(30)
+    .build();
+  // User signs with master key to confirm revocation
+  return tx;
+}
+
+export function clearSessionKey() {
+  sessionStorage.removeItem('session_secret');
+}
+```
+
+---
+
+## Session Lifecycle Summary
+
+| Event                  | Action                                                       |
+| ---------------------- | ------------------------------------------------------------ |
+| User logs in           | Generate keypair → store secret in sessionStorage            |
+| User approves session  | `setOptions` adds session key (master key signs once)        |
+| dApp actions           | Session key signs transactions silently                      |
+| Tab closes             | `sessionStorage` cleared → session key forgotten client-side |
+| User logs out          | `setOptions` removes session key (master key signs)          |
+| Session limit exceeded | Contract rejects the invocation                              |
+
+---
+
+## Security Notes
+
+- Never persist the session secret key in `localStorage` — it survives tab close.
+- Set a ledger-based expiry in the scope contract; do not rely solely on the client clearing `sessionStorage`.
+- Limit session key weight to `1` — never equal to or exceeding the account's high threshold.
+- Revoke session keys on suspicious activity detection.
+
+---
+
+## Acceptance Checklist
+
+- [ ] Guide renders without build errors (`pnpm build:content`)
+- [ ] Internal links resolve (`pnpm check:links`)
+- [ ] All 5 steps covered with TypeScript and Rust snippets
+- [ ] Lifecycle summary table included
+- [ ] Security notes section present

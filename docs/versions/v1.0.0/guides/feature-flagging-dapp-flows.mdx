@@ -1,0 +1,179 @@
+---
+title: Feature Flagging dApp Flows
+description: Compare static and dynamic feature flagging approaches for Stellar dApps, understand rollout patterns, and implement a simple flag system.
+date: 2026-06-25
+---
+
+# Feature Flagging dApp Flows
+
+Feature flags let you ship code without shipping features. In a Stellar dApp context this means you can deploy a new payment flow to 5% of users, disable a contract interaction while a vulnerability is patched, or give internal testers early access to a new trading screen — all without a code deployment.
+
+---
+
+## Approaches
+
+### Static Flags (Environment Variables)
+
+The simplest form. A flag value is baked into the build.
+
+```ts
+// lib/flags.ts
+export const FLAGS = {
+  ENABLE_SOROBAN_SWAP: process.env.NEXT_PUBLIC_FLAG_SOROBAN_SWAP === 'true',
+  ENABLE_LEGACY_ANCHOR: process.env.NEXT_PUBLIC_FLAG_LEGACY_ANCHOR === 'true',
+  ENABLE_TESTNET_BANNER:
+    process.env.NEXT_PUBLIC_FLAG_TESTNET_BANNER !== 'false',
+} as const;
+```
+
+**Tradeoffs**:
+
+- No runtime overhead; values compile away
+- Changing a flag requires a new deployment
+- Safe for flags that differ between staging and production
+
+### Dynamic Flags (Server-Side)
+
+Flags are fetched at runtime from a backend or a flag service. Changing a flag takes effect within seconds without a deployment.
+
+```ts
+// lib/flags.ts (dynamic)
+import type { FlagSet } from '@/types';
+
+let cachedFlags: FlagSet | null = null;
+let cacheExpiry = 0;
+const CACHE_TTL = 30_000; // 30 s
+
+export async function getFlags(): Promise<FlagSet> {
+  if (cachedFlags && Date.now() < cacheExpiry) return cachedFlags;
+  const res = await fetch('/api/flags');
+  cachedFlags = await res.json();
+  cacheExpiry = Date.now() + CACHE_TTL;
+  return cachedFlags!;
+}
+```
+
+**Tradeoffs**:
+
+- Adds one API call per page load (mitigated by caching)
+- Enables percentage rollouts and user-segment targeting
+- Introduces a new failure mode: if the flag endpoint is down, gate everything or everything-open
+
+### On-Chain Flags (Soroban Contract Storage)
+
+For flags that control on-chain behaviour, store them in contract storage rather than an off-chain config.
+
+```rust
+// In your contract
+pub fn set_flag(env: Env, admin: Address, key: Symbol, value: bool) {
+    admin.require_auth();
+    env.storage().instance().set(&key, &value);
+}
+
+pub fn flag_enabled(env: Env, key: Symbol) -> bool {
+    env.storage().instance().get(&key).unwrap_or(false)
+}
+```
+
+Read the flag from the frontend before allowing the user to invoke a restricted flow.
+
+---
+
+## Rollout Patterns
+
+### Percentage Rollout
+
+Assign each account to a bucket using a deterministic hash of the account ID.
+
+```ts
+export function flagForAccount(
+  accountId: string,
+  flagName: string,
+  pct: number
+): boolean {
+  // Simple hash: sum char codes mod 100
+  const hash = [...accountId].reduce((a, c) => (a + c.charCodeAt(0)) % 100, 0);
+  return hash < pct;
+}
+
+// 10% of users get the new swap flow
+const useNewSwap = flagForAccount(address, 'SOROBAN_SWAP', 10);
+```
+
+### Allowlist
+
+Specific accounts always see the feature regardless of the global rollout percentage.
+
+```ts
+const INTERNAL_TESTERS = new Set(['GABC...ALICE', 'GDEF...BOB']);
+
+export function isFlagEnabled(accountId: string, flag: RemoteFlag): boolean {
+  if (INTERNAL_TESTERS.has(accountId)) return true;
+  return flagForAccount(accountId, flag.name, flag.rolloutPct);
+}
+```
+
+### Kill Switch
+
+A flag held at 0% effectively disables a feature for all users. Use this as an emergency lever.
+
+```ts
+// Disable instantly by setting rolloutPct = 0 in the flag service
+export async function killSwitch(flagName: string) {
+  await db.flags.update({ where: { name: flagName }, data: { rolloutPct: 0 } });
+}
+```
+
+---
+
+## Small Example: Gating a New Deposit Flow
+
+```tsx
+// components/DepositSection.tsx
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useWallet } from '@/hooks/useWallet';
+import { getFlags } from '@/lib/flags';
+import { NewDepositFlow } from './NewDepositFlow';
+import { LegacyDepositFlow } from './LegacyDepositFlow';
+
+export function DepositSection() {
+  const { address } = useWallet();
+  const [newFlowEnabled, setNewFlowEnabled] = useState(false);
+
+  useEffect(() => {
+    getFlags().then((flags) => {
+      setNewFlowEnabled(flags.ENABLE_NEW_DEPOSIT && !!address);
+    });
+  }, [address]);
+
+  return newFlowEnabled ? <NewDepositFlow /> : <LegacyDepositFlow />;
+}
+```
+
+---
+
+## Flag Lifecycle
+
+A flag should be treated as temporary debt.
+
+1. **Create**: add the flag with a clear owner and a planned removal date.
+2. **Ramp**: increase rollout percentage over days or weeks while monitoring error rates.
+3. **Full rollout**: set to 100%; leave for one release cycle as a kill switch.
+4. **Remove**: delete the flag constant, the branch in code, and the DB row. Open a ticket to track removal.
+
+Document each flag in a central register:
+
+| Flag                   | Owner         | Default | Rollout % | Remove by  |
+| ---------------------- | ------------- | ------- | --------- | ---------- |
+| `ENABLE_SOROBAN_SWAP`  | Platform team | false   | 10%       | 2026-08-01 |
+| `ENABLE_LEGACY_ANCHOR` | Integrations  | true    | 100%      | deprecated |
+
+---
+
+## Acceptance Checklist
+
+- [ ] Guide renders without build errors (`pnpm build:content`)
+- [ ] Internal links resolve (`pnpm check:links`)
+- [ ] Code samples cover static, dynamic, and on-chain flag patterns

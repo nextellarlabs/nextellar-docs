@@ -83,6 +83,16 @@ import { Checkbox } from '@/components/checkbox';
 import { Label } from '@/components/label';
 import { Input } from '@/components/input';
 
+// Helper function to determine if a link is external
+const isExternalLink = (href?: string): boolean => {
+  if (!href) return false;
+  return (
+    href.startsWith('http://') ||
+    href.startsWith('https://') ||
+    href.startsWith('//')
+  );
+};
+
 const components = {
   h1: ({ className, ...children }: React.HTMLAttributes<HTMLElement>) => (
     <h1
@@ -127,12 +137,23 @@ const components = {
   p: ({ className, ...children }: React.HTMLAttributes<HTMLElement>) => (
     <p className={`my-4 leading-7 ${className}`} {...children} />
   ),
-  a: ({ className, ...children }: React.HTMLAttributes<HTMLElement>) => (
-    <a
-      className={`text-foreground hover:opacity-70 underline underline-offset-4 ${className}`}
-      {...children}
-    />
-  ),
+  a: ({
+    className,
+    href,
+    ...children
+  }: React.HTMLAttributes<HTMLElement> & { href?: string }) => {
+    // Check if this is an external link
+    const external = isExternalLink(href);
+
+    return (
+      <a
+        href={href}
+        className={`text-foreground hover:opacity-70 underline underline-offset-4 ${className}`}
+        {...(external && { target: '_blank', rel: 'noopener noreferrer' })}
+        {...children}
+      />
+    );
+  },
   ul: ({ className, ...children }: React.HTMLAttributes<HTMLElement>) => (
     <ul className={`list-disc pl-6 my-4 ${className}`} {...children} />
   ),

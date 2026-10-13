@@ -6,16 +6,21 @@ import { useState } from 'react';
 import { Menu, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ModeToggle } from '@/components/mode-toggle';
+import { LocaleSwitcher } from '@/components/locale-switcher';
+import { useParams } from 'next/navigation';
 
-const routes = [
-  { name: 'Docs', path: '/docs' },
-  { name: 'Features', path: '/#features' },
-  { name: 'Blog', path: '/blog' },
-  { name: 'Contact', path: '/contact' },
+const getRoutes = (locale: string) => [
+  { name: 'Docs', path: `/${locale}/docs` },
+  { name: 'Features', path: `/${locale}/#features` },
+  { name: 'Blog', path: `/${locale}/blog` },
+  { name: 'Contact', path: `/${locale}/contact` },
 ];
 
 const NavigationBar = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const params = useParams();
+  const locale = (params.locale as string) || 'en';
+  const routes = getRoutes(locale);
   const toggle = () => setIsOpen((prev) => !prev);
   const closeMenu = () => setIsOpen(false);
 
@@ -72,10 +77,11 @@ const NavigationBar = () => {
               ))}
             </ul>
 
-            {/* Get Started Button + Theme Toggle */}
+            {/* Get Started Button + Locale Switcher + Theme Toggle */}
             <div className="flex items-center gap-4">
+              <LocaleSwitcher />
               <ModeToggle />
-              <Link href="/docs/getting-started/introduction">
+              <Link href={`/${locale}/docs/getting-started/introduction`}>
                 <motion.button
                   className="text-white text-sm lg:text-base font-medium px-5 lg:px-6 py-2.5 lg:py-3 bg-black dark:bg-white dark:text-black"
                   whileHover={{ scale: 1.02, opacity: 0.9 }}
@@ -116,8 +122,9 @@ const NavigationBar = () => {
             />
           </Link>
 
-          {/* Mobile Menu Button + Theme Toggle */}
+          {/* Mobile Menu Button + Locale Switcher + Theme Toggle */}
           <div className="flex items-center gap-2">
+            <LocaleSwitcher />
             <ModeToggle />
             <motion.button
               className="p-2 text-black dark:text-white"
@@ -188,7 +195,7 @@ const NavigationBar = () => {
                   className="pt-3"
                 >
                   <Link
-                    href="/docs/getting-started/introduction"
+                    href={`/${locale}/docs/getting-started/introduction`}
                     onClick={closeMenu}
                     className="block w-full text-white text-center font-medium px-5 py-3 bg-black dark:bg-white dark:text-black"
                   >

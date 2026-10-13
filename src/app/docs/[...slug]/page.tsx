@@ -4,10 +4,17 @@ import { Mdx } from '@/components/mdx-components';
 import Breadcrumb from '@/components/bread-crumb';
 import AutoToc from '@/components/auto-toc';
 import EditThisPage from '@/components/edit-this-page';
+import PrevNextNav from '@/components/prev-next-nav';
 import { format, parseISO } from 'date-fns';
+import { meta } from '../../../../config/meta';
 
 type tParams = Promise<{ slug: string[] }>;
 
+/**
+ * This route catches old-style unversioned URLs like /docs/getting-started/intro
+ * and redirects them to the new versioned route /docs/current/getting-started/intro
+ * for consistency with the new routing structure.
+ */
 export const generateStaticParams = async () => {
   return allDocs
     .filter((doc) => {
@@ -37,8 +44,10 @@ export const generateMetadata = async ({ params }: { params: tParams }) => {
     openGraph: {
       title: doc.title,
       description: doc.description || 'A detailed guide to the topic.',
+      images: meta.openGraph.images,
     },
   };
+  return [];
 };
 
 const DocsPage = async ({ params }: { params: tParams }) => {
@@ -66,6 +75,7 @@ const DocsPage = async ({ params }: { params: tParams }) => {
         <div className="mt-12 pt-6 border-t border-[var(--color-border)]">
           <EditThisPage filePath={doc._raw.flattenedPath} />
         </div>
+        <PrevNextNav currentPath={doc.url} />
       </article>
 
       <AutoToc />

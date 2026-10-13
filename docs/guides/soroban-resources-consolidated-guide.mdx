@@ -1,0 +1,577 @@
+---
+title: Soroban Resources Consolidated Guide
+description: Complete reference for Soroban storage, footprint, budget, and resource fees. Learn to optimize contract operations, estimate costs, and avoid budget exhaustion.
+date: 2026-09-25
+tags: [soroban, resources, storage, footprint, budget, fees, optimization]
+---
+
+# Soroban Resources Consolidated Guide
+
+Soroban smart contracts execute within strict resource constraints to ensure predictable performance and network security. This guide consolidates storage, footprint, budget, and fee concepts to help you design efficient contracts.
+
+---
+
+## The Resource Model at a Glance
+
+```text
+┌──────────────────────────────────────────────────────┐
+│ Transaction Resource Budget                          │
+│                                                       │
+│ ┌─────────────────────────────────────────────────┐ │
+│ │ 1. CPU Instructions Limit: ~21M instructions    │ │
+│ ├─────────────────────────────────────────────────┤ │
+│ │ 2. Memory Limit: ~40 MB per contract execution  │ │
+│ ├─────────────────────────────────────────────────┤ │
+│ │ 3. Ledger Read/Write Footprint (declared ahead) │ │
+│ │    ├─ Read-only entries                         │ │
+│ │    └─ Read-write entries                        │ │
+│ └─────────────────────────────────────────────────┘ │
+│                                                       │
+│ Resources consumed → Fee charged (stroops/byte)     │
+└──────────────────────────────────────────────────────┘
+```
+
+---
+
+## Part 1: Understanding Storage
+
+### Contract Storage Types
+
+Soroban contracts use a hierarchical storage model:
+
+| Storage Type   | Lifetime                    | Use Cases                                 | Max Size  |
+| -------------- | --------------------------- | ----------------------------------------- | --------- |
+| **Persistent** | ~190 days (may auto-extend) | Contract state, user balances, whitelists | Unlimited |
+| **Temporary**  | ~16 hours                   | Scratch values, intermediate computations | Unlimited |
+| **Instance**   | Contract's lifetime         | Contract metadata, owner, configuration   | 4 KB      |
+
+### Storage Operations
+
+```rust
+// Soroban Rust contract example
+use soroban_sdk::*;
+
+#[contract]
+pub struct VaultContract;
+
+#[contractimpl]
+impl VaultContract {
+    // Persistent storage: user balances
+    pub fn deposit(env: Env, account: Address, amount: i128) -> Result<(), Error> {
+        let key = DataKey::UserBalance(account.clone());
+        let current: i128 = env.storage().persistent().get(&key).unwrap_or(0);
+        let new_balance = current.checked_add(amount)?;
+
+        // Write to persistent storage
+        env.storage().persistent().set(&key, &new_balance);
+
+        // Extend expiration to max (~190 days from now)
+        let ttl = env.ledger().sequence() + 1_440_000;
+        env.storage().persistent().extend_ttl(&key, &key, ttl);
+
+        Ok(())
+    }
+
+    // Temporary storage for scratch values
+    pub fn process_payment(env: Env, amount: i128) -> i128 {
+        let temp_key = Symbol::new(&env, "temp_amount");
+
+        // Write to temporary storage (~16 hours)
+        env.storage().temporary().set(&temp_key, &amount);
+
+        // Process...
+        amount * 2
+    }
+
+    // Instance storage: single configuration
+    pub fn init(env: Env, owner: Address) {
+        env.storage().instance().set(
+            &Symbol::new(&env, "owner"),
+            &owner,
+        );
+    }
+}
+
+#[derive(Clone)]
+pub enum DataKey {
+    UserBalance(Address),
+}
+```
+
+### TTL Management
+
+Storage entries automatically extend their time-to-live (TTL):
+
+```rust
+// Extend TTL when accessing data
+let ttl = env.ledger().sequence() + 1_440_000; // ~190 days
+env.storage().persistent().extend_ttl(&key, &key, ttl);
+
+// Archival: entries older than ~190 days move to "restored state"
+// and must be explicitly restored before access
+```
+
+---
+
+## Part 2: Footprint Specification
+
+### What is a Footprint?
+
+A **footprint** is a declaration of all ledger entries your transaction might access. Soroban requires you to specify the footprint upfront to enable parallel execution.
+
+```rust
+// Rust SDK
+use soroban_sdk::{soroban_contract, contractimpl};
+
+#[soroban_contract]
+pub struct PaymentContract;
+
+#[contractimpl]
+impl PaymentContract {
+    pub fn transfer(
+        env: Env,
+        from: Address,
+        to: Address,
+        amount: i128,
+    ) -> Result<(), Error> {
+        // Both accounts must be in the footprint (read-write)
+        // Contract storage must also be in footprint
+
+        from.require_auth();
+        to.require_auth(); // ← This requires 'to' in footprint
+
+        let from_key = DataKey::Balance(from.clone());
+        let to_key = DataKey::Balance(to.clone());
+
+        // Access storage
+        let from_balance: i128 = env.storage().persistent().get(&from_key)?;
+        let to_balance: i128 = env.storage().persistent().get(&to_key)?;
+
+        // Update
+        env.storage()
+            .persistent()
+            .set(&from_key, &(from_balance - amount));
+        env.storage()
+            .persistent()
+            .set(&to_key, &(to_balance + amount));
+
+        Ok(())
+    }
+}
+```
+
+### Building a Footprint (JavaScript SDK)
+
+```typescript
+import { TransactionBuilder, Soroban, Address } from '@stellar/stellar-sdk';
+
+const account = await server.loadAccount(sourcePublicKey);
+
+// Define footprint entries
+const readOnlyFootprint = [
+  // Contract code (always read-only)
+  xdr.LedgerEntryData.contractCode(contractCodeEntry),
+];
+
+const readWriteFootprint = [
+  // Contract instance (if modifying state)
+  xdr.LedgerEntryData.contractData(contractDataEntry),
+  // Account data (for payment/asset transfers)
+  xdr.LedgerEntryData.account(accountEntry),
+];
+
+// Build transaction
+const tx = new TransactionBuilder(account, {
+  fee: '1000', // Per-operation fee
+  networkPassphrase: Networks.TESTNET,
+})
+  .addOperation(
+    Operation.invokeHostFunction({
+      hostFunction: xdr.HostFunction.invokeContract([
+        xdr.ScVal.address(Address.fromString(contractId)),
+        xdr.ScVal.symbol('transfer'),
+        xdr.ScVal.address(Address.fromString(from)),
+        xdr.ScVal.address(Address.fromString(to)),
+        xdr.ScVal.i128(amount),
+      ]),
+      auth: [], // Signers list
+    })
+  )
+  .setSorobanData(
+    new SorobanDataBuilder()
+      .setReadOnlyLedgerEntries(readOnlyFootprint)
+      .setReadWriteLedgerEntries(readWriteFootprint)
+      .build()
+  )
+  .setTimeout(30)
+  .build();
+
+// Simulate to get accurate resource requirements
+const simulation = await server.simulateTransaction(tx);
+```
+
+---
+
+## Part 3: Budget & Resource Limits
+
+### Resource Categories
+
+| Resource             | Limit                | Cost Model                          |
+| -------------------- | -------------------- | ----------------------------------- |
+| **Instructions**     | ~21M per transaction | Proportional to contract complexity |
+| **Read bytes**       | No hard limit        | Fee per 1 KB read                   |
+| **Write bytes**      | No hard limit        | Fee per 1 KB written                |
+| **Ledger read ops**  | No hard limit        | Fee per operation                   |
+| **Ledger write ops** | No hard limit        | Fee per operation                   |
+| **Memory**           | ~40 MB               | Fixed cost if exceeded              |
+
+### Simulating Resource Usage
+
+Always simulate before submitting:
+
+```typescript
+import { Server } from '@stellar/stellar-sdk';
+
+const server = new Server('https://soroban-testnet.stellar.org:443');
+
+// After building transaction...
+const simulated = await server.simulateTransaction(tx);
+
+console.log('Simulated resource consumption:');
+console.log(`Instructions: ${simulated.resourceFee}`);
+console.log(`Read bytes: ${simulated.readBytes}`);
+console.log(`Write bytes: ${simulated.writeBytes}`);
+
+// Check if budget exceeded
+if (simulated.error) {
+  console.error('Simulation failed:', simulated.error);
+}
+
+// Update fee based on simulation
+const updatedTx = new TransactionBuilder(account, {
+  fee: parseInt(simulated.resourceFee),
+  networkPassphrase: Networks.TESTNET,
+})
+  // ... re-add operations and footprint
+  .build();
+```
+
+### Fee Calculation
+
+```
+Total Fee = Base Fee + (Read Bytes / 1024) + (Write Bytes / 1024) + Instructions/1000
+```
+
+Example:
+
+- Base fee: 100 stroops
+- Read 10 KB: 10 stroops
+- Write 2 KB: 2 stroops
+- 5M instructions: 5,000 stroops
+- **Total: ~5,112 stroops (~0.005 XLM)**
+
+---
+
+## Part 4: Optimization Strategies
+
+### Minimize Storage Reads
+
+**Bad: Multiple reads of the same data**
+
+```rust
+pub fn process(env: Env) -> Result<(), Error> {
+    let config_v1 = env.storage().persistent().get::<_, Config>(&CONFIG_KEY)?;
+    // ... do work ...
+    let config_v2 = env.storage().persistent().get::<_, Config>(&CONFIG_KEY)?;
+    // Redundant read!
+    Ok(())
+}
+```
+
+**Good: Read once, reuse**
+
+```rust
+pub fn process(env: Env) -> Result<(), Error> {
+    let config = env.storage().persistent().get::<_, Config>(&CONFIG_KEY)?;
+    // ... do work with config ...
+    // Reuse config throughout function
+    Ok(())
+}
+```
+
+### Batch State Updates
+
+**Bad: Multiple writes**
+
+```rust
+for user in users.iter() {
+    env.storage().persistent().set(&user_key, &new_balance);
+    // Each iteration = 1 write operation
+}
+```
+
+**Good: Aggregate and write once**
+
+```rust
+let mut balances = Map::new(&env);
+for user in users.iter() {
+    balances.set(user_key, new_balance);
+}
+env.storage().persistent().set(&BALANCES_KEY, &balances);
+// 1 write operation for all updates
+```
+
+### Use Temporary Storage for Scratch Work
+
+```rust
+pub fn calculate_fee(env: Env, amount: i128) -> i128 {
+    // Temporary storage for intermediate calculations
+    let temp_key = Symbol::new(&env, "fee_calc");
+    env.storage().temporary().set(&temp_key, &amount);
+
+    // Process...
+    let fee = amount * 1 / 100;
+    fee
+}
+```
+
+### Compress Data Representation
+
+**Bad: Store multiple fields separately**
+
+```rust
+env.storage().persistent().set(&format!("user_{}:balance", user), &balance);
+env.storage().persistent().set(&format!("user_{}:nonce", user), &nonce);
+env.storage().persistent().set(&format!("user_{}:status", user), &status);
+// 3 storage entries
+```
+
+**Good: Pack into struct**
+
+```rust
+#[derive(Clone)]
+pub struct UserState {
+    balance: i128,
+    nonce: u32,
+    status: u8,
+}
+
+env.storage().persistent().set(&user_key, &UserState { balance, nonce, status });
+// 1 storage entry
+```
+
+---
+
+## Part 5: Budget Exhaustion & Common Errors
+
+### Error: Budget Exceeded
+
+**Cause**: Contract operations consumed more resources than allocated.
+
+**Diagnosis**:
+
+```typescript
+// Check simulation error
+if (simulated.error?.includes('budget')) {
+  console.error('Budget exhausted:', simulated);
+}
+```
+
+**Solutions**:
+
+1. Optimize contract logic (fewer reads/writes)
+2. Increase allocated fee
+3. Break into smaller transactions
+
+### Error: Footprint Mismatch
+
+**Cause**: Contract accessed a ledger entry not in footprint.
+
+**Diagnosis**:
+
+```
+Error: ledger entry not in footprint
+```
+
+**Solutions**:
+
+```typescript
+// Expand footprint to include missing entries
+const allAccountsInFootprint = [
+  source,
+  destination,
+  intermediary, // ← Was missing!
+];
+
+// Rebuild transaction with expanded footprint
+```
+
+### Error: TTL Exceeded
+
+**Cause**: Tried to access storage entry that expired.
+
+**Diagnosis**:
+
+```
+Error: entry at <key> has expired
+```
+
+**Solutions**:
+
+```rust
+// Extend TTL when accessing
+let ttl = env.ledger().sequence() + 1_440_000;
+env.storage().persistent().extend_ttl(&key, &key, ttl);
+
+// Or restore from archive
+env.storage().persistent().restore(&key);
+```
+
+---
+
+## Part 6: Monitoring & Alerting
+
+### Track Resource Usage Over Time
+
+```typescript
+// pages/api/monitor/contract-resources.ts
+interface ContractMetrics {
+  contractId: string;
+  avgInstructions: number;
+  avgReadBytes: number;
+  avgWriteBytes: number;
+  maxFee: number;
+  timestamp: Date;
+}
+
+export async function recordMetrics(
+  contractId: string,
+  simulation: any
+): Promise<void> {
+  await db.query(
+    `INSERT INTO contract_metrics 
+     (contract_id, avg_instructions, avg_read_bytes, avg_write_bytes, created_at)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [
+      contractId,
+      simulation.resourceFee,
+      simulation.readBytes,
+      simulation.writeBytes,
+      new Date(),
+    ]
+  );
+}
+```
+
+### Alert on Budget Drift
+
+```typescript
+// Identify when resource consumption increases unexpectedly
+export async function checkBudgetDrift(
+  contractId: string,
+  threshold: number = 1.2 // 20% increase
+): Promise<boolean> {
+  const recent = await db.query(
+    `SELECT AVG(avg_instructions) as avg_recent
+     FROM contract_metrics
+     WHERE contract_id = $1 AND created_at > NOW() - '7 days'`,
+    [contractId]
+  );
+
+  const older = await db.query(
+    `SELECT AVG(avg_instructions) as avg_older
+     FROM contract_metrics
+     WHERE contract_id = $1 AND created_at > NOW() - '30 days' 
+       AND created_at < NOW() - '7 days'`,
+    [contractId]
+  );
+
+  const drift = recent.rows[0].avg_recent / older.rows[0].avg_older;
+
+  if (drift > threshold) {
+    console.warn(
+      `Budget drift detected for ${contractId}: ${(drift * 100).toFixed(0)}% increase`
+    );
+    return true;
+  }
+
+  return false;
+}
+```
+
+---
+
+## Part 7: Reference Tables
+
+### Storage Costs by Entry Type
+
+| Entry Type   | Read Cost | Write Cost | Use Case                  |
+| ------------ | --------- | ---------- | ------------------------- |
+| Account      | 0.5 KB    | 1.5 KB     | Balance transfer          |
+| TrustLine    | 0.5 KB    | 0.5 KB     | Asset holding             |
+| ContractData | 1 KB      | 2 KB       | Contract state            |
+| ContractCode | 5 KB      | N/A        | Contract code (immutable) |
+
+### Fee Multipliers by Network Congestion
+
+| Network State           | Fee Multiplier | Typical Fee (stroops) |
+| ----------------------- | -------------- | --------------------- |
+| Low (< 25% utilization) | 1x             | 100                   |
+| Medium (25-75%)         | 1.5x           | 150                   |
+| High (> 75%)            | 3x-10x         | 300+                  |
+
+### Estimated Costs for Common Operations
+
+| Operation             | Instructions | Fee (stroops) | Fee (XLM) |
+| --------------------- | ------------ | ------------- | --------- |
+| Simple transfer       | 2M           | 1,000         | 0.0001    |
+| Token payment         | 5M           | 2,500         | 0.00025   |
+| Complex contract call | 15M          | 7,500         | 0.00075   |
+| Batch 10 payments     | 20M          | 10,000        | 0.001     |
+
+---
+
+## Part 8: Cross-Linking Resources
+
+### Related Concepts
+
+**Storage Migration**: When entries age beyond 190 days, they move to "archived" state. Plan for this:
+
+```rust
+// Check if entry is archived before accessing
+match env.storage().persistent().get::<_, Balance>(&key) {
+    Ok(balance) => Ok(balance),
+    Err(_) => {
+        // Entry may be archived; attempt restore
+        env.storage().persistent().restore(&key);
+        env.storage().persistent().get(&key)
+    }
+}
+```
+
+**Footprint Impact on Parallelization**: Ledger entries in different footprints can execute in parallel. Minimize footprint size to maximize throughput.
+
+**Fee Market Awareness**: See [Fee Market Awareness](/docs/guides/fee-market-awareness) for strategies during high-fee periods.
+
+---
+
+## Part 9: Troubleshooting Checklist
+
+- [ ] Simulated transaction before submitting? Use `server.simulateTransaction()`
+- [ ] Footprint includes all accessed entries? Cross-reference with contract source
+- [ ] Extended TTL on persistent storage? Set TTL when reading/writing
+- [ ] Optimized storage reads? Use temporary storage for scratch work
+- [ ] Fee adequate for current network conditions? Check fee multiplier
+- [ ] Contract code under size limit? Soroban code limit ~64 KB
+- [ ] Batch updates instead of single writes? Combine related state
+- [ ] Monitored resource trends? Track historical patterns
+
+---
+
+## Related
+
+- [Soroban Contract Authoring & Deploy Tutorial](/docs/guides/soroban-authoring-deploy-tutorial) — Build contracts with resource awareness
+- [Optimizing Transaction Sizes](/docs/guides/optimizing-transaction-sizes) — Minimize footprint impact
+- [Fee Market Awareness](/docs/guides/fee-market-awareness) — Handle fee volatility
+- [Testing Horizon & Soroban](/docs/guides/testing-horizon-soroban) — Test resource limits locally
+- [Stellar Documentation: Soroban Resources](https://developers.stellar.org/docs/learn/soroban/resource-limits) — Official reference

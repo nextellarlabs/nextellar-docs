@@ -1,0 +1,289 @@
+---
+title: Building a Soroban Swap Contract
+description: A complete walkthrough for writing a two-token swap contract on Soroban — pool state, the swap function, authorization, and a client that invokes it from a Nextellar dApp.
+date: 2026-08-26
+---
+
+# Building a Soroban Swap Contract
+
+This tutorial builds a minimal constant-product swap contract on Soroban — the kind of contract that sits behind a "swap Token A for Token B" button. It covers the contract's storage layout, the `swap` entrypoint and how it authorizes the caller, depositing initial liquidity, and a TypeScript client that simulates and submits the invocation from a Nextellar app. The contract is intentionally small (no LP shares, no fees) so the auth and swap-math mechanics stay visible; production pools layer more on top.
+
+---
+
+## 1. What the Contract Holds
+
+The pool tracks two token contract addresses and its own reserves of each:
+
+```rust
+#![no_std]
+use soroban_sdk::{contract, contractimpl, contracttype, token, Address, Env};
+
+#[contracttype]
+#[derive(Clone)]
+pub enum DataKey {
+    TokenA,
+    TokenB,
+    ReserveA,
+    ReserveB,
+}
+
+#[contract]
+pub struct SwapContract;
+```
+
+Reserves live in **instance storage** — they're read on every swap and are small enough to stay cheap regardless of how the contract grows. Storage reads/writes are the dominant cost driver in Soroban fees, so keeping hot state in instance storage (rather than persistent storage with per-entry TTLs) avoids unnecessary bump-and-extend overhead for values touched on every call.
+
+---
+
+## 2. Initialization
+
+```rust
+#[contractimpl]
+impl SwapContract {
+    pub fn initialize(env: Env, token_a: Address, token_b: Address) {
+        if env.storage().instance().has(&DataKey::TokenA) {
+            panic!("already initialized");
+        }
+        env.storage().instance().set(&DataKey::TokenA, &token_a);
+        env.storage().instance().set(&DataKey::TokenB, &token_b);
+        env.storage().instance().set(&DataKey::ReserveA, &0i128);
+        env.storage().instance().set(&DataKey::ReserveB, &0i128);
+    }
+}
+```
+
+`token_a` and `token_b` are the contract addresses of two Stellar Asset Contracts (SACs) or custom token contracts implementing the standard `token` interface. There's no auth check here deliberately — in a real deployment you'd either restrict `initialize` to a deployer address (checked with `require_auth`) or make it callable exactly once and rely on the `has()` guard above, which is what this contract does.
+
+---
+
+## 3. Depositing Liquidity
+
+Before anyone can swap, the pool needs reserves:
+
+```rust
+pub fn deposit(env: Env, from: Address, amount_a: i128, amount_b: i128) {
+    from.require_auth();
+
+    let token_a: Address = env.storage().instance().get(&DataKey::TokenA).unwrap();
+    let token_b: Address = env.storage().instance().get(&DataKey::TokenB).unwrap();
+
+    token::Client::new(&env, &token_a).transfer(&from, &env.current_contract_address(), &amount_a);
+    token::Client::new(&env, &token_b).transfer(&from, &env.current_contract_address(), &amount_b);
+
+    let reserve_a: i128 = env.storage().instance().get(&DataKey::ReserveA).unwrap();
+    let reserve_b: i128 = env.storage().instance().get(&DataKey::ReserveB).unwrap();
+    env.storage().instance().set(&DataKey::ReserveA, &(reserve_a + amount_a));
+    env.storage().instance().set(&DataKey::ReserveB, &(reserve_b + amount_b));
+}
+```
+
+`from.require_auth()` is the core authorization primitive in Soroban. It doesn't check a signature directly — it asserts that the _invocation tree_ for this transaction includes an authorization entry for `from` that covers this exact contract call (contract address, function name, and arguments). For a `G...` account, that authorization is a signature over the call; for another contract, it's a nested `require_auth` in that contract's own execution. Calling `transfer` immediately afterward re-uses the same authorized invocation, since the token contract's `transfer` also calls `require_auth` on `from` and the Soroban host resolves both from the transaction's signed auth entries.
+
+**Edge case:** `require_auth()` must be called on `from` before any state mutation or external call that assumes `from` authorized it. Calling it after the transfer would still work today, but ordering auth first is the convention — it fails fast and reads correctly.
+
+---
+
+## 4. The Swap Function
+
+```rust
+pub fn swap(env: Env, trader: Address, amount_in: i128, min_amount_out: i128, a_to_b: bool) -> i128 {
+    trader.require_auth();
+
+    if amount_in <= 0 {
+        panic!("amount_in must be positive");
+    }
+
+    let token_a: Address = env.storage().instance().get(&DataKey::TokenA).unwrap();
+    let token_b: Address = env.storage().instance().get(&DataKey::TokenB).unwrap();
+    let reserve_a: i128 = env.storage().instance().get(&DataKey::ReserveA).unwrap();
+    let reserve_b: i128 = env.storage().instance().get(&DataKey::ReserveB).unwrap();
+
+    let (reserve_in, reserve_out, token_in, token_out) = if a_to_b {
+        (reserve_a, reserve_b, token_a, token_b)
+    } else {
+        (reserve_b, reserve_a, token_b, token_a)
+    };
+
+    if reserve_in == 0 || reserve_out == 0 {
+        panic!("pool has no liquidity");
+    }
+
+    // Constant product: (reserve_in + amount_in_after_fee) * (reserve_out - amount_out) = reserve_in * reserve_out
+    // 0.3% fee, expressed as amount_in * 997 / 1000.
+    let amount_in_with_fee = amount_in * 997;
+    let numerator = amount_in_with_fee * reserve_out;
+    let denominator = (reserve_in * 1000) + amount_in_with_fee;
+    let amount_out = numerator / denominator;
+
+    if amount_out < min_amount_out {
+        panic!("slippage: output below minimum");
+    }
+    if amount_out >= reserve_out {
+        panic!("insufficient reserve for this trade size");
+    }
+
+    token::Client::new(&env, &token_in).transfer(&trader, &env.current_contract_address(), &amount_in);
+    token::Client::new(&env, &token_out).transfer(&env.current_contract_address(), &trader, &amount_out);
+
+    if a_to_b {
+        env.storage().instance().set(&DataKey::ReserveA, &(reserve_a + amount_in));
+        env.storage().instance().set(&DataKey::ReserveB, &(reserve_b - amount_out));
+    } else {
+        env.storage().instance().set(&DataKey::ReserveB, &(reserve_b + amount_in));
+        env.storage().instance().set(&DataKey::ReserveA, &(reserve_a - amount_out));
+    }
+
+    amount_out
+}
+```
+
+Key points on the math and auth together:
+
+- **`min_amount_out` is the caller's slippage guard.** The client computes an expected output off-chain (see §6), applies a slippage tolerance, and passes the floor in. The contract enforces it atomically — there's no way for the trade to execute at a worse price than the caller accepted, because the check and the transfers happen in the same transaction.
+- **The 997/1000 fee model** mirrors the standard constant-product AMM formula (as used by Uniswap V2 and its many derivatives). It's computed in integer arithmetic — Soroban's `i128` has no native fixed-point division, so order of operations matters: multiply before dividing to avoid truncating intermediate results to zero.
+- **`trader.require_auth()` authorizes the whole call**, including the subsequent `transfer` of `token_in` from `trader`. The wallet signing this transaction sees (via `simulateTransaction`, covered below) exactly which contract, function, and arguments it's authorizing — this is what the client must render for the user before requesting a signature.
+
+---
+
+## 5. Edge Cases Worth Testing
+
+| Scenario                                                                              | Expected behavior                                                                                                                                                                   |
+| ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `amount_in` is zero or negative                                                       | Contract panics before touching reserves                                                                                                                                            |
+| Pool has zero reserves (never funded, or fully drained)                               | `swap` panics with "pool has no liquidity"                                                                                                                                          |
+| Requested output would exceed available reserve                                       | Panics rather than draining the pool to zero, which would make the pool unusable for the _other_ direction                                                                          |
+| Slippage exceeds tolerance between simulation and submission                          | `min_amount_out` check fails and the whole transaction reverts — no partial fill                                                                                                    |
+| Caller doesn't actually sign the auth entry for `trader`                              | Host rejects the transaction before contract logic runs; `require_auth` never returns                                                                                               |
+| Same trader address used for both `token_a` and `token_b` mistakenly (a == b at init) | Not guarded in this minimal contract — add an explicit check in `initialize` if deploying for real, since swapping a token for itself would silently corrupt the reserve accounting |
+
+That last row is a deliberate simplification worth calling out: this tutorial contract skips the `token_a != token_b` guard and the LP-share/fee-withdrawal bookkeeping a real AMM needs, to keep the auth and swap-math flow readable. Treat it as a teaching contract, not a deployment target.
+
+---
+
+## 6. Client Invocation
+
+Simulate first to get the expected output and let the user review the trade, then build, sign, and submit:
+
+```typescript
+import {
+  Contract,
+  TransactionBuilder,
+  BASE_FEE,
+  Networks,
+  scValToNative,
+  nativeToScVal,
+  Address,
+} from '@stellar/stellar-sdk';
+import { Server } from '@stellar/stellar-sdk/rpc';
+
+const rpc = new Server('https://soroban-testnet.stellar.org');
+const contract = new Contract(POOL_CONTRACT_ID);
+
+async function simulateSwap(
+  traderPublicKey: string,
+  amountIn: bigint,
+  aToB: boolean
+) {
+  const account = await rpc.getAccount(traderPublicKey);
+  const tx = new TransactionBuilder(account, {
+    fee: BASE_FEE,
+    networkPassphrase: Networks.TESTNET,
+  })
+    .addOperation(
+      contract.call(
+        'swap',
+        new Address(traderPublicKey).toScVal(),
+        nativeToScVal(amountIn, { type: 'i128' }),
+        nativeToScVal(0n, { type: 'i128' }), // min_amount_out placeholder during simulation
+        nativeToScVal(aToB, { type: 'bool' })
+      )
+    )
+    .setTimeout(30)
+    .build();
+
+  const sim = await rpc.simulateTransaction(tx);
+  if ('error' in sim) throw new Error(sim.error);
+
+  const expectedOut = scValToNative(sim.result!.retval) as bigint;
+  return { tx, expectedOut };
+}
+
+async function buildSignedSwap(
+  traderPublicKey: string,
+  amountIn: bigint,
+  expectedOut: bigint,
+  slippageBps: number,
+  aToB: boolean,
+  signTransaction: (xdr: string) => Promise<string>
+) {
+  const minOut = (expectedOut * BigInt(10_000 - slippageBps)) / 10_000n;
+  const account = await rpc.getAccount(traderPublicKey);
+
+  const tx = new TransactionBuilder(account, {
+    fee: BASE_FEE,
+    networkPassphrase: Networks.TESTNET,
+  })
+    .addOperation(
+      contract.call(
+        'swap',
+        new Address(traderPublicKey).toScVal(),
+        nativeToScVal(amountIn, { type: 'i128' }),
+        nativeToScVal(minOut, { type: 'i128' }),
+        nativeToScVal(aToB, { type: 'bool' })
+      )
+    )
+    .setTimeout(30)
+    .build();
+
+  const prepared = await rpc.prepareTransaction(tx);
+  const signedXDR = await signTransaction(prepared.toXDR());
+  const signedTx = TransactionBuilder.fromXDR(signedXDR, Networks.TESTNET);
+
+  const sendResult = await rpc.sendTransaction(signedTx);
+  return sendResult;
+}
+```
+
+`prepareTransaction` (rather than a hand-rolled auth entry) is what attaches the correct footprint and resource fees from simulation, and — critically — assembles the authorization entries the host expects for `trader.require_auth()`. The wallet's `signTransaction` call is what actually turns that pending auth entry into a valid signature; without it, `sendTransaction` returns an error indicating the auth entry could not be verified.
+
+**Practical note on slippage:** simulate with a placeholder `min_amount_out` of zero to discover `expectedOut`, show the user the quote, then rebuild the transaction with the real floor once they confirm. Reusing the first simulation's transaction object with a patched operation is _not_ safe — Soroban transactions are prepared against a specific footprint, and changing an argument after `prepareTransaction` can invalidate the resource estimate.
+
+---
+
+## 7. Polling for Confirmation
+
+`sendTransaction` returns immediately with a `PENDING` status; poll for the final result:
+
+```typescript
+async function awaitSwap(hash: string) {
+  for (let i = 0; i < 15; i++) {
+    const res = await rpc.getTransaction(hash);
+    if (res.status === 'SUCCESS') return res;
+    if (res.status === 'FAILED')
+      throw new Error('Swap transaction failed on-chain');
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  throw new Error('Timed out waiting for swap confirmation');
+}
+```
+
+A `FAILED` status here most commonly means the `min_amount_out` check reverted (price moved between simulation and confirmation) or one of the two token transfers failed (insufficient balance or trustline). Both surface as a generic host trap unless you decode the diagnostic events from `getTransaction`'s result — worth surfacing to the user as "trade expired, try again" rather than a raw error string.
+
+---
+
+## Summary
+
+- Reserves and token addresses live in instance storage since they're read on every call.
+- `require_auth()` on the trader authorizes both the swap invocation and the token transfer inside it — one signature covers the whole call tree.
+- The constant-product formula with an integer fee multiplier (997/1000) computes output; always multiply before dividing to avoid truncation.
+- `min_amount_out` is the atomic slippage guard — simulate for a quote, then rebuild with the real floor before requesting a signature.
+- `prepareTransaction` is what wires up the auth entries and resource fees correctly; don't patch a prepared transaction's arguments after the fact.
+
+---
+
+## Related
+
+- [Soroban Integration](/docs/integrations/soroban) - Nextellar's Soroban hooks overview
+- [useSorobanContract](/docs/hooks/use-soroban-contract) - Contract invocation hook used in dApp UIs
+- [Comprehensive Soroban Smart Contract Authoring Guide](/docs/guides/soroban-contract-authoring) - Project layout, testing, and deployment
+- [Soroban Host Functions](/docs/guides/soroban-host-functions) - Storage, auth, and cross-contract call primitives

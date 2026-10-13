@@ -30,12 +30,12 @@ This runbook defines the actions to take when something goes wrong in a producti
 - On-chain balance of contract drops unexpectedly
 
 ```bash
-# Query recent contract invocations via Horizon
+## Query recent contract invocations via Horizon
 curl "https://horizon.stellar.org/operations?limit=20&order=desc" | \
   jq '.._embedded.records[] | select(.type == "invoke_host_function")'
 ```
 
-### Contain
+## Contain
 
 1. **Pause the contract** — if your contract has an admin pause function, call it immediately:
    ```ts
@@ -204,7 +204,7 @@ export async function submitWithFallback(tx: Transaction) {
 
 ### Internal Alert (P0)
 
-```
+```text
 🚨 P0 INCIDENT — [dApp Name] [Date/Time UTC]
 Type: [Exploit / Outage / Key Compromise]
 Impact: [# users affected, $ at risk]
@@ -215,7 +215,7 @@ Comms channel: #incident-[date]
 
 ### User-Facing Status Update
 
-```
+```text
 We are aware of an issue affecting [feature]. Our team is actively investigating.
 Transactions submitted during this window may be delayed.
 We will provide an update in [X] minutes.

@@ -1,0 +1,649 @@
+---
+title: Soroban Reputation-Weighted Voting Guide
+description: A comprehensive guide to a Soroban voting contract where each voter's influence is weighted by an on-chain reputation score, covering weight sourcing and vote tabulation.
+date: 2026-08-27
+---
+
+# Soroban Reputation-Weighted Voting Guide
+
+In a **reputation-weighted vote**, each participant's ballot counts proportionally to a reputation score rather than 1-address-1-vote — useful for DAOs where contribution history, stake duration, or an external credential should carry more weight than a freshly-created account. This guide covers where the reputation score comes from, how it's read at vote time, and how tabulation works.
+
+<Note type="info">
+  This contract *consumes* a reputation score — it does not compute one. See
+  [Weight Sourcing](#weight-sourcing) below for the two supported models and
+  their trade-offs.
+</Note>
+
+---
+
+## How It Works
+
+```
+Admin ──create_proposal(question, options, ends_at)──► Voting Contract
+                                                        │
+                                                        └── store Proposal { options, tallies: [0, 0, ...], ends_at }
+
+Voter ──cast_vote(proposal_id, option_index)──────────► Voting Contract
+                                                        │
+                                                        ├── require_auth() on voter
+                                                        ├── verify proposal still open (now < ends_at)
+                                                        ├── verify voter has not already voted on this proposal
+                                                        ├── weight = reputation_client.score_of(voter)
+                                                        └── tallies[option_index] += weight
+
+Anyone ──results(proposal_id)─────────────────────────► Voting Contract
+                                                        └── returns Proposal (tallies, winner if closed)
+```
+
+Vote weight is looked up **at the time of voting**, not snapshotted at proposal creation — see [Weight Sourcing](#weight-sourcing) for why that matters and how to change it.
+
+---
+
+## Weight Sourcing
+
+There are two common ways to source a reputation score, with different trust and manipulation trade-offs:
+
+| Model                                | How it works                                                                                      | Pro                                                                                     | Con                                                                                                                                                                 |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Cross-contract call** (this guide) | Voting contract calls a separate `ReputationRegistry` contract's `score_of(address)` at vote time | Reputation stays current; one registry serves many voting contracts                     | A voter's weight can change between when they decide to vote and when the transaction lands, and the registry becomes a dependency every vote transaction relies on |
+| **Snapshot at proposal creation**    | Proposal creation copies each eligible voter's score into the proposal itself                     | Voting is self-contained — no cross-contract call per vote, weight can't shift mid-vote | Requires enumerating all eligible voters up front, which doesn't scale past a bounded allow-list                                                                    |
+
+This guide implements the cross-contract model, since it composes with an existing reputation system (e.g. one built from contribution counts, stake duration, or attestations) without requiring the voting contract to know how reputation is computed.
+
+<Note type="warning">
+  Because weight is read live, a reputation score that itself changes based on
+  recent on-chain activity is manipulable by an attacker who can pump their
+  score immediately before voting and let it decay after. If your reputation
+  source updates frequently, prefer the snapshot model for proposals with a
+  bounded, known voter set.
+</Note>
+
+---
+
+## Project Layout
+
+```
+reputation-vote/
+├── Cargo.toml
+└── contracts/
+    ├── reputation-registry/       # minimal reputation source for this guide
+    │   ├── Cargo.toml
+    │   └── src/
+    │       ├── lib.rs
+    │       └── test.rs
+    └── reputation-vote/
+        ├── Cargo.toml
+        └── src/
+            ├── lib.rs
+            ├── types.rs
+            ├── error.rs
+            ├── proposal.rs
+            └── test.rs
+```
+
+### Voting Contract Cargo.toml
+
+```toml
+[package]
+name = "soroban-reputation-vote"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+soroban-sdk = "21.0.0"
+
+[dev-dependencies]
+soroban-sdk = { version = "21.0.0", features = ["testutils"] }
+```
+
+---
+
+## The Reputation Registry (Weight Source)
+
+A minimal registry with an admin-settable score per address — a stand-in for whatever your real reputation computation is (contribution counts, stake duration, off-chain attestations bridged on-chain, etc.).
+
+```rust
+// contracts/reputation-registry/src/lib.rs
+#![no_std]
+
+use soroban_sdk::{contract, contracterror, contractimpl, contracttype, Address, Env};
+
+#[contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[repr(u32)]
+pub enum Error {
+    NotInitialized = 1,
+    Unauthorized = 2,
+}
+
+#[contracttype]
+enum DataKey {
+    Admin,
+    Score(Address),
+}
+
+#[contract]
+pub struct ReputationRegistry;
+
+#[contractimpl]
+impl ReputationRegistry {
+    pub fn initialize(env: Env, admin: Address) {
+        env.storage().instance().set(&DataKey::Admin, &admin);
+    }
+
+    /// Admin-settable score. In a real system this would be computed from
+    /// on-chain history (see the trade-offs discussion above) rather than
+    /// set directly — kept simple here so the voting contract's own logic
+    /// is the focus of this guide.
+    pub fn set_score(env: Env, admin: Address, who: Address, score: u32) -> Result<(), Error> {
+        admin.require_auth();
+        let stored_admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(Error::NotInitialized)?;
+        if admin != stored_admin {
+            return Err(Error::Unauthorized);
+        }
+        env.storage().persistent().set(&DataKey::Score(who), &score);
+        Ok(())
+    }
+
+    /// Anyone may read a score — reputation is public by design here.
+    /// Defaults to 1 (base weight) so an unregistered voter still counts
+    /// once, rather than being silently excluded.
+    pub fn score_of(env: Env, who: Address) -> u32 {
+        env.storage()
+            .persistent()
+            .get(&DataKey::Score(who))
+            .unwrap_or(1)
+    }
+}
+
+#[cfg(test)]
+mod test;
+```
+
+---
+
+## Types and Errors
+
+```rust
+// contracts/reputation-vote/src/types.rs
+use soroban_sdk::{contracttype, Address, String, Vec};
+
+#[derive(Clone)]
+#[contracttype]
+pub struct Proposal {
+    pub question: String,
+    pub options: Vec<String>,
+    /// Parallel to `options` — tallies[i] is the weighted vote total for options[i].
+    pub tallies: Vec<u64>,
+    pub ends_at: u64,
+    pub created_by: Address,
+}
+
+#[contracttype]
+pub enum DataKey {
+    ReputationRegistry,
+    NextProposalId,
+    Proposal(u64),
+    /// Tracks (proposal_id, voter) pairs that have already voted.
+    HasVoted(u64, Address),
+}
+```
+
+```rust
+// contracts/reputation-vote/src/error.rs
+use soroban_sdk::contracterror;
+
+#[contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[repr(u32)]
+pub enum Error {
+    NotInitialized = 1,
+    NotFound = 2,
+    ProposalClosed = 3,
+    AlreadyVoted = 4,
+    InvalidOption = 5,
+    TooFewOptions = 6,
+}
+```
+
+---
+
+## Proposal Creation and Voting
+
+```rust
+// contracts/reputation-vote/src/proposal.rs
+use soroban_sdk::{Address, Env, String, Vec};
+use crate::error::Error;
+use crate::types::{DataKey, Proposal};
+
+pub fn create_proposal(
+    env: &Env,
+    creator: Address,
+    question: String,
+    options: Vec<String>,
+    ends_at: u64,
+) -> Result<u64, Error> {
+    creator.require_auth();
+
+    if options.len() < 2 {
+        return Err(Error::TooFewOptions);
+    }
+
+    let mut tallies = Vec::new(env);
+    for _ in 0..options.len() {
+        tallies.push_back(0u64);
+    }
+
+    let id: u64 = env.storage().instance().get(&DataKey::NextProposalId).unwrap_or(0);
+    env.storage().instance().set(&DataKey::NextProposalId, &(id + 1));
+
+    let proposal = Proposal {
+        question,
+        options,
+        tallies,
+        ends_at,
+        created_by: creator,
+    };
+    env.storage().persistent().set(&DataKey::Proposal(id), &proposal);
+
+    Ok(id)
+}
+
+pub fn cast_vote(env: &Env, voter: Address, proposal_id: u64, option_index: u32) -> Result<(), Error> {
+    voter.require_auth();
+
+    let mut proposal: Proposal = env
+        .storage()
+        .persistent()
+        .get(&DataKey::Proposal(proposal_id))
+        .ok_or(Error::NotFound)?;
+
+    if env.ledger().timestamp() >= proposal.ends_at {
+        return Err(Error::ProposalClosed);
+    }
+
+    if option_index as u32 >= proposal.options.len() {
+        return Err(Error::InvalidOption);
+    }
+
+    let voted_key = DataKey::HasVoted(proposal_id, voter.clone());
+    if env.storage().persistent().has(&voted_key) {
+        return Err(Error::AlreadyVoted);
+    }
+
+    // Weight is read live from the reputation registry — see "Weight
+    // Sourcing" in the guide for why this is a cross-contract call rather
+    // than a value stored on the proposal.
+    let registry: Address = env
+        .storage()
+        .instance()
+        .get(&DataKey::ReputationRegistry)
+        .ok_or(Error::NotInitialized)?;
+    let weight: u32 = env.invoke_contract(
+        &registry,
+        &soroban_sdk::symbol_short!("score_of"),
+        soroban_sdk::vec![env, voter.clone().into_val(env)],
+    );
+
+    let current = proposal.tallies.get(option_index).unwrap_or(0);
+    proposal.tallies.set(option_index, current + weight as u64);
+
+    env.storage().persistent().set(&DataKey::Proposal(proposal_id), &proposal);
+    env.storage().persistent().set(&voted_key, &true);
+
+    Ok(())
+}
+
+pub fn results(env: &Env, proposal_id: u64) -> Result<Proposal, Error> {
+    env.storage()
+        .persistent()
+        .get(&DataKey::Proposal(proposal_id))
+        .ok_or(Error::NotFound)
+}
+
+/// Returns the index of the option with the highest tally, or `None` if
+/// all tallies are tied at the maximum (a genuine tie has no single
+/// winner — callers should handle that case explicitly rather than
+/// silently picking the first tied option).
+pub fn winning_option(proposal: &Proposal) -> Option<u32> {
+    let mut best_index: Option<u32> = None;
+    let mut best_score: u64 = 0;
+    let mut tie = false;
+
+    for (i, tally) in proposal.tallies.iter().enumerate() {
+        if tally > best_score {
+            best_score = tally;
+            best_index = Some(i as u32);
+            tie = false;
+        } else if tally == best_score && best_index.is_some() {
+            tie = true;
+        }
+    }
+
+    if tie {
+        None
+    } else {
+        best_index
+    }
+}
+```
+
+---
+
+## Contract Entrypoints
+
+```rust
+// contracts/reputation-vote/src/lib.rs
+#![no_std]
+
+mod error;
+mod proposal;
+mod types;
+
+#[cfg(test)]
+mod test;
+
+use error::Error;
+use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
+use types::{DataKey, Proposal};
+
+#[contract]
+pub struct ReputationVote;
+
+#[contractimpl]
+impl ReputationVote {
+    pub fn initialize(env: Env, reputation_registry: Address) {
+        env.storage()
+            .instance()
+            .set(&DataKey::ReputationRegistry, &reputation_registry);
+    }
+
+    pub fn create_proposal(
+        env: Env,
+        creator: Address,
+        question: String,
+        options: Vec<String>,
+        ends_at: u64,
+    ) -> Result<u64, Error> {
+        proposal::create_proposal(&env, creator, question, options, ends_at)
+    }
+
+    pub fn cast_vote(env: Env, voter: Address, proposal_id: u64, option_index: u32) -> Result<(), Error> {
+        proposal::cast_vote(&env, voter, proposal_id, option_index)
+    }
+
+    pub fn results(env: Env, proposal_id: u64) -> Result<Proposal, Error> {
+        proposal::results(&env, proposal_id)
+    }
+}
+```
+
+---
+
+## Vote Tabulation Details
+
+- **Weighted, not ranked**: each vote adds the voter's full reputation weight to exactly one option — this is weighted plurality voting, not ranked-choice or quadratic voting. Adapting to quadratic voting would mean tallying `sqrt(weight)` per vote instead, which trades simplicity for resistance to a single high-reputation voter dominating a proposal.
+- **No re-voting**: `HasVoted(proposal_id, voter)` is a one-time flag — a voter cannot change their vote once cast. If you want vote-changing, replace the flag with a stored `(option_index, weight)` pair so a repeat call can subtract the old tally before adding the new one.
+- **Closed-proposal reads still work**: `results()` has no `ends_at` check — proposals remain readable (and their final tallies visible) forever after closing. Only `cast_vote` enforces the deadline.
+- **Ties are explicit**: `winning_option()` returns `None` on a tie at the top rather than arbitrarily picking the first-indexed option, so callers must decide how to break ties (re-vote, split outcome, deny) rather than have that decision made implicitly by array order.
+
+---
+
+## Tests
+
+```rust
+// contracts/reputation-vote/src/test.rs
+#![cfg(test)]
+
+use soroban_sdk::{testutils::Address as _, vec, Address, Env, String};
+use crate::{error::Error, proposal::winning_option, ReputationVote, ReputationVoteClient};
+
+// Minimal inline mock standing in for the reputation-registry contract,
+// so this test file doesn't depend on cross-crate wiring — in a real repo
+// you'd register the actual ReputationRegistry contract from the sibling
+// crate instead.
+mod mock_registry {
+    use soroban_sdk::{contract, contractimpl, contracttype, Address, Env};
+
+    #[contracttype]
+    enum DataKey {
+        Score(Address),
+    }
+
+    #[contract]
+    pub struct MockRegistry;
+
+    #[contractimpl]
+    impl MockRegistry {
+        pub fn set_score(env: Env, who: Address, score: u32) {
+            env.storage().persistent().set(&DataKey::Score(who), &score);
+        }
+
+        pub fn score_of(env: Env, who: Address) -> u32 {
+            env.storage().persistent().get(&DataKey::Score(who)).unwrap_or(1)
+        }
+    }
+}
+
+fn setup(env: &Env) -> (ReputationVoteClient, mock_registry::MockRegistryClient) {
+    let registry_id = env.register(mock_registry::MockRegistry, ());
+    let registry_client = mock_registry::MockRegistryClient::new(env, &registry_id);
+
+    let vote_id = env.register(ReputationVote, ());
+    let vote_client = ReputationVoteClient::new(env, &vote_id);
+    vote_client.initialize(&registry_id);
+
+    (vote_client, registry_client)
+}
+
+fn options(env: &Env, values: &[&str]) -> soroban_sdk::Vec<String> {
+    let mut v = soroban_sdk::Vec::new(env);
+    for value in values {
+        v.push_back(String::from_str(env, value));
+    }
+    v
+}
+
+#[test]
+fn cast_vote_adds_full_reputation_weight() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (vote, registry) = setup(&env);
+
+    let creator = Address::generate(&env);
+    let voter = Address::generate(&env);
+    registry.set_score(&voter, &42);
+
+    let proposal_id = vote.create_proposal(
+        &creator,
+        &String::from_str(&env, "Fund the grants program?"),
+        &options(&env, &["Yes", "No"]),
+        &(env.ledger().timestamp() + 1000),
+    );
+
+    vote.cast_vote(&voter, &proposal_id, &0);
+
+    let result = vote.results(&proposal_id);
+    assert_eq!(result.tallies.get(0), Some(42));
+    assert_eq!(result.tallies.get(1), Some(0));
+}
+
+#[test]
+fn unregistered_voter_gets_base_weight_of_one() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (vote, _registry) = setup(&env);
+
+    let creator = Address::generate(&env);
+    let voter = Address::generate(&env); // never given a score
+
+    let proposal_id = vote.create_proposal(
+        &creator,
+        &String::from_str(&env, "Q"),
+        &options(&env, &["A", "B"]),
+        &(env.ledger().timestamp() + 1000),
+    );
+
+    vote.cast_vote(&voter, &proposal_id, &1);
+
+    let result = vote.results(&proposal_id);
+    assert_eq!(result.tallies.get(1), Some(1));
+}
+
+#[test]
+fn double_vote_rejected() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (vote, registry) = setup(&env);
+
+    let creator = Address::generate(&env);
+    let voter = Address::generate(&env);
+    registry.set_score(&voter, &10);
+
+    let proposal_id = vote.create_proposal(
+        &creator,
+        &String::from_str(&env, "Q"),
+        &options(&env, &["A", "B"]),
+        &(env.ledger().timestamp() + 1000),
+    );
+
+    vote.cast_vote(&voter, &proposal_id, &0);
+    let result = vote.try_cast_vote(&voter, &proposal_id, &1);
+
+    assert_eq!(result, Err(Ok(Error::AlreadyVoted)));
+}
+
+#[test]
+fn vote_after_deadline_rejected() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (vote, registry) = setup(&env);
+
+    let creator = Address::generate(&env);
+    let voter = Address::generate(&env);
+    registry.set_score(&voter, &10);
+
+    let proposal_id = vote.create_proposal(
+        &creator,
+        &String::from_str(&env, "Q"),
+        &options(&env, &["A", "B"]),
+        &(env.ledger().timestamp() + 100),
+    );
+
+    env.ledger().with_mut(|l| l.timestamp += 200);
+
+    let result = vote.try_cast_vote(&voter, &proposal_id, &0);
+    assert_eq!(result, Err(Ok(Error::ProposalClosed)));
+}
+
+#[test]
+fn invalid_option_index_rejected() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (vote, registry) = setup(&env);
+
+    let creator = Address::generate(&env);
+    let voter = Address::generate(&env);
+    registry.set_score(&voter, &10);
+
+    let proposal_id = vote.create_proposal(
+        &creator,
+        &String::from_str(&env, "Q"),
+        &options(&env, &["A", "B"]),
+        &(env.ledger().timestamp() + 1000),
+    );
+
+    let result = vote.try_cast_vote(&voter, &proposal_id, &5);
+    assert_eq!(result, Err(Ok(Error::InvalidOption)));
+}
+
+#[test]
+fn creating_proposal_with_fewer_than_two_options_rejected() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (vote, _registry) = setup(&env);
+
+    let creator = Address::generate(&env);
+    let result = vote.try_create_proposal(
+        &creator,
+        &String::from_str(&env, "Q"),
+        &options(&env, &["Only one"]),
+        &(env.ledger().timestamp() + 1000),
+    );
+
+    assert_eq!(result, Err(Ok(Error::TooFewOptions)));
+}
+
+#[test]
+fn weighted_tabulation_reflects_multiple_voters() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (vote, registry) = setup(&env);
+
+    let creator = Address::generate(&env);
+    let whale = Address::generate(&env);
+    let small_a = Address::generate(&env);
+    let small_b = Address::generate(&env);
+    registry.set_score(&whale, &100);
+    registry.set_score(&small_a, &5);
+    registry.set_score(&small_b, &5);
+
+    let proposal_id = vote.create_proposal(
+        &creator,
+        &String::from_str(&env, "Q"),
+        &options(&env, &["A", "B"]),
+        &(env.ledger().timestamp() + 1000),
+    );
+
+    // Two small voters pick B, one whale picks A — the whale still wins.
+    vote.cast_vote(&small_a, &proposal_id, &1);
+    vote.cast_vote(&small_b, &proposal_id, &1);
+    vote.cast_vote(&whale, &proposal_id, &0);
+
+    let result = vote.results(&proposal_id);
+    assert_eq!(result.tallies.get(0), Some(100));
+    assert_eq!(result.tallies.get(1), Some(10));
+    assert_eq!(winning_option(&result), Some(0));
+}
+
+#[test]
+fn tied_tallies_return_no_winner() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (vote, registry) = setup(&env);
+
+    let creator = Address::generate(&env);
+    let voter_a = Address::generate(&env);
+    let voter_b = Address::generate(&env);
+    registry.set_score(&voter_a, &10);
+    registry.set_score(&voter_b, &10);
+
+    let proposal_id = vote.create_proposal(
+        &creator,
+        &String::from_str(&env, "Q"),
+        &options(&env, &["A", "B"]),
+        &(env.ledger().timestamp() + 1000),
+    );
+
+    vote.cast_vote(&voter_a, &proposal_id, &0);
+    vote.cast_vote(&voter_b, &proposal_id, &1);
+
+    let result = vote.results(&proposal_id);
+    assert_eq!(winning_option(&result), None);
+}
+```
+
+---
+
+## Related docs
+
+- [Leaderboard from Ledger Events](/docs/guides/leaderboard-from-ledger-events) — a related pattern for deriving on-chain scores from event history, applicable to computing a real reputation score
+- [Soroban Host Functions](/docs/guides/soroban-host-functions) — cross-contract calls, storage, and auth primitives
+- [Privacy Considerations](/docs/guides/privacy-considerations) — reputation scores and vote choices are both public on-chain data

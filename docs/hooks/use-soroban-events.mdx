@@ -1,42 +1,55 @@
 ---
 title: useSorobanEvents
-description: Listen to smart contract events on Stellar
-date: 2026-06-02
+description: Poll Soroban smart contract events with automatic retry and backoff
+date: 2026-07-28
 ---
 
 # useSorobanEvents
 
-The `useSorobanEvents` hook listens to Soroban smart contract events in real-time, enabling reactive dApp interfaces.
+The `useSorobanEvents` hook polls a Soroban contract for events, retrying transient RPC failures with exponential backoff and continuing at a reduced rate instead of giving up.
+
+<Note>
+  **Ships in:** default, js
+  <br />
+  Not in your scaffold? Run `nextellar add contracts`
+</Note>
 
 ## Features
 
-- **Real-Time Events**: Listen to contract events as they happen
-- **Event Filtering**: Filter by event type or topic
-- **Event History**: Query past events
-- **Typed Events**: Type-safe event handling
-- **Auto-Reconnect**: Automatic reconnection on network issues
+- **Polling with retry**: each poll retries up to 3 times with exponential backoff before surfacing an error
+- **Degrades, doesn't stop**: after exhausting retries it keeps polling at a reduced frequency instead of stopping
+- **Auto-recovery**: returns to the normal poll interval as soon as a fetch succeeds
+- **Topic filtering**: optional XDR-encoded topic filters, up to 4 segments
+- **Deduplication**: events already seen (by `id`) are filtered out of new pages
+- **Project-configured RPC**: uses the Soroban RPC URL from your `WalletProvider` config, not a hardcoded endpoint
 
 ## Basic Usage
 
 ```tsx
 import { useSorobanEvents } from '@/hooks/useSorobanEvents';
 
-export default function EventListener() {
-  const { events, listening } = useSorobanEvents({
-    contractId: 'CDLZFC3...',
-    eventTypes: ['transfer', 'mint'],
-  });
+function EventFeed({ contractId }: { contractId: string }) {
+  const { events, loading, error, isRecovering, refresh, stopPolling } =
+    useSorobanEvents(contractId, {
+      pollIntervalMs: 5000,
+      topics: [['AAAADgAAAAh0cmFuc2Zlcg==']],
+    });
 
   return (
     <div>
-      <p>Listening: {listening ? 'Yes' : 'No'}</p>
-      <h3>Recent Events:</h3>
-      {events.map((event, i) => (
-        <div key={i}>
-          <p>Type: {event.type}</p>
-          <p>Data: {JSON.stringify(event.data)}</p>
+      {isRecovering && <p>Connection issue – retrying…</p>}
+      {loading && <p>Fetching events…</p>}
+      {error && (
+        <p>
+          Error: {error.message} <button onClick={refresh}>Retry</button>
+        </p>
+      )}
+      {events.map((e) => (
+        <div key={e.id}>
+          {e.type} @ ledger {e.ledger}
         </div>
       ))}
+      <button onClick={stopPolling}>Stop</button>
     </div>
   );
 }
@@ -44,115 +57,69 @@ export default function EventListener() {
 
 ## API Reference
 
-### Parameters
-
-````typescript
-useSorobanEvents(options: {
-  contractId: string;
-  eventTypes?: string[];
-  sorobanRpc?: string;
-  network?: 'TESTNET' | 'PUBLIC';
-}): EventsState
-```css
-
-| Parameter    | Type                    | Default      | Description               |
-| ------------ | ----------------------- | ------------ | ------------------------- |
-| `contractId` | `string`                | **Required** | Contract address          |
-| `eventTypes` | `string[]`              | All events   | Event types to listen for |
-| `sorobanRpc` | `string`                | Testnet      | Soroban RPC URL           |
-| `network`    | `'TESTNET' \| 'PUBLIC'` | `'TESTNET'`  | Network                   |
-
-### Return Value
+### Signature
 
 ```typescript
-interface EventsState {
-  events: ContractEvent[];
-  listening: boolean;
+useSorobanEvents(contractId: string, opts?: Options): UseSorobanEventsReturn
+```
+
+`contractId` is positional, not part of an options object.
+
+### Options
+
+| Option           | Type             | Default                                                                               | Description                                                                                                       |
+| ---------------- | ---------------- | ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `sorobanRpc`     | `string`         | `WalletProvider`'s configured Soroban URL, else `https://soroban-testnet.stellar.org` | Soroban RPC endpoint                                                                                              |
+| `fromCursor`     | `string`         | none                                                                                  | Starting cursor. If omitted, the first request uses `startLedger: 1`; later polls advance via the response cursor |
+| `pollIntervalMs` | `number \| null` | `10000`                                                                               | Poll interval in ms. Pass `null` to disable polling (only the initial fetch runs)                                 |
+| `topics`         | `string[][]`     | none                                                                                  | XDR-encoded topic filters, one array per segment (max 4)                                                          |
+| `limit`          | `number`         | `100`                                                                                 | Max events per poll                                                                                               |
+
+### Return value
+
+```typescript
+interface UseSorobanEventsReturn {
+  events: SorobanEvent[];
+  loading: boolean;
+  refresh: () => Promise<void>; // manual fetch, respects retry logic
+  stopPolling: () => void;
   error: Error | null;
-  startListening: () => void;
-  stopListening: () => void;
+  isRecovering: boolean; // true while polling at reduced speed after exhausted retries
 }
-````
 
-## Examples
-
-### Filter Specific Events
-
-````tsx
-const { events } = useSorobanEvents({
-  contractId,
-  eventTypes: ['transfer'], // Only listen for transfers
-});
-```
-
-### React to Events
-
-```tsx
-function EventReactor() {
-  const { events } = useSorobanEvents({ contractId });
-
-  useEffect(() => {
-    const latestEvent = events[0];
-    if (latestEvent?.type === 'transfer') {
-      console.log('Transfer detected!', latestEvent.data);
-      // Update UI, show notification, etc.
-    }
-  }, [events]);
-
-  return <div>Monitoring contract events...</div>;
+interface SorobanEvent {
+  id: string;
+  type: string;
+  ledger: number;
+  ledgerClosedAt: string;
+  contractId: string;
+  topic: string[]; // base64 XDR
+  value: unknown; // base64 XDR
+  txHash: string;
+  inSuccessfulContractCall: boolean;
 }
 ```
 
-### Manual Control
+## Retry and backoff behavior
 
-```tsx
-const { listening, startListening, stopListening } = useSorobanEvents({
-  contractId,
-});
+Each poll attempt calls the RPC up to **3 times** before giving up for that cycle, waiting between attempts with exponential backoff: **1s → 3s → 9s**.
 
-return (
-  <div>
-    {listening ? (
-      <button onClick={stopListening}>Stop Listening</button>
-    ) : (
-      <button onClick={startListening}>Start Listening</button>
-    )}
-  </div>
-);
-````
+If all 3 attempts fail:
 
-## Error Handling
+- `error` is set to the last failure and `isRecovering` becomes `true`.
+- Polling continues, but at `pollIntervalMs * 2` (capped at 30s), instead of stopping.
 
-### Invalid Cursor
+As soon as a later poll succeeds, `error` clears, `isRecovering` returns to `false`, and polling resumes at the normal `pollIntervalMs`.
 
-If the event cursor is no longer valid, restart from the last known good cursor or let the user resubscribe from the latest event.
+## RPC endpoint configuration
 
-### Subscription Drops
+`sorobanRpc` is **not hardcoded**. If you don't pass it explicitly, the hook reads it from the surrounding `WalletProvider`'s config (set at scaffold time via `--soroban-url` or `NEXT_PUBLIC_SOROBAN_URL`). The literal testnet URL in the table above is only the last-resort fallback when no provider config is present.
 
-Treat a dropped RPC stream as recoverable. Keep the last event list visible and call `startListening()` again after a short delay.
+## Cleanup
 
-### Empty Stream
-
-No events is a valid state for a quiet contract. Render an empty state instead of a warning.
-
-```tsx
-if (error) {
-  return (
-    <div>
-      <p>{error.message}</p>
-      <button onClick={startListening}>Reconnect</button>
-    </div>
-  );
-}
-```
-
-## Best Practices
-
-1. **Filter Events**: Only listen for events you need
-2. **Cleanup**: Stop listening when component unmounts
-3. **Handle Errors**: Implement error boundaries
-4. **Debounce Updates**: Prevent UI thrashing on rapid events
+`useSorobanEvents` clears its poll timer and any in-flight retry timer on unmount — no manual cleanup needed. To stop polling early without unmounting, call `stopPolling()`; `refresh()` can still be called afterward to resume.
 
 ## Related Hooks
 
 - [`useSorobanContract`](/docs/hooks/use-soroban-contract) - Call contract functions
+- [Contracts Quick Start](/docs/getting-started/contracts-quick-start) - Scaffold, deploy, and invoke a Soroban contract end to end

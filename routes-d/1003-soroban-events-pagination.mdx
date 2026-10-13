@@ -1,0 +1,57 @@
+---
+title: Soroban Events Pagination
+description: Guide on paginating over Soroban events using cursors and ordering.
+date: 2026-08-27
+---
+
+# Soroban Events Pagination
+
+When querying the Soroban RPC `getEvents` method, the results may be truncated if they exceed the RPC server's limit. To retrieve all events, you must use pagination.
+
+## Cursor Usage
+
+Each event in the `getEvents` response contains an `id` field. This ID can be used as a `cursor` in subsequent requests to fetch the next page of events.
+
+To paginate forward:
+
+- Fetch the initial page of events.
+- Take the `id` of the last event in the `events` array.
+- Pass this `id` as the `pagination.cursor` parameter in the next request.
+
+## Ordering
+
+By default, events are returned in ascending order (`asc`), from oldest to newest. You can change this to descending order by setting `pagination.limit` and specifying the order, or by handling results appropriately. When paginating, ensure your `cursor` matches the direction you are traversing.
+
+## Example
+
+```javascript
+import { rpc } from '@stellar/stellar-sdk';
+
+const server = new rpc.Server('https://soroban-testnet.stellar.org');
+
+async function fetchAllEvents() {
+  let allEvents = [];
+  let cursor = null;
+
+  while (true) {
+    const response = await server.getEvents({
+      startLedger: 1000,
+      pagination: {
+        cursor,
+        limit: 100,
+      },
+    });
+
+    if (response.events.length === 0) {
+      break;
+    }
+
+    allEvents.push(...response.events);
+
+    // Set cursor to the ID of the last event for the next iteration
+    cursor = response.events[response.events.length - 1].id;
+  }
+
+  return allEvents;
+}
+```

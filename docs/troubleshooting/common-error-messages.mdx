@@ -12,7 +12,141 @@ This reference lists error messages you are likely to see when scaffolding a Nex
 
 ---
 
-## CLI and installation
+## Scaffolding errors
+
+### `Error: Directory "my-app" already exists.`
+
+|                   |                                                                                                                                                                                                                          |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Exact message** | `Error: Directory "my-app" already exists.`                                                                                                                                                                              |
+| **Exit code**     | `3` (Directory Exists)                                                                                                                                                                                                   |
+| **Likely cause**  | A directory with that name already exists in the current working directory.                                                                                                                                              |
+| **Fix**           | Use a different project name, or overwrite the existing directory with `--force`: `npx nextellar my-app --force`. **Warning:** `--force` deletes the existing directory. Use with caution and confirm the delete prompt. |
+
+### `Error: Unknown template "nope". Available: default, minimal, defi`
+
+|                   |                                                                                                                                 |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| **Exact message** | `Unknown template "..."`. Available: `default`, `minimal`, `defi`                                                               |
+| **Exit code**     | `2` (Invalid Arguments)                                                                                                         |
+| **Likely cause**  | An unrecognized `--template` flag value was passed.                                                                             |
+| **Fix**           | Use one of the available templates: `npx nextellar my-app --template default` (or `minimal`, `defi`). Default is used if unset. |
+
+### `Error: Template "minimal" is not available for JavaScript yet.`
+
+|                   |                                                                                                                                 |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| **Exact message** | `Template "..." is not available for JavaScript yet. Please use the default or defi template with --javascript.`                |
+| **Exit code**     | `2` (Invalid Arguments)                                                                                                         |
+| **Likely cause**  | You used `--javascript` with a template that only supports TypeScript (e.g., `--template minimal --javascript`).                |
+| **Fix**           | Use `--template default` or `--template defi` with `--javascript`, or omit `--javascript` and use TypeScript instead (default). |
+
+---
+
+## Installation and dependency errors
+
+### `Installation stops or times out during scaffold`
+
+|                  |                                                                                                                                                                                                                                                                                                                                          |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Exit code**    | `4` (Installation Failed)                                                                                                                                                                                                                                                                                                                |
+| **Likely cause** | Slow network, npm registry timeouts, or low disk space while dependencies install. Default timeout is 20 minutes (1200000 ms).                                                                                                                                                                                                           |
+| **Fix**          | **Step 1:** Run `nextellar doctor` to diagnose connectivity and resource issues. **Option A:** Increase the timeout: `npx nextellar my-app --install-timeout 3600000` (1 hour). **Option B:** Skip auto-install: `npx nextellar my-app --skip-install`, then `cd my-app && npm install` manually. Ensure at least 500MB free disk space. |
+
+### `Error: Invalid --install-timeout value`
+
+|                  |                                                                                                                                                                             |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Exit code**    | `2` (Invalid Arguments)                                                                                                                                                     |
+| **Likely cause** | The `--install-timeout` value is not a valid number or is less than the minimum.                                                                                            |
+| **Fix**          | Pass a positive integer (milliseconds): `npx nextellar my-app --install-timeout 3600000`. Minimum is typically 5000ms; 1200000ms (20 min) is recommended for slow networks. |
+
+### `Installation timeouts / npm ERR! code ETIMEDOUT`
+
+|                  |                                                                                                                                                                                                                                                                                                               |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Likely cause** | npm registry is slow, network is slow, or ISP/proxy throttling.                                                                                                                                                                                                                                               |
+| **Fix**          | **Step 1:** Run `nextellar doctor` to check connectivity to the npm registry. **Step 2:** Increase timeout: `npx nextellar my-app --install-timeout 3600000`. **Step 3:** Clear npm cache: `npm cache clean --force`. **Step 4:** Check network connectivity and proxy settings (see Network Failures below). |
+
+### `npm ERR! 404 Not Found` during install
+
+|                  |                                                                                                                                                                    |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Likely cause** | A package is unavailable or the npm registry is down.                                                                                                              |
+| **Fix**          | Check npm registry status: `npm config set registry https://registry.npmjs.org/`. Wait a moment and retry. Run `nextellar doctor` to verify internet connectivity. |
+
+### `npm ERR! code EACCES: permission denied`
+
+|                  |                                                                                                                                                                        |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Likely cause** | npm tried to write to a system-owned directory during global install or cache operations.                                                                              |
+| **Fix**          | Prefer `npx nextellar my-app` (no global install). Or fix ownership: `sudo chown -R $(whoami) ~/.npm`. Avoid using `sudo` with `npm install` for project dependencies. |
+
+### `Module not found` / dependency resolution errors
+
+|                  |                                                                                                                                                                                                  |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Likely cause** | Incomplete install, corrupted `node_modules`, or mixed package managers.                                                                                                                         |
+| **Fix**          | From the project root: `rm -rf node_modules package-lock.json && npm install` (or use `pnpm`/`yarn` consistently with the lockfile in the repo). Re-scaffold only if the project tree is broken. |
+
+---
+
+## Network and deployment errors
+
+### `nextellar doctor` – Diagnose environment issues
+
+Before reporting install or connection errors, run:
+
+```bash
+nextellar doctor
+```
+
+This command verifies:
+
+- Node.js and package manager versions
+- Git availability
+- Rust and Soroban CLI (if using contracts)
+- Horizon API connectivity (testnet)
+- Free disk space and RAM
+
+**Use `nextellar doctor` as the first troubleshooting step** for network, install, or deployment problems.
+
+### Horizon API unreachable / `ENOTFOUND` errors
+
+|                  |                                                                                                                                                                                                                                                                                 |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Likely cause** | Network connectivity issue, DNS failure, or proxy blocking.                                                                                                                                                                                                                     |
+| **Fix**          | **Step 1:** Run `nextellar doctor` to verify Horizon connectivity. **Step 2:** Check your internet connection and DNS: `nslookup horizon-testnet.stellar.org`. **Step 3:** If behind a corporate proxy, configure npm: `npm config set https-proxy http://proxy.corp.com:8080`. |
+
+### `Error: Missing production build (.next/)`
+
+|                   |                                                                                                                                             |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Command**       | `nextellar deploy`                                                                                                                          |
+| **Exact message** | `Missing production build (.next/)`                                                                                                         |
+| **Likely cause**  | The app was not built before deployment, or the build failed.                                                                               |
+| **Fix**           | Run `npm run build` first to generate `.next/`, then `nextellar deploy`. Or run `nextellar deploy --dry-run` to validate without deploying. |
+
+### Deploy tar compression error
+
+|                  |                                                                                                                                                                                                                                                                |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Command**      | `nextellar deploy`                                                                                                                                                                                                                                             |
+| **Likely cause** | Insufficient disk space or file permission issues while creating the deployment bundle.                                                                                                                                                                        |
+| **Fix**          | **Step 1:** Free up disk space (at least 500MB free). **Step 2:** Ensure write permissions in the project directory: `ls -la .next/`. **Step 3:** Run `nextellar deploy --dry-run` to validate. **Step 4:** Run `nextellar doctor` to verify system resources. |
+
+### `Error: Not a Nextellar project`
+
+|                   |                                                                                                                                                                      |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Command**       | `nextellar upgrade`                                                                                                                                                  |
+| **Exact message** | `Error: Not a Nextellar project`                                                                                                                                     |
+| **Likely cause**  | The project does not have the Nextellar marker file or was not scaffolded with `nextellar`.                                                                          |
+| **Fix**           | Confirm you're in a Nextellar project root directory (contains `.nextellar.config.json` or similar marker). If upgrading a custom app, manually update dependencies. |
+
+---
+
+## CLI and Node version errors
 
 ### `nextellar: command not found`
 
@@ -20,20 +154,6 @@ This reference lists error messages you are likely to see when scaffolding a Nex
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Likely cause** | The CLI is not installed globally, or your shell `PATH` does not include the global npm bin directory.                                          |
 | **Fix**          | Run without a global install: `npx nextellar my-app`. To install globally: `npm install -g nextellar`, then confirm `which nextellar` resolves. |
-
-### `EACCES: permission denied`
-
-|                  |                                                                                                                                                                        |
-| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Likely cause** | npm tried to write to a system-owned directory during global install or cache operations.                                                                              |
-| **Fix**          | Prefer `npx nextellar my-app` (no global install). Or fix ownership: `sudo chown -R $(whoami) ~/.npm`. Avoid using `sudo` with `npm install` for project dependencies. |
-
-### Installation stops or times out during scaffold
-
-|                  |                                                                                                                                                                                                                                  |
-| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Likely cause** | Slow network, registry timeouts, or low disk space while dependencies install.                                                                                                                                                   |
-| **Fix**          | Increase the timeout: `npx nextellar my-app --install-timeout 3600000`. Or skip auto-install and install manually: `npx nextellar my-app --skip-install` then `cd my-app && npm install`. Ensure at least 500MB free disk space. |
 
 ### Unsupported Node version / scaffold fails before install
 
@@ -49,12 +169,28 @@ This reference lists error messages you are likely to see when scaffolding a Nex
 | **Likely cause** | Another dev server or process is bound to port 3000.                                                      |
 | **Fix**          | Start on another port: `npm run dev -- -p 3001`. Stop the other process or close the app using port 3000. |
 
-### `Module not found` / dependency resolution errors
+### TypeScript or `npm run build` errors after install
 
-|                  |                                                                                                                                                                                                  |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Likely cause** | Incomplete install, corrupted `node_modules`, or mixed package managers.                                                                                                                         |
-| **Fix**          | From the project root: `rm -rf node_modules package-lock.json && npm install` (or use `pnpm`/`yarn` consistently with the lockfile in the repo). Re-scaffold only if the project tree is broken. |
+|                  |                                                                                                                                             |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Likely cause** | Dependencies not fully installed, or version mismatch after a partial install.                                                              |
+| **Fix**          | Reinstall dependencies (see above), then run `npm run build` again. Confirm you used the same package manager the project was created with. |
+
+---
+
+## CLI and installation
+
+### `nextellar: command not found`
+
+|                  |                                                                                                                                                 |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Likely cause** | The CLI is not installed globally, or your shell `PATH` does not include the global npm bin directory.                                          |
+| **Fix**          | Run without a global install: `npx nextellar my-app`. To install globally: `npm install -g nextellar`, then confirm `which nextellar` resolves. |
+
+### `EACCES: permission denied`
+
+|     |     |
+| --- | --- |
 
 ### TypeScript or `npm run build` errors after install
 

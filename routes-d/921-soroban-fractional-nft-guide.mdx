@@ -1,0 +1,545 @@
+---
+title: Comprehensive Soroban Fractional NFT Guide
+description: Document a Soroban fractional NFT contract approach — fractional share issuance, liquidity considerations, and a working sample.
+date: 2026-08-28
+---
+
+# Comprehensive Soroban Fractional NFT Guide
+
+**Fractionalization** locks a single NFT inside a vault contract and mints a fixed supply of fungible shares against it, so many holders can own an economic slice of one non-fungible asset. This guide covers the vault-and-shares design, the redemption (buy-out) mechanism that lets a single party reassemble 100% of the shares to reclaim the underlying NFT, liquidity considerations for the resulting share token, and a working sample built on top of the [NFT collection contract](/docs/guides/soroban-nft-collection-tutorial) and the [SEP-41 token contract](/docs/guides/soroban-token-contract-guide) from this guide series.
+
+---
+
+## Design Overview
+
+```
+Fractionalizer ──fractionalize(nft, token_id, share_supply)──► Fractional Vault
+                                                                     │
+                                                                     ├── require_auth() on fractionalizer
+                                                                     ├── nft.transfer(fractionalizer → vault, token_id)
+                                                                     ├── mint share_supply SEP-41 shares to fractionalizer
+                                                                     └── store Vault { nft, token_id, share_supply, redeemed: false }
+
+Shareholder ──redeem(vault_id)───────────────────────────────────► Fractional Vault ──nft.transfer(vault → shareholder)──► NFT Contract
+                                                                     │
+                                                                     ├── require_auth() on caller
+                                                                     ├── assert caller holds share_supply (100%) of the share token
+                                                                     ├── burn caller's shares
+                                                                     └── mark redeemed = true (single-use)
+```
+
+The vault holds exactly one NFT and mints exactly one share token per fractionalization — a 1:1 vault-to-NFT design, which keeps redemption unambiguous ("burn all shares, get the one NFT back") at the cost of needing a separate vault instance (and separate share token) per fractionalized NFT.
+
+<Note type="info">
+  This is the same economic model as Fractional.art / NFTX-style vaults on EVM
+  chains, adapted to Soroban: cross-contract calls into a SEP-41-compatible
+  token contract for the shares, and into the NFT contract's `transfer` for
+  custody. Soroban's atomic transaction execution means the NFT lock and share
+  mint happen in the same transaction — there is no intermediate state where the
+  NFT is locked but no shares exist yet, or vice versa.
+</Note>
+
+---
+
+## Project Layout
+
+```
+my-fractional-nft-contract/
+├── Cargo.toml
+└── contracts/
+    └── fractional_vault/
+        ├── Cargo.toml
+        └── src/
+            ├── lib.rs
+            ├── contract.rs
+            ├── storage.rs
+            └── test.rs
+```
+
+### Contract Cargo.toml
+
+```toml
+[package]
+name = "soroban-fractional-vault-contract"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+soroban-sdk = "21.0.0"
+
+[dev-dependencies]
+soroban-sdk = { version = "21.0.0", features = ["testutils"] }
+
+[profile.release]
+opt-level = "z"
+overflow-checks = true
+debug = false
+panic = "abort"
+codegen-units = 1
+```
+
+---
+
+## Storage Layout
+
+```rust
+// contracts/fractional_vault/src/storage.rs
+use soroban_sdk::{contracttype, Address, Env};
+
+#[derive(Clone)]
+#[contracttype]
+pub struct Vault {
+    pub nft: Address,       // NFT collection contract address
+    pub token_id: u128,     // the specific NFT held
+    pub share_token: Address, // SEP-41 contract minted for this vault's shares
+    pub share_supply: i128,
+    pub fractionalizer: Address,
+    pub redeemed: bool,
+}
+
+#[derive(Clone)]
+#[contracttype]
+pub enum DataKey {
+    NextId,
+    Vault(u64),
+}
+
+pub fn next_id(env: &Env) -> u64 {
+    let id: u64 = env.storage().instance().get(&DataKey::NextId).unwrap_or(0);
+    env.storage().instance().set(&DataKey::NextId, &(id + 1));
+    id
+}
+
+pub fn read_vault(env: &Env, id: u64) -> Vault {
+    env.storage()
+        .persistent()
+        .get(&DataKey::Vault(id))
+        .unwrap_or_else(|| panic!("vault not found"))
+}
+
+pub fn write_vault(env: &Env, id: u64, vault: &Vault) {
+    env.storage().persistent().set(&DataKey::Vault(id), vault);
+    env.storage()
+        .persistent()
+        .extend_ttl(&DataKey::Vault(id), 100_000, 100_000);
+}
+```
+
+<Note type="warning">
+  This sample assumes a `share_token` contract has **already been deployed and
+  its mint authority handed to the vault** before `fractionalize` is called —
+  deploying a new SEP-41 token contract per fractionalization from inside
+  `fractionalize` itself is possible (Soroban supports deploying contracts from
+  a contract), but it roughly doubles the gas cost of the call and complicates
+  upgrade/versioning of the token wasm. Most production fractionalizers
+  pre-deploy a lightweight, purpose-built share token per NFT and pass its
+  address in.
+</Note>
+
+---
+
+## Contract Implementation
+
+```rust
+// contracts/fractional_vault/src/contract.rs
+#![no_std]
+use soroban_sdk::{contract, contractimpl, token, Address, Env};
+use crate::storage::{next_id, read_vault, write_vault, Vault};
+
+#[contract]
+pub struct FractionalVaultContract;
+
+#[contractimpl]
+impl FractionalVaultContract {
+    /// Locks `token_id` from `nft` into this vault and mints `share_supply`
+    /// shares of `share_token` to `fractionalizer`. The vault must already be
+    /// the sole minter of `share_token`.
+    pub fn fractionalize(
+        env: Env,
+        fractionalizer: Address,
+        nft: Address,
+        token_id: u128,
+        share_token: Address,
+        share_supply: i128,
+    ) -> u64 {
+        fractionalizer.require_auth();
+        assert!(share_supply > 0, "share_supply must be positive");
+
+        // Custody: move the NFT into the vault. This call itself enforces
+        // that `fractionalizer` actually owns token_id (the NFT contract's
+        // transfer() checks current ownership).
+        let nft_client = nft::Client::new(&env, &nft);
+        nft_client.transfer(&fractionalizer, &env.current_contract_address(), &token_id);
+
+        // Issue shares. Requires the vault to hold mint authority on
+        // share_token — see the deployment note above.
+        let share_client = token::Client::new(&env, &share_token);
+        share_client.mint(&env.current_contract_address(), &fractionalizer, &share_supply);
+
+        let id = next_id(&env);
+        write_vault(
+            &env,
+            id,
+            &Vault {
+                nft,
+                token_id,
+                share_token,
+                share_supply,
+                fractionalizer,
+                redeemed: false,
+            },
+        );
+
+        env.events()
+            .publish((soroban_sdk::symbol_short!("fract"), id), share_supply);
+        id
+    }
+
+    /// Redeems the underlying NFT by burning 100% of the outstanding shares.
+    /// `redeemer` must hold the full share_supply in a single balance —
+    /// partial holders must first buy out the remaining shares (see the
+    /// Liquidity Considerations section) before calling this.
+    pub fn redeem(env: Env, redeemer: Address, vault_id: u64) {
+        redeemer.require_auth();
+
+        let mut vault = read_vault(&env, vault_id);
+        assert!(!vault.redeemed, "already redeemed");
+
+        let share_client = token::Client::new(&env, &vault.share_token);
+        let balance = share_client.balance(&redeemer);
+        assert!(
+            balance >= vault.share_supply,
+            "redeemer must hold the full share supply"
+        );
+
+        // Burn is implemented as transfer-to-vault + vault-side accounting in
+        // some SEP-41 tokens, or a dedicated `burn` in others; this sample
+        // assumes a `burn` entrypoint exists on the share token.
+        share_client.burn(&redeemer, &vault.share_supply);
+
+        let nft_client = nft::Client::new(&env, &vault.nft);
+        nft_client.transfer(&env.current_contract_address(), &redeemer, &vault.token_id);
+
+        vault.redeemed = true;
+        write_vault(&env, vault_id, &vault);
+
+        env.events()
+            .publish((soroban_sdk::symbol_short!("redeem"), vault_id), redeemer);
+    }
+
+    pub fn get_vault(env: Env, vault_id: u64) -> Vault {
+        read_vault(&env, vault_id)
+    }
+}
+
+// Minimal client interface for calling into the NFT collection contract from
+// this guide's NFT collection tutorial. In a real workspace this would come
+// from a shared crate or contract-import, not be hand-declared per caller.
+mod nft {
+    soroban_sdk::contractimport!(file = "../nft/target/wasm32-unknown-unknown/release/soroban_nft_contract.wasm");
+}
+```
+
+<Note type="warning">
+  `redeem` requires the caller to hold **100% of `share_supply` in one balance**
+  — there is no partial-quorum or DAO-style buyout vote in this base contract.
+  This is deliberate: anything looser (e.g. "67% of holders vote to sell")
+  requires a governance layer with its own attack surface (flash-loaned voting
+  power, quorum manipulation) that is out of scope for a vault contract whose
+  only job is safe custody. If you want a buyout path short of 100%, build it as
+  a **separate auction contract** that accumulates shares over time (see
+  Liquidity Considerations below) rather than baking a voting mechanism into the
+  vault itself.
+</Note>
+
+---
+
+## Fractional Share Token Design
+
+The share token is a standard [SEP-41 token](/docs/guides/soroban-token-contract-guide) with two constraints layered on top:
+
+| Constraint                                                                              | Why                                                                                                                                                                                                                                                                                                    |
+| --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Fixed `share_supply`, set once at `fractionalize`                                       | The redemption check (`balance >= share_supply`) only works if supply can't grow after the fact — an admin minting more shares post-fractionalization would let them dilute existing holders and make 100%-buyout impossible without their cooperation.                                                |
+| Mint authority held exclusively by the vault, and only exercised inside `fractionalize` | Prevents the share token from being mintable outside the fractionalization flow, which would break the 1:1 relationship between "shares outstanding" and "the vault's records of what supply backs the locked NFT."                                                                                    |
+| No re-fractionalization of an already-redeemed vault's shares                           | Once `redeemed = true`, the share token for that vault is permanently backed by nothing — its balances become worthless but the token contract itself doesn't need to be paused; the vault's `redeemed` flag is the source of truth that any UI or indexer should check before displaying share value. |
+
+---
+
+## Liquidity Considerations
+
+Fractionalization only creates _economic_ exposure to an NFT's value — it does not, by itself, create a liquid market for the shares. Three practical paths, in increasing order of complexity:
+
+1. **Direct SEP-41 transfers between known counterparties.** Works immediately (the share token is a normal fungible token), but price discovery is manual and there's no continuous market.
+2. **List the share token on an existing Soroban AMM/DEX contract.** Requires seeding an initial liquidity pool (e.g. `share_token` / `XLM` or `share_token` / a stablecoin) — until someone provides that liquidity, the share token is tradeable in principle but illiquid in practice. The fractionalizer commonly seeds this pool with a portion of their own shares immediately after `fractionalize`.
+3. **A dedicated buyout auction contract** that lets any party accumulate shares via a Dutch or English auction (see the [Soroban Dutch Auction](/docs/guides/soroban-dutch-auction) and [English Auction](/docs/guides/soroban-english-auction) guides) specifically to reach the 100% threshold `redeem` requires, rather than relying on organic secondary-market accumulation.
+
+<Note type="info">
+  A fractional vault with no liquidity plan is a common design mistake: shares
+  get minted, the fractionalizer keeps most of them, and the "market" never
+  materializes because there's no pool and no natural buyer for the remaining
+  slice. Treat liquidity provisioning as part of the fractionalization launch,
+  not an afterthought.
+</Note>
+
+---
+
+## Client Invocation (TypeScript)
+
+```typescript
+// lib/fractional-vault-client.ts
+import {
+  Contract,
+  Address,
+  TransactionBuilder,
+  BASE_FEE,
+  Networks,
+  nativeToScVal,
+  scValToNative,
+  rpc,
+} from '@stellar/stellar-sdk';
+
+const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL!;
+const VAULT_ID = process.env.NEXT_PUBLIC_FRACTIONAL_VAULT_CONTRACT!;
+
+async function invoke(
+  method: string,
+  keypair: { publicKey(): string; sign(tx: any): void },
+  ...args: any[]
+) {
+  const server = new rpc.Server(RPC_URL);
+  const account = await server.getAccount(keypair.publicKey());
+  const contract = new Contract(VAULT_ID);
+
+  const tx = new TransactionBuilder(account, {
+    fee: BASE_FEE,
+    networkPassphrase: Networks.MAINNET,
+  })
+    .addOperation(contract.call(method, ...args))
+    .setTimeout(30)
+    .build();
+
+  const prepared = await server.prepareTransaction(tx);
+  keypair.sign(prepared);
+  return server.sendTransaction(prepared);
+}
+
+export function fractionalize(
+  ownerKeypair: { publicKey(): string; sign(tx: any): void },
+  nft: string,
+  tokenId: bigint,
+  shareToken: string,
+  shareSupply: bigint
+) {
+  return invoke(
+    'fractionalize',
+    ownerKeypair,
+    new Address(ownerKeypair.publicKey()).toScVal(),
+    new Address(nft).toScVal(),
+    nativeToScVal(tokenId, { type: 'u128' }),
+    new Address(shareToken).toScVal(),
+    nativeToScVal(shareSupply, { type: 'i128' })
+  );
+}
+
+export function redeem(
+  redeemerKeypair: { publicKey(): string; sign(tx: any): void },
+  vaultId: bigint
+) {
+  return invoke(
+    'redeem',
+    redeemerKeypair,
+    new Address(redeemerKeypair.publicKey()).toScVal(),
+    nativeToScVal(vaultId, { type: 'u64' })
+  );
+}
+
+// Read-only: simulate rather than submit, no signature required.
+export async function getVault(vaultId: bigint) {
+  const server = new rpc.Server(RPC_URL);
+  const contract = new Contract(VAULT_ID);
+  const account = new (await import('@stellar/stellar-sdk')).Account(
+    'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN',
+    '0'
+  );
+
+  const tx = new TransactionBuilder(account, {
+    fee: BASE_FEE,
+    networkPassphrase: Networks.MAINNET,
+  })
+    .addOperation(
+      contract.call('get_vault', nativeToScVal(vaultId, { type: 'u64' }))
+    )
+    .setTimeout(5)
+    .build();
+
+  const sim = (await server.simulateTransaction(
+    tx
+  )) as rpc.SimulateTransactionSuccessResponse;
+  return scValToNative(sim.result!.retval);
+}
+```
+
+---
+
+## CLI Walkthrough
+
+```bash
+stellar contract build
+stellar contract deploy \
+  --wasm target/wasm32-unknown-unknown/release/soroban_fractional_vault_contract.wasm \
+  --source alice --network testnet
+
+# Pre-deploy the share token and hand its mint authority to the vault contract
+# address before calling fractionalize (setup omitted here — see the token
+# contract guide's `initialize`/admin transfer pattern).
+
+stellar contract invoke --id <VAULT_ID> --source alice --network testnet -- \
+  fractionalize --fractionalizer alice --nft <NFT_ID> --token_id 1 \
+  --share_token <SHARE_TOKEN_ID> --share_supply 1000000
+
+stellar contract invoke --id <VAULT_ID> --source alice --network testnet -- \
+  get_vault --vault_id 0
+
+# Once a single address has accumulated all 1,000,000 shares:
+stellar contract invoke --id <VAULT_ID> --source alice --network testnet -- \
+  redeem --redeemer alice --vault_id 0
+```
+
+---
+
+## Test Suite
+
+```rust
+// contracts/fractional_vault/src/test.rs
+#![cfg(test)]
+use super::*;
+use soroban_sdk::testutils::Address as _;
+use soroban_sdk::{token, Env, String};
+
+// In the real crate this imports the NFT contract type from the sibling
+// `nft` crate directly; shown inline here for a self-contained test example.
+mod nft_contract {
+    include!("../../nft/src/contract.rs");
+}
+
+fn setup_share_token(env: &Env, admin: &Address) -> (Address, token::Client<'static>) {
+    let contract_id = env.register_stellar_asset_contract_v2(admin.clone());
+    let client = token::Client::new(env, &contract_id.address());
+    (contract_id.address(), client)
+}
+
+#[test]
+fn fractionalize_locks_nft_and_mints_shares() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let alice = Address::generate(&env);
+
+    let nft_id = env.register(nft_contract::NftContract, ());
+    let nft_client = nft_contract::NftContractClient::new(&env, &nft_id);
+    nft_client.initialize(&admin, &admin, &0);
+    nft_client.mint(&alice, &1, &String::from_str(&env, "ipfs://token/1"));
+
+    let (share_token_id, share_client) = setup_share_token(&env, &admin);
+
+    let vault_id = env.register(FractionalVaultContract, ());
+    let vault_client = FractionalVaultContractClient::new(&env, &vault_id);
+
+    let id = vault_client.fractionalize(&alice, &nft_id, &1, &share_token_id, &1_000_000);
+
+    assert_eq!(nft_client.owner_of(&1), vault_id);
+    assert_eq!(share_client.balance(&alice), 1_000_000);
+
+    let vault = vault_client.get_vault(&id);
+    assert!(!vault.redeemed);
+}
+
+#[test]
+#[should_panic(expected = "redeemer must hold the full share supply")]
+fn redeem_with_partial_shares_panics() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let alice = Address::generate(&env);
+    let bob = Address::generate(&env);
+
+    let nft_id = env.register(nft_contract::NftContract, ());
+    let nft_client = nft_contract::NftContractClient::new(&env, &nft_id);
+    nft_client.initialize(&admin, &admin, &0);
+    nft_client.mint(&alice, &1, &String::from_str(&env, "ipfs://token/1"));
+
+    let (share_token_id, share_client) = setup_share_token(&env, &admin);
+
+    let vault_id = env.register(FractionalVaultContract, ());
+    let vault_client = FractionalVaultContractClient::new(&env, &vault_id);
+    let id = vault_client.fractionalize(&alice, &nft_id, &1, &share_token_id, &1_000_000);
+
+    share_client.transfer(&alice, &bob, &400_000); // alice now holds only 600,000
+    vault_client.redeem(&alice, &id);
+}
+
+#[test]
+fn redeem_with_full_supply_returns_nft() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let alice = Address::generate(&env);
+
+    let nft_id = env.register(nft_contract::NftContract, ());
+    let nft_client = nft_contract::NftContractClient::new(&env, &nft_id);
+    nft_client.initialize(&admin, &admin, &0);
+    nft_client.mint(&alice, &1, &String::from_str(&env, "ipfs://token/1"));
+
+    let (share_token_id, _) = setup_share_token(&env, &admin);
+
+    let vault_id = env.register(FractionalVaultContract, ());
+    let vault_client = FractionalVaultContractClient::new(&env, &vault_id);
+    let id = vault_client.fractionalize(&alice, &nft_id, &1, &share_token_id, &1_000_000);
+
+    vault_client.redeem(&alice, &id);
+
+    assert_eq!(nft_client.owner_of(&1), alice);
+    let vault = vault_client.get_vault(&id);
+    assert!(vault.redeemed);
+}
+
+#[test]
+#[should_panic(expected = "already redeemed")]
+fn double_redeem_panics() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let alice = Address::generate(&env);
+
+    let nft_id = env.register(nft_contract::NftContract, ());
+    let nft_client = nft_contract::NftContractClient::new(&env, &nft_id);
+    nft_client.initialize(&admin, &admin, &0);
+    nft_client.mint(&alice, &1, &String::from_str(&env, "ipfs://token/1"));
+
+    let (share_token_id, _) = setup_share_token(&env, &admin);
+
+    let vault_id = env.register(FractionalVaultContract, ());
+    let vault_client = FractionalVaultContractClient::new(&env, &vault_id);
+    let id = vault_client.fractionalize(&alice, &nft_id, &1, &share_token_id, &1_000_000);
+
+    vault_client.redeem(&alice, &id);
+    vault_client.redeem(&alice, &id); // must panic — nothing left to redeem
+}
+```
+
+---
+
+## Related docs
+
+- [Complete Soroban NFT Collection Tutorial](/docs/guides/soroban-nft-collection-tutorial) — the underlying NFT contract this guide locks into a vault
+- [Comprehensive Soroban Token Contract Implementation Guide](/docs/guides/soroban-token-contract-guide) — the SEP-41 share token minted on fractionalization
+- [Comprehensive Soroban Vault Contract Guide](/docs/guides/soroban-vault-contract-guide) — the general share-accounting pattern this guide specializes for a single locked NFT
+- [Soroban Dutch Auction Contract Guide](/docs/guides/soroban-dutch-auction) — one option for building a buyout mechanism on top of fractional shares

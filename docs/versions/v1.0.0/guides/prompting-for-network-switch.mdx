@@ -1,0 +1,122 @@
+---
+title: Prompting for Network Switch
+description: Best practices and code patterns for detecting network mismatches and prompting users to switch networks in Freighter or other Stellar wallets.
+date: 2026-08-25
+---
+
+# Prompting for Network Switch
+
+When a dApp targets a specific network (e.g., Stellar `PUBLIC` or `TESTNET`), connecting a wallet that is currently pointed at a different network can cause unexpected transaction failures or account sequence errors.
+
+This guide covers how to detect network mismatches, prevent erroneous submissions, and prompt the user to switch networks.
+
+---
+
+## The Network Check Flow
+
+```
+1. User connects wallet
+2. Query active network via `getNetwork()` or `getNetworkDetails()`
+3. Compare against dApp's required network (PUBLIC vs TESTNET)
+   ├── Match → Proceed with full functionality
+   └── Mismatch → Display prominent Switch Network prompt & disable write actions
+```
+
+---
+
+## Guardrails & Best Practices
+
+1. **Do Not Attempt Blind Submissions**: Always verify the active network before building or signing transactions.
+2. **Disable Critical Actions**: Disable swap, send, and contract execution buttons while on the wrong network.
+3. **Graceful Fallback**: If the wallet API does not support programmatic network switching, display clear step-by-step instructions showing how to change the network in the wallet extension's settings.
+4. **Network Change Event Listeners**: Listen for wallet network change events so the UI updates immediately when the user switches networks.
+
+---
+
+## React Hook & Component Example
+
+```tsx
+import React, { useEffect, useState, useCallback } from 'react';
+import { getNetwork, getNetworkDetails } from '@stellar/freighter-api';
+import { AlertTriangle, RefreshCw } from 'lucide-react';
+
+export type SupportedNetwork = 'PUBLIC' | 'TESTNET';
+
+interface UseNetworkSwitchProps {
+  requiredNetwork: SupportedNetwork;
+}
+
+export function useNetworkGuard({ requiredNetwork }: UseNetworkSwitchProps) {
+  const [currentNetwork, setCurrentNetwork] = useState<string | null>(null);
+  const [isChecking, setIsChecking] = useState(true);
+
+  const checkNetwork = useCallback(async () => {
+    setIsChecking(true);
+    try {
+      const net = await getNetwork();
+      setCurrentNetwork(net);
+    } catch (err) {
+      console.warn('Failed to retrieve network from wallet:', err);
+    } finally {
+      setIsChecking(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    checkNetwork();
+    // Poll periodically or add extension event listener if available
+    const interval = setInterval(checkNetwork, 5000);
+    return () => clearInterval(interval);
+  }, [checkNetwork]);
+
+  const isMismatch = currentNetwork !== null && currentNetwork.toUpperCase() !== requiredNetwork;
+
+  return {
+    currentNetwork,
+    isMismatch,
+    isChecking,
+    recheck: checkNetwork,
+  };
+}
+
+export const NetworkSwitchBanner: React.FC<{ requiredNetwork: SupportedNetwork }> = ({
+  requiredNetwork,
+}) => {
+  const { currentNetwork, isMismatch, isChecking, recheck } = useNetworkGuard({
+    requiredNetwork,
+  });
+
+  if (!isMismatch) return null;
+
+  return (
+    <div
+      role="alert"
+      className="bg-amber-950/80 border border-amber-500/50 text-amber-200 px-4 py-3 rounded-lg flex items-center justify-between gap-4 my-3"
+    >
+      <div className="flex items-center gap-3">
+        <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
+        <div className="text-sm">
+          <span className="font-semibold">Wrong Network Detected: </span>
+          Your wallet is on <code className="bg-amber-900/60 px-1.5 py-0.5 rounded text-amber-300 font-mono">{currentNetwork}</code>. Please switch to <code className="bg-amber-900/60 px-1.5 py-0.5 rounded text-amber-300 font-mono">{requiredNetwork}</code> in Freighter.
+        </div>
+      </div>
+
+      <button
+        onClick={recheck}
+        disabled={isChecking}
+        className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded text-xs font-medium flex items-center gap-1.5 transition-colors disabled:opacity-50"
+      >
+        <RefreshCw className={`w-3.5 h-3.5 ${isChecking ? 'animate-spin' : ''}`} />
+        Check Again
+      </button>
+    </div>
+  );
+};
+```
+
+---
+
+## Related docs
+
+- [Wallet UX Patterns](/docs/guides/wallet-ux-patterns) — UX patterns for wallet interactions
+- [Testing Horizon and Soroban](/docs/guides/testing-horizon-soroban) — Network endpoints and testnet configuration

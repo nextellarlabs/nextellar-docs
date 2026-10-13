@@ -1,0 +1,105 @@
+---
+title: Transaction Confirmation Ceremony Pattern
+description: A ceremony pattern for confirming high-value Stellar transactions before signing — explicit confirmation steps, the friction-versus-safety tradeoff, and a worked example.
+date: 2026-08-25
+---
+
+# Transaction Confirmation Ceremony Pattern
+
+Most wallet mistakes that lose funds aren't protocol bugs — they're a user tapping "confirm" on something they didn't actually read. A confirmation ceremony is a deliberate sequence of UI steps that slows the user down _specifically_ when a transaction is high-value or high-risk, without adding friction to routine payments. This guide documents the pattern: when to trigger it, what steps it should contain, and how to balance friction against safety.
+
+---
+
+## When to Trigger the Ceremony
+
+Not every transaction deserves the same scrutiny. Reserve the full ceremony for transactions that meet one or more of these conditions:
+
+- **Value above a threshold.** Define a threshold relative to the account's typical activity (e.g. 5x the account's median payment over the last 30 days), not a single hardcoded number — a $50 threshold is annoying for a high-volume trader and meaningless for someone moving their life savings.
+- **Unfamiliar destination.** The destination account has never received a payment from this wallet before, and isn't in the user's address book.
+- **Irreversible or high-privilege operations.** `setOptions` changes to signers/thresholds, `accountMerge`, trustline removal with a non-zero balance, or anything that changes who can control the account in the future.
+- **Elevated fee or unusual time bounds.** A fee far above the network's recent baseline, or a transaction with no expiration (no `timebounds.maxTime`) — both are patterns seen in phishing flows that try to keep a signed transaction valid indefinitely.
+
+Routine, low-value payments to known destinations should skip the ceremony entirely and use the wallet's normal single-tap confirm — that's the friction budget you're protecting by reserving the ceremony for the transactions that actually warrant it.
+
+## The Ceremony Steps
+
+### 1. Plain-language summary, not raw XDR
+
+Lead with what the transaction _does_, not its wire format:
+
+> "Send **500 USDC** to **GDXKI...ZR9F** (new destination — you haven't paid this address before)"
+
+Decode every operation in the transaction and describe it in the same plain language — a transaction with a payment op _and_ a hidden `setOptions` op must show both, not just the one the user expects.
+
+### 2. Explicit destination confirmation
+
+For unfamiliar destinations, require the user to actively acknowledge the address rather than just seeing it fly by:
+
+- Show the full address, not a truncated `GDXK...ZR9F` — truncation is exactly what a lookalike-address attack exploits.
+- Consider requiring the user to confirm the first and last several characters against a source they trust (e.g. a QR code they scanned, or copy-paste with a visible clipboard-source indicator) rather than typing blind.
+
+### 3. Risk-specific callouts
+
+Attach a specific, human-readable warning for whatever triggered the ceremony — not a generic "this is important" banner:
+
+- New destination → "You've never sent to this address before."
+- Signer/threshold change → "This changes who can control your account. Review carefully."
+- No expiration → "This transaction has no expiration — it will remain valid indefinitely once signed."
+
+### 4. A deliberate final action
+
+The final confirm should require an action that can't be triggered by reflexive tapping — a slide-to-confirm gesture, a short hold-to-confirm, or (for the highest-risk operations) re-entering a PIN/biometric even if the session is already unlocked. The goal is to interrupt the "I've tapped confirm a hundred times today" muscle memory.
+
+### 5. Post-sign receipt
+
+After submission, show a receipt with the same plain-language summary and a link to view the transaction on an explorer — this closes the loop and gives the user a paper trail if something later looks wrong.
+
+## Friction vs. Safety
+
+The ceremony's cost is real: every extra step is a chance for a legitimate user to bail, get confused, or contact support. Calibrate deliberately:
+
+| Signal strength                                                    | Ceremony weight                                                                             |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
+| Routine payment, known destination, normal fee                     | No ceremony — single-tap confirm                                                            |
+| Elevated value OR new destination (not both)                       | Plain-language summary + risk callout, standard confirm                                     |
+| Elevated value AND new destination, or any signer/threshold change | Full ceremony: summary, explicit destination confirm, risk callout, deliberate final action |
+
+Two failure modes to avoid:
+
+- **Ceremony fatigue.** If routine activity keeps triggering the full ceremony (threshold set too low, address book not being consulted), users learn to blow through it without reading — which defeats the entire purpose. Tune thresholds against real usage data, not a guess.
+- **False confidence from partial ceremonies.** Showing a plain-language summary without decoding _every_ operation in a multi-op transaction is worse than no summary — it tells the user "you've reviewed this" when they've only reviewed part of it.
+
+## Worked Example
+
+A wallet detects a `setOptions` operation that raises another account's signer weight to match the medium threshold, effectively adding co-signing power:
+
+```
+┌─────────────────────────────────────────────┐
+│  Review Transaction                          │
+│                                               │
+│  ⚠️  This changes who can control your       │
+│      account.                                │
+│                                               │
+│  Add signer                                  │
+│  GDNEW...F82Q  (new signer — not previously  │
+│                 authorized on this account)   │
+│  Weight: 5                                    │
+│                                               │
+│  After this change, this signer combined     │
+│  with your device key would meet your        │
+│  medium threshold (10) and could authorize   │
+│  payments without your confirmation.          │
+│                                               │
+│  [ Type "ADD SIGNER" to confirm ]            │
+│  ______________________                      │
+│                                               │
+│         [ Cancel ]      [ Confirm ]          │
+└─────────────────────────────────────────────┘
+```
+
+The "type to confirm" step here is intentionally heavier than a slide gesture — signer changes are one of the few operations where the cost of a mistake (permanent loss of exclusive control) justifies the extra friction.
+
+## Verifying the Guide
+
+- Render the worked example's mockup against a real decoded `setOptions` transaction on testnet and confirm the summary text matches the operation's actual effect.
+- Walk through the threshold table with a routine payment, a new-destination payment, and a signer change, and confirm each renders the ceremony weight the table specifies.

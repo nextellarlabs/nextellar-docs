@@ -1,0 +1,331 @@
+---
+title: Cross-Contract Calls in Soroban
+description: How to invoke one Soroban contract from another, propagate authorization across contract boundaries, and manage the resource footprint of cross-contract interactions.
+date: 2026-07-27
+---
+
+# Cross-Contract Calls in Soroban
+
+Soroban contracts can call other contracts at runtime. This lets you compose behaviour across independently deployed contracts — for example, a DEX contract calling a token contract to transfer funds, or a governance contract calling a treasury contract to execute a proposal.
+
+This guide covers the two invocation surfaces (client-side and host-side), how authorization propagates across contract boundaries, footprint implications, and a minimal worked example.
+
+---
+
+## Two invocation surfaces
+
+| Surface | Where the call originates | Typical use |
+|---|---|---|
+| **Client invocation** | JavaScript/TypeScript client via Soroban RPC | Orchestrating multiple contracts from a dApp |
+| **Host invocation** | Inside a Soroban contract (Rust) calling another contract's interface | Composing contract logic on-chain |
+
+Both surfaces ultimately result in contract execution inside the Soroban host VM — the difference is where the call is initiated and how authorization is established.
+
+---
+
+## Client invocation
+
+From a Nextellar app, use `useSorobanContract` to call a contract that internally invokes other contracts. The client builds and submits a single transaction; the cross-contract calls happen inside the VM during execution.
+
+```typescript
+import { useSorobanContract } from '@/hooks/useSorobanContract';
+
+const DEX_CONTRACT = 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQAHHXK3AWCM';
+
+function SwapTokens() {
+  const { buildInvokeXDR, submitSignedXDR } = useSorobanContract({
+    contractId: DEX_CONTRACT,
+    network: 'TESTNET',
+  });
+
+  const handleSwap = async () => {
+    // The DEX contract will internally call the token contract to
+    // transfer funds — this is a cross-contract call inside the VM.
+    const xdr = await buildInvokeXDR('swap', [
+      userAddress,
+      tokenAAddress,
+      tokenBAddress,
+      amountIn,
+      minAmountOut,
+    ]);
+
+    const signed = await wallet.signTransaction(xdr);
+    const result = await submitSignedXDR(signed);
+
+    if (result.success) {
+      console.log('Swap confirmed:', result.txHash);
+    }
+  };
+
+  return <button onClick={handleSwap}>Swap</button>;
+}
+```
+
+The client submits one transaction. Everything that happens inside `swap` — including calls to the token contract — runs atomically within that transaction. If any nested call fails, the entire transaction is rolled back.
+
+### Simulating cross-contract calls
+
+Always simulate before submitting. The simulation result reflects the **complete** resource usage including all nested contract calls:
+
+```typescript
+const { callFunction } = useSorobanContract({ contractId: DEX_CONTRACT });
+
+// callFunction uses simulateTransaction internally
+// The returned footprint covers every contract touched by the call chain
+const preview = await callFunction('get_swap_quote', [
+  tokenAAddress,
+  tokenBAddress,
+  amountIn,
+]);
+console.log('Expected output:', preview);
+```
+
+See [useSorobanContract](/docs/hooks/use-soroban-contract) for the full hook API.
+
+---
+
+## Host invocation
+
+Inside a Soroban contract written in Rust, you call another contract by obtaining a reference to it via `ContractClient` (generated from the contract's interface) or by using the low-level `env.invoke_contract` API.
+
+### Using a generated client
+
+The recommended pattern is to import the other contract's client type. When the token contract's interface is available as a crate or inlined, use `token::Client`:
+
+```rust
+use soroban_sdk::{contract, contractimpl, Address, Env, token};
+
+#[contract]
+pub struct DexContract;
+
+#[contractimpl]
+impl DexContract {
+    /// Swaps token_a for token_b.
+    /// The caller must have pre-authorized this contract to spend `amount_in`.
+    pub fn swap(
+        env: Env,
+        caller: Address,
+        token_a: Address,
+        token_b: Address,
+        amount_in: i128,
+        min_out: i128,
+    ) -> i128 {
+        // Require the caller to authorize this invocation
+        caller.require_auth();
+
+        // Cross-contract call: transfer token_a from caller to this contract
+        let token_a_client = token::Client::new(&env, &token_a);
+        token_a_client.transfer(&caller, &env.current_contract_address(), &amount_in);
+
+        // ... compute amount_out via AMM logic ...
+        let amount_out: i128 = compute_output(&env, amount_in);
+
+        assert!(amount_out >= min_out, "Slippage exceeded");
+
+        // Cross-contract call: transfer token_b from this contract to caller
+        let token_b_client = token::Client::new(&env, &token_b);
+        token_b_client.transfer(&env.current_contract_address(), &caller, &amount_out);
+
+        amount_out
+    }
+}
+```
+
+### Using env.invoke_contract directly
+
+When you do not have a typed client, call the contract generically:
+
+```rust
+use soroban_sdk::{symbol_short, vec, Address, Env, Val};
+
+fn call_transfer(env: &Env, token: &Address, from: &Address, to: &Address, amount: i128) {
+    env.invoke_contract::<()>(
+        token,
+        &symbol_short!("transfer"),
+        vec![
+            env,
+            from.into_val(env),
+            to.into_val(env),
+            amount.into_val(env),
+        ],
+    );
+}
+```
+
+`invoke_contract` is lower-level and does not give you compile-time type safety, but it works when the callee's interface is not available at compile time.
+
+---
+
+## Auth propagation
+
+Authorization is the most important thing to understand about cross-contract calls. Soroban uses a **call stack authorization** model.
+
+### How it works
+
+When contract A calls contract B, B can check `caller.require_auth()`. At this point the Soroban host checks whether the original transaction signer (the user) has authorized contract B to act on their behalf **in the context of this call chain**.
+
+For this to work the user's wallet must sign an authorization entry that covers the full call chain — not just the top-level contract.
+
+### Authorization entries
+
+When you build an invocation that involves cross-contract calls, the Soroban SDK automatically generates the required authorization entries during simulation. The `buildInvokeXDR` call in the hook handles this:
+
+```typescript
+// The returned XDR already contains auth entries for all nested calls
+const xdr = await buildInvokeXDR('swap', [caller, tokenA, tokenB, amount, minOut]);
+
+// The wallet signs the envelope AND all auth entries inside it
+const signed = await wallet.signTransaction(xdr);
+```
+
+The wallet extension (Freighter, etc.) shows the user all contracts they are authorizing before signing — including nested ones.
+
+### require_auth vs require_auth_for_args
+
+Use `require_auth_for_args` when you want to authorize a specific subset of arguments rather than the full invocation. This is common in token contracts to authorize a specific spend amount:
+
+```rust
+// Authorize only this specific transfer — not any transfer by this contract
+caller.require_auth_for_args(
+    (token_a.clone(), env.current_contract_address(), amount_in).into_val(&env)
+);
+```
+
+### Cross-contract auth pitfalls
+
+- **Do not use `require_auth` inside a read-only simulation call.** Auth checks fail in simulation unless the transaction includes valid auth entries.
+- **Each contract in the call chain needs its own auth entry** if it calls `require_auth`. The simulation step generates all required entries automatically — do not strip them when building the final transaction.
+- **Contracts cannot forge auth for other contracts.** Contract A cannot authorize actions on behalf of the user at contract B unless the user's signature explicitly covers that.
+
+---
+
+## Footprint and resource implications
+
+Every contract touched in a cross-contract call chain contributes to the transaction's resource footprint. The limits apply to the **entire** execution, not per contract:
+
+| Resource | Applies to |
+|---|---|
+| Instructions | Sum of all CPU instructions across all contracts in the chain |
+| Read bytes | All ledger entries read by any contract in the chain |
+| Write bytes | All ledger entries written by any contract in the chain |
+| Ledger entry count | Every unique key accessed across the full call chain |
+
+A chain of three contracts can easily approach the instruction or read-byte limit even if each individual contract is lean. Always simulate the full call — not just the top-level function — before submitting.
+
+See [Optimizing Transaction Sizes](/docs/guides/optimizing-transaction-sizes) for strategies to reduce footprint.
+
+---
+
+## Minimal worked example
+
+A token approval + transfer pattern: the user approves a spending contract to move tokens on their behalf, then the spending contract calls the token contract to execute the transfer.
+
+### Contract side (Rust)
+
+```rust
+use soroban_sdk::{contract, contractimpl, Address, Env, token};
+
+#[contract]
+pub struct SpendingContract;
+
+#[contractimpl]
+impl SpendingContract {
+    /// Pull `amount` of `token` from `user` into this contract.
+    /// The user must authorize this invocation (wallet signs the auth entry).
+    pub fn pull_payment(env: Env, user: Address, token: Address, amount: i128) {
+        // Require the user to authorize this specific call
+        user.require_auth();
+
+        // Cross-contract call to the token contract
+        let client = token::Client::new(&env, &token);
+        client.transfer(&user, &env.current_contract_address(), &amount);
+    }
+}
+```
+
+### Client side (TypeScript)
+
+```typescript
+import { useSorobanContract } from '@/hooks/useSorobanContract';
+
+const SPENDING_CONTRACT = 'CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4';
+const TOKEN_CONTRACT    = 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQAHHXK3AWCM';
+
+function PullPaymentButton({ userAddress }: { userAddress: string }) {
+  const { buildInvokeXDR, submitSignedXDR } = useSorobanContract({
+    contractId: SPENDING_CONTRACT,
+    network: 'TESTNET',
+  });
+
+  const handlePull = async () => {
+    // buildInvokeXDR simulates first and attaches auth entries for:
+    //   1. SpendingContract.pull_payment (user authorizes the top call)
+    //   2. token::transfer inside pull_payment (propagated automatically)
+    const xdr = await buildInvokeXDR('pull_payment', [
+      userAddress,
+      TOKEN_CONTRACT,
+      100n,            // amount as BigInt for i128
+    ]);
+
+    // Wallet signs all auth entries in one step
+    const signed = await wallet.signTransaction(xdr);
+    const result = await submitSignedXDR(signed);
+
+    if (result.success) {
+      console.log('Payment pulled:', result.txHash);
+    }
+  };
+
+  return <button onClick={handlePull}>Pay 100 tokens</button>;
+}
+```
+
+The user signs one transaction. Both the `pull_payment` call and the nested `transfer` call are authorized in that single signature.
+
+---
+
+## Error handling
+
+Cross-contract errors surface as a `HostError` in the simulation or submission result. The error includes the contract that failed and the error code it returned.
+
+```typescript
+try {
+  const xdr = await buildInvokeXDR('swap', [caller, tokenA, tokenB, amount, minOut]);
+  const signed = await wallet.signTransaction(xdr);
+  const result = await submitSignedXDR(signed);
+} catch (err: any) {
+  if (err.message?.includes('HostError')) {
+    // A contract in the call chain threw an error
+    console.error('Contract execution failed:', err.message);
+
+    if (err.message?.includes('InsufficientBalance')) {
+      alert('Not enough token balance to complete the swap');
+    } else if (err.message?.includes('SlippageExceeded')) {
+      alert('Price moved too much — try again with higher slippage tolerance');
+    }
+  }
+}
+```
+
+Common cross-contract error patterns:
+
+| Error | Likely cause |
+|---|---|
+| `HostError: InsufficientBalance` | Token contract rejected transfer — caller balance too low |
+| `HostError: InvalidAuth` | Auth entry missing or covering wrong arguments |
+| `HostError: ContractError(n)` | Callee threw a custom error code `n` |
+| Simulation fails entirely | Footprint too large, or callee contract not deployed |
+
+For hook-level recovery patterns see [Hook Error Handling](/docs/guides/hook-error-handling).
+
+---
+
+## Related docs
+
+- [useSorobanContract](/docs/hooks/use-soroban-contract) — invoking contracts and inspecting simulation results
+- [useSorobanEvents](/docs/hooks/use-soroban-events) — listening to events emitted by contracts in the call chain
+- [Soroban Integration](/docs/integrations/soroban) — RPC endpoints, type conversion, contract patterns
+- [Optimizing Transaction Sizes](/docs/guides/optimizing-transaction-sizes) — managing footprint across contract call chains
+- [Testing Horizon & Soroban](/docs/guides/testing-horizon-soroban) — mocking cross-contract calls in tests
+- [Hook Error Handling](/docs/guides/hook-error-handling) — handling HostError and simulation failures
+- [Glossary](/docs/guides/glossary) — Soroban, XDR, auth, footprint, and other key terms

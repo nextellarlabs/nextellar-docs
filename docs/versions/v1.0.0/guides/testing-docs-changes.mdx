@@ -1,0 +1,211 @@
+---
+title: Testing Documentation Changes
+description: Build, link, sidebar, and visual checks to run before submitting documentation pull requests.
+date: 2026-05-29
+---
+
+# Testing Documentation Changes
+
+Use this guide when you edit MDX pages, navigation, or static assets in the Nextellar docs repository.
+It focuses on **documentation quality checks**, not application unit tests.
+For Vitest setup, see [Testing](/docs/guides/testing).
+
+## Overview
+
+A typical docs PR should pass automated checks and a short manual review.
+Run commands from the repository root after `pnpm install`.
+
+| Check           | Command                 | Requires dev server |
+| --------------- | ----------------------- | ------------------- |
+| Content build   | `pnpm build:content`    | No                  |
+| Formatting      | `pnpm format:check`     | No                  |
+| Lint            | `pnpm lint`             | No                  |
+| Sidebar paths   | `pnpm validate:sidebar` | No                  |
+| Internal links  | `pnpm check:links`      | Yes (`pnpm dev`)    |
+| Full site build | `pnpm build`            | No                  |
+| Visual / search | Browser + `pnpm dev`    | Yes                 |
+
+## Content build check
+
+Validates MDX syntax, frontmatter schema, and Contentlayer code generation.
+
+```bash
+pnpm build:content
+```
+
+### What success looks like
+
+```
+Generated N documents in .contentlayer
+```
+
+### On failure
+
+| Error type                         | What to do                                                                               |
+| ---------------------------------- | ---------------------------------------------------------------------------------------- |
+| Missing `title` in frontmatter     | Add `title` (and preferably `description`) at the top of the MDX file                    |
+| MDX parse error (unclosed JSX tag) | Close all MDX components (`<Tabs>`, `<TabsContent>`, etc.)                               |
+| Invalid import path                | Fix or remove the `import` in the MDX file                                               |
+| Error in an unrelated file         | Fix the reported file or coordinate with maintainers; the build processes all of `docs/` |
+
+Re-run `pnpm build:content` until it exits with code `0`.
+
+## Link check
+
+`pnpm check:links` requests docs URLs from a running local server and reports HTTP status codes.
+
+### Run the check
+
+Terminal 1:
+
+```bash
+pnpm dev
+```
+
+Terminal 2:
+
+```bash
+pnpm check:links
+```
+
+### What success looks like
+
+```
+Passed: N/N
+ALL LINKS VALID!
+```
+
+### On failure
+
+| Symptom                     | What to do                                                                         |
+| --------------------------- | ---------------------------------------------------------------------------------- |
+| `ECONNREFUSED`              | Start `pnpm dev` on port 3000 first                                                |
+| `404` on `/docs/...`        | Confirm the MDX file exists and the href matches the path without `.mdx`           |
+| Wrong host in links         | Use absolute docs paths like `/docs/guides/contributing`, not relative `../` paths |
+| Component-only URLs failing | Ensure `sidebar-validation.json` matches real pages; run `pnpm validate:sidebar`   |
+
+Fix the broken `href` in MDX or `config/sidebar.tsx`, then re-run the check.
+
+## Sidebar validation
+
+Confirms sidebar and TOC entries for component docs point at real files.
+
+```bash
+pnpm validate:sidebar
+```
+
+### On failure
+
+- Remove or fix entries in `config/sidebar.tsx` (and `config/toc.tsx` if applicable) that reference missing `docs/components/*.mdx` files.
+- Add the missing MDX page if the link should exist.
+
+## Format and lint checks
+
+```bash
+pnpm format:check
+pnpm lint
+```
+
+### On failure
+
+| Command             | Fix                                              |
+| ------------------- | ------------------------------------------------ |
+| `pnpm format:check` | Run `pnpm format` to apply Prettier, then commit |
+| `pnpm lint`         | Resolve ESLint issues in reported files          |
+
+## Full production build
+
+Catches Next.js and TypeScript issues that the content build alone may miss.
+
+```bash
+pnpm build
+```
+
+### On failure
+
+- Read the first error in the log; fix the referenced file.
+- If Contentlayer failed inside `pnpm build`, run `pnpm build:content` separately for a clearer MDX error message.
+
+## Visual checks
+
+Automated scripts do not verify layout, images, or MDX components. Review these manually with `pnpm dev`.
+
+### Page rendering
+
+1. Open the page URL (for example `/docs/guides/testing-docs-changes`).
+2. Confirm the title, description, and headings render.
+3. Scroll the full page for broken MDX (raw JSX, empty code blocks).
+
+### Images and diagrams
+
+| Asset type           | Check                                                                              |
+| -------------------- | ---------------------------------------------------------------------------------- |
+| `/public/...` images | Image loads; alt text is meaningful                                                |
+| Mermaid blocks       | Diagram renders after page load (client-side)                                      |
+| Screenshots          | Path matches [Screenshot Workflow](/docs/guides/screenshot-workflow) if applicable |
+
+### Navigation
+
+- New pages appear in `config/sidebar.tsx` when you added an entry.
+- Breadcrumbs and in-page anchor links work.
+
+### Theme
+
+Toggle light and dark mode.
+Confirm code blocks, callouts, and images remain readable.
+
+## Search smoke test
+
+After adding or renaming a page, confirm it is discoverable in the header search.
+
+1. Run `pnpm build:content` and `pnpm dev`.
+2. Press **Cmd+K** or **Ctrl+K**.
+3. Search for a unique word from your page title.
+4. Open the result and confirm the URL is correct.
+
+See [Search Experience](/docs/guides/search) for indexing requirements and troubleshooting.
+
+## Pre-submission checklist
+
+Copy this list into your PR test plan:
+
+```bash
+pnpm build:content
+pnpm format:check
+pnpm lint
+pnpm validate:sidebar
+pnpm build
+```
+
+With `pnpm dev` running in another terminal:
+
+```bash
+pnpm check:links
+```
+
+Manual:
+
+- [ ] Opened changed pages in the browser (light and dark)
+- [ ] Verified new internal links and sidebar entries
+- [ ] Search finds new or renamed pages (if applicable)
+- [ ] Images and diagrams display correctly
+
+## Quick reference on failure
+
+| Failed command          | First step                                                   |
+| ----------------------- | ------------------------------------------------------------ |
+| `pnpm build:content`    | Open the MDX file named in the error; fix frontmatter or JSX |
+| `pnpm check:links`      | Ensure `pnpm dev` is running; fix 404 paths                  |
+| `pnpm validate:sidebar` | Align `config/sidebar.tsx` with files under `docs/`          |
+| `pnpm format:check`     | `pnpm format`                                                |
+| `pnpm lint`             | Fix reported ESLint issues                                   |
+| `pnpm build`            | Fix TypeScript or Next.js error at the top of the log        |
+| Visual issue            | Hard-refresh; confirm `public/` asset path and MDX syntax    |
+
+## Related
+
+- [Contributing to Documentation](/docs/guides/contributing)
+- [Add a New Docs Page](/docs/guides/add-docs-page)
+- [Search Experience](/docs/guides/search)
+- [Editor Setup](/docs/guides/editor-setup)
+- [Testing (Vitest)](/docs/guides/testing)

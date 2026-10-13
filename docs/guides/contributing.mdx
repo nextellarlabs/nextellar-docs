@@ -58,14 +58,14 @@ pnpm build:content
 **Integration with Development**
 
 ```bash
-# Full development build
+## Full development build
 pnpm build          # Runs build:content + next build
 
-# Development server (auto-rebuilds content)
+## Development server (auto-rebuilds content)
 pnpm dev           # Watches for MDX changes
 ```
 
-### When You Must Run the Content Build
+## When You Must Run the Content Build
 
 **Required Scenarios**
 
@@ -164,12 +164,12 @@ Error: Unexpected token in docs/guides/example.mdx:15:3
 
 **Solution**: Check MDX syntax, especially JSX components:
 
-```mdx
-{/* Correct */}
+```markdown
+{/_ Correct _/}
 
 <div className="grid grid-cols-2">Content here</div>
 
-{/* Incorrect - missing closing tag */}
+{/_ Incorrect - missing closing tag _/}
 
 <div className="grid grid-cols-2">
   Content here
@@ -192,10 +192,10 @@ interface DocumentFrontmatter {
 **Link Validation**
 
 ```bash
-# Check all internal links
+## Check all internal links
 pnpm check:links
 
-# Output example
+## Output example
 ✓ Validated 156 internal links
 ✗ Found 3 broken links:
   - /docs/cli/nonexistent (referenced in docs/cli/commands.mdx:45)
@@ -253,24 +253,198 @@ pnpm dev
 2. Run `pnpm build:content` to regenerate navigation
 3. Test navigation in browser
 
+## Validation Scripts
+
+Before submitting a pull request, run the validation scripts to catch common issues. These scripts are designed to run against source files without requiring a dev server.
+
+### check:links
+
+**Purpose**: Validates all internal links in documentation files. Checks that every link target (`/docs/...`) points to an actual documentation file and that anchor links (`#section-name`) exist on their target pages.
+
+**Command**
+
+```bash
+pnpm check:links
+```
+
+**What It Validates**
+
+- All internal links (starting with `/`) point to existing documentation files
+- Anchor links (`#section-name`) match actual headings on target pages
+- Both Markdown link syntax (`[text](url)`) and HTML href attributes
+- Supports links with or without the `/docs` prefix
+
+**Success Output**
+
+```
+🔗 STATIC LINK CRAWLER
+
+Scanning docs directory: <path>/docs
+
+Found 247 documentation files
+
+Validation Results:
+✅ Valid links: 1,247/1,247
+
+🎉 ALL LINKS VALID!
+```
+
+**Failure Output Example**
+
+```
+❌ Broken links: 3
+
+Broken Links Report:
+
+/docs/cli/commands
+  [1] Line 45
+       Link: /docs/components/nonexistent
+       Error: page not found
+       Text: "Example Component"
+
+/docs/guides/contributing
+  [2] Line 128
+       Link: /docs/missing-section
+       Error: page not found
+
+/docs/getting-started/faq
+  [3] Line 87
+       Link: #invalid-anchor
+       Error: anchor '#invalid-anchor' not found on this page
+
+❌ VALIDATION FAILED - 3 broken link(s) found
+```
+
+**How to Fix Broken Links**
+
+1. **Page not found**: Verify the target file exists in `docs/`. Use correct path format: `/docs/section/filename` (without `.mdx` extension)
+2. **Anchor not found**: Ensure the heading exists on the target page. Anchors are auto-generated from markdown headings (spaces → hyphens, lowercase)
+3. **Missing `/docs` prefix**: Links can use `/docs/...` or shortened forms, but must start with `/`
+
+**Prerequisites**
+
+- No dev server needed — runs against source files only
+- Can be run anytime during development
+
+### validate:sidebar
+
+**Purpose**: Validates that all component links in sidebar configuration (`config/sidebar.tsx`) and table of contents (`config/toc.tsx`) match actual component files in `docs/components/`. Ensures navigation references don't break when components are added, renamed, or deleted.
+
+**Command**
+
+```bash
+pnpm validate:sidebar
+```
+
+**What It Validates**
+
+- All component links in `config/sidebar.tsx` point to existing `.mdx` files in `docs/components/`
+- All component links in `config/toc.tsx` point to existing `.mdx` files in `docs/components/`
+- Detects components that exist but aren't listed in navigation
+- Generates a JSON report for CI/automation
+
+**Success Output**
+
+```
+🔍 COMPONENTS INVENTORY (SOURCE OF TRUTH)
+
+VALID (18): button, checkbox, connect-wallet-button, dialog, folder-tree, input, label, menu, nav-menu, note, popover, search-button, select, sidebar, steps, syntax-highlighter, tabs, use-window-size
+
+📋 SIDEBAR CLAIMS
+CLAIMS (2): connect-wallet-button, use-window-size
+
+✅ VALID SIDEBAR LINKS (2):
+  - connect-wallet-button
+  - use-window-size
+
+📋 TOC CLAIMS
+CLAIMS (1): connect-wallet-button
+
+✅ VALID TOC ENTRIES (1):
+  - connect-wallet-button
+
+✅ SUMMARY
+Sidebar: 2/2 valid (100%)
+TOC: 1/1 valid (100%)
+Total broken: 0
+
+🎉 ALL COMPONENT REFERENCES ARE VALID!
+
+💾 sidebar-validation.json updated
+```
+
+**Failure Output Example**
+
+```
+🔍 COMPONENTS INVENTORY (SOURCE OF TRUTH)
+
+VALID (18): button, checkbox, connect-wallet-button, dialog, folder-tree, input, label, menu, nav-menu, note, popover, search-button, select, sidebar, steps, syntax-highlighter, tabs, use-window-size
+
+📋 SIDEBAR CLAIMS
+CLAIMS (3): button, connect-wallet-button, missing-component
+
+❌ BROKEN SIDEBAR LINKS (1):
+  - missing-component
+
+✅ VALID SIDEBAR LINKS (2):
+  - button
+  - connect-wallet-button
+
+❌ SUMMARY
+Sidebar: 2/3 valid (67%)
+Total broken: 1
+
+⚠️  ACTION REQUIRED: Remove broken entries from config files
+```
+
+**How to Fix Broken References**
+
+1. **Component doesn't exist**: Check spelling in `config/sidebar.tsx` and `config/toc.tsx`. Ensure the component file exists in `docs/components/` with matching name
+2. **Recently added component**: If you added a new component but it's not showing in navigation, add its link to `config/sidebar.tsx` or `config/toc.tsx`
+3. **Deleted a component**: Remove the corresponding link from both config files
+
+**Prerequisites**
+
+- No dev server needed — runs against config files and component directory only
+- Can be run anytime during development
+- Generates `sidebar-validation.json` in project root (tracked in git)
+
+**When to Use**
+
+- **Before opening a PR**: Run both scripts to catch issues early
+- **After renaming components**: Always validate sidebar references match new names
+- **When adding new components**: Add to config files, then run to verify
+
+---
+
 ### Pre-Submission Checklist
 
 Before submitting a pull request:
 
 ```bash
-# 1. Build content successfully
+## 1. Build content successfully
 pnpm build:content
 
-# 2. Validate all links
+## 2. Validate all links
 pnpm check:links
 
-# 3. Check formatting
+## 3. Check formatting
 pnpm format:check
 
-# 4. Run linting
+## 4. Run linting
 pnpm lint
 
-# 5. Test full build
+## 5. Test full build
+# 3. Validate sidebar references
+pnpm validate:sidebar
+
+# 4. Check formatting
+pnpm format:check
+
+# 5. Run linting
+pnpm lint
+
+# 6. Test full build
 pnpm build
 ```
 
@@ -282,7 +456,7 @@ For a quick ready-to-use checklist, see [Documentation Contributing Checklist](/
 
 ### File Organization
 
-```
+```text
 docs/
 ├── index.mdx              # Homepage
 ├── getting-started/       # Installation, quick start
@@ -320,8 +494,8 @@ description: 'Clear description for SEO and navigation (50-160 chars)'
 
 ### Component Usage
 
-```mdx
-{/* Use project components for consistency */}
+```markdown
+{/_ Use project components for consistency _/}
 
 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
   <a href="/docs/cli/commands" className="block p-4 border rounded-lg">
@@ -352,6 +526,23 @@ description: 'Clear description for SEO and navigation (50-160 chars)'
 - Clear `.contentlayer` directory and rebuild.
 - Restart development server.
 - Check Node.js version compatibility (requires Node 18+).
+
+---
+
+## Stellar Wave Program & Contributor Rewards Payouts
+
+Nextellar participates in the **Stellar Wave Program** organized in collaboration with [Drips Network](https://www.drips.network/wave). The program provides decentralized, transparent rewards for open-source contributions.
+
+### How Rewards Work
+
+1. **Issue Application & Assignment**:
+   Contributors apply to open Wave issues directly on GitHub using the Drips Wave bot (`drips-wave`). Maintainers review applications and assign issues with established difficulty tiers (e.g., Easy: 100 pts, Medium: 150 pts, Hard: 200 pts).
+2. **Review & Points Accrual**:
+   Upon submitting a linked pull request before the cycle due date and receiving maintainer approval, points are awarded to the contributor's account.
+3. **Automated On-Chain Reward Distribution**:
+   At the close of each Wave cycle, rewards from the allocated reward pool are distributed automatically on-chain via smart contracts directly to contributors' registered addresses.
+4. **Verifying Payouts & Proof of Payment**:
+   Contributors can track point accumulation, cycle settlements, and on-chain transaction hashes directly on the [Drips Wave Platform](https://www.drips.network/wave) and verify transaction execution on Stellar/EVM network block explorers.
 
 ---
 

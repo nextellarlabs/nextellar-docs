@@ -1,0 +1,272 @@
+---
+title: Building a SEP-31 Sender Client
+description: A complete walkthrough for building the sending side of a SEP-31 cross-border payment — collecting sender/receiver info, running the transfer flow against a receiving anchor, and handling compliance touchpoints.
+date: 2026-08-26
+---
+
+# Building a SEP-31 Sender Client
+
+SEP-31 defines a direct, API-to-API payment flow between two regulated entities — a **sending anchor** and a **receiving anchor** — for cross-border payments where the end customer of the sending side never talks to the receiving anchor directly. This is the protocol behind "send money to a bank account in another country" flows, where the receiving anchor handles the off-chain payout (bank transfer, mobile money, cash pickup) after receiving a Stellar payment. This tutorial builds the **sending side**: the client your application runs to discover a receiving anchor's requirements, submit sender/receiver KYC, request a quote, and execute the on-chain leg of the transfer.
+
+---
+
+## 1. Where SEP-31 Sits Relative to SEP-12 and SEP-38
+
+SEP-31 doesn't carry KYC fields or pricing itself — it composes two other SEPs:
+
+| SEP    | Role in the flow                                                                                                                              |
+| ------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| SEP-12 | Collects and submits sender and receiver KYC fields to the receiving anchor's `/customer` endpoint                                            |
+| SEP-38 | Requests a firm quote for the asset conversion (if the receiving anchor supports cross-asset payouts)                                         |
+| SEP-31 | Orchestrates the transaction: registers the payment intent, references the SEP-12 customer and SEP-38 quote, and tracks status through payout |
+
+A sender client needs all three integrated — SEP-31 alone only gets you a `transaction_id` and a Stellar destination to pay; it can't tell you what information the receiving anchor needs or what the receiver will actually get.
+
+---
+
+## 2. Discovering Receiving Anchor Capabilities
+
+Start from the receiving anchor's `stellar.toml`, which points to its `DIRECT_PAYMENT_SERVER`:
+
+```typescript
+import { StellarToml } from '@stellar/stellar-sdk';
+
+const toml = await StellarToml.Resolver.resolve('receiving-anchor.example.com');
+const sep31Server = toml.DIRECT_PAYMENT_SERVER;
+if (!sep31Server) {
+  throw new Error('Anchor does not advertise a SEP-31 endpoint');
+}
+```
+
+Then call `GET /info`, authenticated with a SEP-10 token (SEP-31 requires the sending anchor to authenticate as itself, not as an end user — this is anchor-to-anchor, not anchor-to-customer):
+
+```typescript
+const infoRes = await fetch(`${sep31Server}/info`, {
+  headers: { Authorization: `Bearer ${sep10Token}` },
+});
+const info = await infoRes.json();
+```
+
+The response lists, per supported destination asset, the required `sender_sep12_type` and `receiver_sep12_type` (which SEP-12 KYC field sets apply to each side), any `fields` specific to that corridor (e.g. a required transfer purpose code), and whether `quotes_supported` / `quotes_required` is set. Branch your client's KYC and quoting logic off this response — required fields vary by receiving anchor and by destination country, and a client hardcoded to one anchor's field set will break against another.
+
+---
+
+## 3. Collecting Sender and Receiver Information
+
+SEP-31 needs KYC for **both** parties, submitted via SEP-12 to the receiving anchor before the transaction is created:
+
+```typescript
+async function submitCustomer(
+  sep31Server: string,
+  sep10Token: string,
+  role: 'sender' | 'receiver',
+  fields: Record<string, string>
+): Promise<string> {
+  const res = await fetch(`${sep31Server}/customer`, {
+    method: 'PUT',
+    headers: {
+      Authorization: `Bearer ${sep10Token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      ...fields,
+      type:
+        role === 'sender' ? info.sender_sep12_type : info.receiver_sep12_type,
+    }),
+  });
+  const body = await res.json();
+  return body.id; // SEP-12 customer id — reference this in the SEP-31 POST /transactions call
+}
+
+const senderId = await submitCustomer(sep31Server, sep10Token, 'sender', {
+  first_name: 'Jane',
+  last_name: 'Doe',
+  email_address: 'jane@example.com',
+});
+
+const receiverId = await submitCustomer(sep31Server, sep10Token, 'receiver', {
+  first_name: 'John',
+  last_name: 'Smith',
+  bank_account_number: '0123456789',
+  bank_number: 'ABCDEF01',
+});
+```
+
+**Important distinction:** the _sending anchor_ is your application, authenticated to the receiving anchor via its own SEP-10 token — not the end customer's. The sender and receiver KYC data belongs to your customers, but your service submits it on their behalf. Never let the receiver's bank details or the sender's PII sit in client-side state longer than needed to make this call; SEP-31 exists specifically so the receiving anchor (not the sending anchor's counterpart systems) is the one holding the regulated payout relationship.
+
+If `GET /customer` (checked before `PUT`) returns `status: "NEEDS_INFO"`, the response includes a `fields` object describing exactly what's missing — surface those field names to your KYC form rather than guessing, since required fields differ by corridor and by whether the receiving anchor's compliance provider flags a transaction for enhanced due diligence.
+
+---
+
+## 4. Requesting a Quote (When Supported)
+
+If `info.quotes_supported` is true for the corridor, get a firm quote before creating the transaction so the sender knows exactly what the receiver will get after conversion and anchor fees:
+
+```typescript
+const quoteRes = await fetch(`${quoteServer}/quote`, {
+  method: 'POST',
+  headers: {
+    Authorization: `Bearer ${sep10Token}`,
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    context: 'sep31',
+    sell_asset:
+      'stellar:USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
+    buy_asset: 'iso4217:NGN',
+    sell_amount: '500',
+  }),
+});
+const quote = await quoteRes.json();
+```
+
+The returned `quote.id` gets referenced in the SEP-31 transaction creation call below — this locks in the rate for `quote.expires_at`. See the companion SEP-38 quotes guide for expiry handling and the full request/response shape; the short version for SEP-31 purposes is: **request the quote after both customers pass KYC, not before**, since a receiving anchor may reject a transaction referencing a quote if the sender or receiver hasn't been approved yet, and quotes typically expire on the order of minutes.
+
+---
+
+## 5. Creating the SEP-31 Transaction
+
+```typescript
+const txRes = await fetch(`${sep31Server}/transactions`, {
+  method: 'POST',
+  headers: {
+    Authorization: `Bearer ${sep10Token}`,
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    amount: '500',
+    asset_code: 'USDC',
+    asset_issuer: 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
+    quote_id: quote?.id,
+    sender_id: senderId,
+    receiver_id: receiverId,
+    fields: {
+      transaction: {
+        // Corridor-specific fields from GET /info, e.g. transfer purpose
+        purpose_of_payment: 'family_support',
+      },
+    },
+  }),
+});
+const tx = await txRes.json();
+// tx.id            — SEP-31 transaction id, use it to poll status
+// tx.stellar_account_id — where to send the Stellar payment
+// tx.stellar_memo_type / tx.stellar_memo — memo required to attribute the payment to this transaction
+```
+
+The receiving anchor responds with a Stellar account and, almost always, a required memo. **The memo is not optional decoration** — receiving anchors typically pool incoming payments into a single collection account and rely on the memo to attribute a payment to the correct SEP-31 transaction and, transitively, the correct receiver. Sending the payment without the specified memo (or with the wrong type — `text`, `id`, or `hash`) means the receiving anchor cannot reconcile the payment, and the payout to the receiver will stall or fail even though the funds arrived on-chain.
+
+---
+
+## 6. Executing the On-Chain Payment
+
+```typescript
+import {
+  Asset,
+  Operation,
+  TransactionBuilder,
+  BASE_FEE,
+  Networks,
+  Memo,
+} from '@stellar/stellar-sdk';
+
+const account = await horizonServer.loadAccount(senderPublicKey);
+
+const memo =
+  tx.stellar_memo_type === 'hash'
+    ? Memo.hash(Buffer.from(tx.stellar_memo, 'base64'))
+    : tx.stellar_memo_type === 'id'
+      ? Memo.id(tx.stellar_memo)
+      : Memo.text(tx.stellar_memo);
+
+const payment = new TransactionBuilder(account, {
+  fee: BASE_FEE,
+  networkPassphrase: Networks.PUBLIC,
+})
+  .addOperation(
+    Operation.payment({
+      destination: tx.stellar_account_id,
+      asset: new Asset(
+        'USDC',
+        'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN'
+      ),
+      amount: '500',
+    })
+  )
+  .addMemo(memo)
+  .setTimeout(180)
+  .build();
+
+payment.sign(senderKeypair);
+await horizonServer.submitTransaction(payment);
+```
+
+Use a generous `setTimeout` (SEP-31 payouts are not instant, but the _Stellar leg_ still needs to submit within its time bounds) and confirm the memo type/value match the transaction response exactly — a mismatched memo is the most common integration bug in SEP-31 clients and is silent on the Stellar side (the payment succeeds; only the receiving anchor's reconciliation fails).
+
+---
+
+## 7. Polling Transaction Status
+
+```typescript
+async function pollSep31Status(
+  sep31Server: string,
+  sep10Token: string,
+  txId: string
+) {
+  for (let i = 0; i < 30; i++) {
+    const res = await fetch(`${sep31Server}/transactions/${txId}`, {
+      headers: { Authorization: `Bearer ${sep10Token}` },
+    });
+    const { transaction } = await res.json();
+
+    if (transaction.status === 'completed') return transaction;
+    if (transaction.status === 'error') {
+      throw new Error(
+        `SEP-31 transaction failed: ${transaction.status_eta ?? 'no detail provided'}`
+      );
+    }
+    if (transaction.status === 'pending_info_update') {
+      // Receiving anchor needs corrected/additional fields — see required_info_updates
+      throw new Error(
+        `Anchor requires updated info: ${JSON.stringify(transaction.required_info_updates)}`
+      );
+    }
+    await new Promise((r) => setTimeout(r, 5000));
+  }
+  throw new Error('Timed out waiting for SEP-31 transaction to complete');
+}
+```
+
+Status values worth branching on explicitly: `pending_sender` (waiting on your side, e.g. the on-chain payment hasn't landed yet), `pending_receiver` (anchor is processing the payout), `pending_external` (payout initiated, awaiting confirmation from a downstream rail like a bank), `pending_info_update` (compliance needs more from sender or receiver), and terminal `completed` or `error`. Don't collapse these into a generic "processing" state in the UI — `pending_info_update` in particular requires user action and will never resolve on its own.
+
+---
+
+## 8. Compliance Touchpoints
+
+| Touchpoint                 | What to handle                                                                                                                                                                                                           |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Sender KYC rejected        | `GET /customer` returns `status: "REJECTED"` — the sending anchor's own compliance provider or the receiving anchor's did not approve; do not retry with the same data                                                   |
+| Receiver KYC incomplete    | Transaction stays `pending_info_update`; surface `required_info_updates` fields back to whoever is collecting receiver details                                                                                           |
+| Transaction amount limits  | `GET /info` includes `min_amount`/`max_amount` per asset — validate client-side before creating the transaction to avoid a rejected `POST /transactions`                                                                 |
+| Sanctions/travel-rule data | Some corridors require additional originator/beneficiary fields beyond basic KYC (address, source of funds) — these appear as extra `fields` in `GET /info` and must be collected before transaction creation, not after |
+| Quote expiry mid-flow      | If KYC takes long enough that the SEP-38 quote expires before `POST /transactions`, request a fresh quote — an expired `quote_id` is rejected by the receiving anchor                                                    |
+
+None of these are optional error handling — a sender client that only handles the happy path will fail in production the first time a receiving anchor's compliance provider flags a transaction, which happens routinely for cross-border payments above small thresholds.
+
+---
+
+## Summary
+
+- SEP-31 orchestrates a transfer but delegates KYC to SEP-12 and pricing to SEP-38 — a real sender client integrates all three.
+- Submit sender **and** receiver KYC via `PUT /customer` before creating the transaction; branch required fields off `GET /info` rather than hardcoding them.
+- Request a SEP-38 quote after KYC passes, not before, and re-quote if it expires during the flow.
+- The Stellar memo returned in `POST /transactions` is required for the receiving anchor to reconcile the payment — get its type and value exactly right.
+- Poll `GET /transactions/:id` and handle every status explicitly, especially `pending_info_update`, which needs user action to resolve.
+
+---
+
+## Related
+
+- [Anchor Onboarding with KYC](/docs/guides/anchor-onboarding-kyc) - SEP-6 and SEP-12 fundamentals
+- [SEP-38 Quotes Integration](/routes-d/909-sep38-quotes-integration-guide) - Requesting and honoring firm quotes
+- [Fiat Onramp Tutorial](/docs/guides/fiat-onramp-tutorial) - The deposit-side counterpart flow

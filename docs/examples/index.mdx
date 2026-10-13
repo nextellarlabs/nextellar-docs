@@ -12,19 +12,113 @@ For step-by-step guides, see [Guides](/docs/guides).
 
 ---
 
-## Complete Applications
+## Browse by Tag
 
-<div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-6">
-  <a
-    href="/examples/payment-app"
-    className="block p-4 border rounded-lg hover:border-primary no-underline"
+<div className="flex flex-wrap gap-2 my-6" id="tag-filters">
+  <button
+    className="px-3 py-1 text-sm bg-primary text-primary-foreground rounded-full"
+    data-tag="all"
+    onClick={(e) => filterExamples(e.currentTarget.dataset.tag)}
   >
-    <h4 className="font-semibold">Payment App</h4>
-    <span className="text-sm text-muted-foreground">
-      Complete payment flow with wallet connection, balance display, and
-      transaction sending
-    </span>
-  </a>
+    All
+  </button>
+  <button
+    className="px-3 py-1 text-sm border rounded-full hover:bg-accent"
+    data-tag="payments"
+    onClick={(e) => filterExamples(e.currentTarget.dataset.tag)}
+  >
+    Payments
+  </button>
+  <button
+    className="px-3 py-1 text-sm border rounded-full hover:bg-accent"
+    data-tag="wallet"
+    onClick={(e) => filterExamples(e.currentTarget.dataset.tag)}
+  >
+    Wallet
+  </button>
+  <button
+    className="px-3 py-1 text-sm border rounded-full hover:bg-accent"
+    data-tag="soroban"
+    onClick={(e) => filterExamples(e.currentTarget.dataset.tag)}
+  >
+    Soroban
+  </button>
+  <button
+    className="px-3 py-1 text-sm border rounded-full hover:bg-accent"
+    data-tag="trustlines"
+    onClick={(e) => filterExamples(e.currentTarget.dataset.tag)}
+  >
+    Trustlines
+  </button>
+  <button
+    className="px-3 py-1 text-sm border rounded-full hover:bg-accent"
+    data-tag="smart-contracts"
+    onClick={(e) => filterExamples(e.currentTarget.dataset.tag)}
+  >
+    Smart Contracts
+  </button>
+  <button
+    className="px-3 py-1 text-sm border rounded-full hover:bg-accent"
+    data-tag="complete-app"
+    onClick={(e) => filterExamples(e.currentTarget.dataset.tag)}
+  >
+    Complete App
+  </button>
+  <button
+    className="px-3 py-1 text-sm border rounded-full hover:bg-accent"
+    data-tag="testnet"
+    onClick={(e) => filterExamples(e.currentTarget.dataset.tag)}
+  >
+    Testnet
+  </button>
+</div>
+
+---
+
+## Example Applications
+
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-6" id="examples-grid">
+  <article
+    className="example-card block p-4 border rounded-lg hover:border-primary no-underline transition-colors"
+    data-tags='["payments","wallet","complete-app","testnet"]'
+  >
+    <div className="flex items-center gap-2 mb-2">
+      <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 rounded">Complete App</span>
+      <span className="text-xs px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 rounded">Testnet</span>
+    </div>
+    <h4 className="font-semibold text-lg mb-2">Payment Application</h4>
+    <p className="text-sm text-muted-foreground mb-3">
+      Complete payment flow with wallet connection, balance display, transaction sending, history, and QR code receiving.
+    </p>
+    <div className="flex flex-wrap gap-1 text-xs">
+      <span className="px-2 py-0.5 border rounded">payments</span>
+      <span className="px-2 py-0.5 border rounded">wallet</span>
+      <span className="px-2 py-0.5 border rounded">complete-app</span>
+      <span className="px-2 py-0.5 border rounded">testnet</span>
+    </div>
+  </article>
+
+  <article
+    className="example-card block p-4 border rounded-lg hover:border-primary no-underline transition-colors"
+    data-tags='["payments","trustlines","soroban","complete-app","testnet","smart-contracts"]'
+  >
+    <div className="flex items-center gap-2 mb-2">
+      <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 rounded">Complete App</span>
+      <span className="text-xs px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 rounded">Testnet</span>
+    </div>
+    <h4 className="font-semibold text-lg mb-2">Complete dApp: Payments, Trustlines & Soroban</h4>
+    <p className="text-sm text-muted-foreground mb-3">
+      End-to-end multi-step dApp combining wallet connection, trustline establishment, payment execution, and Soroban contract invocation.
+    </p>
+    <div className="flex flex-wrap gap-1 text-xs">
+      <span className="px-2 py-0.5 border rounded">payments</span>
+      <span className="px-2 py-0.5 border rounded">trustlines</span>
+      <span className="px-2 py-0.5 border rounded">soroban</span>
+      <span className="px-2 py-0.5 border rounded">complete-app</span>
+      <span className="px-2 py-0.5 border rounded">testnet</span>
+      <span className="px-2 py-0.5 border rounded">smart-contracts</span>
+    </div>
+  </article>
 </div>
 
 ---
@@ -33,7 +127,7 @@ For step-by-step guides, see [Guides](/docs/guides).
 
 ### Connect to Wallet
 
-````tsx
+```tsx
 import { useWallet } from '@/contexts';
 
 function ConnectButton() {
@@ -135,4 +229,35 @@ function ContractReader() {
 - **Token Swap**: DEX integration with offer management
 - **DAO Voting**: On-chain governance with Soroban
 - **Multi-Sig Wallet**: Shared account management
-````
+
+<script
+  dangerouslySetInnerHTML={{
+    __html: `
+function filterExamples(tag) {
+  const buttons = document.querySelectorAll('#tag-filters button');
+  buttons.forEach(btn => {
+    if (btn.dataset.tag === tag) {
+      btn.className = 'px-3 py-1 text-sm bg-primary text-primary-foreground rounded-full';
+    } else {
+      btn.className = 'px-3 py-1 text-sm border rounded-full hover:bg-accent';
+    }
+  });
+
+  const cards = document.querySelectorAll('.example-card');
+  cards.forEach(card => {
+    const tags = JSON.parse(card.dataset.tags || '[]');
+    if (tag === 'all' || tags.includes(tag)) {
+      card.style.display = 'block';
+    } else {
+      card.style.display = 'none';
+    }
+  });
+}
+window.filterExamples = filterExamples;
+`,
+  }}
+/>
+---
+<p className="text-sm text-center text-muted-foreground mt-8">
+  <a href="#"> Back to top</a>
+</p>

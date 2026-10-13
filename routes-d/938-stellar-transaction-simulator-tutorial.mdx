@@ -1,0 +1,135 @@
+---
+title: Simulating Stellar Transactions Before Submission
+description: How to simulate a Soroban transaction before submitting it, and how to read the simulation result to catch problems before paying a fee.
+---
+
+# Simulating Stellar Transactions Before Submission
+
+Every Soroban transaction should be simulated before it's submitted. Simulation runs the contract call against current ledger state without committing anything, and returns the resource costs, the return value, and the required authorizations — all the information you need to catch a problem (insufficient auth, a reverting call, an unexpectedly expensive footprint) before you spend a real fee finding out the hard way.
+
+---
+
+## Simulator setup
+
+### Building the transaction to simulate
+
+Simulation needs a real, well-formed transaction envelope — it's not a separate "preview" API with its own request shape, it's a step in the normal transaction lifecycle:
+
+```typescript
+import {
+  TransactionBuilder,
+  Contract,
+  BASE_FEE,
+  Networks,
+  Server,
+} from '@stellar/stellar-sdk';
+
+const rpc = new Server('https://soroban-testnet.stellar.org');
+const contract = new Contract('CCONTRACTID...');
+
+async function buildTransactionToSimulate(sourcePublicKey: string) {
+  const sourceAccount = await rpc.getAccount(sourcePublicKey);
+
+  return new TransactionBuilder(sourceAccount, {
+    fee: BASE_FEE,
+    networkPassphrase: Networks.TESTNET,
+  })
+    .addOperation(contract.call('transfer', ...toScVals([recipient, amount])))
+    .setTimeout(30)
+    .build();
+}
+```
+
+### Running the simulation
+
+```typescript
+async function simulate(sourcePublicKey: string) {
+  const tx = await buildTransactionToSimulate(sourcePublicKey);
+  const simulation = await rpc.simulateTransaction(tx);
+  return simulation;
+}
+```
+
+`simulateTransaction` does not require the transaction to be signed — simulation happens before signing, which is exactly the point: you want to know whether it's worth signing at all.
+
+---
+
+## Interpreting simulation results
+
+The response has three parts worth checking before you move on to signing and submitting.
+
+### 1. Did it succeed?
+
+```typescript
+if ('error' in simulation) {
+  // Simulation itself failed — the call would revert if submitted.
+  console.error('Simulation failed:', simulation.error);
+  return;
+}
+```
+
+A simulation error here means the contract call would fail on-chain too (assuming ledger state doesn't change between now and submission) — this is the cheapest place to catch a bug, before any fee is spent.
+
+### 2. What does it return?
+
+```typescript
+import { scValToNative } from '@stellar/stellar-sdk';
+
+const returnValue = scValToNative(simulation.result!.retval);
+console.log('Simulated return value:', returnValue);
+```
+
+For a read-only call, this return value alone might be everything you need — no submission required at all if you're just querying contract state.
+
+### 3. What auth does it require?
+
+```typescript
+const authEntries = simulation.result?.auth ?? [];
+for (const entry of authEntries) {
+  console.log('Requires authorization from:', entry.credentials);
+}
+```
+
+If the simulation reports an auth requirement you didn't expect (e.g., a call that should only need the caller's own auth suddenly requiring a second party's), that's a signal to stop and re-check the contract call before proceeding — signing and submitting anyway will either fail or, worse, succeed in a way you didn't intend.
+
+### 4. Resource costs and fee
+
+```typescript
+const resourceFee = simulation.minResourceFee;
+console.log(`Estimated resource fee: ${resourceFee} stroops`);
+
+// Apply the simulation's suggested resource footprint and fee to the
+// real transaction before signing:
+const preparedTx = rpc.prepareTransaction(tx, simulation);
+```
+
+`prepareTransaction` (or the equivalent "assemble" step in your SDK version) takes the simulation result and applies its footprint and fee data to the transaction, so the version you actually sign matches what was simulated.
+
+---
+
+## Putting it together: simulate, check, sign, submit
+
+```typescript
+async function simulateAndSubmit(sourceKeypair: Keypair) {
+  const tx = await buildTransactionToSimulate(sourceKeypair.publicKey());
+  const simulation = await rpc.simulateTransaction(tx);
+
+  if ('error' in simulation) {
+    throw new Error(`Simulation failed: ${simulation.error}`);
+  }
+
+  const preparedTx = rpc.prepareTransaction(tx, simulation);
+  preparedTx.sign(sourceKeypair);
+
+  const response = await rpc.sendTransaction(preparedTx);
+  return response;
+}
+```
+
+---
+
+## Verifying this tutorial is accurate
+
+- Confirm the exact response shape (`result.retval`, `result.auth`, `minResourceFee`) against your installed `@stellar/stellar-sdk` version — these field names have shifted across SDK releases as the underlying RPC spec evolved.
+- Run the simulate-then-submit flow against testnet with a real contract before trusting it end-to-end.
+- Re-render through `pnpm build:content` to confirm the code fences display correctly.

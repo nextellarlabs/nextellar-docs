@@ -8,6 +8,12 @@ date: 2026-06-02
 
 The `useSorobanContract` hook provides a complete interface for interacting with Soroban smart contracts. It handles XDR value conversion, transaction simulation, and contract invocation.
 
+<Note>
+  **Ships in:** default, js
+  <br />
+  Not in your scaffold? Run `nextellar add contracts`
+</Note>
+
 ## Features
 
 - **Read-Only Calls**: Simulate contract functions without submitting transactions
@@ -18,7 +24,7 @@ The `useSorobanContract` hook provides a complete interface for interacting with
 
 ## Basic Usage
 
-`````tsx
+```tsx
 import { useSorobanContract } from '@/hooks/useSorobanContract';
 
 export default function ContractDemo() {
@@ -44,13 +50,13 @@ export default function ContractDemo() {
 
 ### Parameters
 
-````typescript
+```typescript
 useSorobanContract(options: {
   contractId: string;
   sorobanRpc?: string;
   network?: 'TESTNET' | 'PUBLIC';
 }): SorobanContractReturn
-```css
+```
 
 | Parameter    | Type                    | Default                                 | Description                  |
 | ------------ | ----------------------- | --------------------------------------- | ---------------------------- |
@@ -71,7 +77,7 @@ interface SorobanContractReturn {
   loading: boolean;
   error: Error | null;
 }
-```typescript
+```
 
 ## Methods
 
@@ -89,7 +95,7 @@ const result = await callFunction('transfer', [
   'GDEF456...', // to
   1000, // amount
 ]);
-`````
+```
 
 **Supported Argument Types:**
 
@@ -222,13 +228,13 @@ if (loading) return <Spinner />;
 
 ### 3. Validate Contract Responses
 
-````tsx
+```tsx
 const result = await callFunction('get_balance', [address]);
 
 if (typeof result !== 'number') {
   throw new Error('Invalid balance returned');
 }
-```typescript
+```
 
 ## Related Hooks
 
@@ -239,19 +245,28 @@ if (typeof result !== 'number') {
 
 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-6">
   <a
-    href="/hooks/use-soroban-events"
+    href="/docs/hooks/use-soroban-events"
     className="block p-4 border rounded-lg hover:border-primary transition-colors"
   >
     <h4 className="font-semibold mb-2">useSorobanEvents</h4>
     <span className="text-sm text-muted-foreground block">Listen to smart contract events</span>
   </a>
 
+<a
+  href="/docs/integrations/soroban"
+  className="block p-4 border rounded-lg hover:border-primary transition-colors"
+>
+  <h4 className="font-semibold mb-2">Smart Contracts Guide</h4>
+  <span className="text-sm text-muted-foreground block">
+    Complete Soroban integration guide
+  </span>
+</a>
+
   <a
-    href="/guides/smart-contracts"
+    href="/docs/getting-started/contracts-quick-start"
     className="block p-4 border rounded-lg hover:border-primary transition-colors"
   >
-    <h4 className="font-semibold mb-2">Smart Contracts Guide</h4>
-    <span className="text-sm text-muted-foreground block">Complete Soroban integration guide</span>
+    <h4 className="font-semibold mb-2">Contracts Quick Start</h4>
+    <span className="text-sm text-muted-foreground block">Scaffold, deploy, and invoke a Soroban contract end to end</span>
   </a>
 </div>
-````

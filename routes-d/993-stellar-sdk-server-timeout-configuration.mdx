@@ -1,0 +1,35 @@
+---
+title: stellar-sdk Server Timeout Configuration
+description: How to configure the request timeout used by Horizon Server and Soroban RPC calls in @stellar/stellar-sdk, and what the default is.
+date: 2026-08-27
+---
+
+# stellar-sdk Server Timeout Configuration
+
+Both the Horizon `Server` and the Soroban `rpc.Server` in `@stellar/stellar-sdk` make their HTTP requests through a shared Axios client, whose timeout is controlled globally through the SDK's `Config` object rather than per-instance.
+
+## The Option
+
+```typescript
+import { Config } from '@stellar/stellar-sdk';
+
+// Set a 30 second timeout (in milliseconds) for all subsequent requests
+Config.setTimeout(30000);
+```
+
+`Config.setTimeout()` affects every `Server` and `rpc.Server` instance created afterward in the process — it's a global setting, not something passed into the `Server` constructor itself.
+
+## The Default
+
+By default, `Config`'s timeout is unset, which Axios treats as **no timeout** — a hung connection to Horizon or Soroban RPC will wait indefinitely rather than rejecting on its own. For any production dApp, set an explicit timeout so a stalled request surfaces as an error your UI can react to (retry, show a message) instead of leaving a promise pending forever.
+
+```typescript
+import { Config, rpc } from '@stellar/stellar-sdk';
+
+Config.setTimeout(15000);
+
+const server = new rpc.Server('https://soroban-testnet.stellar.org');
+// requests made through `server` now time out after 15s
+```
+
+Set this once, early in your app's startup, before creating any `Server` instances.

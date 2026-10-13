@@ -1,0 +1,134 @@
+---
+title: Configuring Custom Server URLs in stellar-sdk
+description: A guide on configuring stellar-sdk Server instances with custom Horizon and RPC endpoints, authentication headers, proxy authentication, and custom fetch configuration.
+date: 2026-08-27
+---
+
+# Configuring Custom Server URLs in stellar-sdk
+
+When building production Stellar applications, you often need to connect to dedicated RPC or Horizon infrastructure — such as private RPC nodes, QuickNode, BlockDaemon, or custom proxy gateways.
+
+This guide explains how to configure `@stellar/stellar-sdk` to use custom server URLs and supply custom authentication headers.
+
+---
+
+## Server Instantiation
+
+`stellar-sdk` provides two primary server classes depending on whether you are querying Horizon or Soroban RPC:
+
+1. **`Horizon.Server`**: Queries Horizon REST endpoints for ledger accounts, operations, and payments.
+2. **`rpc.Server`**: Connects to Soroban RPC endpoints for smart contract simulation, state reads, and transaction submission.
+
+Both server classes accept custom server URLs as their first argument and configuration options as their second argument.
+
+---
+
+## Authentication Headers & Options
+
+When using third-party RPC providers or protected proxy services, requests require authentication headers (such as `Authorization: Bearer <token>` or `x-api-key`).
+
+You can pass custom headers and HTTP client options using the `opts` configuration object when initializing the server:
+
+```typescript
+import { Horizon, rpc } from '@stellar/stellar-sdk';
+
+// Custom Horizon Server with API Key
+const horizonServer = new Horizon.Server(
+  'https://my-custom-horizon.example.com',
+  {
+    allowHttp: false, // Enforce HTTPS for production
+    headers: {
+      'x-api-key': 'your-api-key-here',
+      'User-Agent': 'MyNextellarApp/1.0',
+    },
+  }
+);
+
+// Custom Soroban RPC Server with Bearer Token
+const rpcServer = new rpc.Server('https://rpc-mainnet.example.com', {
+  headers: {
+    Authorization: 'Bearer secret-access-token-123',
+  },
+});
+```
+
+---
+
+## Complete Example
+
+Below is a complete TypeScript example showing how to initialize a custom server instance, pass custom authentication headers, and perform a health check or account query:
+
+```typescript
+import { Horizon, rpc } from '@stellar/stellar-sdk';
+
+interface CustomServerConfig {
+  serverUrl: string;
+  apiKey?: string;
+  bearerToken?: string;
+  allowHttp?: boolean;
+}
+
+/**
+ * Factory function to create a configured Horizon.Server instance.
+ */
+export function createCustomHorizonServer(
+  config: CustomServerConfig
+): Horizon.Server {
+  const headers: Record<string, string> = {};
+
+  if (config.apiKey) {
+    headers['x-api-key'] = config.apiKey;
+  }
+
+  if (config.bearerToken) {
+    headers['Authorization'] = `Bearer ${config.bearerToken}`;
+  }
+
+  return new Horizon.Server(config.serverUrl, {
+    allowHttp: config.allowHttp ?? false,
+    headers,
+  });
+}
+
+/**
+ * Factory function to create a configured Soroban rpc.Server instance.
+ */
+export function createCustomRpcServer(config: CustomServerConfig): rpc.Server {
+  const headers: Record<string, string> = {};
+
+  if (config.apiKey) {
+    headers['x-api-key'] = config.apiKey;
+  }
+
+  if (config.bearerToken) {
+    headers['Authorization'] = `Bearer ${config.bearerToken}`;
+  }
+
+  return new rpc.Server(config.serverUrl, {
+    headers,
+  });
+}
+
+// Example Usage
+async function main() {
+  const horizon = createCustomHorizonServer({
+    serverUrl: 'https://horizon.blockdaemon.com/stellar/mainnet',
+    apiKey: process.env.BLOCKDAEMON_API_KEY,
+  });
+
+  try {
+    const account = await horizon.loadAccount('GABC...123');
+    console.log('Account loaded successfully. Sequence:', account.sequence);
+  } catch (error) {
+    console.error('Failed to load account from custom server:', error);
+  }
+}
+```
+
+---
+
+## Best Practices
+
+1. **Environment Variables**: Store custom server URLs and secret API keys in environment variables (`process.env.STELLAR_RPC_URL`, `process.env.STELLAR_API_KEY`) rather than hardcoding them in source code.
+2. **Enforce HTTPS**: Always set `allowHttp: false` in production to prevent leaking credentials over unencrypted connections.
+3. **Fallback Servers**: Implement fallback servers so that if a primary RPC endpoint encounters rate limits or downtime, requests automatically route to a secondary node.

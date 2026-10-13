@@ -1,5 +1,10 @@
-// src/app/doc/layout.tsx
-'use client';
+// src/app/docs/layout.tsx
+import { Metadata } from 'next';
+import { docsRootMetadata } from 'config/docs-meta';
+
+export const metadata: Metadata = docsRootMetadata;
+
+('use client');
 
 import React from 'react';
 import { allDocs } from 'contentlayer/generated';
@@ -25,6 +30,7 @@ import Header from '@/components/header';
 import { ModeToggle } from '@/components/mode-toggle';
 import { Button } from '@/components/button';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { VersionSwitcher } from '@/components/version-switcher';
 
 export default function DocsLayout({
   children,
@@ -127,6 +133,7 @@ export default function DocsLayout({
               </h1>
             </div>
             <div className="flex gap-1 md:gap-2 items-center shrink-0">
+              <VersionSwitcher />
               <SearchDialog searchData={allDocs} />
               <ModeToggle />
               <Button
@@ -139,7 +146,9 @@ export default function DocsLayout({
             </div>
           </Header>
           {/* <div className={`grid xl:grid xl:grid-cols-[1fr_270px]`}> */}
-          <main className="overflow-auto p-6">{children}</main>
+          <main id="main-content" className="overflow-auto p-6" lang="en">
+            {children}
+          </main>
         </MainContent>
       </SidebarProvider>
 

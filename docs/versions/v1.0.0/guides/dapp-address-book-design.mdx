@@ -1,0 +1,271 @@
+---
+title: dApp Address Book Design
+description: Design and implement an address book for Stellar dApps — local storage, on-chain anchoring, name resolution, and UI patterns.
+date: 2026-06-25
+---
+
+# dApp Address Book Design
+
+An address book lets users save and label Stellar accounts so they don't have to paste raw public keys every time they make a payment or interact with a contract. This guide covers data modelling, storage options, name resolution integrations, and the UI patterns that make address books feel natural.
+
+---
+
+## What Goes in an Address Book Entry
+
+At minimum, each entry needs:
+
+```ts
+interface AddressBookEntry {
+  id: string; // local UUID
+  label: string; // user-provided name ("Alice", "Treasury")
+  address: string; // Stellar public key (G...)
+  memo?: string; // optional default memo for payments to this address
+  tags?: string[]; // e.g. ["team", "vendor"]
+  createdAt: number; // unix timestamp
+  updatedAt: number;
+}
+```
+
+---
+
+## Storage Options
+
+### Option 1 — localStorage (Simple, No Account Required)
+
+```ts
+// lib/address-book.ts
+const KEY = 'nextellar:address_book';
+
+export function getEntries(): AddressBookEntry[] {
+  try {
+    return JSON.parse(localStorage.getItem(KEY) ?? '[]');
+  } catch {
+    return [];
+  }
+}
+
+export function saveEntry(
+  entry: Omit<AddressBookEntry, 'id' | 'createdAt' | 'updatedAt'>
+): AddressBookEntry {
+  const entries = getEntries();
+  const now = Date.now();
+  const newEntry: AddressBookEntry = {
+    ...entry,
+    id: crypto.randomUUID(),
+    createdAt: now,
+    updatedAt: now,
+  };
+  localStorage.setItem(KEY, JSON.stringify([...entries, newEntry]));
+  return newEntry;
+}
+
+export function deleteEntry(id: string) {
+  const entries = getEntries().filter((e) => e.id !== id);
+  localStorage.setItem(KEY, JSON.stringify(entries));
+}
+```
+
+Limitation: data is device-specific. Clearing the browser wipes it.
+
+### Option 2 — On-Chain Anchoring via Soroban
+
+Store entries in a Soroban contract keyed by the user's wallet address. This makes the address book portable across devices.
+
+```rust
+// contracts/address-book/src/lib.rs
+#![no_std]
+use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, Map, String};
+
+#[contracttype]
+pub struct Entry {
+    pub label:   String,
+    pub address: String,
+    pub memo:    String,
+}
+
+#[contracttype]
+pub enum DataKey {
+    Book(Address), // per-user map
+}
+
+#[contract]
+pub struct AddressBookContract;
+
+#[contractimpl]
+impl AddressBookContract {
+    pub fn set(env: Env, owner: Address, key: String, entry: Entry) {
+        owner.require_auth();
+        let mut book: Map<String, Entry> = env
+            .storage().persistent()
+            .get(&DataKey::Book(owner.clone()))
+            .unwrap_or(Map::new(&env));
+        book.set(key, entry);
+        env.storage().persistent().set(&DataKey::Book(owner), &book);
+    }
+
+    pub fn get(env: Env, owner: Address, key: String) -> Option<Entry> {
+        let book: Map<String, Entry> = env
+            .storage().persistent()
+            .get(&DataKey::Book(owner))?;
+        book.get(key)
+    }
+
+    pub fn remove(env: Env, owner: Address, key: String) {
+        owner.require_auth();
+        let mut book: Map<String, Entry> = env
+            .storage().persistent()
+            .get(&DataKey::Book(owner.clone()))
+            .unwrap_or(Map::new(&env));
+        book.remove(key);
+        env.storage().persistent().set(&DataKey::Book(owner), &book);
+    }
+}
+```
+
+### Option 3 — Hybrid (localStorage + Soroban Sync)
+
+Keep localStorage as the fast local cache. Sync to the contract on save and pull from it on first load. This gives offline-first UX with cross-device portability.
+
+---
+
+## Name Resolution
+
+### Stellar Expert Federation
+
+Stellar addresses can have federated names (`alice*domain.com`). Resolve them before saving:
+
+```ts
+// lib/federation.ts
+import { FederationServer } from '@stellar/stellar-sdk';
+
+export async function resolveAddress(input: string): Promise<string> {
+  if (input.startsWith('G') && input.length === 56) return input; // already a key
+  const record = await FederationServer.resolve(input);
+  return record.account_id;
+}
+```
+
+### Stellar Name Service (SNS) / Custom Registry
+
+Some ecosystems maintain an on-chain name registry. Query it during address entry to auto-fill a label:
+
+```ts
+export async function lookupLabel(address: string): Promise<string | null> {
+  // Example: query a known name registry contract
+  // return contract.call('reverse_lookup', address) ?? null;
+  return null; // fallback
+}
+```
+
+---
+
+## UI Patterns
+
+### Address Input with Book Lookup
+
+```tsx
+// components/AddressInput.tsx
+'use client';
+import { useState } from 'react';
+import { getEntries } from '@/lib/address-book';
+import { resolveAddress } from '@/lib/federation';
+
+export function AddressInput({
+  onChange,
+}: {
+  onChange: (addr: string) => void;
+}) {
+  const [query, setQuery] = useState('');
+  const entries = getEntries();
+  const matches = entries.filter(
+    (e) =>
+      e.label.toLowerCase().includes(query.toLowerCase()) ||
+      e.address.includes(query)
+  );
+
+  const handleSelect = (address: string) => {
+    setQuery(address);
+    onChange(address);
+  };
+
+  const handleBlur = async () => {
+    if (query.includes('*')) {
+      const resolved = await resolveAddress(query);
+      setQuery(resolved);
+      onChange(resolved);
+    }
+  };
+
+  return (
+    <div className="relative">
+      <input
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        onBlur={handleBlur}
+        placeholder="G... or alice*domain.com"
+        className="w-full border rounded px-3 py-2"
+      />
+      {matches.length > 0 && query.length > 0 && (
+        <ul className="absolute z-10 bg-white border rounded mt-1 w-full shadow">
+          {matches.map((e) => (
+            <li
+              key={e.id}
+              className="px-3 py-2 hover:bg-gray-100 cursor-pointer"
+              onClick={() => handleSelect(e.address)}
+            >
+              <span className="font-medium">{e.label}</span>
+              <span className="text-xs text-gray-400 ml-2">
+                {e.address.slice(0, 8)}…
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+```
+
+### Save-to-Book Prompt
+
+After a successful transaction, prompt the user to save the recipient:
+
+```tsx
+// After tx confirmation
+if (!getEntries().find((e) => e.address === recipientAddress)) {
+  // Show toast: "Save GABC…XYZ to your address book?"
+}
+```
+
+---
+
+## Export / Import
+
+Allow users to back up their address book as JSON:
+
+```ts
+export function exportBook(): string {
+  return JSON.stringify(getEntries(), null, 2);
+}
+
+export function importBook(json: string) {
+  const entries: AddressBookEntry[] = JSON.parse(json);
+  // Validate and merge with existing
+  const existing = getEntries();
+  const merged = [
+    ...existing,
+    ...entries.filter((e) => !existing.find((x) => x.address === e.address)),
+  ];
+  localStorage.setItem('nextellar:address_book', JSON.stringify(merged));
+}
+```
+
+---
+
+## Acceptance Checklist
+
+- [ ] Guide renders without build errors (`pnpm build:content`)
+- [ ] Internal links resolve (`pnpm check:links`)
+- [ ] All three storage options covered
+- [ ] Federation name resolution included
+- [ ] UI component snippets are functional React/TypeScript

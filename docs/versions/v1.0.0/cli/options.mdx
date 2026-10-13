@@ -1,0 +1,423 @@
+---
+title: CLI Options
+description: Complete reference for all Nextellar CLI options and flags
+date: 2026-06-02
+---
+
+# CLI Options
+
+Detailed reference for all command-line options available in Nextellar CLI.
+
+## Language Options
+
+### --typescript, -t
+
+Generate a TypeScript project (default).
+
+````bash
+nextellar my-app --typescript
+# or
+nextellar my-app -t
+```css
+
+**Default:** `true`
+**Type:** Boolean
+**Status:** Supported
+
+### --javascript, -j
+
+Generate a JavaScript project.
+
+```bash
+nextellar my-app --javascript
+# or
+nextellar my-app -j
+```css
+
+**Default:** `false`
+**Type:** Boolean
+**Status:** Coming Soon
+
+> **Note:** JavaScript support is planned for a future release. Currently, only TypeScript projects are supported.
+
+## Network Configuration
+
+### --horizon-url
+
+Override the default Horizon endpoint.
+
+```bash
+nextellar my-app --horizon-url https://horizon.stellar.org
+```css
+
+**Default:** `https://horizon-testnet.stellar.org`
+**Type:** String (URL)
+**Validation:** Must be a valid HTTP/HTTPS URL
+
+**Common Values:**
+
+- Testnet: `https://horizon-testnet.stellar.org`
+- Mainnet: `https://horizon.stellar.org`
+- Custom: Your own Horizon instance
+
+### --soroban-url
+
+Override the default Soroban RPC endpoint.
+
+```bash
+nextellar my-app --soroban-url https://soroban-rpc.stellar.org
+```css
+
+**Default:** `https://soroban-testnet.stellar.org`
+**Type:** String (URL)
+**Validation:** Must be a valid HTTP/HTTPS URL
+
+**Common Values:**
+
+- Testnet: `https://soroban-testnet.stellar.org`
+- Mainnet: `https://soroban-rpc.stellar.org`
+
+## Wallet Configuration
+
+### --wallets, -w
+
+Specify which wallet adapters to include.
+
+```bash
+nextellar my-app --wallets freighter,xbull,ledger
+# or
+nextellar my-app -w freighter,albedo
+````
+
+**Default:** `freighter,albedo,lobstr`
+**Type:** Comma-separated string
+**Validation:** Must be valid wallet names
+
+**Supported Wallets:**
+
+- `freighter` - Freighter Wallet
+- `albedo` - Albedo Wallet
+- `lobstr` - Lobstr Wallet
+- `xbull` - xBull Wallet
+- `ledger` - Ledger Hardware Wallet
+
+**Examples:**
+
+````bash
+# Only Freighter
+nextellar my-app --wallets freighter
+
+# Multiple wallets
+nextellar my-app --wallets freighter,xbull,ledger
+
+# All supported wallets
+nextellar my-app --wallets freighter,albedo,lobstr,xbull,ledger
+```css
+
+## Installation Options
+
+### --skip-install
+
+Skip automatic dependency installation.
+
+```bash
+nextellar my-app --skip-install
+````
+
+**Default:** `false`
+**Type:** Boolean
+
+**Use Cases:**
+
+- Install dependencies manually later.
+- Use a different package manager.
+
+**After Skipping:**
+
+````bash
+cd my-app
+npm install  # or yarn install, pnpm install
+```css
+
+### --package-manager
+
+Choose which package manager to use.
+
+```bash
+nextellar my-app --package-manager pnpm
+```css
+
+**Default:** Auto-detected
+**Type:** String
+**Options:** `npm`, `yarn`, `pnpm`
+
+**Detection Priority:**
+
+1. Explicit `--package-manager` flag
+2. `npm_config_user_agent` environment variable
+3. Lockfile presence (pnpm-lock.yaml, yarn.lock, package-lock.json)
+4. Fallback to `npm`
+
+### --install-timeout
+
+Set installation timeout in milliseconds.
+
+```bash
+nextellar my-app --install-timeout 3600000
+```css
+
+**Default:** `1200000` (20 minutes)
+**Type:** Number (milliseconds)
+**Range:** `60000` - `7200000` (1 min - 2 hours)
+
+**Use Cases:**
+
+- Slow network connections
+- Large dependency trees
+- CI/CD environments with timeouts
+
+**Common Values:**
+
+- 5 minutes: `300000`
+- 10 minutes: `600000`
+- 20 minutes: `1200000` (default)
+- 30 minutes: `1800000`
+- 1 hour: `3600000`
+
+## Behavior Options
+
+### --defaults, -d
+
+Skip prompts and use default values.
+
+```bash
+nextellar my-app --defaults
+# or
+nextellar my-app -d
+```css
+
+**Default:** `false`
+**Type:** Boolean
+
+**Use Cases:**
+
+- CI/CD pipelines
+- Automated scripts
+- Quick testing
+- Non-interactive environments
+
+> **Note:** In an interactive terminal, Nextellar can prompt for scaffold configuration. Use `--defaults` to skip prompts and apply default values instead.
+
+## Feature Add Options
+
+The following options apply to the `nextellar add` command:
+
+### --list, -l
+
+List all available features that can be added to the project.
+
+```bash
+nextellar add --list
+# or
+nextellar add -l
+````
+
+**Type:** Boolean
+**Status:** Supported
+
+---
+
+### --force, -f
+
+Force addition of a feature, overwriting existing files without prompting.
+
+```bash
+nextellar add freighter --force
+# or
+nextellar add freighter -f
+```
+
+**Default:** `false`
+**Type:** Boolean
+**Status:** Supported
+
+---
+
+## Upgrade Options
+
+The following options apply to the `nextellar upgrade` command:
+
+### --dry-run
+
+Show which template files would change without applying the upgrade.
+
+```bash
+nextellar upgrade --dry-run
+```
+
+**Default:** `false`
+**Type:** Boolean
+**Status:** Supported
+
+---
+
+### --yes
+
+Apply upgrade changes without prompting for confirmation.
+
+```bash
+nextellar upgrade --yes
+```
+
+**Default:** `false`
+**Type:** Boolean
+**Status:** Supported
+
+---
+
+## Deployment Options
+
+The following options apply to the `nextellar deploy` command:
+
+### --dry-run
+
+Validate the project configuration and production build without generating a final deployment bundle.
+
+```bash
+nextellar deploy --dry-run
+```
+
+**Default:** `false`
+**Type:** Boolean
+**Status:** Supported
+
+---
+
+## Information Options
+
+### --version, -v
+
+Display CLI version.
+
+````bash
+nextellar --version
+# or
+nextellar -v
+```css
+
+**Output:** Version number (e.g., `1.0.4`)
+
+### --help, -h
+
+Display help information.
+
+```bash
+nextellar --help
+# or
+nextellar -h
+````
+
+**Output:** Complete usage guide with all options
+
+## Option Combinations
+
+### Mainnet Production Setup
+
+```bash
+nextellar stellar-mainnet-app \
+  --horizon-url https://horizon.stellar.org \
+  --soroban-url https://soroban-rpc.stellar.org \
+  --wallets freighter,xbull,ledger \
+  --package-manager pnpm
+```
+
+### Development Setup
+
+```bash
+nextellar dev-app \
+  --skip-install \
+  --wallets freighter
+```
+
+### CI/CD Setup
+
+```bash
+nextellar ci-app \
+  --defaults \
+  --package-manager npm \
+  --install-timeout 600000
+```
+
+### Custom Network
+
+```bash
+nextellar custom-app \
+  --horizon-url https://my-horizon.example.com \
+  --soroban-url https://my-soroban.example.com \
+  --wallets freighter
+```
+
+## Environment Variables
+
+Nextellar respects these environment variables:
+
+### npm_config_user_agent
+
+Used for package manager detection.
+
+```bash
+# Set by package managers automatically
+npm_config_user_agent="npm/10.2.0 node/v20.10.0"
+```
+
+### NODE_ENV
+
+Environment mode (development/production).
+
+```bash
+NODE_ENV=production npx nextellar my-app
+```
+
+## Validation Rules
+
+### Project Name
+
+- **Required:** Yes
+- **Pattern:** `^[a-zA-Z0-9-_]+$`
+- **Max Length:** 214 characters
+- **Invalid:** Spaces, special characters (except `-` and `_`)
+
+**Valid:**
+
+```bash
+nextellar my-app
+nextellar stellar_payment_app
+nextellar my-dapp-2024
+```
+
+**Invalid:**
+
+````bash
+nextellar "my app"        # Spaces not allowed
+nextellar my@app          # Special characters not allowed
+nextellar ../my-app       # Path traversal not allowed
+```bash
+
+### URLs
+
+- **Protocol:** Must be `http://` or `https://`
+- **Format:** Valid URL format
+- **Reachable:** Not validated (assumed reachable)
+
+### Wallet Names
+
+- **Format:** Comma-separated, no spaces
+- **Valid:** `freighter`, `albedo`, `lobstr`, `xbull`, `ledger`
+- **Case:** Case-insensitive
+
+## Related Documentation
+
+- [CLI Commands](/docs/cli/commands) - Command reference
+- [Configuration](/docs/cli/configuration) - Project configuration
+- [Troubleshooting](/docs/troubleshooting/installation-issues) - Common issues
+````

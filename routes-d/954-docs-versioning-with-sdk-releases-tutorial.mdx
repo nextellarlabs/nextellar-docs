@@ -1,0 +1,183 @@
+---
+title: Versioning Docs Alongside SDK Releases
+description: Tutorial for keeping documentation versions in sync with SDK releases — branching strategy, publishing workflow, and reader-facing version switching — with a working sample.
+date: 2026-08-27
+---
+
+# Versioning Docs Alongside SDK Releases
+
+As a Stellar SDK evolves, its documentation needs to track which docs version matches which SDK version. A reader on SDK `v2.1.0` should not land on docs written for `v3.0.0` and hit APIs that don't exist yet. This tutorial covers a branching and publishing strategy for versioned docs, and a small reader-facing version switcher.
+
+<Note type="warning">
+  This tutorial covers a documentation-versioning workflow, not a docs platform.
+  It assumes a static-site docs generator (like the one powering this site) that
+  can build multiple version snapshots from git refs.
+</Note>
+
+## Why version docs at all
+
+Two forces push toward versioned docs:
+
+- **Breaking SDK changes.** A method renamed or removed in `v3.0.0` still exists in `v2.x`. Readers on the older SDK need docs that reflect that reality, not the latest one.
+- **Long-lived integrations.** Teams often pin an SDK version for months. They need a stable doc snapshot to reference, not a moving target.
+
+The alternative — a single "latest only" doc tree — silently breaks for anyone not on the newest release.
+
+## Branching strategy
+
+Use one long-lived docs branch per major SDK version, cut at the same time as the SDK's release branch:
+
+```text
+main                 → docs for the unreleased/next SDK version
+docs/v3              → docs for SDK v3.x (frozen at v3 GA, patched for v3.x.y docs fixes)
+docs/v2              → docs for SDK v2.x (maintenance only)
+```
+
+Rules for this to stay sane:
+
+1. **Cut the docs branch at SDK GA, not before.** Branching early means duplicating in-flight edits; branching at GA gives you a clean snapshot.
+2. **Backport only doc corrections, never new content**, to a frozen version branch (`docs/v2`). New features belong on `main`/the next version.
+3. **Tag the docs branch commit that matches the SDK's release tag**, so `docs/v3@sdk-v3.2.0` can be reconstructed exactly:
+
+```bash
+# after cutting docs/v3 and merging content for the v3.2.0 SDK release
+git tag docs-v3.2.0
+git push origin docs-v3.2.0
+```
+
+## Publishing workflow
+
+Each versioned branch builds to its own path segment, so all versions are live simultaneously:
+
+```text
+/docs/v3/...   (from docs/v3, aliased as "latest")
+/docs/v2/...   (from docs/v2)
+/docs/next/... (from main, unreleased)
+```
+
+A minimal CI publishing step, keyed off branch name:
+
+```yaml
+# .github/workflows/docs-publish.yml
+name: Publish Versioned Docs
+on:
+  push:
+    branches: [main, 'docs/v*']
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve version segment
+        id: version
+        run: |
+          if [ "${{ github.ref_name }}" = "main" ]; then
+            echo "segment=next" >> "$GITHUB_OUTPUT"
+          else
+            echo "segment=${GITHUB_REF_NAME#docs/}" >> "$GITHUB_OUTPUT"
+          fi
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:content
+      - name: Deploy to version path
+        run: ./scripts/deploy-docs-version.sh "${{ steps.version.outputs.segment }}"
+```
+
+Each version's build is fully independent — a broken build on `docs/v2` (patched for a doc fix) never blocks publishing `main`.
+
+## Reader-facing version switching
+
+Readers need to know which version they're looking at and be able to jump to another. A small client-side helper reads the current path segment and offers a switcher:
+
+```ts
+// lib/docs-version.ts
+export interface DocsVersion {
+  segment: string;
+  label: string;
+  isLatest: boolean;
+}
+
+export const DOCS_VERSIONS: DocsVersion[] = [
+  { segment: 'v3', label: 'v3.x (latest)', isLatest: true },
+  { segment: 'v2', label: 'v2.x (maintenance)', isLatest: false },
+  { segment: 'next', label: 'Next (unreleased)', isLatest: false },
+];
+
+export function resolveVersionFromPath(pathname: string): DocsVersion {
+  const [, , segment] = pathname.split('/');
+  return (
+    DOCS_VERSIONS.find((v) => v.segment === segment) ??
+    DOCS_VERSIONS.find((v) => v.isLatest)!
+  );
+}
+
+export function pathForVersion(pathname: string, target: DocsVersion): string {
+  const parts = pathname.split('/');
+  parts[2] = target.segment;
+  return parts.join('/');
+}
+```
+
+```ts
+// lib/docs-version.test.ts
+import { describe, expect, it } from 'vitest';
+import {
+  DOCS_VERSIONS,
+  pathForVersion,
+  resolveVersionFromPath,
+} from './docs-version';
+
+describe('resolveVersionFromPath', () => {
+  it('resolves a known version segment', () => {
+    expect(resolveVersionFromPath('/docs/v2/guides/intro').segment).toBe('v2');
+  });
+
+  it('falls back to latest for an unknown segment', () => {
+    expect(resolveVersionFromPath('/docs/v99/guides/intro').isLatest).toBe(
+      true
+    );
+  });
+
+  it('falls back to latest for the root path', () => {
+    expect(resolveVersionFromPath('/').isLatest).toBe(true);
+  });
+});
+
+describe('pathForVersion', () => {
+  it('swaps only the version segment, preserving the rest of the path', () => {
+    const target = DOCS_VERSIONS.find((v) => v.segment === 'v2')!;
+    expect(pathForVersion('/docs/v3/guides/intro', target)).toBe(
+      '/docs/v2/guides/intro'
+    );
+  });
+
+  it('round-trips back to the original path', () => {
+    const v3 = DOCS_VERSIONS.find((v) => v.segment === 'v3')!;
+    const v2 = DOCS_VERSIONS.find((v) => v.segment === 'v2')!;
+    const start = '/docs/v3/api/contract-client';
+    const swapped = pathForVersion(start, v2);
+    expect(pathForVersion(swapped, v3)).toBe(start);
+  });
+});
+```
+
+## Reader UX notes
+
+- **Default to the reader's last-viewed version**, not always "latest" — a returning reader mid-integration on `v2` shouldn't be bounced to `v3` docs on every visit. Store the choice in `localStorage`, keyed by version segment.
+- **Bannner, don't block**, when a reader is on a maintenance or unreleased version: "You're viewing v2.x docs (maintenance). [View latest →]" — never redirect automatically, since the reader may be intentionally pinned to that version.
+- **Cross-version links should stay same-version by default.** A relative link inside `docs/v2` content should resolve to `/docs/v2/...`, not `/docs/v3/...`, so a v2 reader isn't silently sent to a page describing a different API surface.
+
+## Verifying the tutorial
+
+This tutorial's sample builds and tests cleanly:
+
+```bash
+pnpm build:content
+pnpm check:links
+npx vitest run lib/docs-version.test.ts
+```
+
+## Related docs
+
+- [Template Comparison Guide](/docs/guides/template-comparison-guide)
+- [CI Matrix Testing Tutorial](/routes-d/940-soroban-ci-matrix-testing-tutorial)

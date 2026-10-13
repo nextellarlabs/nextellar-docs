@@ -20,13 +20,27 @@ A payment app with:
 
 ## Step 1: Create Your Project
 
-````bash
+### TypeScript (Default)
+
+```bash
 npx nextellar stellar-payment-app
 cd stellar-payment-app
 npm run dev
-```typescript
+```
+
+### JavaScript Variant
+
+Use the `--javascript` flag to scaffold a plain JavaScript project:
+
+```bash
+npx nextellar stellar-payment-app --javascript
+cd stellar-payment-app
+npm run dev
+```
 
 Open [http://localhost:3000](http://localhost:3000) - you should see the Nextellar starter page!
+
+> **Note:** This tutorial uses the default TypeScript scaffold. The `--javascript` flag generates `.js`/`.jsx` files instead of `.ts`/`.tsx`. Need a different template? Check the [Template Comparison](/docs/cli/template-comparison) to choose the right starter for your project.
 
 ## Step 2: Connect a Wallet
 
@@ -45,7 +59,9 @@ You should see your public key and XLM balance!
 
 ## Step 3: Build the Payment Form
 
-Replace `src/app/page.tsx` with:
+Replace `src/app/page.tsx` (or `src/app/page.jsx` for JavaScript) with:
+
+### TypeScript Version
 
 ```tsx
 'use client';
@@ -173,7 +189,7 @@ export default function Home() {
                   rel="noopener noreferrer"
                   className="text-sm text-green-600 dark:text-green-400 hover:underline break-all"
                 >
-                  View on Stellar Expert �
+                  View on Stellar Expert ↗
                 </a>
               </div>
             )}
@@ -191,7 +207,157 @@ export default function Home() {
     </div>
   );
 }
-```typescript
+```
+
+### JavaScript Version
+
+Use this if you created the project with `--javascript`:
+
+```jsx
+'use client';
+
+import { useState } from 'react';
+import { useStellarWallet } from '@/hooks/useStellarWallet';
+import WalletConnectButton from '@/components/WalletConnectButton';
+
+export default function Home() {
+  const { connected, publicKey, balances, sendPayment } = useStellarWallet();
+  const [recipient, setRecipient] = useState('');
+  const [amount, setAmount] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [txHash, setTxHash] = useState('');
+
+  const handleSend = async (e) => {
+    e.preventDefault();
+    if (!sendPayment) return;
+
+    setLoading(true);
+    setTxHash('');
+
+    try {
+      const result = await sendPayment({
+        to: recipient,
+        amount: amount,
+        asset: 'XLM',
+        memo: 'Payment from Nextellar app',
+      });
+
+      setTxHash(result.hash);
+      setRecipient('');
+      setAmount('');
+      alert('Payment sent successfully!');
+    } catch (error) {
+      console.error('Payment failed:', error);
+      alert('Payment failed: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen p-8 bg-background">
+      <div className="max-w-2xl mx-auto">
+        <h1 className="text-4xl font-bold mb-8">Stellar Payment App</h1>
+
+        {/* Wallet Connection */}
+        <div className="mb-8">
+          <WalletConnectButton />
+        </div>
+
+        {/* Account Info */}
+        {connected && (
+          <div className="bg-card border rounded-lg p-6 mb-8">
+            <h2 className="text-xl font-semibold mb-4">Account Info</h2>
+            <div className="space-y-2">
+              <div>
+                <span className="text-sm text-muted-foreground">
+                  Public Key:
+                </span>
+                <p className="font-mono text-sm break-all">{publicKey}</p>
+              </div>
+              <div>
+                <span className="text-sm text-muted-foreground">Balance:</span>
+                <p className="text-2xl font-bold">
+                  {balances[0]?.balance || '0'} XLM
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Payment Form */}
+        {connected && (
+          <div className="bg-card border rounded-lg p-6">
+            <h2 className="text-xl font-semibold mb-4">Send Payment</h2>
+            <form onSubmit={handleSend} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Recipient Address
+                </label>
+                <input
+                  type="text"
+                  value={recipient}
+                  onChange={(e) => setRecipient(e.target.value)}
+                  placeholder="GDEF456..."
+                  className="w-full px-3 py-2 border rounded-md"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Amount (XLM)
+                </label>
+                <input
+                  type="number"
+                  step="0.0000001"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  placeholder="10.5"
+                  className="w-full px-3 py-2 border rounded-md"
+                  required
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full px-4 py-2 bg-primary text-primary-foreground rounded-md font-medium hover:opacity-90 disabled:opacity-50"
+              >
+                {loading ? 'Sending...' : 'Send Payment'}
+              </button>
+            </form>
+
+            {txHash && (
+              <div className="mt-4 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md">
+                <p className="text-sm font-medium text-green-800 dark:text-green-200 mb-1">
+                  Payment Successful!
+                </p>
+                <a
+                  href={`https://stellar.expert/explorer/testnet/tx/${txHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-green-600 dark:text-green-400 hover:underline break-all"
+                >
+                  View on Stellar Expert ↗
+                </a>
+              </div>
+            )}
+          </div>
+        )}
+
+        {!connected && (
+          <div className="bg-muted border rounded-lg p-8 text-center">
+            <p className="text-muted-foreground">
+              Connect your wallet to send payments
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+```
 
 ## Step 4: Test Your App
 
@@ -201,7 +367,7 @@ export default function Home() {
 4. **Click "Send Payment"**
 5. **Approve the transaction** in your wallet
 
-Success! You've just sent your first Stellar payment with Nextellar! �
+Success! You've just sent your first Stellar payment with Nextellar! 🎉
 
 ## Step 5: Add Transaction History
 
@@ -242,7 +408,7 @@ export default function TransactionHistory() {
               rel="noopener noreferrer"
               className="text-sm text-primary hover:underline"
             >
-              View �
+              View ↗
             </a>
           </div>
         ))}
@@ -250,7 +416,7 @@ export default function TransactionHistory() {
     </div>
   );
 }
-```typescript
+```
 
 Then add it to your `page.tsx`:
 
@@ -265,7 +431,7 @@ import TransactionHistory from '@/components/TransactionHistory';
     </div>
   );
 }
-```json
+```
 
 ## What You've Learned
 
@@ -284,7 +450,7 @@ In just 10 minutes, you've built a complete Stellar payment app with:
 
 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-6">
   <a
-    href="/guides/wallet-integration"
+    href="/docs/sdk/wallet-integration"
     className="block p-4 border rounded-lg hover:border-primary transition-colors"
   >
     <h4 className="font-semibold mb-2">Advanced Wallet Integration</h4>
@@ -292,7 +458,7 @@ In just 10 minutes, you've built a complete Stellar payment app with:
   </a>
 
 <a
-  href="/hooks/use-soroban-contract"
+  href="/docs/hooks/use-soroban-contract"
   className="block p-4 border rounded-lg hover:border-primary transition-colors"
 >
   <h4 className="font-semibold mb-2">Smart Contracts</h4>
@@ -302,7 +468,7 @@ In just 10 minutes, you've built a complete Stellar payment app with:
 </a>
 
 <a
-  href="/guides/testing"
+  href="/docs/guides/testing"
   className="block p-4 border rounded-lg hover:border-primary transition-colors"
 >
   <h4 className="font-semibold mb-2">Testing</h4>
@@ -312,7 +478,7 @@ In just 10 minutes, you've built a complete Stellar payment app with:
 </a>
 
   <a
-    href="/guides/deployment"
+    href="/docs/guides/deployment"
     className="block p-4 border rounded-lg hover:border-primary transition-colors"
   >
     <h4 className="font-semibold mb-2">Deployment</h4>
@@ -322,6 +488,7 @@ In just 10 minutes, you've built a complete Stellar payment app with:
 
 ### Explore More Features
 
+- **Smart Contracts**: [Scaffold, deploy, and invoke a Soroban contract](/docs/getting-started/contracts-quick-start)
 - **Custom Assets**: [Learn about trustlines](/docs/hooks/use-trustlines)
 - **DEX Integration**: [Query order books](/docs/hooks/use-offer-book)
 - **Smart Contract Events**: [Listen to contract events](/docs/hooks/use-soroban-events)
@@ -362,4 +529,3 @@ In just 10 minutes, you've built a complete Stellar payment app with:
 <p className="text-sm text-center text-muted-foreground mt-8">
   <a href="#"> Back to top</a>
 </p>
-````

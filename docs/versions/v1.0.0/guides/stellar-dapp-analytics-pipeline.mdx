@@ -1,0 +1,144 @@
+---
+title: Stellar dApp Analytics Pipeline Tutorial
+description: Build a lightweight, privacy-preserving analytics pipeline to capture, sanitize, and store Soroban contract events and Horizon ledger data.
+date: 2026-08-26
+---
+
+# Stellar dApp Analytics Pipeline Tutorial
+
+Tracking user interactions and smart contract operations is critical for understanding dApp usage, diagnosing transaction failures, and measuring product growth. Because blockchain data is public while off-chain analytics often contain sensitive context, an effective Stellar dApp analytics pipeline must balance event capture with strict privacy safeguards.
+
+This tutorial guides you through building an event listener, processing pipeline, and privacy-first storage solution for your Nextellar application.
+
+---
+
+## Pipeline Architecture
+
+```
+┌─────────────────────────┐     ┌───────────────────────────┐
+│ Soroban RPC / Horizon   │     │ Client dApp UI            │
+│ (Contract Events/Logs)  │     │ (User Action Triggers)    │
+└───────────┬─────────────┘     └─────────────┬─────────────┘
+            │                                 │
+            ▼                                 ▼
+┌───────────────────────────────────────────────────────────┐
+│ Analytics Ingestion Service                               │
+│  ├── 1. Data Normalization & Event Parsing               │
+│  ├── 2. Privacy & PII Sanitization (Address Hashing)      │
+│  └── 3. Rate-Limiting & Idempotency Buffer                │
+└───────────┬───────────────────────────────────────────────┘
+            │
+            ▼
+┌───────────────────────────────────────────────────────────┐
+│ Storage Layer (PostgreSQL / ClickHouse / TimeSeries DB)  │
+└───────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 1. Event Capture & Data Sources
+
+Stellar dApps emit events from two primary sources:
+
+1. **Soroban Contract Events**: Emitted during contract execution via `env.events().publish()`. Queried via `rpc.Server.getEvents()`.
+2. **Horizon Operation Streams**: Streaming ledger payments and transactions via `server.payments().stream()`.
+
+---
+
+## 2. Privacy Considerations & Compliance
+
+When capturing analytics for Web3 applications:
+
+- **Zero PII (Personally Identifiable Information)**: Never ingest names, email addresses, IP addresses, or location data into raw analytics pipelines.
+- **Address Salted Hashing**: Hash user public keys (`G...`) with a rotating salt before storing in product analytics tools to prevent cross-dApp user tracking.
+- **No Secret Key Logging**: Ensure log redaction filters explicitly strip any string matching secret key formats (`S...`, 56 characters).
+- **Public vs Off-Chain Boundary**: Public key transactions are immutable on the blockchain; however, associating off-chain telemetry with on-chain addresses creates privacy risks under GDPR/CCPA.
+
+---
+
+## 3. Working Sample Implementation
+
+Here is a complete TypeScript ingestion worker using `@stellar/stellar-sdk` and standard Node.js crypto utilities:
+
+```typescript
+import { rpc } from '@stellar/stellar-sdk';
+import { createHash } from 'crypto';
+
+interface AnalyticsEvent {
+  eventId: string;
+  eventType: string;
+  hashedAccount: string;
+  contractId: string;
+  timestamp: number;
+  payload: Record<string, unknown>;
+}
+
+export class StellarAnalyticsPipeline {
+  private rpcServer: rpc.Server;
+  private salt: string;
+
+  constructor(rpcUrl: string, salt: string) {
+    this.rpcServer = new rpc.Server(rpcUrl);
+    this.salt = salt;
+  }
+
+  // Hash public key with salt for privacy preservation
+  public sanitizeAddress(publicKey: string): string {
+    return createHash('sha256')
+      .update(publicKey + this.salt)
+      .digest('hex');
+  }
+
+  // Fetch recent Soroban contract events
+  public async fetchContractEvents(
+    contractId: string,
+    startLedger: number
+  ): Promise<AnalyticsEvent[]> {
+    const response = await this.rpcServer.getEvents({
+      startLedger,
+      filters: [{ type: 'contract', contractIds: [contractId] }],
+    });
+
+    return response.events.map((event) => {
+      const rawTopics = event.topic || [];
+      const userKey = rawTopics[1] ? String(rawTopics[1]) : 'anonymous';
+
+      return {
+        eventId: event.id,
+        eventType: String(rawTopics[0] || 'unknown_event'),
+        hashedAccount: this.sanitizeAddress(userKey),
+        contractId: event.contractId,
+        timestamp: Date.now(),
+        payload: {
+          ledger: event.ledger,
+          ledgerClosedAt: event.ledgerClosedAt,
+        },
+      };
+    });
+  }
+
+  // Idempotent ingestion into storage
+  public async ingestEvents(events: AnalyticsEvent[]): Promise<void> {
+    for (const evt of events) {
+      // In production, execute batch INSERT INTO analytics_events ... ON CONFLICT DO NOTHING
+      console.log(`[Analytics] Ingested event ${evt.eventId} (${evt.eventType})`);
+    }
+  }
+}
+```
+
+---
+
+## 4. Verification & Best Practices
+
+1. **Verify Idempotency**: Use `eventId` (ledger + index) as a primary key to handle stream reconnections gracefully.
+2. **Buffer Stream Batches**: Process event streams in batches of 50–100 records to minimize database connection pressure.
+3. **Monitor RPC Lag**: Compare latest processed ledger height against `rpcServer.getLatestLedger()` to monitor indexer lag.
+
+---
+
+## Related Documentation
+
+- [Horizon vs Soroban RPC](/docs/guides/horizon-vs-soroban-rpc) — Differences between indexers
+- [Log Redaction Strategy](/docs/guides/log-redaction-strategy) — Security guidelines for event logging
+- [Stellar SDK Overview](/docs/sdk/overview) — Core Nextellar SDK abstractions

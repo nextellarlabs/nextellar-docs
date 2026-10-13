@@ -1,670 +1,120 @@
 ---
 title: Extending the CLI
-description: Advanced guide to extending Nextellar CLI with custom behavior, hooks, and features.
-date: 2026-05-29
+description: How to extend Nextellar with new `add` features and template files.
+date: 2026-07-28
 ---
 
 # Extending the CLI
 
-This advanced guide covers how to extend the Nextellar CLI with custom behavior, create feature plugins, and build advanced scaffolding workflows.
+Nextellar has two real extension points today:
 
-## Overview
+1. **The feature registry** — `src/lib/features.ts` in the [nextellar CLI repo](https://github.com/nextellarlabs/nextellar) defines what `nextellar add <feature>` can install into an existing project.
+2. **Template files** — `src/templates/*` in the same repo is what `--template` (see [Scaffolding Templates](/docs/cli/templates)) and `nextellar add` copy files from.
 
-The Nextellar CLI is designed to be extensible at multiple levels:
+There is no plugin system, no `.nextellarrc.js` hooks, and no `--example`/custom-template mechanism. Extending the CLI means opening a PR against the CLI repo that touches one or both of the above.
 
-1. **Scaffolding Hooks** — Customize the project generation process
-2. **Feature Plugins** — Add new features via `nextellar add`
-3. **Custom Templates** — Create reusable project templates
-4. **Post-Generation Scripts** — Run custom logic after scaffolding
-5. **Configuration Providers** — Supply custom configuration during setup
-
-## Extension Points
-
-### 1. Scaffolding Hooks
-
-Scaffolding hooks allow you to intercept and modify the project generation process.
-
-#### Available Hooks
-
-| Hook             | Timing                          | Use Case                               |
-| ---------------- | ------------------------------- | -------------------------------------- |
-| `beforeScaffold` | Before any files are copied     | Validate inputs, prepare environment   |
-| `afterCopy`      | After template files are copied | Modify generated files                 |
-| `beforeInstall`  | Before dependencies install     | Update package.json, add scripts       |
-| `afterInstall`   | After dependencies install      | Run setup scripts, initialize services |
-| `beforeComplete` | Before scaffolding completes    | Final validation, cleanup              |
-
-#### Hook Signature
+## The `FeatureDef` interface
 
 ```typescript
-type ScaffoldHook = (context: ScaffoldContext) => Promise<void>;
+export type FeatureKind = 'hook' | 'component';
 
-interface ScaffoldContext {
-  projectName: string;
-  projectPath: string;
-  options: ScaffoldOptions;
-  config: GeneratedConfig;
-  fs: FileSystem;
-  logger: Logger;
-}
-```
-
-#### Registering Hooks
-
-Create a `.nextellarrc.js` file in your project root:
-
-```javascript
-// .nextellarrc.js
-module.exports = {
-  hooks: {
-    beforeScaffold: async (context) => {
-      context.logger.info('Preparing project...');
-      // Validate custom requirements
-      if (!process.env.STELLAR_NETWORK) {
-        throw new Error('STELLAR_NETWORK environment variable required');
-      }
-    },
-
-    afterCopy: async (context) => {
-      context.logger.info('Customizing generated files...');
-      // Modify files after copying
-      const envPath = `${context.projectPath}/.env.local`;
-      await context.fs.write(
-        envPath,
-        `NEXT_PUBLIC_NETWORK=${process.env.STELLAR_NETWORK}`
-      );
-    },
-
-    beforeInstall: async (context) => {
-      context.logger.info('Updating dependencies...');
-      // Add custom dependencies
-      const pkgPath = `${context.projectPath}/package.json`;
-      const pkg = await context.fs.read(pkgPath, 'json');
-      pkg.devDependencies['@stellar/stellar-sdk'] = '^21.0.0';
-      await context.fs.write(pkgPath, pkg);
-    },
-
-    afterInstall: async (context) => {
-      context.logger.info('Running setup scripts...');
-      // Execute custom setup
-      await context.fs.exec('npm run setup:stellar');
-    },
-  },
-};
-```
-
-### 2. Feature Plugins
-
-Feature plugins extend the `nextellar add` command with custom features.
-
-#### Plugin Structure
-
-```typescript
-interface FeaturePlugin {
-  name: string;
-  version: string;
+export interface FeatureDef {
+  id: string;
   description: string;
-  dependencies?: Record<string, string>;
-  devDependencies?: Record<string, string>;
-  files: FeatureFile[];
-  hooks?: {
-    beforeAdd?: (context: FeatureContext) => Promise<void>;
-    afterAdd?: (context: FeatureContext) => Promise<void>;
-  };
-}
-
-interface FeatureFile {
-  source: string; // Path in plugin
-  destination: string; // Path in project
-  template?: boolean; // Apply variable substitution
+  /** Relative paths under template src (e.g. "contexts/WalletProvider.tsx") */
+  files: string[];
+  /** Other feature ids that must be installed first */
+  dependsOn: string[];
+  /** npm packages to ensure installed (e.g. @stellar/stellar-sdk) */
+  npmDependencies: string[];
+  /** How the feature is grouped in `nextellar add --list` (default: "hook") */
+  kind?: FeatureKind;
 }
 ```
 
-#### Creating a Feature Plugin
+Every feature is an entry in a `Record<string, FeatureDef>` called `FEATURES`. `files` are paths relative to a template's `src/` directory. When you run `nextellar add <feature>`, those paths are copied from the project's own template first; if a file isn't part of that template (for example, the Soroban hooks aren't in `defi`), the CLI falls back to copying it from `default` instead.
 
-Create a plugin directory structure:
+## Dependency ordering
 
-```
-my-feature-plugin/
-├── package.json
-├── index.js
-├── files/
-│   ├── src/
-│   │   └── features/
-│   │       └── my-feature.ts
-│   └── .env.example
-└── hooks.js
-```
+`resolveFeatureWithDeps(featureId)` returns the requested feature plus everything it depends on, dependencies first:
 
-**package.json:**
+```typescript
+export function resolveFeatureWithDeps(featureId: string): FeatureDef[] {
+  const id = featureId.toLowerCase();
+  const def = FEATURES[id];
+  if (!def) return [];
 
-```json
-{
-  "name": "@nextellar/feature-my-feature",
-  "version": "1.0.0",
-  "description": "Custom feature for Nextellar",
-  "main": "index.js",
-  "nextellar": {
-    "type": "feature",
-    "category": "integration"
-  }
-}
-```
+  const seen = new Set<string>();
+  const ordered: FeatureDef[] = [];
 
-**index.js:**
-
-```javascript
-module.exports = {
-  name: 'my-feature',
-  version: '1.0.0',
-  description: 'Adds custom feature to Nextellar project',
-
-  dependencies: {
-    'custom-lib': '^2.0.0',
-  },
-
-  devDependencies: {
-    '@types/custom-lib': '^2.0.0',
-  },
-
-  files: [
-    {
-      source: 'files/src/features/my-feature.ts',
-      destination: 'src/features/my-feature.ts',
-      template: true,
-    },
-    {
-      source: 'files/.env.example',
-      destination: '.env.example',
-      template: true,
-    },
-  ],
-
-  hooks: require('./hooks.js'),
-};
-```
-
-**hooks.js:**
-
-```javascript
-module.exports = {
-  beforeAdd: async (context) => {
-    context.logger.info('Validating feature compatibility...');
-    // Check if project has required dependencies
-    const pkg = await context.fs.readJSON('package.json');
-    if (!pkg.dependencies['@stellar/stellar-sdk']) {
-      throw new Error('Feature requires @stellar/stellar-sdk');
+  function visit(f: FeatureDef) {
+    for (const depId of f.dependsOn) {
+      const dep = FEATURES[depId];
+      if (dep && !seen.has(depId)) visit(dep);
     }
-  },
-
-  afterAdd: async (context) => {
-    context.logger.info('Feature added successfully!');
-    context.logger.info('Next steps:');
-    context.logger.info('1. Update .env.local with required variables');
-    context.logger.info(
-      '2. Import feature: import { myFeature } from "@/features/my-feature"'
-    );
-  },
-};
-```
-
-#### Installing a Feature Plugin
-
-```bash
-# From npm registry
-nextellar add @nextellar/feature-my-feature
-
-# From local directory
-nextellar add ./my-feature-plugin
-
-# With options
-nextellar add my-feature --force --package-manager pnpm
-```
-
-### 3. Custom Templates
-
-Create reusable project templates for specific use cases.
-
-#### Template Structure
-
-```
-my-template/
-├── package.json
-├── template.config.js
-├── template/
-│   ├── src/
-│   ├── public/
-│   ├── package.json
-│   └── ...
-└── README.md
-```
-
-**template.config.js:**
-
-```javascript
-module.exports = {
-  name: 'payments-demo',
-  version: '1.0.0',
-  description: 'Stellar payments demo template',
-
-  // Variables available for substitution
-  variables: {
-    APP_NAME: 'My Stellar App',
-    HORIZON_URL: 'https://horizon-testnet.stellar.org',
-    SOROBAN_URL: 'https://soroban-testnet.stellar.org',
-    NETWORK: 'TESTNET',
-    WALLETS: ['freighter', 'albedo'],
-  },
-
-  // Prompts for interactive setup
-  prompts: [
-    {
-      name: 'paymentAmount',
-      type: 'number',
-      message: 'Default payment amount (XLM)',
-      default: 10,
-    },
-    {
-      name: 'recipientAddress',
-      type: 'text',
-      message: 'Default recipient address',
-      default: '',
-    },
-  ],
-
-  // Post-generation hooks
-  hooks: {
-    afterGenerate: async (context) => {
-      context.logger.info('Payments demo template generated!');
-      context.logger.info('Features included:');
-      context.logger.info('- Wallet connection');
-      context.logger.info('- Balance viewer');
-      context.logger.info('- Payment sender');
-    },
-  },
-};
-```
-
-#### Using Custom Templates
-
-```bash
-# From npm registry
-npx nextellar my-app --example @myorg/payments-demo
-
-# From GitHub
-npx nextellar my-app --example github:myorg/nextellar-payments-demo
-
-# From local directory
-npx nextellar my-app --example ./my-template
-```
-
-## Worked Example: Building a Custom Feature
-
-Let's build a complete feature plugin that adds analytics tracking to a Nextellar project.
-
-### Step 1: Create Plugin Structure
-
-```bash
-mkdir nextellar-feature-analytics
-cd nextellar-feature-analytics
-npm init -y
-```
-
-### Step 2: Create Plugin Configuration
-
-**package.json:**
-
-```json
-{
-  "name": "@myorg/nextellar-feature-analytics",
-  "version": "1.0.0",
-  "description": "Add analytics tracking to Nextellar projects",
-  "main": "index.js",
-  "nextellar": {
-    "type": "feature",
-    "category": "analytics"
-  }
-}
-```
-
-**index.js:**
-
-```javascript
-module.exports = {
-  name: 'analytics',
-  version: '1.0.0',
-  description: 'Adds analytics tracking with Segment',
-
-  dependencies: {
-    '@segment/analytics-next': '^1.50.0',
-  },
-
-  devDependencies: {
-    '@types/segment-analytics': '^1.0.0',
-  },
-
-  files: [
-    {
-      source: 'files/src/lib/analytics.ts',
-      destination: 'src/lib/analytics.ts',
-      template: false,
-    },
-    {
-      source: 'files/src/hooks/useAnalytics.ts',
-      destination: 'src/hooks/useAnalytics.ts',
-      template: false,
-    },
-    {
-      source: 'files/.env.example',
-      destination: '.env.example',
-      template: true,
-    },
-  ],
-
-  hooks: require('./hooks.js'),
-};
-```
-
-**hooks.js:**
-
-```javascript
-module.exports = {
-  beforeAdd: async (context) => {
-    context.logger.info('🔍 Validating analytics feature...');
-
-    // Check Node version
-    const nodeVersion = process.version;
-    if (!nodeVersion.startsWith('v18') && !nodeVersion.startsWith('v20')) {
-      throw new Error('Analytics feature requires Node 18+');
-    }
-
-    context.logger.info('✅ Validation passed');
-  },
-
-  afterAdd: async (context) => {
-    context.logger.info('📊 Analytics feature added!');
-    context.logger.info('');
-    context.logger.info('Next steps:');
-    context.logger.info('1. Add NEXT_PUBLIC_SEGMENT_KEY to .env.local');
-    context.logger.info(
-      '2. Import useAnalytics hook: import { useAnalytics } from "@/hooks/useAnalytics"'
-    );
-    context.logger.info(
-      '3. Track events: const { track } = useAnalytics(); track("user_action")'
-    );
-    context.logger.info('');
-    context.logger.info(
-      '📚 Documentation: https://segment.com/docs/connections/sources/catalog/libraries/website/javascript/'
-    );
-  },
-};
-```
-
-### Step 3: Create Feature Files
-
-**files/src/lib/analytics.ts:**
-
-```typescript
-import { AnalyticsBrowser } from '@segment/analytics-next';
-
-export const analytics = AnalyticsBrowser.load({
-  writeKey: process.env.NEXT_PUBLIC_SEGMENT_KEY || '',
-});
-
-export const trackEvent = (event: string, properties?: Record<string, any>) => {
-  analytics.track(event, properties);
-};
-
-export const identifyUser = (userId: string, traits?: Record<string, any>) => {
-  analytics.identify(userId, traits);
-};
-
-export const trackPageView = (
-  page: string,
-  properties?: Record<string, any>
-) => {
-  analytics.page(page, properties);
-};
-```
-
-**files/src/hooks/useAnalytics.ts:**
-
-```typescript
-import { useCallback } from 'react';
-import { trackEvent, identifyUser, trackPageView } from '@/lib/analytics';
-
-export const useAnalytics = () => {
-  const track = useCallback(
-    (event: string, properties?: Record<string, any>) => {
-      trackEvent(event, properties);
-    },
-    []
-  );
-
-  const identify = useCallback(
-    (userId: string, traits?: Record<string, any>) => {
-      identifyUser(userId, traits);
-    },
-    []
-  );
-
-  const page = useCallback(
-    (pageName: string, properties?: Record<string, any>) => {
-      trackPageView(pageName, properties);
-    },
-    []
-  );
-
-  return { track, identify, page };
-};
-```
-
-**files/.env.example:**
-
-```bash
-# Segment Analytics
-NEXT_PUBLIC_SEGMENT_KEY={{SEGMENT_KEY}}
-```
-
-### Step 4: Publish and Use
-
-```bash
-# Publish to npm
-npm publish
-
-# Use in a Nextellar project
-nextellar my-app
-cd my-app
-nextellar add @myorg/nextellar-feature-analytics
-```
-
-## Testing Recommendations
-
-### Unit Testing Hooks
-
-```typescript
-// __tests__/hooks/useAnalytics.test.ts
-import { renderHook, act } from '@testing-library/react';
-import { useAnalytics } from '@/hooks/useAnalytics';
-import * as analytics from '@/lib/analytics';
-
-jest.mock('@/lib/analytics');
-
-describe('useAnalytics', () => {
-  it('should track events', () => {
-    const { result } = renderHook(() => useAnalytics());
-
-    act(() => {
-      result.current.track('test_event', { value: 123 });
-    });
-
-    expect(analytics.trackEvent).toHaveBeenCalledWith('test_event', {
-      value: 123,
-    });
-  });
-
-  it('should identify users', () => {
-    const { result } = renderHook(() => useAnalytics());
-
-    act(() => {
-      result.current.identify('user123', { email: 'user@example.com' });
-    });
-
-    expect(analytics.identifyUser).toHaveBeenCalledWith('user123', {
-      email: 'user@example.com',
-    });
-  });
-});
-```
-
-### Integration Testing Features
-
-```typescript
-// __tests__/features/analytics.integration.test.ts
-import { analytics, trackEvent } from '@/lib/analytics';
-
-describe('Analytics Integration', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
-
-  it('should initialize analytics with correct key', () => {
-    expect(analytics).toBeDefined();
-    expect(process.env.NEXT_PUBLIC_SEGMENT_KEY).toBeDefined();
-  });
-
-  it('should track events without errors', async () => {
-    expect(() => {
-      trackEvent('test_event', { timestamp: Date.now() });
-    }).not.toThrow();
-  });
-});
-```
-
-### Testing Scaffolding Hooks
-
-```javascript
-// __tests__/hooks.test.js
-const hooks = require('../hooks.js');
-
-describe('Feature Hooks', () => {
-  const mockContext = {
-    logger: {
-      info: jest.fn(),
-      error: jest.fn(),
-    },
-    fs: {
-      readJSON: jest.fn(),
-    },
-  };
-
-  it('should validate Node version in beforeAdd', async () => {
-    await expect(hooks.beforeAdd(mockContext)).resolves.not.toThrow();
-  });
-
-  it('should provide setup instructions in afterAdd', async () => {
-    await hooks.afterAdd(mockContext);
-    expect(mockContext.logger.info).toHaveBeenCalledWith(
-      expect.stringContaining('Next steps')
-    );
-  });
-});
-```
-
-### E2E Testing
-
-```bash
-# Test feature installation
-npm run test:e2e
-
-# Create test project
-npx nextellar test-project --skip-install
-
-# Add feature
-cd test-project
-nextellar add @myorg/nextellar-feature-analytics
-
-# Verify files exist
-test -f src/lib/analytics.ts && echo "✅ Analytics lib created"
-test -f src/hooks/useAnalytics.ts && echo "✅ Analytics hook created"
-
-# Verify dependencies
-grep "@segment/analytics-next" package.json && echo "✅ Dependencies added"
-```
-
-## Best Practices
-
-### Plugin Development
-
-- **Validate Dependencies** — Check for required packages before adding features
-- **Provide Clear Instructions** — Use afterAdd hooks to guide users
-- **Handle Errors Gracefully** — Provide helpful error messages
-- **Document Configuration** — Include .env.example with all required variables
-- **Test Thoroughly** — Unit, integration, and E2E tests
-- **Version Carefully** — Follow semantic versioning
-- **Keep Plugins Focused** — One feature per plugin
-
-### Scaffolding Hooks
-
-- **Keep Hooks Fast** — Minimize I/O operations
-- **Log Progress** — Help users understand what's happening
-- **Validate Early** — Check requirements in beforeScaffold
-- **Clean Up** — Remove temporary files in beforeComplete
-- **Handle Errors** — Provide recovery options
-
-### Template Development
-
-- **Use Variables** — Make templates reusable with substitution
-- **Provide Prompts** — Guide users through customization
-- **Include Examples** — Show how to use generated code
-- **Document Setup** — Clear post-generation instructions
-- **Test Thoroughly** — Verify all paths work correctly
-
-## Advanced Patterns
-
-### Conditional Feature Installation
-
-```javascript
-// Only add feature if not already present
-beforeAdd: async (context) => {
-  const pkg = await context.fs.readJSON('package.json');
-  if (pkg.dependencies['@segment/analytics-next']) {
-    throw new Error('Analytics feature already installed');
-  }
-};
-```
-
-### Environment-Specific Configuration
-
-```javascript
-// Apply different config based on environment
-afterAdd: async (context) => {
-  const env = process.env.NODE_ENV || 'development';
-  const configFile = `config/analytics.${env}.ts`;
-  // Generate environment-specific config
-};
-```
-
-### Dependency Conflict Resolution
-
-```javascript
-// Check for conflicting dependencies
-beforeAdd: async (context) => {
-  const pkg = await context.fs.readJSON('package.json');
-  const conflicts = ['@segment/analytics', '@mixpanel/browser'];
-
-  for (const conflict of conflicts) {
-    if (pkg.dependencies[conflict]) {
-      throw new Error(`Conflict: ${conflict} already installed`);
+    if (!seen.has(f.id)) {
+      seen.add(f.id);
+      ordered.push(f);
     }
   }
-};
+
+  visit(def);
+  return ordered;
+}
 ```
 
-## Related Resources
+It's a depth-first walk over `dependsOn`, deduplicated with a `seen` set: a feature's dependencies are always visited — and their files copied — before the feature itself. `network-switcher`, for instance, `dependsOn: ["wallet"]`, so `nextellar add network-switcher` always writes `WalletProvider.tsx` before `NetworkSwitcher.tsx`. Files that already exist in the project are skipped (not overwritten) unless `--force` is passed.
 
-- [CLI Commands](/docs/cli/commands) — Complete command reference
-- [CLI Options](/docs/cli/options) — All available flags
-- [CLI Configuration](/docs/cli/configuration) — Post-scaffolding customization
-- [Contributing Guide](/docs/guides/contributing) — Documentation standards
-- [Nextellar GitHub](https://github.com/nextellarlabs/nextellar) — Source code and issues
+## Worked example: adding a `notifications` feature
+
+Say you want `nextellar add notifications` to add a hook that surfaces incoming payments, plus a component that renders them as a banner. Add two entries to `FEATURES` in `src/lib/features.ts`:
+
+```typescript
+notifications: {
+  id: "notifications",
+  description: "Payment notifications: useNotifications hook",
+  files: ["hooks/useNotifications.ts"],
+  dependsOn: ["wallet"],
+  npmDependencies: ["@stellar/stellar-sdk"],
+},
+"notification-banner": {
+  id: "notification-banner",
+  description: "NotificationBanner component (renders useNotifications)",
+  files: ["components/NotificationBanner.tsx"],
+  dependsOn: ["notifications"],
+  npmDependencies: [],
+  kind: "component",
+},
+```
+
+Then add the matching source under `src/templates/default/src/hooks/useNotifications.ts` and `src/templates/default/src/components/NotificationBanner.tsx` — that's the file `add` actually copies. `resolveFeatureWithDeps("notification-banner")` resolves to `[wallet, notifications, notification-banner]`, deps first.
+
+Running this against a scaffolded `default` project (which already has the `wallet` feature's files) prints:
+
+```text
+✔ Feature "notification-banner" added.
+Source template: default
+
+Added files:
+  hooks/useNotifications.ts
+  components/NotificationBanner.tsx
+
+Skipped (already exist):
+  contexts/WalletProvider.tsx
+  components/WalletConnectButton.tsx
+  lib/stellar-wallet-kit.ts
+  hooks/useStellarWallet.ts
+
+Next steps:
+  • Wrap your app with WalletProvider (if you added wallet) in layout.tsx
+  • Import hooks and components from src/hooks and src/components
+```
+
+`wallet`'s files show up as **skipped**, not copied, because they were already on disk from the initial scaffold — `resolveFeatureWithDeps` still resolves and processes them, it just doesn't overwrite existing files without `--force`.
+
+## Related
+
+- [CLI Commands](/docs/cli/commands) — `nextellar add` command reference
+- [Scaffolding Templates](/docs/cli/templates) — what each `--template` ships
+- [Contributing Guide](/docs/guides/contributing) — sending a PR to the CLI repo
+- [Nextellar CLI source](https://github.com/nextellarlabs/nextellar) — `src/lib/features.ts` and `src/templates/`

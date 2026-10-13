@@ -1,0 +1,214 @@
+---
+title: Wallet UX Patterns
+description: Recommended UX patterns for connect, sign, and disconnect wallet flows in Nextellar dApps, including error and empty states.
+date: 2026-06-29
+---
+
+# Wallet UX Patterns
+
+Wallet interactions are the highest-friction points in any Stellar dApp. This guide documents the recommended UX patterns for the three core flows — connect, sign, and disconnect — along with guidance for error and empty states.
+
+---
+
+## Connect Flow
+
+The connect flow asks the user to authorise a wallet extension or WalletConnect session. It should be non-blocking: never require connection before the user can read content.
+
+### States
+
+| State      | What to show                                                 |
+| ---------- | ------------------------------------------------------------ |
+| Idle       | A single "Connect Wallet" button, disabled during loading    |
+| Connecting | Button replaced by a spinner with "Connecting…" label        |
+| Connected  | Public key (truncated) and a Disconnect action               |
+| Error      | Inline message below the button; retain the button for retry |
+| No wallet  | Prompt with links to install Freighter / Albedo / Lobstr     |
+
+### Example
+
+```tsx
+import { useStellarWallet } from '@/hooks/useStellarWallet';
+
+export function ConnectButton() {
+  const { connected, connecting, publicKey, error, connect } =
+    useStellarWallet();
+
+  if (connected) {
+    return (
+      <span>
+        {publicKey?.slice(0, 6)}…{publicKey?.slice(-4)}
+      </span>
+    );
+  }
+
+  return (
+    <div>
+      <button onClick={connect} disabled={connecting}>
+        {connecting ? 'Connecting…' : 'Connect Wallet'}
+      </button>
+      {error && <p role="alert">{error.message}</p>}
+    </div>
+  );
+}
+```
+
+### Error states
+
+| Error             | Cause                               | Recovery                                     |
+| ----------------- | ----------------------------------- | -------------------------------------------- |
+| `WalletNotFound`  | Extension not installed             | Show install links for supported wallets     |
+| `UserRejected`    | User dismissed the permission popup | Keep the connect button; add a retry prompt  |
+| `NetworkMismatch` | Wallet is on wrong network          | Show the expected network and how to switch  |
+| `Timeout`         | Extension did not respond in time   | Auto-retry once; fall back to a manual retry |
+
+---
+
+## Sign Flow
+
+The sign flow covers transaction building, requesting the wallet signature, and submission to Horizon. Users must see what they are signing before approving.
+
+### States
+
+| State      | What to show                                                      |
+| ---------- | ----------------------------------------------------------------- |
+| Idle       | Action button (e.g. "Send Payment") enabled when form is valid    |
+| Building   | Button disabled, optional progress indicator                      |
+| Awaiting   | "Waiting for wallet approval…" message; cancel option if possible |
+| Submitting | "Submitting transaction…" with a spinner                          |
+| Success    | Confirmation with transaction hash and a link to the explorer     |
+| Error      | Error message, whether signing was rejected or submission failed  |
+
+### Example
+
+```tsx
+import { useStellarPayment } from '@/hooks/useStellarPayment';
+
+export function PaymentButton({ destination, amount }: Props) {
+  const { send, status, error, txHash } = useStellarPayment();
+
+  if (status === 'success') {
+    return (
+      <p>
+        Sent!{' '}
+        <a
+          href={`https://stellar.expert/explorer/testnet/tx/${txHash}`}
+          target="_blank"
+          rel="noreferrer"
+        >
+          View transaction
+        </a>
+      </p>
+    );
+  }
+
+  return (
+    <div>
+      <button
+        onClick={() => send({ destination, amount })}
+        disabled={status !== 'idle'}
+      >
+        {status === 'awaiting' ? 'Waiting for wallet…' : 'Send Payment'}
+      </button>
+      {error && <p role="alert">{error.message}</p>}
+    </div>
+  );
+}
+```
+
+### Error states
+
+| Error                        | Cause                                   | Recovery                                        |
+| ---------------------------- | --------------------------------------- | ----------------------------------------------- |
+| `UserRejected`               | User dismissed the signing prompt       | Show "Transaction cancelled" and reset to idle  |
+| `InsufficientBalance`        | XLM or asset balance too low            | Surface the required amount and current balance |
+| `BadSequence`                | Sequence number out of sync             | Refresh account state and rebuild the tx        |
+| `HorizonSubmitFailed`        | Network or node error during submission | Show the Horizon error code and suggest retry   |
+| `SimulationFailed` (Soroban) | Contract simulation returned an error   | Surface the contract error message              |
+
+---
+
+## Disconnect Flow
+
+Disconnecting should clear all wallet state without requiring a page reload.
+
+### States
+
+| State         | What to show                                  |
+| ------------- | --------------------------------------------- |
+| Connected     | Disconnect option accessible (menu or button) |
+| Disconnecting | Brief loading state; no spinner needed        |
+| Disconnected  | Return to the idle connect state              |
+
+### Example
+
+```tsx
+import { useStellarWallet } from '@/hooks/useStellarWallet';
+
+export function AccountMenu() {
+  const { publicKey, disconnect } = useStellarWallet();
+
+  return (
+    <div>
+      <p>
+        {publicKey?.slice(0, 6)}…{publicKey?.slice(-4)}
+      </p>
+      <button onClick={disconnect}>Disconnect</button>
+    </div>
+  );
+}
+```
+
+Disconnect should also clear any cached state (localStorage session, balance cache) so the next connect starts fresh.
+
+---
+
+## Empty and Unauthenticated States
+
+When no wallet is connected, avoid blank screens.
+
+- Replace wallet-dependent content with a connect prompt.
+- Preserve read-only content (balances are not shown, but public market data can be).
+- Do not redirect users away from the current page solely because they are not connected.
+
+```tsx
+export function BalancePanel() {
+  const { connected, balances } = useStellarWallet();
+
+  if (!connected) {
+    return <p>Connect your wallet to view balances.</p>;
+  }
+
+  if (balances.length === 0) {
+    return <p>No balances found. Fund your account to get started.</p>;
+  }
+
+  return (
+    <ul>
+      {balances.map((b) => (
+        <li key={b.asset_code ?? 'XLM'}>
+          {b.asset_code ?? 'XLM'}: {b.balance}
+        </li>
+      ))}
+    </ul>
+  );
+}
+```
+
+---
+
+## Summary
+
+| Flow        | Key principle                                                 |
+| ----------- | ------------------------------------------------------------- |
+| Connect     | Non-blocking; surface install prompts for missing wallets     |
+| Sign        | Show what is being signed; distinguish rejection from failure |
+| Disconnect  | Clear all state; return to idle; no page reload needed        |
+| Empty state | Prompt to connect; never show a blank content area            |
+
+---
+
+## Related
+
+- [useStellarWallet](/docs/hooks/use-stellar-wallet)
+- [Hook Error Handling](/docs/guides/hook-error-handling)
+- [Signing with Hardware Wallets](/docs/guides/signing-with-hardware-wallets)

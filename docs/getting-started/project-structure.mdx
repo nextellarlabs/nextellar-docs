@@ -1,0 +1,160 @@
+---
+title: Scaffolded Project Structure Walkthrough
+description: Comprehensive walkthrough of the directory hierarchy, configuration files, and architecture of a Nextellar dApp.
+date: 2026-09-24
+---
+
+# Scaffolded Project Structure Walkthrough
+
+When you scaffold a new application using `nextellar create` (or `npx nextellar <project-name>`), Nextellar sets up a production-ready Next.js 15 project integrated with the Stellar SDK, the Stellar Wallets Kit, and Soroban smart contract tooling.
+
+This guide walks through the generated directory tree and explains the role and configuration of every key file.
+
+---
+
+## Directory Tree Overview
+
+Below is the directory structure generated for a standard TypeScript dApp scaffolded with `--template default`:
+
+```text
+my-stellar-app/
+├── contracts/                     # Soroban Rust contracts (when --contract enabled)
+│   ├── Cargo.toml                 # Cargo workspace configuration
+│   └── hello_world/               # Example Soroban smart contract
+│       ├── Cargo.toml             # Contract package manifest
+│       └── src/
+│           ├── lib.rs             # Contract source code & methods
+│           └── test.rs            # Soroban test suite
+├── public/                        # Static web assets
+│   ├── favicon.ico
+│   ├── nextellar.svg
+│   └── stellar.toml               # SEP-0001 Stellar info file
+├── src/
+│   ├── app/                       # Next.js 15 App Router directory
+│   │   ├── globals.css            # Tailwind CSS styling and theme variables
+│   │   ├── layout.tsx             # Root layout with context providers
+│   │   ├── page.tsx               # Homepage dApp interface
+│   │   └── providers.tsx          # Client-side React context wrappers
+│   ├── components/                # Reusable UI and Web3 components
+│   │   ├── ui/                    # Base UI primitives (buttons, dialogs, badges)
+│   │   ├── Header.tsx             # Navigation bar with network indicator
+│   │   └── WalletConnectButton.tsx# Multi-wallet selector and connection trigger
+│   ├── contexts/                  # React Context definitions
+│   │   ├── NetworkContext.tsx     # Active Stellar network (Testnet/Mainnet/Futurenet)
+│   │   └── WalletContext.tsx      # Global wallet authentication state
+│   ├── hooks/                     # Nextellar React hooks
+│   │   ├── useStellarWallet.ts    # Wallet connection, disconnection, signers
+│   │   ├── useStellarBalances.ts  # Native XLM and trustline token balances
+│   │   ├── useStellarPayment.ts   # Payment envelope construction and submission
+│   │   ├── useTrustlines.ts       # SEP-0011 trustline operations
+│   │   ├── useTransactionHistory.ts # Horizon ledger history query
+│   │   ├── useOfferBook.ts        # Stellar DEX bids and asks orderbook
+│   │   ├── useSorobanContract.ts  # Smart contract method simulation and invocation
+│   │   └── useSorobanEvents.ts    # Live contract event listener
+│   └── lib/                       # Utility functions and network clients
+│       ├── horizon.ts             # Pre-configured Horizon server client
+│       ├── soroban.ts             # Soroban RPC server configuration
+│       └── utils.ts               # Classnames helper and formatting utilities
+├── .env.example                   # Template environment variables
+├── .env.local                     # Local environment secrets (gitignored)
+├── .gitignore                     # Git ignore rules
+├── next.config.mjs                # Next.js configuration
+├── package.json                   # Project dependencies and npm scripts
+├── postcss.config.mjs             # PostCSS and Tailwind processing
+├── README.md                      # Project documentation and quick start
+├── tailwind.config.ts             # Tailwind CSS theme and color tokens
+└── tsconfig.json                  # TypeScript compiler options
+```
+
+---
+
+## Key Files & Directories Described
+
+### 1. Root Configuration Files
+
+| File                          | Purpose                                                                                                                                                                      |
+| :---------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `package.json`                | Defines dependencies including `@stellar/stellar-sdk`, `@creit.tech/stellar-wallets-kit`, and Next.js 15. Includes development scripts: `dev`, `build`, `start`, and `lint`. |
+| `tsconfig.json`               | Configures TypeScript with path aliases (`@/*` pointing to `./src/*`), strict type-checking, and ES2022 module resolution.                                                   |
+| `next.config.mjs`             | Configures Next.js bundler. Pre-configured with webpack fallbacks for Node.js modules required by cryptographic libraries.                                                   |
+| `tailwind.config.ts`          | Theme definitions and design system styling tokens for both light and dark modes.                                                                                            |
+| `.env.example` & `.env.local` | Defines environment variables such as `NEXT_PUBLIC_STELLAR_NETWORK`, `NEXT_PUBLIC_HORIZON_URL`, and `NEXT_PUBLIC_SOROBAN_RPC_URL`.                                           |
+| `public/stellar.toml`         | SEP-0001 configuration metadata file used by Stellar wallets and ecosystem explorers to discover your organization, issuer accounts, and issued assets.                      |
+
+### 2. Application Entry Point (`src/app/`)
+
+- **`layout.tsx`**:
+  The root HTML layout that wraps all pages. It initializes global fonts, metadata, and embeds `providers.tsx`.
+- **`providers.tsx`**:
+  A client component (`'use client'`) that wraps the app with `WalletProvider` and `NetworkProvider`. This guarantees that wallet session state and RPC configurations are available throughout the component tree.
+- **`page.tsx`**:
+  The default homepage illustrating a complete dApp interaction: wallet connectivity, account balance inspection, and a simple payment or contract call form.
+- **`globals.css`**:
+  Global styles containing Tailwind CSS directives and CSS custom properties (variables) for theme palettes.
+
+### 3. State & Context Providers (`src/contexts/`)
+
+- **`WalletContext.tsx`**:
+  Maintains the active wallet connection state (`connected`, `publicKey`, `activeWallet`, `network`). Integrates `@creit.tech/stellar-wallets-kit` to support Freighter, Albedo, Lobstr, xBull, and Hana.
+- **`NetworkContext.tsx`**:
+  Provides the active network configuration (`TESTNET`, `MAINNET`, or `FUTURENET`) along with matching Horizon and Soroban RPC endpoint URLs.
+
+### 4. Custom React Hooks (`src/hooks/`)
+
+Nextellar bundles production-tested hooks directly into your source code:
+
+- **`useStellarWallet.ts`**: Connect, disconnect, and sign transactions.
+- **`useStellarBalances.ts`**: Fetch balances with caching and manual refetch capabilities.
+- **`useStellarPayment.ts`**: Safely construct, sign, and broadcast payments.
+- **`useTrustlines.ts`**: Inspect and establish trustlines for custom Stellar assets.
+- **`useTransactionHistory.ts`**: Retrieve paginated historical operations.
+- **`useOfferBook.ts`**: Stream live decentralized exchange (DEX) order books.
+- **`useSorobanContract.ts`**: Simulate and submit Soroban smart contract invocations.
+- **`useSorobanEvents.ts`**: Stream real-time contract event emissions.
+
+### 5. Smart Contracts Workspace (`contracts/`)
+
+When you scaffold a project with `--contract <name>` or `--template defi`, Nextellar adds a Rust Soroban smart contract workspace:
+
+- **`Cargo.toml` (root)**:
+  Defines the Cargo workspace members and optimizes WASM compilation profiles.
+- **`contracts/<name>/src/lib.rs`**:
+  Contains the Soroban contract implementation written in Rust with `#![no_std]`, defining data types, events, and invokable public functions.
+- **`contracts/<name>/src/test.rs`**:
+  Unit tests executed in the Soroban test environment using `cargo test`.
+
+---
+
+## Variations by Scaffolding Flag
+
+### JavaScript Scaffold (`--javascript`)
+
+When scaffolded with `--javascript`, TypeScript files are replaced with standard JavaScript and JSX equivalents:
+
+- `tsconfig.json` is replaced with `jsconfig.json`.
+- `.ts` and `.tsx` extensions become `.js` and `.jsx`.
+- Type annotations are omitted while maintaining identical runtime behavior and hook APIs.
+
+### Minimal Template (`--template minimal`)
+
+The minimal template removes the example UI forms and complex contracts, leaving only the bare essentials:
+
+- Slimmed-down `src/app/page.tsx` containing only a connect button.
+- Core hooks only (`useStellarWallet`, `useStellarBalances`).
+- No `contracts/` directory by default.
+
+### DeFi Template (`--template defi`)
+
+The DeFi template includes advanced market primitives:
+
+- Dedicated DEX swap interface and order book cards.
+- Pre-configured trustline handlers for popular testnet assets.
+- Example liquidity pool contract in `contracts/liquidity_pool/`.
+
+---
+
+## Next Steps
+
+- Follow the [Quick Start Guide](/docs/getting-started/quick-start) to launch your app.
+- Check the [Hooks Cookbook](/docs/hooks/cookbook) to compose multiple hooks.
+- Learn about [Deploying Your dApp](/docs/guides/deployment) to production.

@@ -17,16 +17,14 @@ The `Note` component is used to display contextual messages with different style
   </TabsList>
   <TabsContent value="preview">
     <Preview>
-    <div className="grid grid-cols-2 gap-4">
-<Note type="info">This is an informational note.</Note>
-
-<Note type="success">This is a success message.</Note>
-
-<Note type="warning">This is a warning message.</Note>
-
-<Note>This is an Normal message.</Note>
-
-</div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Note>This is a general note.</Note>
+        <Note type="info">This is an informational note.</Note>
+        <Note type="success">This is a success message.</Note>
+        <Note type="warning">This is a warning message.</Note>
+        <Note type="alert">This is an alert message.</Note>
+        <Note type="tip">This is a helpful tip.</Note>
+      </div>
     </Preview>
   </TabsContent>
   <TabsContent value="code">
@@ -36,7 +34,8 @@ import { Note } from '@/components/note';
 
 export default function Example() {
   return (
-    <div className="grid grid-col">
+    <div className="grid gap-4 sm:grid-cols-2">
+      <Note>This is a general note.</Note>
       <Note type="info">This is an informational note.</Note>
       <Note type="success">This is a success message.</Note>
       <Note type="warning">This is a warning message.</Note>

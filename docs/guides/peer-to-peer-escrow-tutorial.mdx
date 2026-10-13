@@ -12,7 +12,7 @@ A peer-to-peer escrow holds a buyer's funds in a Soroban contract until the sell
 
 ## Escrow Lifecycle
 
-```
+```text
 Buyer deposits → LOCKED
   ↓ (seller delivers)
 Buyer confirms → RELEASED → seller receives funds
@@ -236,7 +236,7 @@ export async function openDispute(caller: string, escrowId: number) {
 
 ## UI Flow
 
-```
+```text
 1. Buyer enters: seller address, amount, token, arbiter, timeout days
 2. Buyer connects wallet → signs createEscrow tx
 3. Show escrow ID + shareable link to seller

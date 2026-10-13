@@ -105,7 +105,7 @@ const kit = new StellarWalletsKit({
 
 When a transaction needs to be signed, the wallet kit handles the communication with the user's wallet:
 
-````tsx
+```tsx
 import { kit, signTransaction } from '@/lib/stellar-wallet-kit';
 
 // Option 1: Use the kit directly
@@ -118,7 +118,7 @@ const signedXdr = await signTransaction({
   unsignedTransaction: unsignedXdr,
   address: publicKey,
 });
-```typescript
+```
 
 Most hooks handle this automatically. For example, `useStellarWallet` includes a `sendPayment` function that builds, signs, and submits transactions.
 
@@ -131,7 +131,7 @@ const kit = new StellarWalletsKit({
   network: WalletNetwork.TESTNET,
   // ...
 });
-````
+```
 
 ### Mainnet
 
@@ -206,7 +206,7 @@ For development, you can use the `signAndSubmitWithSecret` methods available on 
 > [!CAUTION]
 > This is for development/testing only. Never use secret keys in production.
 
-````tsx
+```tsx
 const { signAndSubmitWithSecret } = useStellarPayment();
 
 // DEV ONLY
@@ -216,7 +216,7 @@ const result = await signAndSubmitWithSecret({
   amount: '10',
   secret: 'SABC...', // Never do this in production!
 });
-```typescript
+```
 
 ## Common Issues
 
@@ -249,4 +249,3 @@ If the connection is lost unexpectedly:
 - [WalletProvider](/docs/hooks/wallet-provider) - Global wallet context
 - [useStellarWallet](/docs/hooks/use-stellar-wallet) - Wallet connection hook
 - [WalletConnectButton](/docs/hooks/wallet-connect-button) - Pre-built UI component
-````

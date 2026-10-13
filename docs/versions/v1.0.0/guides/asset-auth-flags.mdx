@@ -1,0 +1,110 @@
+---
+title: Asset Authorization Flags
+description: The Stellar asset authorization flags, what each one controls, how to set them from an issuing account, and common combinations for permissioned or regulated assets.
+date: 2026-07-28
+---
+
+# Asset Authorization Flags
+
+Every Stellar asset is controlled by flags set on its **issuing account**, not on the asset itself. These flags decide whether holders need approval before they can hold the asset, whether the issuer can later freeze or claw back funds, and whether the rules can ever change. This guide lists each flag, shows how to set them, and covers the combinations you'll see in practice.
+
+---
+
+## The flags
+
+| Flag                         | Value | Effect                                                                                 |
+| ---------------------------- | ----- | -------------------------------------------------------------------------------------- |
+| `AUTH_REQUIRED_FLAG`         | `1`   | Holders must be explicitly authorized by the issuer before they can hold the asset.    |
+| `AUTH_REVOCABLE_FLAG`        | `2`   | The issuer can revoke (freeze) a holder's authorization after it has been granted.     |
+| `AUTH_IMMUTABLE_FLAG`        | `4`   | Locks the account's flags permanently — no flag, including this one, can change again. |
+| `AUTH_CLAWBACK_ENABLED_FLAG` | `8`   | The issuer can claw back previously issued balances from a holder's trustline.         |
+
+Flags are combined with bitwise OR when setting more than one at a time (for example `AUTH_REQUIRED_FLAG \| AUTH_REVOCABLE_FLAG` = `3`).
+
+### `AUTH_REQUIRED_FLAG`
+
+Without this flag, any account can create a trustline and hold the asset immediately. With it set, a new trustline starts **unauthorized** — the holder can't receive the asset until the issuer approves that specific trustline with `Operation.setTrustLineFlags` (`authorized: true`). Use this for whitelisted or KYC-gated assets.
+
+### `AUTH_REVOCABLE_FLAG`
+
+Lets the issuer flip an already-authorized trustline back to unauthorized (or partially authorized, via `authorizedToMaintainLiabilities`) at any time, effectively freezing that holder. Without `AUTH_REVOCABLE_FLAG`, authorization granted once can never be taken back. This flag is also a prerequisite for enabling clawback on the account.
+
+### `AUTH_IMMUTABLE_FLAG`
+
+A one-way switch. Once set, no future `setOptions` can change flags on the account — not even to clear `AUTH_IMMUTABLE_FLAG` itself. Set it in the **same** operation as any other flags you want, since it's the last change you'll ever be able to make. Used to prove an asset's authorization model can never be tightened (or loosened) later.
+
+### `AUTH_CLAWBACK_ENABLED_FLAG`
+
+Enables the issuer to use `Operation.clawback` to reclaim asset balances directly from a holder's trustline (or a claimable balance) without their cooperation. Trustlines created after this flag is set on the issuer default to clawback-enabled. Requires `AUTH_REVOCABLE_FLAG` to also be set.
+
+---
+
+## Setting flags
+
+Flags are set with `Operation.setOptions` from the **issuing account**:
+
+```typescript
+import {
+  TransactionBuilder,
+  Operation,
+  Networks,
+  AuthRequiredFlag,
+  AuthRevocableFlag,
+} from '@stellar/stellar-sdk';
+
+const issuerAccount = await horizon.loadAccount(issuerPublicKey);
+
+const transaction = new TransactionBuilder(issuerAccount, {
+  fee: '100',
+  networkPassphrase: Networks.TESTNET,
+})
+  .addOperation(
+    Operation.setOptions({
+      setFlags: AuthRequiredFlag | AuthRevocableFlag,
+    })
+  )
+  .setTimeout(30)
+  .build();
+```
+
+Clear a flag the same way with `clearFlags`:
+
+```typescript
+Operation.setOptions({
+  clearFlags: AuthRevocableFlag,
+});
+```
+
+Once `AUTH_REQUIRED_FLAG` is set, authorize a specific holder's trustline before they can receive the asset:
+
+```typescript
+Operation.setTrustLineFlags({
+  trustor: holderPublicKey,
+  asset: new Asset('USDC', issuerPublicKey),
+  flags: { authorized: true },
+});
+```
+
+Check an issuer's current flags via Horizon's account endpoint — `account.flags` returns `auth_required`, `auth_revocable`, `auth_immutable`, and `auth_clawback_enabled` as booleans.
+
+---
+
+## Common combinations
+
+| Combination                                                               | Value | Use case                                                                         |
+| ------------------------------------------------------------------------- | ----- | -------------------------------------------------------------------------------- |
+| None set                                                                  | `0`   | Fully open asset — anyone can hold it; issuer has no freeze or clawback power.   |
+| `AUTH_REQUIRED_FLAG`                                                      | `1`   | Whitelist-only asset. Issuer approves each holder once, with no way to revoke.   |
+| `AUTH_REQUIRED_FLAG \| AUTH_REVOCABLE_FLAG`                               | `3`   | Standard regulated-asset pattern — approve holders, freeze bad actors later.     |
+| `AUTH_REVOCABLE_FLAG`                                                     | `2`   | Open enrollment with issuer retaining the ability to freeze after the fact.      |
+| `AUTH_REQUIRED_FLAG \| AUTH_REVOCABLE_FLAG \| AUTH_CLAWBACK_ENABLED_FLAG` | `11`  | Full compliance stack — approve, freeze, and claw back for legal orders.         |
+| Any combination `\| AUTH_IMMUTABLE_FLAG`                                  | `+4`  | Locks whatever rules are chosen permanently — no future tightening or loosening. |
+
+---
+
+## Related docs
+
+- [useTrustlines](/docs/hooks/use-trustlines) — creating and managing trustlines for permissioned assets
+- [Claimable Balances](/docs/guides/claimable-balances) — clawback also applies to claimable balances created from a clawback-enabled trustline
+- [Stellar Horizon](/docs/integrations/horizon) — reading account flags and trustline state
+- [Glossary](/docs/guides/glossary) — authorization, trustline, and issuer terminology

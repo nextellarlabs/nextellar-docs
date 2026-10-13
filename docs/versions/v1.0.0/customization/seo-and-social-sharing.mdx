@@ -1,0 +1,136 @@
+---
+title: SEO and Social Sharing
+description: How to configure SEO metadata and social sharing previews for your Nextellar documentation site.
+date: 2025-03-20
+---
+
+# SEO and Social Sharing
+
+Nextellar docs uses the Next.js [Metadata API](https://nextjs.org/docs/app/api-reference/functions/generate-metadata) to control how pages appear in search results and when shared on social platforms.
+
+## Site-wide defaults
+
+Global metadata lives in `config/meta.tsx`. These values apply to every page unless overridden at the page level.
+
+```tsx
+export const meta = {
+  metadataBase: new URL('https://nextellar.dev'),
+  title: 'Nextellar — Stellar dApp Toolkit',
+  description:
+    'A one-step CLI toolkit that bootstraps production-ready Next.js + TypeScript applications with built-in Stellar blockchain support.',
+  authors: [{ name: 'Nextellar Labs' }],
+  keywords: ['Nextellar', 'Stellar', 'Soroban', 'Next.js', 'dApp', 'CLI'],
+  publisher: 'Nextellar Labs',
+  creator: 'Nextellar Labs',
+  openGraph: {
+    type: 'website',
+    title: 'Nextellar — Stellar dApp Toolkit',
+    description:
+      'Bootstrap production-ready Stellar dApps with a single CLI command.',
+    images: [
+      {
+        url: '/og-image.png',
+        width: 1200,
+        height: 630,
+        alt: 'Nextellar — Stellar dApp Toolkit',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Nextellar — Stellar dApp Toolkit',
+    description:
+      'Bootstrap production-ready Stellar dApps with a single CLI command.',
+    images: ['/og-image.png'],
+    creator: '@nextellarlabs',
+  },
+  alternates: {
+    canonical: 'https://nextellar.dev',
+  },
+  robots: 'index, follow',
+};
+```
+
+### Recommended defaults
+
+| Field              | Recommended value                                     |
+| ------------------ | ----------------------------------------------------- |
+| `metadataBase`     | Your production domain (e.g. `https://nextellar.dev`) |
+| `title`            | Product name + short tagline, under 60 characters     |
+| `description`      | 50–160 characters, plain language summary             |
+| `openGraph.images` | 1200 × 630 px PNG at `/public/og-image.png`           |
+| `twitter.card`     | `summary_large_image` for rich link previews          |
+| `robots`           | `index, follow` for public pages                      |
+
+## Per-page metadata
+
+Override the site defaults for any page by exporting a `metadata` object from the page's `layout.tsx` or `page.tsx`, or by using `generateMetadata` for dynamic values.
+
+### Static override
+
+```tsx
+// src/app/docs/getting-started/page.tsx
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Getting Started — Nextellar',
+  description:
+    'Install Nextellar and create your first Stellar dApp in under 2 minutes.',
+  openGraph: {
+    title: 'Getting Started — Nextellar',
+    description:
+      'Install Nextellar and create your first Stellar dApp in under 2 minutes.',
+  },
+};
+```
+
+### Dynamic override
+
+Use `generateMetadata` when the title or description depends on content loaded at request time:
+
+```tsx
+import type { Metadata } from 'next';
+
+export async function generateMetadata({
+  params,
+}: {
+  params: { slug: string };
+}): Promise<Metadata> {
+  const doc = await getDoc(params.slug);
+  return {
+    title: `${doc.title} — Nextellar`,
+    description: doc.description,
+    openGraph: {
+      title: `${doc.title} — Nextellar`,
+      description: doc.description,
+    },
+  };
+}
+```
+
+### MDX frontmatter
+
+For documentation pages processed by Contentlayer, the `title` and `description` frontmatter fields are used automatically to populate page metadata:
+
+```yaml
+---
+title: Quick Start
+description: Build your first Stellar payment app in 10 minutes.
+---
+```
+
+Both fields are required. Omitting either will cause `pnpm build:content` to fail with a validation error.
+
+## Verifying your metadata
+
+After updating metadata, verify it renders correctly using these tools:
+
+- [Google Rich Results Test](https://search.google.com/test/rich-results)
+- [Twitter Card Validator](https://cards-dev.twitter.com/validator)
+- [Facebook Sharing Debugger](https://developers.facebook.com/tools/debug/)
+- Browser DevTools → Elements → `<head>` to inspect `<meta>` tags directly
+
+## Related
+
+- [Next.js Metadata API](https://nextjs.org/docs/app/api-reference/functions/generate-metadata)
+- [Add a New Docs Page](/docs/guides/add-docs-page)

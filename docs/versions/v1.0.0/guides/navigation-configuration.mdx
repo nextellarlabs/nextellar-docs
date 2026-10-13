@@ -1,0 +1,488 @@
+---
+title: Navigation Configuration
+description: Learn how to configure site navigation, including sidebar, table of contents, and metadata settings.
+date: 2026-05-29
+---
+
+# Navigation Configuration
+
+This guide explains how Nextellar documentation site navigation is configured. It covers the three main configuration files, how entries map to pages, and how to validate your changes.
+
+## Overview
+
+Site navigation is controlled by three configuration files in the `config/` directory:
+
+| File          | Purpose                         | Scope                                       |
+| ------------- | ------------------------------- | ------------------------------------------- |
+| `sidebar.tsx` | Main left sidebar navigation    | All documentation sections and pages        |
+| `toc.tsx`     | Table of contents for each page | Per-page heading anchors and subsections    |
+| `meta.tsx`    | Site metadata and SEO           | Global site information, OpenGraph, Twitter |
+
+## Sidebar Configuration (`config/sidebar.tsx`)
+
+The sidebar is the primary navigation for the documentation site. It displays sections with collapsible pages.
+
+### Structure
+
+```typescript
+export type SidebarPage = {
+  title: string;
+  href?: string;
+};
+
+export type SidebarSection = {
+  title: string;
+  icon?: React.ReactNode;
+  defaultOpen?: boolean;
+  href?: string;
+  pages?: SidebarPage[];
+};
+
+export const sidebarNav: SidebarSection[] = [
+  // Array of sections
+];
+```
+
+### Adding a Section
+
+Create a new section with an icon and pages:
+
+```typescript
+{
+  title: 'My Section',
+  icon: <BookOpen className="h-5 w-5" />,
+  defaultOpen: false,
+  pages: [
+    { title: 'Page 1', href: '/docs/my-section/page-1' },
+    { title: 'Page 2', href: '/docs/my-section/page-2' },
+  ],
+}
+```
+
+**Properties:**
+
+- `title` (required) — Section name shown in sidebar
+- `icon` (optional) — Lucide React icon component
+- `defaultOpen` (optional) — Whether section expands by default (default: `false`)
+- `pages` (optional) — Array of page entries in this section
+- `href` (optional) — Direct link for section (if no pages)
+
+### Adding a Page
+
+Add entries to the `pages` array:
+
+```typescript
+{ title: 'Getting Started', href: '/docs/guides/getting-started' }
+```
+
+**Properties:**
+
+- `title` (required) — Page name shown in sidebar
+- `href` (required) — Absolute path to the page (format: `/docs/section/page`)
+
+### Href Format
+
+The `href` must match the file path under `docs/` without the `.mdx` extension:
+
+| File Path                           | Href                             |
+| ----------------------------------- | -------------------------------- |
+| `docs/guides/contributing.mdx`      | `/docs/guides/contributing`      |
+| `docs/hooks/use-stellar-wallet.mdx` | `/docs/hooks/use-stellar-wallet` |
+| `docs/components/button.mdx`        | `/docs/components/button`        |
+
+### Icons
+
+Import icons from `lucide-react`:
+
+```typescript
+import {
+  Component,
+  Paintbrush,
+  Rocket,
+  Wrench,
+  Database,
+  Zap,
+  BookOpen,
+  Plug,
+} from 'lucide-react';
+
+// Use in section
+icon: <BookOpen className="h-5 w-5" />
+```
+
+Browse available icons at [lucide.dev](https://lucide.dev).
+
+## Table of Contents Configuration (`config/toc.tsx`)
+
+The table of contents (TOC) displays heading anchors for each page, enabling quick navigation within long pages.
+
+### Structure
+
+```typescript
+export type TocPage = {
+  title: string;
+  href: string;
+};
+
+export type TocSection = {
+  title: string;
+  href: string;
+  pages?: TocPage[];
+};
+
+export type TocData = {
+  [key: string]: TocSection[];
+};
+
+export const TocData: TocData = {
+  // Key: page slug, Value: array of sections
+};
+```
+
+### Adding TOC Entries
+
+Use the page slug as the key (matches file path without `.mdx`):
+
+```typescript
+'guides/contributing': [
+  {
+    title: 'Getting Started',
+    href: '/docs/guides/contributing#getting-started',
+    pages: [
+      {
+        title: 'Prerequisites',
+        href: '/docs/guides/contributing#prerequisites',
+      },
+      {
+        title: 'Setup',
+        href: '/docs/guides/contributing#setup',
+      },
+    ],
+  },
+]
+```
+
+**Properties:**
+
+- `title` (required) — Heading text shown in TOC
+- `href` (required) — Full URL with anchor (format: `/docs/section/page#anchor`)
+- `pages` (optional) — Nested subsections
+
+### Anchor Format
+
+Anchors are auto-generated from heading text using `rehype-slug`:
+
+| Heading                      | Anchor                    |
+| ---------------------------- | ------------------------- |
+| `# Getting Started`          | `#getting-started`        |
+| `## Installation Steps`      | `#installation-steps`     |
+| `### Advanced Configuration` | `#advanced-configuration` |
+
+Spaces become hyphens, lowercase, special characters removed.
+
+### Nesting
+
+TOC entries can be nested up to 2 levels:
+
+```typescript
+'guides/example': [
+  {
+    title: 'Main Section',
+    href: '/docs/guides/example#main-section',
+    pages: [
+      {
+        title: 'Subsection 1',
+        href: '/docs/guides/example#subsection-1',
+      },
+      {
+        title: 'Subsection 2',
+        href: '/docs/guides/example#subsection-2',
+      },
+    ],
+  },
+]
+```
+
+## Metadata Configuration (`config/meta.tsx`)
+
+Global site metadata for SEO, OpenGraph, and Twitter cards.
+
+### Structure
+
+```typescript
+export const meta = {
+  metadataBase: new URL('https://www.nextellar.dev'),
+  title: 'Nextellar — Build Stellar dApps Faster',
+  description: '...',
+  authors: [{ name: 'Nextellar Team' }],
+  keywords: [...],
+  publisher: 'Nextellar',
+  creator: 'Nextellar Team',
+  openGraph: { /* ... */ },
+  twitter: { /* ... */ },
+  alternates: { /* ... */ },
+  robots: 'index, follow',
+  hreflang: { /* ... */ },
+};
+```
+
+### Key Fields
+
+**Basic Metadata:**
+
+- `metadataBase` — Base URL for canonical links
+- `title` — Site title (shown in browser tab)
+- `description` — Site description (shown in search results)
+- `keywords` — SEO keywords array
+- `publisher` — Organization name
+- `creator` — Creator/author name
+
+**OpenGraph (Social Sharing):**
+
+- `openGraph.type` — Content type (usually `'website'`)
+- `openGraph.url` — Canonical URL
+- `openGraph.title` — Title for social cards
+- `openGraph.description` — Description for social cards
+- `openGraph.images` — Array of image objects for social cards
+
+**Twitter:**
+
+- `twitter.card` — Card type (`'summary_large_image'`, `'summary'`, etc.)
+- `twitter.title` — Title for Twitter cards
+- `twitter.description` — Description for Twitter cards
+- `twitter.images` — Array of image URLs
+- `twitter.creator` — Twitter handle
+
+## How Entries Map to Pages
+
+### File Structure
+
+Documentation files are organized in `docs/` with subdirectories:
+
+```
+docs/
+├── guides/
+│   ├── contributing.mdx
+│   ├── add-docs-page.mdx
+│   └── release-notes-workflow.mdx
+├── hooks/
+│   ├── use-stellar-wallet.mdx
+│   └── use-stellar-balances.mdx
+└── components/
+    ├── button.mdx
+    └── dialog.mdx
+```
+
+### Mapping Process
+
+1. **File Path** → Slug (remove `.mdx`, keep directory structure)
+   - `docs/guides/contributing.mdx` → `guides/contributing`
+
+2. **Slug** → URL (prepend `/docs/`)
+   - `guides/contributing` → `/docs/guides/contributing`
+
+3. **URL** → Sidebar Entry
+   - Add to `config/sidebar.tsx` with matching `href`
+
+4. **URL + Anchors** → TOC Entry
+   - Add to `config/toc.tsx` with page slug as key
+
+### Example: Adding a New Page
+
+**Step 1: Create the file**
+
+```bash
+docs/guides/my-new-guide.mdx
+```
+
+**Step 2: Add frontmatter**
+
+```yaml
+---
+title: My New Guide
+description: A helpful guide for users
+---
+```
+
+**Step 3: Add to sidebar** (`config/sidebar.tsx`)
+
+```typescript
+{
+  title: 'Guides',
+  pages: [
+    { title: 'My New Guide', href: '/docs/guides/my-new-guide' },
+  ],
+}
+```
+
+**Step 4: Add to TOC** (`config/toc.tsx`)
+
+```typescript
+'guides/my-new-guide': [
+  {
+    title: 'Overview',
+    href: '/docs/guides/my-new-guide#overview',
+  },
+]
+```
+
+## Validation Steps
+
+### 1. Sidebar Validation
+
+Validate that all sidebar links point to existing files:
+
+```bash
+pnpm validate:sidebar
+```
+
+This script:
+
+- Scans `docs/components/` for actual `.mdx` files.
+- Checks sidebar entries against actual files.
+- Reports broken links.
+- Generates `sidebar-validation.json`.
+
+**Output:**
+
+```
+✅ VALID SIDEBAR LINKS (2):
+  - connect-wallet-button
+  - use-window-size
+
+❌ BROKEN SIDEBAR LINKS (0):
+  (none)
+
+🎉 ALL COMPONENT REFERENCES ARE VALID!
+```
+
+### 2. Link Validation
+
+Validate all internal links in the documentation:
+
+```bash
+pnpm check:links
+```
+
+This script:
+
+- Requires dev server running: `pnpm dev`.
+- Tests all internal links by making HTTP requests.
+- Reports broken links with status codes.
+- Validates anchor links.
+
+**Note:** Run `pnpm dev` in another terminal before running this command.
+
+### 3. Content Build
+
+Build the content to ensure all MDX files are valid:
+
+```bash
+pnpm build:content
+```
+
+This script:
+
+- Processes all `.mdx` files with Contentlayer.
+- Validates frontmatter schema.
+- Generates type-safe content objects.
+- Reports MDX syntax errors.
+
+**Output:**
+
+```
+✓ Generated 47 documents in .contentlayer
+✓ Validated frontmatter for all MDX files
+✓ Built navigation tree (4 sections, 23 pages)
+```
+
+### 4. Full Build
+
+Run the complete build pipeline:
+
+```bash
+pnpm build
+```
+
+This runs:
+
+1. `pnpm build:content` — Process MDX files
+2. `next build` — Build Next.js application
+
+## Validation Checklist
+
+Before committing navigation changes:
+
+- [ ] File created in correct `docs/` subdirectory
+- [ ] Frontmatter includes `title` and `description`
+- [ ] Sidebar entry added with correct `href` format
+- [ ] TOC entry added with correct page slug and anchors
+- [ ] `pnpm build:content` runs without errors
+- [ ] `pnpm validate:sidebar` shows no broken links
+- [ ] `pnpm dev` starts successfully
+- [ ] `pnpm check:links` passes (with dev server running)
+- [ ] Page renders correctly in browser
+- [ ] Navigation links work from sidebar and TOC
+
+## Common Issues
+
+### Broken Sidebar Links
+
+**Problem:** `pnpm validate:sidebar` reports broken links
+
+**Solution:**
+
+1. Check file exists at expected path
+2. Verify `href` matches file path (without `.mdx`)
+3. Use kebab-case for file names and hrefs
+4. Remove entry from sidebar if file doesn't exist
+
+### Anchor Links Not Working
+
+**Problem:** TOC anchors don't navigate to headings
+
+**Solution:**
+
+1. Verify heading exists in the page
+2. Check anchor format matches heading text
+3. Use lowercase, hyphens for spaces
+4. Ensure `rehype-slug` is processing the file
+
+### Page Not Appearing in Navigation
+
+**Problem:** Page exists but doesn't show in sidebar
+
+**Solution:**
+
+1. Add entry to `config/sidebar.tsx`
+2. Use correct `href` format: `/docs/section/page`
+3. Run `pnpm build:content` to rebuild
+4. Restart dev server: `pnpm dev`
+
+### Duplicate Sections
+
+**Problem:** Same section appears multiple times in sidebar
+
+**Solution:**
+
+1. Search `config/sidebar.tsx` for duplicate section titles
+2. Merge pages into single section
+3. Remove duplicate section entry
+
+## Best Practices
+
+- **Keep hrefs consistent** — Always use `/docs/section/page` format
+- **Use kebab-case** — File names and section slugs should be lowercase with hyphens
+- **Validate before committing** — Run all validation scripts before pushing
+- **Update TOC for long pages** — Add TOC entries for pages with multiple headings
+- **Test in browser** — Verify links work and page renders correctly
+- **Keep sections organized** — Group related pages in logical sections
+- **Use descriptive titles** — Page titles should clearly describe content
+
+## Related Resources
+
+- [Add a Docs Page](/docs/guides/add-docs-page) — Creating new documentation pages
+- [Contributing Guide](/docs/guides/contributing) — Documentation contribution process
+- [Link Validation](/docs/guides/link-validation) — Detailed link validation guide
+- [Contentlayer Documentation](https://contentlayer.dev) — Content processing framework
+- [Lucide Icons](https://lucide.dev) — Icon library reference

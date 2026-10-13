@@ -1,0 +1,205 @@
+---
+title: Dispute Resolution Patterns for On-Chain Agreements
+description: Compare arbitration approaches for Stellar smart contracts, understand settlement paths, and implement a basic escrow dispute flow.
+date: 2026-06-25
+---
+
+# Dispute Resolution Patterns for On-Chain Agreements
+
+When two parties enter an on-chain agreement — an escrow, a service contract, a marketplace order — they need a mechanism to resolve disagreements without relying on either party's goodwill. This guide compares the main arbitration patterns available on Stellar and Soroban, and walks through a concrete dispute flow.
+
+---
+
+## Why On-Chain Dispute Resolution?
+
+A smart contract can enforce the terms both parties agreed to at creation time. But contracts cannot observe real-world facts ("was the work delivered?"). Dispute resolution bridges this gap: it brings in a trusted third party or a decentralised process to evaluate evidence and authorise one settlement path over another.
+
+---
+
+## Pattern Comparison
+
+| Pattern                      | Arbitrator             | Trust model                  | Settlement speed | Cost   |
+| ---------------------------- | ---------------------- | ---------------------------- | ---------------- | ------ |
+| **Single arbitrator**        | Designated third party | High trust in arbitrator     | Fast             | Low    |
+| **Multi-sig arbitrators**    | N-of-M panel           | Reduced per-arbitrator trust | Medium           | Low    |
+| **Decentralised (DAO vote)** | Token holders          | Trust the token economics    | Slow             | Medium |
+| **Time-lock default**        | Nobody (automatic)     | Trustless                    | Configurable     | None   |
+| **Oracle-based**             | On-chain data source   | Trust the oracle             | Fast             | Medium |
+
+---
+
+## Pattern 1 — Time-Lock Default
+
+The simplest pattern. If neither party disputes within a time window, the contract pays out automatically. No arbitrator needed.
+
+```rust
+// In your Soroban escrow contract
+pub fn release(env: Env, buyer: Address, escrow_id: u64) {
+    buyer.require_auth();
+    let record = get_escrow(&env, escrow_id).expect("not found");
+    assert!(!record.dispute_open, "disputed — cannot auto-release");
+    assert!(env.ledger().timestamp() >= record.release_after, "lock period not elapsed");
+    // Transfer funds to seller
+}
+```
+
+**Settlement path**: buyer pays → lock period elapses → seller calls `release` or buyer calls `refund`. Either party opening a dispute pauses the auto-release.
+
+---
+
+## Pattern 2 — Single Arbitrator
+
+A named arbitrator address is stored in the contract at creation. Only the arbitrator can call `resolve`.
+
+```rust
+#[contracttype]
+pub struct EscrowRecord {
+    pub buyer:      Address,
+    pub seller:     Address,
+    pub arbitrator: Address,
+    pub amount:     i128,
+    pub disputed:   bool,
+    pub settled:    bool,
+}
+
+pub fn raise_dispute(env: Env, caller: Address, escrow_id: u64) {
+    let record = get_escrow(&env, escrow_id).expect("not found");
+    caller.require_auth();
+    assert!(caller == record.buyer || caller == record.seller, "unauthorized");
+    let mut r = record;
+    r.disputed = true;
+    set_escrow(&env, escrow_id, &r);
+}
+
+pub fn resolve(env: Env, arbitrator: Address, escrow_id: u64, pay_seller: bool) {
+    let record = get_escrow(&env, escrow_id).expect("not found");
+    arbitrator.require_auth();
+    assert!(arbitrator == record.arbitrator, "not the arbitrator");
+    assert!(record.disputed, "no dispute raised");
+    // Pay seller or refund buyer based on `pay_seller`
+}
+```
+
+**Settlement paths**:
+
+- Arbitrator rules for seller → funds released to seller
+- Arbitrator rules for buyer → funds refunded to buyer
+- Partial settlement → split using a percentage parameter
+
+---
+
+## Pattern 3 — Multi-Sig Arbitrators
+
+Three arbitrators are registered; two must agree to settle. This reduces the risk of a single corrupt arbitrator.
+
+```rust
+pub fn vote_resolve(
+    env: Env,
+    arbitrator: Address,
+    escrow_id: u64,
+    pay_seller: bool,
+) {
+    arbitrator.require_auth();
+    let mut votes = get_votes(&env, escrow_id);
+    votes.push(Vote { arbitrator, pay_seller });
+
+    let seller_votes = votes.iter().filter(|v| v.pay_seller).count();
+    let buyer_votes  = votes.len() - seller_votes;
+
+    if seller_votes >= 2 {
+        // Finalise: pay seller
+    } else if buyer_votes >= 2 {
+        // Finalise: refund buyer
+    } else {
+        set_votes(&env, escrow_id, votes);
+    }
+}
+```
+
+---
+
+## Pattern 4 — Oracle-Based Settlement
+
+For agreements whose outcome is objectively verifiable (insurance payout, sports bet, DEX price condition), an on-chain oracle removes human arbitration entirely.
+
+```rust
+pub fn oracle_settle(env: Env, escrow_id: u64) {
+    let record = get_escrow(&env, escrow_id).expect("not found");
+    let oracle_value: i128 = env
+        .storage()
+        .persistent()
+        .get(&DataKey::OracleValue(record.oracle_key.clone()))
+        .expect("oracle value not set");
+
+    let pay_seller = oracle_value >= record.trigger_threshold;
+    // Settle accordingly
+}
+```
+
+The oracle writes its reading to contract storage via a separate `update_oracle` method restricted to the oracle's public key.
+
+---
+
+## Small Example: Freelance Escrow with Dispute Flow
+
+Full lifecycle of a two-party escrow with a designated arbitrator:
+
+```
+1. Buyer creates escrow → funds locked in contract
+2. Seller delivers work → seller calls release()
+3a. If buyer approves → release() succeeds, seller paid
+3b. If buyer disputes → raise_dispute() called
+4.  Arbitrator reviews off-chain evidence
+5.  Arbitrator calls resolve(pay_seller=true/false)
+6.  Funds transferred accordingly
+```
+
+### Client Integration
+
+```ts
+// lib/escrow.ts
+import { rpc, Contract } from '@stellar/stellar-sdk';
+
+const server = new rpc.Server(process.env.NEXT_PUBLIC_RPC_URL!);
+const escrow = new Contract(process.env.NEXT_PUBLIC_ESCROW_CONTRACT!);
+
+export async function raiseDispute(escrowId: bigint, callerKeypair: Keypair) {
+  const account = await server.getAccount(callerKeypair.publicKey());
+  const tx = new TransactionBuilder(account, {
+    fee: BASE_FEE,
+    networkPassphrase: Networks.TESTNET,
+  })
+    .addOperation(escrow.call('raise_dispute', ...) /* args */)
+    .setTimeout(30)
+    .build();
+
+  tx.sign(callerKeypair);
+  return server.sendTransaction(tx);
+}
+```
+
+---
+
+## Choosing a Pattern
+
+```
+Is the outcome objectively verifiable by an oracle?
+  └── Yes → Oracle-based settlement (trustless, fast)
+
+Is there a trusted third party both sides accept?
+  └── Yes → Single arbitrator (simplest)
+
+Do you need reduced arbitrator trust?
+  └── Yes → Multi-sig arbitrators (N-of-M panel)
+
+Is the agreement low-value or fully automated?
+  └── Yes → Time-lock default (no arbitrator needed)
+```
+
+---
+
+## Acceptance Checklist
+
+- [ ] Guide renders without build errors (`pnpm build:content`)
+- [ ] Internal links resolve (`pnpm check:links`)
+- [ ] All four patterns are covered with Rust and TypeScript examples

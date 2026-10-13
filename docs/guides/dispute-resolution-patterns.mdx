@@ -144,7 +144,7 @@ The oracle writes its reading to contract storage via a separate `update_oracle`
 
 Full lifecycle of a two-party escrow with a designated arbitrator:
 
-```
+```text
 1. Buyer creates escrow → funds locked in contract
 2. Seller delivers work → seller calls release()
 3a. If buyer approves → release() succeeds, seller paid
@@ -182,7 +182,7 @@ export async function raiseDispute(escrowId: bigint, callerKeypair: Keypair) {
 
 ## Choosing a Pattern
 
-```
+```text
 Is the outcome objectively verifiable by an oracle?
   └── Yes → Oracle-based settlement (trustless, fast)
 

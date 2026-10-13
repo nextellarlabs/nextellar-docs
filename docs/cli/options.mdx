@@ -14,23 +14,23 @@ Detailed reference for all command-line options available in Nextellar CLI.
 
 Generate a TypeScript project (default).
 
-````bash
+```bash
 nextellar my-app --typescript
-# or
+## or
 nextellar my-app -t
-````
+```
 
 **Default:** `true`
 **Type:** Boolean
 **Status:** Supported
 
-### --javascript, -j
+## --javascript, -j
 
 Generate a JavaScript project.
 
 ```bash
 nextellar my-app --javascript
-# or
+## or
 nextellar my-app -j
 ```
 
@@ -84,35 +84,32 @@ nextellar my-app --soroban-url https://soroban-rpc.stellar.org
 Specify which wallet adapters to include.
 
 ```bash
-nextellar my-app --wallets freighter,xbull,ledger
-# or
+nextellar my-app --wallets freighter,xbull
+## or
 nextellar my-app -w freighter,albedo
-````
+```
 
 **Default:** `freighter,albedo,lobstr`
 **Type:** Comma-separated string
-**Validation:** Must be valid wallet names
 
-**Supported Wallets:**
+For a complete list of supported wallets, examples, and detailed information about defaults and unknown adapter behavior, see [Wallet Configuration](/docs/cli/flags#wallet-configuration-wallets) in the Flags & Options reference.
 
-- `freighter` - Freighter Wallet
-- `albedo` - Albedo Wallet
-- `lobstr` - Lobstr Wallet
-- `xbull` - xBull Wallet
-- `ledger` - Ledger Hardware Wallet
+**Quick Reference:**
+
+**Supported Wallets:** `freighter`, `albedo`, `lobstr`, `xbull`, `hana`
 
 **Examples:**
 
-````bash
-# Only Freighter
+```bash
+## Only Freighter
 nextellar my-app --wallets freighter
 
-# Multiple wallets
-nextellar my-app --wallets freighter,xbull,ledger
+## Custom combination (non-default)
+nextellar my-app --wallets freighter,xbull
 
-# All supported wallets
-nextellar my-app --wallets freighter,albedo,lobstr,xbull,ledger
-````
+## All supported wallets
+nextellar my-app --wallets freighter,albedo,lobstr,xbull,hana
+```
 
 ## Installation Options
 
@@ -122,7 +119,7 @@ Skip automatic dependency installation.
 
 ```bash
 nextellar my-app --skip-install
-````
+```
 
 **Default:** `false`
 **Type:** Boolean
@@ -134,10 +131,10 @@ nextellar my-app --skip-install
 
 **After Skipping:**
 
-````bash
+```bash
 cd my-app
 npm install  # or yarn install, pnpm install
-````
+```
 
 ### --package-manager
 
@@ -149,13 +146,13 @@ nextellar my-app --package-manager pnpm
 
 **Default:** Auto-detected
 **Type:** String
-**Options:** `npm`, `yarn`, `pnpm`
+**Options:** `npm`, `yarn`, `pnpm`, `bun`
 
 **Detection Priority:**
 
 1. Explicit `--package-manager` flag
 2. `npm_config_user_agent` environment variable
-3. Lockfile presence (pnpm-lock.yaml, yarn.lock, package-lock.json)
+3. Lockfile presence (bun.lockb, pnpm-lock.yaml, yarn.lock, package-lock.json)
 4. Fallback to `npm`
 
 ### --install-timeout
@@ -184,20 +181,72 @@ nextellar my-app --install-timeout 3600000
 - 30 minutes: `1800000`
 - 1 hour: `3600000`
 
-## Behavior Options
+## Scaffold Options
 
-### --defaults, -d
+The following options control git initialization behavior during `nextellar` scaffolding.
 
-Skip prompts and use default values.
+### --git-init
+
+Initialize a git repository in the scaffolded project. This is the default behavior.
 
 ```bash
-nextellar my-app --defaults
-# or
-nextellar my-app -d
+npx nextellar my-app --git-init
+```
+
+**Default:** `true`
+**Type:** Boolean
+**Status:** Supported
+
+Git init runs automatically unless `--no-git` is passed. This flag is useful when you want to be explicit in scripts.
+
+---
+
+### --no-git
+
+Skip git initialization when scaffolding.
+
+```bash
+npx nextellar my-app --no-git
 ```
 
 **Default:** `false`
 **Type:** Boolean
+**Status:** Supported
+
+**Use Cases:**
+
+- You intend to move the project into an existing git repository.
+- Your CI scaffold step does not need a git history.
+- You want to initialize git yourself with custom config.
+
+```bash
+npx nextellar my-app --no-git
+cd my-app
+git init --initial-branch=main
+git remote add origin git@github.com:you/my-app.git
+```
+
+---
+
+## Behavior Options
+
+### --defaults, -d, --yes, -y
+
+Skip prompts and use default values. `--yes` and `-y` are accepted aliases for `--defaults`.
+
+```bash
+nextellar my-app --defaults
+## or
+nextellar my-app -d
+## or
+nextellar my-app --yes
+## or
+nextellar my-app -y
+```
+
+**Default:** `false`
+**Type:** Boolean
+**Aliases:** `-d`, `--yes`, `-y`
 
 **Use Cases:**
 
@@ -206,7 +255,7 @@ nextellar my-app -d
 - Quick testing
 - Non-interactive environments
 
-> **Note:** In an interactive terminal, Nextellar can prompt for scaffold configuration. Use `--defaults` to skip prompts and apply default values instead.
+> **Note:** In an interactive terminal, Nextellar can prompt for scaffold configuration. Use `--defaults` (or `--yes` / `-y`) to skip prompts and apply default values instead.
 
 ## Feature Add Options
 
@@ -218,28 +267,112 @@ List all available features that can be added to the project.
 
 ```bash
 nextellar add --list
-# or
+## or
 nextellar add -l
-````
+```
 
 **Type:** Boolean
 **Status:** Supported
 
 ---
 
-### --force, -f
+## --force, -f
 
 Force addition of a feature, overwriting existing files without prompting.
 
 ```bash
 nextellar add freighter --force
-# or
+## or
 nextellar add freighter -f
 ```
 
 **Default:** `false`
 **Type:** Boolean
 **Status:** Supported
+
+---
+
+## --skip-install
+
+Add the feature's files without running the package manager install step.
+
+```bash
+nextellar add freighter --skip-install
+```
+
+**Default:** `false`
+**Type:** Boolean
+**Status:** Supported
+
+Useful when you want to batch several `nextellar add` calls and install once at the end:
+
+```bash
+nextellar add freighter --skip-install
+nextellar add xbull --skip-install
+npm install
+```
+
+---
+
+### --package-manager (add)
+
+Choose which package manager to use for the post-add install step.
+
+```bash
+nextellar add freighter --package-manager pnpm
+nextellar add freighter --package-manager bun
+```
+
+**Default:** Auto-detected
+**Type:** String
+**Options:** `npm`, `yarn`, `pnpm`, `bun`
+**Status:** Supported
+
+Combine with `--force` to overwrite files and install with a specific package manager:
+
+```bash
+nextellar add freighter --force --package-manager bun
+```
+
+---
+
+## Doctor Options
+
+The following options apply to the `nextellar doctor` command:
+
+### --horizon-url (doctor)
+
+Override the Horizon endpoint that `doctor` uses for its connectivity check.
+
+```bash
+nextellar doctor --horizon-url https://horizon.stellar.org
+```
+
+**Default:** Project config value, falling back to `https://horizon-testnet.stellar.org`
+**Type:** String (URL)
+**Status:** Supported
+
+---
+
+### --soroban-url (doctor)
+
+Override the Soroban RPC endpoint that `doctor` uses for its connectivity check.
+
+```bash
+nextellar doctor --soroban-url https://soroban-rpc.stellar.org
+```
+
+**Default:** Project config value, falling back to `https://soroban-testnet.stellar.org`
+**Type:** String (URL)
+**Status:** Supported
+
+Check mainnet connectivity in one command:
+
+```bash
+nextellar doctor \
+  --horizon-url https://horizon.stellar.org \
+  --soroban-url https://soroban-rpc.stellar.org
+```
 
 ---
 
@@ -258,6 +391,36 @@ nextellar upgrade --dry-run
 **Default:** `false`
 **Type:** Boolean
 **Status:** Supported
+
+---
+
+### --check
+
+Show a changelog-style preview of available upgrades and exit with a non-zero code if any updates are available. Includes human-readable upgrade notes (breaking changes, migration hints) in addition to the file diff shown by `--dry-run`.
+
+```bash
+nextellar upgrade --check
+```
+
+**Default:** `false`
+**Type:** Boolean
+**Status:** Supported
+**Exit code:** `0` = up to date; `1` = updates available
+
+**Difference from `--dry-run`:**
+
+|                                  | `--dry-run` | `--check` |
+| -------------------------------- | ----------- | --------- |
+| Shows file diff                  | ✅          | ✅        |
+| Shows changelog/upgrade notes    | ❌          | ✅        |
+| Non-zero exit when updates exist | ❌          | ✅        |
+| Suitable for CI gate             | No          | **Yes**   |
+
+Use `--check` in CI to fail a pipeline when the project is behind the latest template:
+
+```bash
+nextellar upgrade --check || echo "Project needs upgrade"
+```
 
 ---
 
@@ -293,45 +456,79 @@ nextellar deploy --dry-run
 
 ---
 
+### --size-threshold
+
+Fail the deploy command if the production bundle exceeds the specified size in bytes.
+
+```bash
+nextellar deploy --size-threshold 20971520
+```
+
+**Default:** `52428800` (50 MB)
+**Type:** Number (bytes)
+**Status:** Supported
+
+**Common threshold values:**
+
+- 10 MB: `10485760`
+- 20 MB: `20971520`
+- 50 MB: `52428800` (default)
+- 100 MB: `104857600`
+
+```bash
+## Use the default 50 MB threshold
+nextellar deploy
+
+## Enforce a stricter 20 MB limit
+nextellar deploy --size-threshold 20971520
+
+## Combine with dry-run to check bundle size without deploying
+nextellar deploy --dry-run --size-threshold 20971520
+```
+
+---
+
 ## Information Options
 
 ### --version, -v
 
 Display CLI version.
 
-````bash
+```bash
 nextellar --version
-# or
+## or
 nextellar -v
-````
+```
 
 **Output:** Version number (e.g., `1.0.4`)
 
-### --help, -h
+## --help, -h
 
 Display help information.
 
 ```bash
 nextellar --help
-# or
+## or
 nextellar -h
-````
+```
 
 **Output:** Complete usage guide with all options
 
 ## Option Combinations
 
-### Mainnet Production Setup
+### Mainnet Production Setup (with custom wallet selection)
 
 ```bash
 nextellar stellar-mainnet-app \
   --horizon-url https://horizon.stellar.org \
   --soroban-url https://soroban-rpc.stellar.org \
-  --wallets freighter,xbull,ledger \
+  --wallets freighter,xbull \
   --package-manager pnpm
+## Note: freighter,xbull is a custom wallet selection.
+## See [Wallet Configuration](/docs/cli/flags#wallet-configuration-wallets) for defaults and all supported adapters.
 ```
 
-### Development Setup
+## Development Setup
 
 ```bash
 nextellar dev-app \
@@ -366,11 +563,11 @@ Nextellar respects these environment variables:
 Used for package manager detection.
 
 ```bash
-# Set by package managers automatically
+## Set by package managers automatically
 npm_config_user_agent="npm/10.2.0 node/v20.10.0"
 ```
 
-### NODE_ENV
+## NODE_ENV
 
 Environment mode (development/production).
 
@@ -397,11 +594,11 @@ nextellar my-dapp-2024
 
 **Invalid:**
 
-````bash
+```bash
 nextellar "my app"        # Spaces not allowed
 nextellar my@app          # Special characters not allowed
 nextellar ../my-app       # Path traversal not allowed
-````
+```
 
 ### URLs
 
@@ -412,11 +609,11 @@ nextellar ../my-app       # Path traversal not allowed
 ### Wallet Names
 
 - **Format:** Comma-separated, no spaces
-- **Valid:** `freighter`, `albedo`, `lobstr`, `xbull`, `ledger`
+- **Valid:** `freighter`, `albedo`, `lobstr`, `xbull`, `hana`
 - **Case:** Case-insensitive
 
 ## Related Documentation
 
 - [CLI Commands](/docs/cli/commands) - Command reference
 - [Configuration](/docs/cli/configuration) - Project configuration
-- [Troubleshooting](/docs/troubleshooting/installation-issues) - Common issues
+- [Troubleshooting](/docs/troubleshooting/common-error-messages) - Common issues

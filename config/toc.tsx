@@ -265,7 +265,10 @@ export const TocData: TocData = {
       href: '/docs/hooks/use-offer-book#offer-book',
       pages: [
         { title: 'Usage', href: '/docs/hooks/use-offer-book#usage' },
-        { title: 'Streams', href: '/docs/hooks/use-offer-book#streams' },
+        {
+          title: 'Live Updates',
+          href: '/docs/hooks/use-offer-book#live-updates',
+        },
       ],
     },
   ],

@@ -1,0 +1,120 @@
+---
+title: Extending the CLI
+description: How to extend Nextellar with new `add` features and template files.
+date: 2026-07-28
+---
+
+# Extending the CLI
+
+Nextellar has two real extension points today:
+
+1. **The feature registry** — `src/lib/features.ts` in the [nextellar CLI repo](https://github.com/nextellarlabs/nextellar) defines what `nextellar add <feature>` can install into an existing project.
+2. **Template files** — `src/templates/*` in the same repo is what `--template` (see [Scaffolding Templates](/docs/cli/templates)) and `nextellar add` copy files from.
+
+There is no plugin system, no `.nextellarrc.js` hooks, and no `--example`/custom-template mechanism. Extending the CLI means opening a PR against the CLI repo that touches one or both of the above.
+
+## The `FeatureDef` interface
+
+```typescript
+export type FeatureKind = 'hook' | 'component';
+
+export interface FeatureDef {
+  id: string;
+  description: string;
+  /** Relative paths under template src (e.g. "contexts/WalletProvider.tsx") */
+  files: string[];
+  /** Other feature ids that must be installed first */
+  dependsOn: string[];
+  /** npm packages to ensure installed (e.g. @stellar/stellar-sdk) */
+  npmDependencies: string[];
+  /** How the feature is grouped in `nextellar add --list` (default: "hook") */
+  kind?: FeatureKind;
+}
+```
+
+Every feature is an entry in a `Record<string, FeatureDef>` called `FEATURES`. `files` are paths relative to a template's `src/` directory. When you run `nextellar add <feature>`, those paths are copied from the project's own template first; if a file isn't part of that template (for example, the Soroban hooks aren't in `defi`), the CLI falls back to copying it from `default` instead.
+
+## Dependency ordering
+
+`resolveFeatureWithDeps(featureId)` returns the requested feature plus everything it depends on, dependencies first:
+
+```typescript
+export function resolveFeatureWithDeps(featureId: string): FeatureDef[] {
+  const id = featureId.toLowerCase();
+  const def = FEATURES[id];
+  if (!def) return [];
+
+  const seen = new Set<string>();
+  const ordered: FeatureDef[] = [];
+
+  function visit(f: FeatureDef) {
+    for (const depId of f.dependsOn) {
+      const dep = FEATURES[depId];
+      if (dep && !seen.has(depId)) visit(dep);
+    }
+    if (!seen.has(f.id)) {
+      seen.add(f.id);
+      ordered.push(f);
+    }
+  }
+
+  visit(def);
+  return ordered;
+}
+```
+
+It's a depth-first walk over `dependsOn`, deduplicated with a `seen` set: a feature's dependencies are always visited — and their files copied — before the feature itself. `network-switcher`, for instance, `dependsOn: ["wallet"]`, so `nextellar add network-switcher` always writes `WalletProvider.tsx` before `NetworkSwitcher.tsx`. Files that already exist in the project are skipped (not overwritten) unless `--force` is passed.
+
+## Worked example: adding a `notifications` feature
+
+Say you want `nextellar add notifications` to add a hook that surfaces incoming payments, plus a component that renders them as a banner. Add two entries to `FEATURES` in `src/lib/features.ts`:
+
+```typescript
+notifications: {
+  id: "notifications",
+  description: "Payment notifications: useNotifications hook",
+  files: ["hooks/useNotifications.ts"],
+  dependsOn: ["wallet"],
+  npmDependencies: ["@stellar/stellar-sdk"],
+},
+"notification-banner": {
+  id: "notification-banner",
+  description: "NotificationBanner component (renders useNotifications)",
+  files: ["components/NotificationBanner.tsx"],
+  dependsOn: ["notifications"],
+  npmDependencies: [],
+  kind: "component",
+},
+```
+
+Then add the matching source under `src/templates/default/src/hooks/useNotifications.ts` and `src/templates/default/src/components/NotificationBanner.tsx` — that's the file `add` actually copies. `resolveFeatureWithDeps("notification-banner")` resolves to `[wallet, notifications, notification-banner]`, deps first.
+
+Running this against a scaffolded `default` project (which already has the `wallet` feature's files) prints:
+
+```
+✔ Feature "notification-banner" added.
+Source template: default
+
+Added files:
+  hooks/useNotifications.ts
+  components/NotificationBanner.tsx
+
+Skipped (already exist):
+  contexts/WalletProvider.tsx
+  components/WalletConnectButton.tsx
+  lib/stellar-wallet-kit.ts
+  hooks/useStellarWallet.ts
+
+Next steps:
+  • Wrap your app with WalletProvider (if you added wallet) in layout.tsx
+  • Import hooks and components from src/hooks and src/components
+```
+
+`wallet`'s files show up as **skipped**, not copied, because they were already on disk from the initial scaffold — `resolveFeatureWithDeps` still resolves and processes them, it just doesn't overwrite existing files without `--force`.
+
+## Related
+
+- [CLI Commands](/docs/cli/commands) — `nextellar add` command reference
+- [Scaffolding Templates](/docs/cli/templates) — what each `--template` ships
+- [Contributing Guide](/docs/guides/contributing) — sending a PR to the CLI repo
+- [Nextellar CLI source](https://github.com/nextellarlabs/nextellar) — `src/lib/features.ts` and `src/templates/`

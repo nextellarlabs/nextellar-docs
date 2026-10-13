@@ -8,23 +8,30 @@ date: 2026-06-02
 
 The `useStellarBalances` hook provides real-time balance tracking for Stellar accounts, including XLM and all custom assets with automatic polling capabilities.
 
+**Available in templates:** `default`, `minimal`, `defi`, `js`
+
+<Note>
+  **Ships in:** default, js
+  <br />
+  Not in your scaffold? Run `nextellar add balances`
+</Note>
+
 ## Features
 
-- **Real-Time Balances**: Automatic balance fetching
-- **Polling**: Configurable polling interval for live updates
-- **All Assets**: XLM and custom asset support
-- **Efficient**: Duplicate request prevention
-- **Auto-Consume Config**: Uses WalletProvider settings automatically
-- **Graceful Errors**: Handles unfunded accounts (404)
+- **Real-Time Balances**: Automatic balance fetching with race condition safety
+- **Polling**: Optional auto-refresh with configurable intervals (min 5000ms)
+- **All Assets**: XLM and custom asset support via Horizon
+- **Unfunded Accounts**: Gracefully handles new accounts (404 → empty balances)
+- **Auto-Config**: Uses WalletProvider settings as fallback
+- **Unmount Safe**: Cleans up timers and abort pending requests on unmount
 
 ## Basic Usage
 
-`````tsx
+```tsx
 import { useStellarBalances } from '@/hooks/useStellarBalances';
 
 export default function BalanceDisplay({ publicKey }: { publicKey: string }) {
-  const { balances, loading, error, refresh, stopPolling } =
-    useStellarBalances(publicKey);
+  const { balances, loading, error, refresh } = useStellarBalances(publicKey);
 
   if (loading && balances.length === 0) return <div>Loading balances...</div>;
   if (error)
@@ -56,114 +63,175 @@ export default function BalanceDisplay({ publicKey }: { publicKey: string }) {
 
 ### Parameters
 
-````typescript
+```typescript
 useStellarBalances(
-  publicKey?: string | null,
+  publicKey: string | null,
   options?: {
     horizonUrl?: string;
-    pollIntervalMs?: number | null;
+    autoRefresh?: boolean;
+    refreshIntervalMs?: number;
   }
 ): StellarBalancesState
-```css
+```
 
-| Parameter        | Type             | Default                   | Description                          |
-| ---------------- | ---------------- | ------------------------- | ------------------------------------ |
-| `publicKey`      | `string \| null` | `undefined`               | Stellar public key to fetch balances |
-| `horizonUrl`     | `string`         | WalletProvider or testnet | Horizon server URL                   |
-| `pollIntervalMs` | `number \| null` | `null` (no polling)       | Poll interval in ms (min 5000)       |
+| Parameter           | Type             | Default                          | Description                                      |
+| ------------------- | ---------------- | -------------------------------- | ------------------------------------------------ |
+| `publicKey`         | `string \| null` | `undefined`                      | Stellar public key to fetch balances (or `null`) |
+| `horizonUrl`        | `string`         | WalletProvider config or testnet | Horizon server URL                               |
+| `autoRefresh`       | `boolean`        | `false`                          | Enable automatic polling for balance updates     |
+| `refreshIntervalMs` | `number`         | `5000`                           | Poll interval in milliseconds (minimum 5000)     |
 
 ### Return Value
 
 ```typescript
 interface StellarBalancesState {
-  balances: Balance[];
+  balances: AssetBalance[];
   loading: boolean;
-  error?: Error | null;
+  error: Error | null;
   refresh: () => Promise<void>;
-  stopPolling: () => void;
 }
 
-interface Balance {
-  asset_type: string; // 'native' or 'credit_alphanum4', etc.
-  asset_code?: string;
-  asset_issuer?: string;
-  balance: string;
-  limit?: string;
+interface AssetBalance {
+  asset_type: 'native' | 'credit_alphanum4' | 'credit_alphanum12';
+  asset_code?: string; // Only for non-native assets
+  asset_issuer?: string; // Only for non-native assets
+  balance: string; // Stringified balance value
+  limit?: string; // Trustline limit; null for native
 }
-`````
+```
+
+**Return value details:**
+
+- `balances`: Array of asset balances; empty if account is unfunded or has no trustlines
+- `loading`: `true` while fetching; remains `true` if auto-refresh is enabled and a fetch is in progress
+- `error`: `null` on success; populated with error message on failure (e.g., network, invalid key)
+- `refresh`: Async function to manually trigger a balance fetch and update state
 
 ## Examples
 
-### With Polling
+### With Auto-Refresh (Polling)
 
 ```tsx
-const { balances, stopPolling } = useStellarBalances(publicKey, {
-  pollIntervalMs: 10000, // Poll every 10 seconds
-});
+import { useEffect } from 'react';
+import { useStellarBalances } from '@/hooks/useStellarBalances';
 
-// Stop polling when component unmounts or user navigates away
-useEffect(() => {
-  return () => stopPolling();
-}, [stopPolling]);
+export function LiveBalance({ publicKey }: { publicKey: string }) {
+  const { balances, loading, error } = useStellarBalances(publicKey, {
+    autoRefresh: true,
+    refreshIntervalMs: 10000, // Poll every 10 seconds
+  });
+
+  if (loading && balances.length === 0) return <div>Loading...</div>;
+  if (error) return <div>Error: {error.message}</div>;
+
+  return (
+    <div>
+      {balances.map((b, i) => (
+        <p key={i}>
+          {b.asset_type === 'native' ? 'XLM' : b.asset_code}: {b.balance}
+        </p>
+      ))}
+    </div>
+  );
+}
 ```
 
 ### Filter by Asset Type
 
-````tsx
-const { balances } = useStellarBalances(publicKey);
+```tsx
+import { useStellarBalances } from '@/hooks/useStellarBalances';
 
-const xlmBalance =
-  balances.find((b) => b.asset_type === 'native')?.balance ?? '0';
-const customAssets = balances.filter((b) => b.asset_type !== 'native');
+export function AssetSelector({ publicKey }: { publicKey: string }) {
+  const { balances } = useStellarBalances(publicKey);
 
-return (
-  <div>
-    <p>XLM: {xlmBalance}</p>
-    <h3>Custom Assets:</h3>
-    {customAssets.map((asset, i) => (
-      <p key={i}>
-        {asset.balance} {asset.asset_code}
-      </p>
-    ))}
-  </div>
-);
-```bash
+  const xlmBalance =
+    balances.find((b) => b.asset_type === 'native')?.balance ?? '0';
+  const customAssets = balances.filter((b) => b.asset_type !== 'native');
+
+  return (
+    <div>
+      <p>XLM: {xlmBalance}</p>
+      <h3>Custom Assets:</h3>
+      {customAssets.map((asset, i) => (
+        <p key={i}>
+          {asset.balance} {asset.asset_code}
+        </p>
+      ))}
+    </div>
+  );
+}
+```
 
 ### Manual Refresh After Transaction
 
 ```tsx
-const { refresh } = useStellarBalances(publicKey);
-const { sendPayment } = useWallet();
+import { useStellarBalances } from '@/hooks/useStellarBalances';
+import { useStellarWallet } from '@/hooks/useStellarWallet';
 
-const handleSend = async () => {
-  await sendPayment({ to, amount, asset: 'XLM' });
-  await refresh(); // Update balances after payment
-};
-````
+export function PaymentWithRefresh({
+  to,
+  amount,
+}: {
+  to: string;
+  amount: string;
+}) {
+  const { publicKey, sendPayment } = useStellarWallet();
+  const { refresh } = useStellarBalances(publicKey);
+
+  const handleSend = async () => {
+    try {
+      await sendPayment({ destination: to, amount, asset: 'XLM' });
+      await refresh(); // Update balances after payment
+    } catch (e) {
+      console.error('Payment failed:', e);
+    }
+  };
+
+  return <button onClick={handleSend}>Send {amount} XLM</button>;
+}
+```
 
 ### With Custom Horizon URL
 
 ```tsx
-// Override provider config for this component
-const { balances } = useStellarBalances(publicKey, {
-  horizonUrl: 'https://horizon.stellar.org', // Use mainnet
-});
+import { useStellarBalances } from '@/hooks/useStellarBalances';
+
+export function MainnetBalances({ publicKey }: { publicKey: string }) {
+  // Override provider config for this component
+  const { balances, loading } = useStellarBalances(publicKey, {
+    horizonUrl: 'https://horizon.stellar.org', // Use mainnet
+    autoRefresh: true,
+    refreshIntervalMs: 30000,
+  });
+
+  if (loading) return <div>Syncing...</div>;
+  return <div>{balances.length} assets found</div>;
+}
 ```
 
-## Auto-Consume Pattern
+## Auto-Config Pattern
 
 The hook automatically uses `WalletProvider` config as fallback:
 
 ```tsx
-// Provider sets config
-<WalletProvider horizonUrl="https://horizon.stellar.org">
-  <App />
-</WalletProvider>;
+import { WalletProvider } from '@/context/WalletProvider';
+import { useStellarBalances } from '@/hooks/useStellarBalances';
 
-// Hook uses provider's horizonUrl
-function MyComponent() {
+// Provider sets default Horizon URL
+export function App() {
+  return (
+    <WalletProvider horizonUrl="https://horizon.stellar.org">
+      <BalanceWidget />
+    </WalletProvider>
+  );
+}
+
+// Hook uses provider's horizonUrl automatically
+function BalanceWidget() {
+  const { publicKey } = useStellarWallet();
   const { balances } = useStellarBalances(publicKey);
-  // Uses mainnet automatically!
+  // Uses mainnet URL from provider!
+  return <div>{balances.length} balances</div>;
 }
 ```
 
@@ -171,36 +239,73 @@ function MyComponent() {
 
 ### Unfunded Accounts
 
-Accounts without an active trustline or starting balance can return `404` or an empty payload. Treat that as a valid empty state instead of a hard failure.
-
-### Transient Horizon Failures
-
-If the network is temporarily unavailable, keep the last successful data on screen and expose `refresh()` so the user can retry.
-
-### Polling Issues
-
-Use `stopPolling()` when the component unmounts or when repeated errors indicate the endpoint is unhealthy.
+New accounts without initial XLM funding return a 404 from Horizon. The hook catches this gracefully:
 
 ```tsx
-if (error) {
+import { useStellarBalances } from '@/hooks/useStellarBalances';
+
+export function AccountStatus({ publicKey }: { publicKey: string }) {
+  const { balances, error } = useStellarBalances(publicKey);
+
+  if (error && error.message.includes('404')) {
+    return <p>Account needs funding. Send XLM to: {publicKey}</p>;
+  }
+
+  if (balances.length === 0 && !error) {
+    return <p>No balances yet (account may be unfunded)</p>;
+  }
+
+  return <p>Balances loaded successfully</p>;
+}
+```
+
+### Transient Network Failures
+
+If Horizon is temporarily unavailable, keep the last successful data on screen and expose `refresh()` so users can retry:
+
+```tsx
+export function BalanceWithRetry({ publicKey }: { publicKey: string }) {
+  const { balances, error, refresh } = useStellarBalances(publicKey);
+
+  if (error) {
+    return (
+      <div className="error">
+        <p>{error.message}</p>
+        <button onClick={refresh}>Retry</button>
+      </div>
+    );
+  }
+
   return (
     <div>
-      <p>{error.message}</p>
-      <button onClick={refresh}>Retry</button>
+      <p>{balances.length} assets</p>
+      <button onClick={refresh}>Refresh</button>
     </div>
   );
 }
 ```
 
+### Invalid Public Key
+
+Malformed public keys are validated before making HTTP requests:
+
+```tsx
+// This will produce an error immediately (invalid G-address format)
+const { error } = useStellarBalances('INVALID-KEY');
+```
+
 ## Best Practices
 
-1. **Use Polling Sparingly**: Only enable for critical views (min 5 seconds)
-2. **Stop Polling on Unmount**: Call `stopPolling()` in cleanup
-3. **Handle Empty Balances**: New accounts return empty until funded
-4. **Cache Results**: Consider React Query/SWR for advanced caching
+1. **Set Realistic Poll Intervals**: Minimum 5 seconds to avoid rate limiting
+2. **Handle Null Public Keys**: Always pass `publicKey || null` when account is not connected yet
+3. **Check Asset Type**: Use `asset_type === 'native'` to distinguish XLM from custom assets
+4. **Combine with useStellarWallet**: Pair with wallet hook to get the public key
+5. **Manual Refresh After Transactions**: Call `refresh()` after sending payments to show updated balances immediately
+6. **Cleanup on Unmount**: The hook handles timer cleanup automatically via useEffect
+7. **Race Condition Safe**: Rapid public key changes cancel inflight requests automatically
 
 ## Related Hooks
 
 - [`useStellarWallet`](/docs/hooks/use-stellar-wallet) - Wallet connection with balances
-- [`useTrustlines`](/docs/hooks/use-trustlines) - Manage asset trustlines
+- [`useTrustlines`](/docs/hooks/use-trustlines) - Manage asset trustlines ([adding and removing a trustline](/docs/hooks/use-trustlines#adding-and-removing-a-trustline) example)
 - [`WalletProvider`](/docs/hooks/wallet-provider) - Global configuration

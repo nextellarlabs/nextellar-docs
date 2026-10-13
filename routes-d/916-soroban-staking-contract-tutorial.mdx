@@ -1,0 +1,513 @@
+---
+title: Complete Soroban Staking Contract Tutorial
+description: Build a Soroban staking contract from scratch — stake, unstake, and reward accrual — with client invocation examples.
+date: 2026-08-25
+---
+
+# Complete Soroban Staking Contract Tutorial
+
+This tutorial builds a **staking contract** on Soroban: users lock a token to earn rewards over time, and can unstake to reclaim their principal plus any accrued rewards. It covers the contract itself, the reward accrual math, and how to invoke it from a client application.
+
+---
+
+## Design Overview
+
+```
+Staker ──stake(amount)─────────► Staking Contract ──transfer(staker → contract)──► Stake Token
+                                       │
+                                       ├── settle pending rewards for staker (before changing their stake)
+                                       └── staked[staker] += amount
+
+Staker ──unstake(amount)────────► Staking Contract ──transfer(contract → staker)──► Stake Token
+                                       │
+                                       ├── settle pending rewards for staker
+                                       └── staked[staker] -= amount
+
+Staker ──claim_rewards()────────► Staking Contract ──transfer(contract → staker)──► Reward Token
+                                       └── pays out rewards[staker]; resets to 0
+```
+
+Rewards accrue continuously using an **accumulator (reward-per-token) pattern** — the same design used by most production staking contracts (e.g. Synthetix-style staking). This avoids ever having to loop over all stakers: each staker's pending reward is computed lazily, only when they interact with the contract.
+
+---
+
+## Reward Accrual Math
+
+Two numbers drive the whole system:
+
+- `reward_per_token_stored` — cumulative rewards earned per unit staked, since the contract's genesis.
+- `user_reward_per_token_paid[staker]` — the value of `reward_per_token_stored` the last time this staker's rewards were settled.
+
+On every stake/unstake/claim, before changing state:
+
+```
+elapsed = now - last_update_time
+reward_per_token_stored += elapsed * reward_rate / total_staked   (if total_staked > 0)
+last_update_time = now
+
+pending = staked[user] * (reward_per_token_stored - user_reward_per_token_paid[user])
+rewards[user] += pending
+user_reward_per_token_paid[user] = reward_per_token_stored
+```
+
+This guarantees each staker's reward accrues in proportion to _how much_ they staked and _for how long_, without ever iterating over the full staker set.
+
+---
+
+## Project Layout
+
+```
+my-staking-contract/
+├── Cargo.toml
+└── contracts/
+    └── staking/
+        ├── Cargo.toml
+        └── src/
+            ├── lib.rs
+            ├── contract.rs
+            ├── storage.rs
+            └── test.rs
+```
+
+### Contract Cargo.toml
+
+```toml
+[package]
+name = "soroban-staking-contract"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+soroban-sdk = "21.0.0"
+
+[dev-dependencies]
+soroban-sdk = { version = "21.0.0", features = ["testutils"] }
+
+[profile.release]
+opt-level = "z"
+overflow-checks = true
+debug = false
+panic = "abort"
+codegen-units = 1
+```
+
+---
+
+## Storage Layout
+
+```rust
+// contracts/staking/src/storage.rs
+use soroban_sdk::{contracttype, Address, Env};
+
+#[derive(Clone)]
+#[contracttype]
+pub enum DataKey {
+    Admin,
+    StakeToken,
+    RewardToken,
+    RewardRate,             // reward tokens emitted per second (fixed point, 1e7 scale)
+    TotalStaked,
+    RewardPerTokenStored,   // fixed point, 1e7 scale
+    LastUpdateTime,
+    Staked(Address),
+    Rewards(Address),
+    UserRewardPerTokenPaid(Address),
+}
+
+pub const SCALE: i128 = 1_0000000; // 7-decimal fixed point, matches Stellar asset precision
+
+pub fn read_i128(env: &Env, key: &DataKey) -> i128 {
+    env.storage().instance().get(key).unwrap_or(0)
+}
+
+pub fn read_staked(env: &Env, addr: &Address) -> i128 {
+    env.storage().persistent().get(&DataKey::Staked(addr.clone())).unwrap_or(0)
+}
+
+pub fn write_staked(env: &Env, addr: &Address, amount: i128) {
+    let key = DataKey::Staked(addr.clone());
+    env.storage().persistent().set(&key, &amount);
+    env.storage().persistent().extend_ttl(&key, 100_000, 100_000);
+}
+```
+
+---
+
+## Staking Contract
+
+```rust
+// contracts/staking/src/contract.rs
+#![no_std]
+use soroban_sdk::{contract, contractimpl, token, Address, Env};
+use crate::storage::{read_i128, read_staked, write_staked, DataKey, SCALE};
+
+#[contract]
+pub struct StakingContract;
+
+#[contractimpl]
+impl StakingContract {
+    pub fn initialize(env: Env, admin: Address, stake_token: Address, reward_token: Address, reward_rate: i128) {
+        admin.require_auth();
+        env.storage().instance().set(&DataKey::Admin, &admin);
+        env.storage().instance().set(&DataKey::StakeToken, &stake_token);
+        env.storage().instance().set(&DataKey::RewardToken, &reward_token);
+        env.storage().instance().set(&DataKey::RewardRate, &reward_rate);
+        env.storage().instance().set(&DataKey::TotalStaked, &0i128);
+        env.storage().instance().set(&DataKey::RewardPerTokenStored, &0i128);
+        env.storage().instance().set(&DataKey::LastUpdateTime, &env.ledger().timestamp());
+    }
+
+    /// Recomputes the global reward accumulator and settles `who`'s pending rewards.
+    /// Must be called before any state-changing action (stake/unstake/claim).
+    fn update_reward(env: &Env, who: &Address) {
+        let total_staked = read_i128(env, &DataKey::TotalStaked);
+        let last_update: u64 = env.storage().instance().get(&DataKey::LastUpdateTime).unwrap();
+        let now = env.ledger().timestamp();
+        let mut reward_per_token = read_i128(env, &DataKey::RewardPerTokenStored);
+
+        if total_staked > 0 {
+            let elapsed = (now - last_update) as i128;
+            let reward_rate = read_i128(env, &DataKey::RewardRate);
+            reward_per_token += elapsed * reward_rate * SCALE / total_staked;
+            env.storage().instance().set(&DataKey::RewardPerTokenStored, &reward_per_token);
+        }
+        env.storage().instance().set(&DataKey::LastUpdateTime, &now);
+
+        let staked = read_staked(env, who);
+        let paid: i128 = env.storage().persistent()
+            .get(&DataKey::UserRewardPerTokenPaid(who.clone()))
+            .unwrap_or(0);
+        let pending = staked * (reward_per_token - paid) / SCALE;
+
+        let current_rewards: i128 = env.storage().persistent()
+            .get(&DataKey::Rewards(who.clone()))
+            .unwrap_or(0);
+        env.storage().persistent().set(&DataKey::Rewards(who.clone()), &(current_rewards + pending));
+        env.storage().persistent().set(&DataKey::UserRewardPerTokenPaid(who.clone()), &reward_per_token);
+    }
+
+    pub fn stake(env: Env, staker: Address, amount: i128) {
+        staker.require_auth();
+        assert!(amount > 0, "amount must be positive");
+
+        Self::update_reward(&env, &staker);
+
+        let stake_token: Address = env.storage().instance().get(&DataKey::StakeToken).unwrap();
+        token::Client::new(&env, &stake_token)
+            .transfer(&staker, &env.current_contract_address(), &amount);
+
+        let current = read_staked(&env, &staker);
+        write_staked(&env, &staker, current + amount);
+
+        let total = read_i128(&env, &DataKey::TotalStaked);
+        env.storage().instance().set(&DataKey::TotalStaked, &(total + amount));
+
+        env.events()
+            .publish((soroban_sdk::symbol_short!("stake"), staker), amount);
+    }
+
+    pub fn unstake(env: Env, staker: Address, amount: i128) {
+        staker.require_auth();
+        assert!(amount > 0, "amount must be positive");
+
+        let current = read_staked(&env, &staker);
+        assert!(current >= amount, "insufficient staked balance");
+
+        Self::update_reward(&env, &staker);
+
+        write_staked(&env, &staker, current - amount);
+        let total = read_i128(&env, &DataKey::TotalStaked);
+        env.storage().instance().set(&DataKey::TotalStaked, &(total - amount));
+
+        let stake_token: Address = env.storage().instance().get(&DataKey::StakeToken).unwrap();
+        token::Client::new(&env, &stake_token)
+            .transfer(&env.current_contract_address(), &staker, &amount);
+
+        env.events()
+            .publish((soroban_sdk::symbol_short!("unstake"), staker), amount);
+    }
+
+    /// Pays out all pending rewards to the caller without touching their stake.
+    pub fn claim_rewards(env: Env, staker: Address) -> i128 {
+        staker.require_auth();
+        Self::update_reward(&env, &staker);
+
+        let rewards: i128 = env.storage().persistent()
+            .get(&DataKey::Rewards(staker.clone()))
+            .unwrap_or(0);
+        assert!(rewards > 0, "no rewards to claim");
+
+        env.storage().persistent().set(&DataKey::Rewards(staker.clone()), &0i128);
+
+        let reward_token: Address = env.storage().instance().get(&DataKey::RewardToken).unwrap();
+        token::Client::new(&env, &reward_token)
+            .transfer(&env.current_contract_address(), &staker, &rewards);
+
+        env.events()
+            .publish((soroban_sdk::symbol_short!("claim"), staker), rewards);
+
+        rewards
+    }
+
+    /// Read-only view of a staker's currently claimable rewards (including unsettled accrual).
+    pub fn earned(env: Env, staker: Address) -> i128 {
+        let total_staked = read_i128(&env, &DataKey::TotalStaked);
+        let mut reward_per_token = read_i128(&env, &DataKey::RewardPerTokenStored);
+
+        if total_staked > 0 {
+            let last_update: u64 = env.storage().instance().get(&DataKey::LastUpdateTime).unwrap();
+            let elapsed = (env.ledger().timestamp() - last_update) as i128;
+            let reward_rate = read_i128(&env, &DataKey::RewardRate);
+            reward_per_token += elapsed * reward_rate * SCALE / total_staked;
+        }
+
+        let staked = read_staked(&env, &staker);
+        let paid: i128 = env.storage().persistent()
+            .get(&DataKey::UserRewardPerTokenPaid(staker.clone()))
+            .unwrap_or(0);
+        let settled: i128 = env.storage().persistent()
+            .get(&DataKey::Rewards(staker.clone()))
+            .unwrap_or(0);
+
+        settled + staked * (reward_per_token - paid) / SCALE
+    }
+
+    pub fn staked_balance(env: Env, staker: Address) -> i128 {
+        read_staked(&env, &staker)
+    }
+}
+```
+
+<Note type="warning">
+  `reward_rate` is denominated in reward tokens emitted **per second, across all
+  stakers combined** — not per staker. Fund the contract's reward-token balance
+  ahead of time (or top it up periodically); `claim_rewards` will fail with a
+  transfer error if the contract doesn't hold enough reward tokens to pay out.
+</Note>
+
+---
+
+## Test Suite
+
+```rust
+// contracts/staking/src/test.rs
+#![cfg(test)]
+use super::*;
+use soroban_sdk::testutils::{Address as _, Ledger};
+use soroban_sdk::Env;
+
+fn setup_tokens(env: &Env) -> (Address, Address, Address) {
+    let admin = Address::generate(env);
+    let stake_token = env.register_stellar_asset_contract_v2(admin.clone()).address();
+    let reward_token = env.register_stellar_asset_contract_v2(admin.clone()).address();
+    (stake_token, reward_token, admin)
+}
+
+#[test]
+fn test_stake_and_earn_rewards_over_time() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (stake_token, reward_token, admin) = setup_tokens(&env);
+
+    let staking_id = env.register(StakingContract, ());
+    let staking = StakingContractClient::new(&env, &staking_id);
+    let alice = Address::generate(&env);
+
+    // Fund contracts
+    token::StellarAssetClient::new(&env, &stake_token).mint(&alice, &1_000);
+    token::StellarAssetClient::new(&env, &reward_token).mint(&staking_id, &10_000);
+
+    staking.initialize(&admin, &stake_token, &reward_token, &10); // 10 reward units/sec total
+
+    staking.stake(&alice, &500);
+    assert_eq!(staking.staked_balance(&alice), 500);
+    assert_eq!(staking.earned(&alice), 0);
+
+    env.ledger().with_mut(|l| l.timestamp += 100); // simulate 100 seconds passing
+
+    // Sole staker earns the full emission: 100s * 10/s = 1000
+    assert_eq!(staking.earned(&alice), 1_000);
+
+    let claimed = staking.claim_rewards(&alice);
+    assert_eq!(claimed, 1_000);
+    assert_eq!(staking.earned(&alice), 0);
+}
+
+#[test]
+fn test_rewards_split_proportionally_between_stakers() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (stake_token, reward_token, admin) = setup_tokens(&env);
+
+    let staking_id = env.register(StakingContract, ());
+    let staking = StakingContractClient::new(&env, &staking_id);
+    let alice = Address::generate(&env);
+    let bob = Address::generate(&env);
+
+    token::StellarAssetClient::new(&env, &stake_token).mint(&alice, &1_000);
+    token::StellarAssetClient::new(&env, &stake_token).mint(&bob, &1_000);
+    token::StellarAssetClient::new(&env, &reward_token).mint(&staking_id, &100_000);
+
+    staking.initialize(&admin, &stake_token, &reward_token, &10);
+
+    staking.stake(&alice, &300); // Alice: 300, 75% of pool
+    staking.stake(&bob, &100);   // Bob: 100, 25% of pool
+
+    env.ledger().with_mut(|l| l.timestamp += 100); // 1000 reward units emitted total
+
+    assert_eq!(staking.earned(&alice), 750);
+    assert_eq!(staking.earned(&bob), 250);
+}
+
+#[test]
+#[should_panic(expected = "insufficient staked balance")]
+fn test_unstake_more_than_staked_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (stake_token, reward_token, admin) = setup_tokens(&env);
+
+    let staking_id = env.register(StakingContract, ());
+    let staking = StakingContractClient::new(&env, &staking_id);
+    let alice = Address::generate(&env);
+
+    staking.initialize(&admin, &stake_token, &reward_token, &10);
+    staking.unstake(&alice, &1);
+}
+```
+
+---
+
+## Client Invocation
+
+```ts
+// lib/staking.ts
+import {
+  Contract,
+  Networks,
+  TransactionBuilder,
+  BASE_FEE,
+  rpc,
+  nativeToScVal,
+  Address,
+  scValToNative,
+} from '@stellar/stellar-sdk';
+
+const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL!;
+const STAKING_ID = process.env.NEXT_PUBLIC_STAKING_CONTRACT!;
+
+async function invoke(
+  method: string,
+  keypair: { publicKey(): string; sign(tx: any): void },
+  ...args: any[]
+) {
+  const server = new rpc.Server(RPC_URL);
+  const account = await server.getAccount(keypair.publicKey());
+  const contract = new Contract(STAKING_ID);
+
+  const tx = new TransactionBuilder(account, {
+    fee: BASE_FEE,
+    networkPassphrase: Networks.MAINNET,
+  })
+    .addOperation(contract.call(method, ...args))
+    .setTimeout(30)
+    .build();
+
+  const prepared = await server.prepareTransaction(tx);
+  keypair.sign(prepared);
+  const result = await server.sendTransaction(prepared);
+  return scValToNative((result as any).returnValue);
+}
+
+export function stake(keypair: any, amount: bigint) {
+  return invoke(
+    'stake',
+    keypair,
+    new Address(keypair.publicKey()).toScVal(),
+    nativeToScVal(amount, { type: 'i128' })
+  );
+}
+
+export function unstake(keypair: any, amount: bigint) {
+  return invoke(
+    'unstake',
+    keypair,
+    new Address(keypair.publicKey()).toScVal(),
+    nativeToScVal(amount, { type: 'i128' })
+  );
+}
+
+export function claimRewards(keypair: any) {
+  return invoke(
+    'claim_rewards',
+    keypair,
+    new Address(keypair.publicKey()).toScVal()
+  );
+}
+
+// Read-only: simulate rather than submit, no signature required.
+export async function getEarned(staker: string): Promise<bigint> {
+  const server = new rpc.Server(RPC_URL);
+  const contract = new Contract(STAKING_ID);
+  const account = new (await import('@stellar/stellar-sdk')).Account(
+    'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN',
+    '0'
+  );
+
+  const tx = new TransactionBuilder(account, {
+    fee: BASE_FEE,
+    networkPassphrase: Networks.MAINNET,
+  })
+    .addOperation(contract.call('earned', new Address(staker).toScVal()))
+    .setTimeout(5)
+    .build();
+
+  const sim = (await server.simulateTransaction(
+    tx
+  )) as rpc.SimulateTransactionSuccessResponse;
+  return BigInt(scValToNative(sim.result!.retval).toString());
+}
+```
+
+---
+
+## CLI Walkthrough
+
+```bash
+stellar contract build
+stellar contract deploy \
+  --wasm target/wasm32-unknown-unknown/release/soroban_staking_contract.wasm \
+  --source admin --network testnet
+
+stellar contract invoke --id <STAKING_ID> --source admin --network testnet -- \
+  initialize --admin admin --stake_token <STAKE_TOKEN_ID> --reward_token <REWARD_TOKEN_ID> --reward_rate 10
+
+stellar contract invoke --id <STAKING_ID> --source alice --network testnet -- \
+  stake --staker alice --amount 500
+
+stellar contract invoke --id <STAKING_ID> --source alice --network testnet -- \
+  earned --staker alice
+
+stellar contract invoke --id <STAKING_ID> --source alice --network testnet -- \
+  claim_rewards --staker alice
+```
+
+---
+
+## Reward Accrual: Design Alternatives
+
+| Approach                    | Gas / storage cost                         | Precision                                          | When to use                                                 |
+| --------------------------- | ------------------------------------------ | -------------------------------------------------- | ----------------------------------------------------------- |
+| **Accumulator (used here)** | O(1) per interaction, no iteration         | High, but rounding accumulates in fixed-point math | Default choice for most token-reward pools                  |
+| Snapshot per epoch          | O(1) per interaction, O(epochs) storage    | Exact per epoch                                    | Fixed-length reward campaigns (e.g. 30-day pool)            |
+| Merkle-distributed rewards  | Off-chain computation, on-chain claim only | Exact, auditable off-chain                         | Very large staker sets where on-chain accrual is too costly |
+
+---
+
+## Related docs
+
+- [Comprehensive Soroban Token Contract Implementation Guide](/docs/guides/soroban-token-contract-guide) — the SEP-41 token used for staking and rewards
+- [Comprehensive Soroban Vault Contract Guide](/docs/guides/soroban-vault-contract-guide) — a share-based alternative to a fixed reward rate
+- [Soroban Host Functions](/docs/guides/soroban-host-functions) — storage, auth, and cross-contract call primitives

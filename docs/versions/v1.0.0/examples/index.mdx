@@ -1,0 +1,137 @@
+---
+title: Examples
+description: Complete code examples for building Stellar dApps with Nextellar
+date: 2026-06-02
+---
+
+# Examples
+
+Learn by example with these complete, working code samples.
+
+For step-by-step guides, see [Guides](/docs/guides).
+
+---
+
+## Complete Applications
+
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-6">
+  <a
+    href="/examples/payment-app"
+    className="block p-4 border rounded-lg hover:border-primary no-underline"
+  >
+    <h4 className="font-semibold">Payment App</h4>
+    <span className="text-sm text-muted-foreground">
+      Complete payment flow with wallet connection, balance display, and
+      transaction sending
+    </span>
+  </a>
+</div>
+
+---
+
+## Quick Snippets
+
+### Connect to Wallet
+
+```tsx
+import { useWallet } from '@/contexts';
+
+function ConnectButton() {
+  const { connected, connect, disconnect, publicKey } = useWallet();
+
+  return connected ? (
+    <div>
+      <span>{publicKey?.slice(0, 8)}...</span>
+      <button onClick={disconnect}>Disconnect</button>
+    </div>
+  ) : (
+    <button onClick={connect}>Connect Wallet</button>
+  );
+}
+```
+
+### Display Balances
+
+```tsx
+import { useStellarBalances } from '@/hooks/useStellarBalances';
+
+function Balances({ publicKey }: { publicKey: string }) {
+  const { balances, loading, error } = useStellarBalances(publicKey);
+
+  if (loading) return <p>Loading...</p>;
+  if (error) return <p>Error: {error.message}</p>;
+
+  return (
+    <ul>
+      {balances.map((b, i) => (
+        <li key={i}>
+          {b.asset_type === 'native' ? 'XLM' : b.asset_code}: {b.balance}
+        </li>
+      ))}
+    </ul>
+  );
+}
+```
+
+### Send Payment
+
+```tsx
+import { useStellarPayment } from '@/hooks/useStellarPayment';
+
+function SendPayment() {
+  const { buildPaymentXDR, submitSignedXDR } = useStellarPayment();
+
+  const handleSend = async () => {
+    // Build unsigned transaction
+    const xdr = await buildPaymentXDR({
+      from: 'GABC...',
+      to: 'GDEF...',
+      amount: '10',
+      asset: 'XLM',
+      memo: 'Coffee payment',
+    });
+
+    // Sign with wallet (Freighter, etc.)
+    const signedXdr = await wallet.signTransaction(xdr);
+
+    // Submit
+    const result = await submitSignedXDR(signedXdr);
+    console.log('Tx hash:', result.txHash);
+  };
+
+  return <button onClick={handleSend}>Send 10 XLM</button>;
+}
+```
+
+### Query Smart Contract
+
+```tsx
+import { useSorobanContract } from '@/hooks/useSorobanContract';
+
+function ContractReader() {
+  const { callFunction, loading } = useSorobanContract({
+    contractId: 'CDLZFC3...',
+    network: 'TESTNET',
+  });
+
+  const handleRead = async () => {
+    const result = await callFunction('get_balance', ['GABC...']);
+    console.log('Balance:', result);
+  };
+
+  return (
+    <button onClick={handleRead} disabled={loading}>
+      Read Contract
+    </button>
+  );
+}
+```
+
+---
+
+## Coming Soon
+
+- **NFT Marketplace**: Mint, list, and trade Stellar NFTs
+- **Token Swap**: DEX integration with offer management
+- **DAO Voting**: On-chain governance with Soroban
+- **Multi-Sig Wallet**: Shared account management

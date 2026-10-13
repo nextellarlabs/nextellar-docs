@@ -1,0 +1,250 @@
+---
+title: Release Automation for a Stellar dApp Project
+description: Guide to automating version bumps, tagging, and changelog generation for a Stellar dApp release — with a working sample.
+date: 2026-08-27
+---
+
+# Release Automation for a Stellar dApp Project
+
+Manually bumping a version, tagging a commit, and hand-writing a changelog is error-prone and easy to skip under deadline pressure. This guide covers automating all three from conventional commit messages, so a release is a single command with a deterministic, reviewable output.
+
+<Note type="warning">
+  This guide assumes commits follow the
+  <a href="https://www.conventionalcommits.org/">Conventional Commits</a>
+  format (`feat:`, `fix:`, `feat!:` for breaking changes). Without a consistent
+  commit convention, automated version bumping has nothing reliable to key off.
+</Note>
+
+## Version bump rules
+
+Semantic versioning maps directly onto conventional commit types:
+
+| Commit prefix                                    | Version bump | Example           |
+| ------------------------------------------------ | ------------ | ----------------- |
+| `fix:`                                           | patch        | `1.2.3` → `1.2.4` |
+| `feat:`                                          | minor        | `1.2.3` → `1.3.0` |
+| `feat!:` or `BREAKING CHANGE:` footer            | major        | `1.2.3` → `2.0.0` |
+| `docs:`, `chore:`, `test:`, `refactor:` (no `!`) | none         | no release        |
+
+The bump is determined by the **highest-severity** commit since the last release tag — one `feat!:` among ten `fix:` commits still forces a major bump.
+
+## Working sample: version bump resolver
+
+```ts
+// scripts/release/resolve-bump.ts
+export type BumpLevel = 'major' | 'minor' | 'patch' | 'none';
+
+const BUMP_RANK: Record<BumpLevel, number> = {
+  none: 0,
+  patch: 1,
+  minor: 2,
+  major: 3,
+};
+
+export function classifyCommit(message: string): BumpLevel {
+  const firstLine = message.split('\n')[0];
+  const isBreaking =
+    /^\w+(\(.+\))?!:/.test(firstLine) || /BREAKING CHANGE:/.test(message);
+  if (isBreaking) return 'major';
+  if (/^feat(\(.+\))?:/.test(firstLine)) return 'minor';
+  if (/^fix(\(.+\))?:/.test(firstLine)) return 'patch';
+  return 'none';
+}
+
+export function resolveBump(commitMessages: string[]): BumpLevel {
+  return commitMessages
+    .map(classifyCommit)
+    .reduce<BumpLevel>(
+      (highest, level) =>
+        BUMP_RANK[level] > BUMP_RANK[highest] ? level : highest,
+      'none'
+    );
+}
+
+export function applyBump(currentVersion: string, bump: BumpLevel): string {
+  const [major, minor, patch] = currentVersion.split('.').map(Number);
+  switch (bump) {
+    case 'major':
+      return `${major + 1}.0.0`;
+    case 'minor':
+      return `${major}.${minor + 1}.0`;
+    case 'patch':
+      return `${major}.${minor}.${patch + 1}`;
+    case 'none':
+      return currentVersion;
+  }
+}
+```
+
+```ts
+// scripts/release/resolve-bump.test.ts
+import { describe, expect, it } from 'vitest';
+import { applyBump, classifyCommit, resolveBump } from './resolve-bump';
+
+describe('classifyCommit', () => {
+  it('classifies fix: as patch', () => {
+    expect(classifyCommit('fix: correct premium rounding')).toBe('patch');
+  });
+
+  it('classifies feat: as minor', () => {
+    expect(classifyCommit('feat: add claim approval endpoint')).toBe('minor');
+  });
+
+  it('classifies feat!: as major', () => {
+    expect(classifyCommit('feat!: rename claimPolicy to fileClaim')).toBe(
+      'major'
+    );
+  });
+
+  it('classifies a BREAKING CHANGE footer as major even on a fix: commit', () => {
+    const message =
+      'fix: adjust default timeout\n\nBREAKING CHANGE: removes the 30s default';
+    expect(classifyCommit(message)).toBe('major');
+  });
+
+  it('classifies docs:/chore: as none', () => {
+    expect(classifyCommit('docs: fix typo in README')).toBe('none');
+    expect(classifyCommit('chore: bump dev dependency')).toBe('none');
+  });
+});
+
+describe('resolveBump', () => {
+  it('picks the highest-severity bump across all commits', () => {
+    const messages = ['fix: a', 'fix: b', 'feat!: c', 'docs: d'];
+    expect(resolveBump(messages)).toBe('major');
+  });
+
+  it('returns none when no commit warrants a release', () => {
+    expect(resolveBump(['docs: a', 'chore: b'])).toBe('none');
+  });
+});
+
+describe('applyBump', () => {
+  it('bumps patch', () => {
+    expect(applyBump('1.2.3', 'patch')).toBe('1.2.4');
+  });
+
+  it('bumps minor and resets patch', () => {
+    expect(applyBump('1.2.3', 'minor')).toBe('1.3.0');
+  });
+
+  it('bumps major and resets minor and patch', () => {
+    expect(applyBump('1.2.3', 'major')).toBe('2.0.0');
+  });
+
+  it('leaves the version unchanged for none', () => {
+    expect(applyBump('1.2.3', 'none')).toBe('1.2.3');
+  });
+});
+```
+
+## Changelog generation
+
+Group commits by type under the new version heading, in a fixed section order so the changelog is scannable release over release:
+
+```ts
+// scripts/release/generate-changelog.ts
+import { classifyCommit } from './resolve-bump';
+
+interface CommitEntry {
+  message: string;
+  hash: string;
+}
+
+const SECTION_ORDER = [
+  { type: 'major', heading: 'Breaking Changes' },
+  { type: 'minor', heading: 'Features' },
+  { type: 'patch', heading: 'Fixes' },
+] as const;
+
+export function generateChangelogSection(
+  version: string,
+  date: string,
+  commits: CommitEntry[]
+): string {
+  const lines = [`## ${version} (${date})`, ''];
+
+  for (const section of SECTION_ORDER) {
+    const matches = commits.filter(
+      (c) => classifyCommit(c.message) === section.type
+    );
+    if (matches.length === 0) continue;
+
+    lines.push(`### ${section.heading}`, '');
+    for (const commit of matches) {
+      const firstLine = commit.message
+        .split('\n')[0]
+        .replace(/^\w+(\(.+\))?!?:\s*/, '');
+      lines.push(`- ${firstLine} (${commit.hash.slice(0, 7)})`);
+    }
+    lines.push('');
+  }
+
+  return lines.join('\n').trimEnd() + '\n';
+}
+```
+
+```ts
+// scripts/release/generate-changelog.test.ts
+import { describe, expect, it } from 'vitest';
+import { generateChangelogSection } from './generate-changelog';
+
+describe('generateChangelogSection', () => {
+  it('groups commits into fixed section order', () => {
+    const output = generateChangelogSection('1.3.0', '2026-08-27', [
+      { message: 'fix: correct rounding', hash: 'abc1234' },
+      { message: 'feat: add claim endpoint', hash: 'def5678' },
+    ]);
+    const featuresIndex = output.indexOf('### Features');
+    const fixesIndex = output.indexOf('### Fixes');
+    expect(featuresIndex).toBeGreaterThan(-1);
+    expect(fixesIndex).toBeGreaterThan(featuresIndex);
+  });
+
+  it('omits sections with no matching commits', () => {
+    const output = generateChangelogSection('1.2.4', '2026-08-27', [
+      { message: 'fix: correct rounding', hash: 'abc1234' },
+    ]);
+    expect(output).not.toContain('### Features');
+    expect(output).not.toContain('### Breaking Changes');
+  });
+
+  it('strips the conventional-commit prefix from the entry text', () => {
+    const output = generateChangelogSection('1.2.4', '2026-08-27', [
+      { message: 'fix: correct rounding', hash: 'abc1234' },
+    ]);
+    expect(output).toContain('- correct rounding (abc1234)');
+  });
+});
+```
+
+## Tagging
+
+Tag only after the version bump and changelog commit land, so the tag always points at a commit containing its own changelog entry:
+
+```bash
+#!/usr/bin/env bash
+# scripts/release/cut-release.sh
+set -euo pipefail
+
+NEW_VERSION="$1"  # produced by resolve-bump + applyBump, passed in by CI
+
+npm version "$NEW_VERSION" --no-git-tag-version
+git add package.json CHANGELOG.md
+git commit -m "chore(release): v${NEW_VERSION}"
+git tag "v${NEW_VERSION}"
+git push origin main "v${NEW_VERSION}"
+```
+
+## Verifying the guide
+
+```bash
+pnpm build:content
+pnpm check:links
+npx vitest run scripts/release/resolve-bump.test.ts scripts/release/generate-changelog.test.ts
+```
+
+## Related docs
+
+- [CI Matrix Testing Tutorial](/routes-d/940-soroban-ci-matrix-testing-tutorial)
+- [CDN Strategy Guide](/routes-d/953-stellar-dapp-cdn-strategy-guide)

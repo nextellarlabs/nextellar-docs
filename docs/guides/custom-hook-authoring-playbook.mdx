@@ -1,4 +1,4 @@
---
+---
 title: Custom Hook Authoring Playbook
 description: A complete guide to designing, testing, and publishing custom React hooks for Stellar dApps in Nextellar.
 ---
@@ -89,7 +89,7 @@ Expose only what consumers need. Prefer composition over configuration. If a fea
 
 A well-structured Nextellar hook has four sections in this order:
 
-```
+```text
 1. Types & Interfaces
 2. Constants & Defaults
 3. The Hook Function
@@ -222,37 +222,41 @@ Consumers need the current price of a Stellar asset (e.g., `USDC`, `yXLM`). The 
 
 ### Step 2: Design the API
 
-| Decision | Rationale |
-|----------|-----------|
-| `assetCode: string` as first arg | Most common use case; required |
-| `options` object as second arg | Optional overrides without positional bloat |
-| `enabled?: boolean` | Allows conditional fetching without conditional hook calls |
-| `pollingInterval?: number` | Live price updates; `0` disables polling |
-| Return `{ data, loading, error, refresh }` | Matches all existing Nextellar hooks |
+| Decision                                   | Rationale                                                  |
+| ------------------------------------------ | ---------------------------------------------------------- |
+| `assetCode: string` as first arg           | Most common use case; required                             |
+| `options` object as second arg             | Optional overrides without positional bloat                |
+| `enabled?: boolean`                        | Allows conditional fetching without conditional hook calls |
+| `pollingInterval?: number`                 | Live price updates; `0` disables polling                   |
+| Return `{ data, loading, error, refresh }` | Matches all existing Nextellar hooks                       |
 
 ### Step 3: Implement Fetch Logic
 
 ```tsx
-const fetchPrice = useCallback(async (signal?: AbortSignal) => {
-  setLoading(true);
-  setError(undefined);
+const fetchPrice = useCallback(
+  async (signal?: AbortSignal) => {
+    setLoading(true);
+    setError(undefined);
 
-  try {
-    const res = await fetch(
-      `${horizonUrl}/assets?asset_code=${assetCode}&order=desc&limit=1`,
-      { signal }
-    );
-    // ...parse and setData
-  } catch (err) {
-    if (err instanceof Error && err.name === 'AbortError') return;
-    setError(err instanceof Error ? err : new Error(String(err)));
-  } finally {
-    setLoading(false);
-  }
-}, [assetCode, horizonUrl]);
+    try {
+      const res = await fetch(
+        `${horizonUrl}/assets?asset_code=${assetCode}&order=desc&limit=1`,
+        { signal }
+      );
+      // ...parse and setData
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') return;
+      setError(err instanceof Error ? err : new Error(String(err)));
+    } finally {
+      setLoading(false);
+    }
+  },
+  [assetCode, horizonUrl]
+);
 ```
 
 Key details:
+
 - Always clear `error` before a new fetch so stale errors do not persist.
 - Swallow `AbortError` silently; it is not a user-facing failure.
 - Normalize non-Error throws with `new Error(String(err))`.
@@ -278,6 +282,7 @@ useEffect(() => {
 ```
 
 Key details:
+
 - `enabled = false` skips the fetch entirely.
 - `pollingInterval = 0` fetches once and stops.
 - The cleanup function aborts the in-flight request and clears the interval.
@@ -298,7 +303,9 @@ export function PriceTicker({ assetCode }: { assetCode: string }) {
 
   return (
     <div>
-      <span>{assetCode}: ${data.price.toFixed(4)}</span>
+      <span>
+        {assetCode}: ${data.price.toFixed(4)}
+      </span>
       <span className="text-xs text-gray-500">
         Updated {data.lastUpdated.toLocaleTimeString()}
       </span>
@@ -504,12 +511,12 @@ describe('useStellarAssetPrice contract', () => {
 
 ### Horizon Errors
 
-| Status | Meaning | Hook Response |
-|--------|---------|---------------|
-| `404` | Asset not found | `error = new Error('Asset X not found')` |
-| `429` | Rate limited | `error = new Error('Rate limited. Retry after delay.')` |
-| `5xx` | Server error | `error = new Error('Horizon unavailable')` |
-| Network | `fetch` threw | Pass through as `new Error(String(err))` |
+| Status  | Meaning         | Hook Response                                           |
+| ------- | --------------- | ------------------------------------------------------- |
+| `404`   | Asset not found | `error = new Error('Asset X not found')`                |
+| `429`   | Rate limited    | `error = new Error('Rate limited. Retry after delay.')` |
+| `5xx`   | Server error    | `error = new Error('Horizon unavailable')`              |
+| Network | `fetch` threw   | Pass through as `new Error(String(err))`                |
 
 ### Abort Handling
 
@@ -566,6 +573,7 @@ If publishing as a standalone package:
 ### Versioning
 
 Follow SemVer:
+
 - **Patch**: Bug fixes, internal refactoring.
 - **Minor**: New hooks, new options on existing hooks (backward-compatible).
 - **Major**: Removed hooks, changed return shape, renamed options.
@@ -573,6 +581,7 @@ Follow SemVer:
 ### Documentation
 
 Every published hook must have:
+
 - MDX reference page in `docs/hooks/`
 - Live code example in the MDX
 - JSDoc on all exported types and the hook function
@@ -585,6 +594,7 @@ Every published hook must have:
 Before submitting a hook PR, verify every item:
 
 ### Design
+
 - [ ] Follows the `{ data, loading, error, refresh }` return shape
 - [ ] Auto-consumes `WalletProvider` config with override support
 - [ ] Accepts `enabled?: boolean` for conditional fetching
@@ -592,6 +602,7 @@ Before submitting a hook PR, verify every item:
 - [ ] Minimal API surface — no rarely-used options in the main hook
 
 ### Implementation
+
 - [ ] Written in TypeScript with exported interfaces
 - [ ] Uses `useCallback` for stable function references
 - [ ] Uses `useRef` for abort controllers
@@ -599,6 +610,7 @@ Before submitting a hook PR, verify every item:
 - [ ] Swallows `AbortError` silently
 
 ### Testing
+
 - [ ] Unit tests for loading, success, error, refresh, enabled=false, unmount
 - [ ] Integration tests with `WalletProvider`
 - [ ] Contract tests verifying return shape
@@ -606,6 +618,7 @@ Before submitting a hook PR, verify every item:
 - [ ] Coverage > 80% for new hook code
 
 ### Documentation
+
 - [ ] MDX reference page in `docs/hooks/`
 - [ ] JSDoc on exported types and hook
 - [ ] Usage example in the MDX
@@ -613,6 +626,7 @@ Before submitting a hook PR, verify every item:
 - [ ] Internal links verified: `pnpm check:links`
 
 ### Publishing (if applicable)
+
 - [ ] Exported from package index
 - [ ] Peer dependencies declared
 - [ ] ESM + CJS builds configured

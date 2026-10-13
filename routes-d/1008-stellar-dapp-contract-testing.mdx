@@ -1,0 +1,114 @@
+---
+title: Stellar dApp API Contract Testing
+description: A guide to consumer-driven contract testing between a Stellar dApp's UI and its backend, covering versioning and a runnable example.
+date: 2026-08-27
+---
+
+# Stellar dApp API Contract Testing
+
+Most Stellar dApps have a backend layer sitting between the UI and Horizon/Soroban RPC — an API that assembles account data, caches ledger lookups, or exposes a simplified endpoint the frontend calls instead of talking to Horizon directly. Contract testing verifies that this backend's API still matches what the UI expects, without either side needing the other running to test against.
+
+This is a different concern from [Testing Horizon and Soroban Interactions](/docs/guides/testing-horizon-soroban), which mocks Horizon and Soroban RPC themselves — contract testing targets the layer your own backend exposes to your own frontend.
+
+## Consumer-Driven Contracts
+
+In a consumer-driven setup, the **consumer** (the frontend) defines the shape of the requests and responses it needs, and the **provider** (the backend) is tested against that same definition:
+
+1. The frontend team writes a contract: "a `GET /api/account/:id` call returns this JSON shape."
+2. The contract is published as a fixture both sides can reference.
+3. The frontend's tests run against a mock server generated from the contract — no backend required.
+4. The backend's tests replay the same contract against its real implementation — no frontend required.
+5. CI fails on either side the moment the contract and the real implementation diverge.
+
+This catches breaking changes — a renamed field, a dropped balance entry, a status code that changed — at the PR that introduced them, rather than at runtime in production.
+
+### Example contract
+
+```typescript
+// contracts/get-account.contract.ts
+export const getAccountContract = {
+  request: {
+    method: 'GET',
+    path: '/api/account/GABC1234567890123456789012345678901234567890123456789012',
+  },
+  response: {
+    status: 200,
+    body: {
+      id: 'GABC1234567890123456789012345678901234567890123456789012',
+      sequence: '123456789',
+      balances: [{ asset_type: 'native', balance: '100.0000000' }],
+    },
+  },
+};
+```
+
+### Consumer side — frontend test against the contract
+
+```typescript
+// tests/contract/account-consumer.test.ts
+import { http, HttpResponse } from 'msw';
+import { setupServer } from 'msw/node';
+import { getAccountContract } from '../../contracts/get-account.contract';
+
+const server = setupServer(
+  http.get(`http://localhost${getAccountContract.request.path}`, () =>
+    HttpResponse.json(getAccountContract.response.body, {
+      status: getAccountContract.response.status,
+    })
+  )
+);
+
+beforeAll(() => server.listen());
+afterAll(() => server.close());
+
+it('renders the account balance from the contracted shape', async () => {
+  const res = await fetch(`http://localhost${getAccountContract.request.path}`);
+  const body = await res.json();
+
+  // Assert against the fields the UI actually reads — this is what breaks
+  // if the backend renames or drops one of them.
+  expect(body.balances[0].balance).toBe('100.0000000');
+});
+```
+
+### Provider side — backend test against the same contract
+
+```typescript
+// tests/contract/account-provider.test.ts
+import { createServer } from '../../src/server';
+import { getAccountContract } from '../../contracts/get-account.contract';
+
+it('the real handler satisfies the published contract', async () => {
+  const app = createServer();
+  const res = await app.inject({
+    method: getAccountContract.request.method,
+    url: getAccountContract.request.path,
+  });
+
+  expect(res.statusCode).toBe(getAccountContract.response.status);
+  // Structural check — the real response must be a superset of the
+  // contracted fields, not necessarily an exact match.
+  expect(res.json()).toMatchObject(getAccountContract.response.body);
+});
+```
+
+Both tests import the **same** contract file, so a change to `contracts/get-account.contract.ts` immediately shows up as a failure on whichever side hasn't been updated to match.
+
+## Versioning
+
+Backend API shapes change over time; the contract has to change with them without silently breaking older frontend deployments:
+
+- Keep contracts in a versioned directory (`contracts/v1/`, `contracts/v2/`) rather than mutating one in place — a frontend still deployed against `v1` should keep passing against the `v1` contract.
+- Bump the version whenever a change is **not** additive — a removed field, a renamed field, or a changed type. Adding a new optional field to a response is not a breaking change and does not need a new version.
+- Tag the backend route itself with the version it satisfies (`/api/v1/account/:id`) so provider tests can run all supported versions' contracts against the routes that claim to implement them.
+- Retire a contract version only once analytics or logs confirm no consumer is still requesting that route version.
+
+## Verifying the Guide
+
+- Run both the consumer and provider contract tests in CI on every PR that touches either the frontend API client or the backend route handlers.
+- Confirm a deliberately broken contract (rename a field in `contracts/get-account.contract.ts` without updating the backend) fails the provider test — if it doesn't, the provider test isn't actually checking the field.
+
+## Related docs
+
+- [Testing Horizon and Soroban Interactions](/docs/guides/testing-horizon-soroban) — mocking Horizon and Soroban RPC directly, one layer below this guide.
+- [Stellar dApp Chaos Testing Tutorial](/docs/guides/stellar-dapp-chaos-testing) — failure-injection testing for the same API boundary this guide contract-tests for shape correctness.

@@ -1,0 +1,138 @@
+---
+title: stellar-sdk Transaction Resubmission Guide
+description: Safe patterns for resubmitting Stellar transactions after network timeouts or transient errors, preserving transaction hashes, and managing sequence numbers safely.
+date: 2026-08-27
+---
+
+# stellar-sdk Transaction Resubmission Guide
+
+Network disruptions, HTTP 504 timeouts, and temporary Horizon/RPC node unavailability can leave transaction submission in an ambiguous state: the client receives an error, but the transaction may or may not have been accepted by the Stellar network.
+
+This guide details safe patterns for resubmitting transactions using `stellar-sdk`, emphasizing transaction hash preservation and sequence number safety.
+
+---
+
+## Key Principles
+
+### 1. Transaction Hash Preservation & Idempotency
+
+On the Stellar network, a transaction's hash is computed deterministically from its contents (source account, sequence number, operations, memo, time bounds) and the network passphrase.
+
+Because the hash is immutable once signed:
+
+- Resubmitting the **exact same signed XDR** preserves the transaction hash.
+- The Stellar network enforces strict idempotency: if the transaction was already processed, resubmitting it returns the existing ledger result rather than executing operations a second time.
+
+```
+Initial Submission (Timeout 504)
+        │
+        ▼
+Resubmit SAME Signed XDR (Hash ABC...123)
+        │
+        ├── If already in ledger → Returns existing success result (No double execution)
+        └── If not in ledger → Submitted and processed normally
+```
+
+### 2. The Danger of Sequence Number Bumping on Retry
+
+A critical mistake in retry logic is creating a **new transaction** with a bumped sequence number when a submission times out:
+
+> ⚠️ **Warning**: Never increment an account's sequence number or rebuild a new transaction to retry a timed-out request without first verifying whether the original transaction hash was included in a block.
+
+If the first transaction was accepted by the network despite an HTTP timeout, creating a second transaction with sequence `N+1` will cause **both transactions to execute**, leading to double-spending, duplicate payments, or corrupted contract state.
+
+---
+
+## Safe Resubmission Pattern
+
+To handle network errors safely:
+
+1. **Retry the identical signed XDR** using exponential backoff for network-level timeouts or HTTP 504 errors.
+2. **Query transaction status by hash** (`server.getTransaction(hash)`) before attempting any rebuild.
+3. **Do not retry** on definitive client errors (e.g. `tx_bad_auth`, `tx_insufficient_balance`).
+
+---
+
+## Code Example
+
+Below is a complete TypeScript example demonstrating safe transaction resubmission with exponential backoff:
+
+```typescript
+import { Horizon, TransactionBuilder, Networks } from '@stellar/stellar-sdk';
+
+const server = new Horizon.Server('https://horizon-testnet.stellar.org');
+
+interface ResubmitOptions {
+  maxRetries?: number;
+  initialDelayMs?: number;
+}
+
+/**
+ * Safely submits or resubmits a signed transaction envelope XDR.
+ */
+export async function submitWithRetry(
+  signedXdr: string,
+  options: ResubmitOptions = {}
+): Promise<Horizon.HorizonApi.SubmitTransactionResponse> {
+  const { maxRetries = 3, initialDelayMs = 1000 } = options;
+
+  // Reconstruct transaction object to obtain deterministic hash
+  const tx = TransactionBuilder.fromXDR(signedXdr, Networks.TESTNET);
+  const txHash = tx.hash().toString('hex');
+
+  let delay = initialDelayMs;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(
+        `[Attempt ${attempt}/${maxRetries}] Submitting transaction ${txHash}...`
+      );
+      const response = await server.submitTransaction(tx);
+      return response;
+    } catch (error: any) {
+      // 1. Check if the transaction was actually included on-chain despite the error
+      try {
+        const existingTx = await server.getTransaction(txHash);
+        if (existingTx && existingTx.successful) {
+          console.log(`Transaction ${txHash} was already confirmed on-chain.`);
+          return existingTx as unknown as Horizon.HorizonApi.SubmitTransactionResponse;
+        }
+      } catch {
+        // Transaction not found on-chain yet; proceed with error classification
+      }
+
+      // 2. Identify if error is transient (HTTP 504, 503, connection timeout)
+      const status = error?.response?.status;
+      const isTransient =
+        !status || status === 504 || status === 503 || status === 429;
+
+      if (!isTransient || attempt === maxRetries) {
+        console.error(
+          `Non-retriable error or max retries reached for ${txHash}:`,
+          error
+        );
+        throw error;
+      }
+
+      console.warn(
+        `Transient error (${status || 'Network Error'}). Retrying in ${delay}ms...`
+      );
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      delay *= 2; // Exponential backoff
+    }
+  }
+
+  throw new Error(
+    `Failed to submit transaction ${txHash} after ${maxRetries} attempts.`
+  );
+}
+```
+
+---
+
+## Summary Checklist
+
+- [x] Resubmit the **exact signed XDR** to preserve the transaction hash.
+- [x] Rely on Stellar's native idempotency for duplicate submissions.
+- [x] Check `server.getTransaction(hash)` before assuming a timed-out transaction failed.
+- [x] Never bump sequence numbers on retry without verifying previous transaction status on-chain.

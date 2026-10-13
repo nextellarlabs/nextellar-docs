@@ -1,0 +1,195 @@
+---
+title: Privacy Policy Template Tutorial
+description: 'Understand the data flows unique to Stellar dApps and use the starter template to write your privacy policy.'
+date: 2026-08-26
+---
+
+# Privacy Policy Template Tutorial
+
+A Stellar dApp has data flows that differ from traditional web applications. This tutorial walks through what data your dApp collects, why it matters for a privacy policy, and provides a starter template you can adapt for your jurisdiction.
+
+> **Legal disclaimer:** This tutorial and template are provided for informational purposes only and do not constitute legal advice. Have a qualified attorney review your final privacy policy before publishing.
+
+## Stellar-Specific Data Flows
+
+Understanding what data flows through your dApp is the first step to writing an accurate privacy policy.
+
+### The public ledger
+
+Every transaction, account, and asset on the Stellar network is publicly visible. This means:
+
+- A user's **public key** and their entire **transaction history** are readable by anyone, forever.
+- You do not need to store transaction data in your own database — it already exists on-chain. But your policy should acknowledge that the ledger is permanently public.
+
+### Wallet connection — public key only
+
+When a user connects a Stellar wallet (e.g. Freighter, Albedo, xBull), the wallet shares only the user's **public key** with your dApp. The private key never leaves the wallet extension. Your policy should clarify this.
+
+### Horizon API calls
+
+Every call your frontend makes to a Horizon server (whether Stellar's public servers or your own) may log the caller's IP address. If you proxy Horizon calls through your own server, you may receive and store IP addresses. If you use Stellar's public endpoints directly from the browser, Stellar's own privacy policy applies to those requests.
+
+### Soroban RPC calls
+
+Calls to Soroban RPC (for smart contract simulation and submission) follow the same pattern as Horizon. Note whether you run your own RPC node or rely on a public endpoint.
+
+### Analytics and error tracking
+
+If you use analytics tools (Mixpanel, Plausible, Sentry, etc.), list them explicitly and describe what is collected. Public keys are pseudonymous but may still constitute personal data under GDPR if they can be linked to a natural person.
+
+## Common Privacy Policy Sections
+
+### 1. Data controller
+
+Identify the entity responsible for data processing. This is your company or team.
+
+### 2. What data we collect
+
+Break this into categories:
+
+| Category | Examples |
+| --- | --- |
+| On-chain data | Public key, transaction history (public ledger — we do not store this separately) |
+| Technical data | IP address (from server logs), browser type, device type |
+| Usage data | Pages visited, features used (only if analytics are enabled) |
+| Contact data | Email address (only if you have a contact form or mailing list) |
+
+### 3. Why we collect it (legal basis)
+
+For each category, state the purpose and legal basis. Under GDPR the common bases are:
+
+- **Contract performance** — necessary to provide the Service
+- **Legitimate interests** — security logging, fraud prevention
+- **Consent** — optional analytics or marketing
+
+### 4. On-chain vs. off-chain data
+
+Make clear that data written to the Stellar blockchain is **permanently public and outside your control**. You cannot delete it on behalf of a user even if they invoke a right to erasure.
+
+### 5. Third-party services
+
+List every external service that may receive user data:
+
+| Service | Data shared | Purpose |
+| --- | --- | --- |
+| Stellar public Horizon | IP address (browser requests) | Account and transaction queries |
+| Soroban RPC endpoint | IP address | Smart contract calls |
+| [Analytics provider] | Anonymous page views | Usage analytics |
+| [Error tracking] | Stack traces, browser info | Error monitoring |
+
+### 6. User rights
+
+Describe the rights available to users. Under GDPR these include:
+
+- Right to access
+- Right to rectification
+- Right to erasure (with the caveat that on-chain data cannot be erased)
+- Right to restriction of processing
+- Right to data portability
+- Right to object
+
+### 7. Cookies and local storage
+
+List any cookies or local-storage keys your dApp sets, their purpose, and their expiry.
+
+### 8. Data retention
+
+State how long you keep server logs and any other off-chain data.
+
+### 9. Children's data
+
+State that the Service is not directed to children under 13 (or 16 in the EU) and that you do not knowingly collect their data.
+
+### 10. Changes to this policy
+
+Explain how you will notify users of material changes.
+
+## Starter Template
+
+Replace every `[PLACEHOLDER]` with your details and have a lawyer review before publishing.
+
+```markdown
+# Privacy Policy
+
+**Last updated:** [DATE]
+
+## 1. Who We Are
+
+[DAPP NAME] ("we", "us", "our") operates the decentralised application at
+[URL] ("Service"). Questions about this policy can be directed to
+[CONTACT EMAIL].
+
+## 2. What Data We Collect
+
+**On-chain data:** When you use the Service, transactions are recorded on the
+Stellar public ledger. This includes your public key and transaction history.
+This data is permanently public and not under our control.
+
+**Technical data:** Our servers may log your IP address, browser type, and
+referring URL when you access the Service. Logs are retained for [NUMBER] days.
+
+**Wallet data:** When you connect a Stellar wallet, we receive only your public
+key. We never receive or store your private key.
+
+**Analytics data (if applicable):** We use [ANALYTICS TOOL] to collect
+anonymous usage statistics, including pages visited and features used. No
+personally identifiable information is shared with [ANALYTICS TOOL].
+
+## 3. How We Use Your Data
+
+| Data | Purpose | Legal basis |
+| --- | --- | --- |
+| Public key | Identify your account and display balances | Contract performance |
+| IP address (server logs) | Security and abuse prevention | Legitimate interests |
+| Analytics | Improve the Service | Consent |
+
+## 4. Third-Party Services
+
+| Service | Data received | Privacy policy |
+| --- | --- | --- |
+| Stellar Horizon (public) | IP address (browser requests) | stellar.org/privacy |
+| [Soroban RPC provider] | IP address | [LINK] |
+| [Analytics] | Anonymous usage | [LINK] |
+
+## 5. On-Chain Data and the Right to Erasure
+
+Data written to the Stellar blockchain is permanent and publicly visible. We
+are unable to delete on-chain data on your behalf. If you request erasure of
+off-chain data we hold (e.g. server logs), we will fulfil that request within
+30 days.
+
+## 6. Your Rights
+
+Depending on your jurisdiction, you may have the right to:
+- Access the personal data we hold about you.
+- Correct inaccurate data.
+- Request deletion of off-chain data we hold.
+- Object to certain processing activities.
+- Lodge a complaint with your local data protection authority.
+
+To exercise these rights, contact us at [CONTACT EMAIL].
+
+## 7. Cookies and Local Storage
+
+| Name | Purpose | Expiry |
+| --- | --- | --- |
+| `theme` | Stores your light/dark mode preference | 1 year |
+| `wallet_address` | Remembers your connected wallet | Session |
+
+## 8. Data Retention
+
+Server access logs are retained for [NUMBER] days. No other personal data is
+retained beyond what is described in this policy.
+
+## 9. Children
+
+The Service is not directed to anyone under the age of 13. We do not knowingly
+collect personal data from children. If you believe a child has provided us
+with personal data, contact us so we can delete it.
+
+## 10. Changes to This Policy
+
+We may update this policy from time to time. Material changes will be
+communicated via [EMAIL / IN-APP NOTICE] at least [NUMBER] days before taking
+effect. The "Last updated" date at the top reflects the most recent revision.
+```

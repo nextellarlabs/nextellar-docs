@@ -1,0 +1,280 @@
+---
+title: Building a Leaderboard from Ledger Events
+description: Outline an indexing approach for Stellar ledger events, compare ranking strategies, and build a small leaderboard backed by on-chain data.
+date: 2026-06-25
+---
+
+# Building a Leaderboard from Ledger Events
+
+A leaderboard ranks users by some on-chain metric — number of successful claims, total payouts received, streak of consecutive check-ins, tokens earned. Because Stellar is a public ledger, all the data is available. The challenge is indexing it efficiently and keeping the rankings up to date.
+
+---
+
+## Indexing Approach
+
+### Option A — Poll Horizon Directly
+
+For low-traffic applications with fewer than a few thousand accounts, polling Horizon for each account's activity is workable.
+
+```ts
+// lib/leaderboard.ts
+import { Horizon } from '@stellar/stellar-sdk';
+
+const server = new Horizon.Server('https://horizon-testnet.stellar.org');
+
+export async function getAccountPaymentTotal(
+  accountId: string
+): Promise<bigint> {
+  let total = 0n;
+  let page = await server.payments().forAccount(accountId).limit(200).call();
+
+  while (page.records.length > 0) {
+    for (const record of page.records) {
+      if (record.type === 'payment' && record.to === accountId) {
+        total += BigInt(parseFloat(record.amount) * 1e7);
+      }
+    }
+    page = await page.next();
+  }
+  return total;
+}
+```
+
+**Limitation**: this scans all pages for each account on every refresh. At scale, use an indexer.
+
+### Option B — Index with a Contract Event Stream
+
+Use the Soroban RPC `getEvents` method to pull contract events and write them to a database. Run this as a background worker.
+
+```ts
+// workers/indexer.ts
+import { rpc } from '@stellar/stellar-sdk';
+import { db } from '@/lib/db';
+
+const server = new rpc.Server('https://soroban-testnet.stellar.org');
+const CONTRACT_ID = process.env.CONTRACT_ID!;
+
+let lastLedger = 0;
+
+export async function indexEvents() {
+  const result = await server.getEvents({
+    startLedger: lastLedger || undefined,
+    filters: [
+      { type: 'contract', contractIds: [CONTRACT_ID], topics: [['*']] },
+    ],
+    limit: 200,
+  });
+
+  for (const event of result.events) {
+    const accountId = event.topic[0].toString();
+    const eventType = event.topic[1]?.toString();
+    const pointValue = getPointValue(eventType);
+
+    await db.$executeRaw`
+      INSERT INTO leaderboard_events (account_id, event_type, points, ledger, tx_hash)
+      VALUES (${accountId}, ${eventType}, ${pointValue}, ${event.ledger}, ${event.txHash})
+      ON CONFLICT (tx_hash) DO NOTHING
+    `;
+
+    lastLedger = Math.max(lastLedger, event.ledger + 1);
+  }
+}
+
+function getPointValue(eventType: string | undefined): number {
+  switch (eventType) {
+    case 'check_in':
+      return 10;
+    case 'claim':
+      return 50;
+    case 'referral':
+      return 25;
+    default:
+      return 1;
+  }
+}
+
+setInterval(indexEvents, 5_000);
+```
+
+---
+
+## Ranking Strategies
+
+### Cumulative Score
+
+Sum all events for each account. Simple and transparent.
+
+```sql
+SELECT account_id, SUM(points) AS total_points
+FROM leaderboard_events
+GROUP BY account_id
+ORDER BY total_points DESC
+LIMIT 100;
+```
+
+### Windowed Ranking (Last 30 Days)
+
+Prevents old accounts from permanently dominating. Encourages ongoing engagement.
+
+```sql
+SELECT account_id, SUM(points) AS monthly_points
+FROM leaderboard_events
+WHERE created_at >= NOW() - INTERVAL '30 days'
+GROUP BY account_id
+ORDER BY monthly_points DESC
+LIMIT 100;
+```
+
+### Streak Bonus
+
+Award extra points when an account checks in on consecutive days.
+
+```ts
+async function applyStreakBonus(accountId: string): Promise<number> {
+  const recent = await db.leaderboardEvents.findMany({
+    where: { accountId, eventType: 'check_in' },
+    orderBy: { ledger: 'desc' },
+    take: 10,
+  });
+
+  let streak = 0;
+  for (let i = 0; i < recent.length - 1; i++) {
+    const gap = recent[i].ledger - recent[i + 1].ledger;
+    // ~17280 ledgers per day on Stellar (5s per ledger)
+    if (gap < 18_000) streak++;
+    else break;
+  }
+
+  return streak * 5; // 5 bonus points per streak day
+}
+```
+
+### Normalised Ranking (ELO-style)
+
+When the score distribution is highly skewed, normalise using percentile rank so mid-tier users see meaningful progress.
+
+```sql
+SELECT
+  account_id,
+  total_points,
+  PERCENT_RANK() OVER (ORDER BY total_points) * 100 AS percentile
+FROM (
+  SELECT account_id, SUM(points) AS total_points
+  FROM leaderboard_events
+  GROUP BY account_id
+) sub
+ORDER BY total_points DESC;
+```
+
+---
+
+## Small Example: React Leaderboard Component
+
+```tsx
+// components/Leaderboard.tsx
+'use client';
+
+import { useEffect, useState } from 'react';
+
+interface LeaderboardEntry {
+  rank: number;
+  accountId: string;
+  totalPoints: number;
+}
+
+export function Leaderboard() {
+  const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/leaderboard?limit=20')
+      .then((r) => r.json())
+      .then((data: LeaderboardEntry[]) => setEntries(data))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <p className="text-gray-400">Loading rankings…</p>;
+
+  return (
+    <table className="w-full text-sm">
+      <thead>
+        <tr className="text-left text-xs uppercase text-gray-500">
+          <th className="pb-2">Rank</th>
+          <th className="pb-2">Account</th>
+          <th className="pb-2 text-right">Points</th>
+        </tr>
+      </thead>
+      <tbody>
+        {entries.map((e) => (
+          <tr key={e.accountId} className="border-t border-white/5">
+            <td className="py-3 font-mono text-gray-400">#{e.rank}</td>
+            <td className="py-3 font-mono text-xs">
+              {e.accountId.slice(0, 8)}…
+            </td>
+            <td className="py-3 text-right font-semibold text-teal-400">
+              {e.totalPoints.toLocaleString()}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+```
+
+### API Route
+
+```ts
+// app/api/leaderboard/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { db } from '@/lib/db';
+
+export async function GET(req: NextRequest) {
+  const limit = Math.min(
+    Number(req.nextUrl.searchParams.get('limit') ?? 20),
+    100
+  );
+
+  const rows = await db.$queryRaw<
+    { account_id: string; total_points: bigint }[]
+  >`
+    SELECT account_id, SUM(points)::bigint AS total_points
+    FROM leaderboard_events
+    GROUP BY account_id
+    ORDER BY total_points DESC
+    LIMIT ${limit}
+  `;
+
+  const entries = rows.map((r, i) => ({
+    rank: i + 1,
+    accountId: r.account_id,
+    totalPoints: Number(r.total_points),
+  }));
+
+  return NextResponse.json(entries, {
+    headers: {
+      'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60',
+    },
+  });
+}
+```
+
+---
+
+## Operational Considerations
+
+**Pagination**: leaderboards with thousands of entries should be paginated. Expose `?offset=` and `?limit=` parameters.
+
+**Caching**: rank positions change slowly; cache the leaderboard for 30–60 seconds to avoid hitting the database on every page load.
+
+**Anti-gaming**: if rankings drive real rewards, add Sybil resistance: require a minimum account age or a minimum balance before an account appears on the leaderboard.
+
+**Real-time updates**: for live events (gaming tournaments), stream rank changes over WebSocket. For long-running programmes, a 60-second refresh is sufficient.
+
+---
+
+## Acceptance Checklist
+
+- [ ] Guide renders without build errors (`pnpm build:content`)
+- [ ] Internal links resolve (`pnpm check:links`)
+- [ ] Indexing approach, ranking strategies, and a React example are all covered
