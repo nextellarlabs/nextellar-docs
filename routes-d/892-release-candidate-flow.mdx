@@ -1,0 +1,58 @@
+---
+title: Release Candidate Flow
+description: A practical release candidate workflow covering release branches, stabilization cadence, validation gates, and the final go/no-go checklist.
+---
+
+# Release Candidate Flow
+
+A release candidate (RC) is a versioned build considered ready to ship unless testing uncovers a release-blocking issue. A deliberate RC flow gives the team time to validate one fixed code line, record evidence, and make a clear release decision rather than treating a successful build as sufficient proof.
+
+## Branching and cadence
+
+1. **Develop on feature branches from `main`.** Merge completed work through reviewed pull requests with the normal CI checks passing.
+2. **Cut `release/<version>` from `main` at feature freeze.** For example, `release/2.4.0` contains the planned scope for version `2.4.0`. After the cut, do not merge new features into this branch.
+3. **Create `v<version>-rc.0` from the release branch.** Build and publish an identifiable candidate artifact; keep its tag and artifact immutable.
+4. **Run the stabilization window against that candidate.** Start the first candidate around the start of stabilization, typically about a week before the planned release. Schedule validation at least every one to two business days, and cut a new candidate immediately after an approved fix. Increment the RC number (`rc.1`, `rc.2`) for every new build; never replace a candidate in place.
+5. **Ship only a validated candidate.** Once all gates pass and approvers agree, promote the exact tested artifact to the final version. Do not rebuild from a different commit during promotion.
+
+During stabilization, limit release-branch changes to reviewed fixes for issues that block release. Make the fix on `main` first, then cherry-pick it to the release branch so future development retains the correction. Record the source commit and cherry-pick in the release notes or tracking issue. If a fix changes the candidate, restart the affected validation and publish a new RC.
+
+The exact dates can change with release risk and team size, but publish the freeze date, target ship date, RC owner, and expected validation schedule before the first candidate. A slipped date or expanded scope should be an explicit go/no-go decision, not an implicit extension of testing.
+
+## Testing gates
+
+Track each gate against the exact candidate tag and commit. A failed gate blocks promotion until it passes or an explicitly authorized exception is recorded with an owner and follow-up.
+
+| Gate | Required evidence |
+| --- | --- |
+| CI and build | Clean production build; lint, type checks, and required unit tests pass on the release branch. |
+| Integration and regression | Critical workflows pass in the target-like test environment, including affected integrations and regression coverage for fixed issues. |
+| Security and compatibility | Required security checks pass; dependency, configuration, and migration changes are reviewed for compatibility and rollback impact. |
+| Release smoke test | The published RC artifact is installed or deployed in staging; the primary user journeys and release-specific changes work as expected. |
+| Documentation and release notes | User-facing changes, upgrade or migration instructions, and known limitations are complete and render correctly. |
+| Approval | Release owner and designated engineering/QA approvers record go-ahead; no unresolved release-blocking issues remain. |
+
+Keep links to test runs, smoke-test results, open issues, and approvals together in the release tracking issue. A passing result for a previous RC is not evidence for a later candidate; rerun all required gates for each new build.
+
+## Go/no-go checklist
+
+- [ ] Release branch is cut from the intended `main` commit; feature scope is frozen.
+- [ ] Candidate tag and artifact identify the same immutable commit.
+- [ ] Every required gate passed for the candidate being promoted.
+- [ ] Release-blocking issues are closed; any approved exceptions have an owner and follow-up.
+- [ ] Release notes, documentation, and rollback or recovery steps are ready.
+- [ ] Required approvers recorded a go decision.
+- [ ] The final version will promote the validated RC artifact without rebuilding it.
+
+If any item is unchecked, hold promotion, state the blocker and owner, and schedule the next candidate or go/no-go review.
+
+## Verifying this guide
+
+Run the documentation content build and internal-link check before requesting review:
+
+```bash
+pnpm build:content
+pnpm check:links
+```
+
+For documentation review expectations, see the [Contributing Checklist](/docs/guides/contributing-checklist) and the [Testing Guide](/docs/guides/testing).
