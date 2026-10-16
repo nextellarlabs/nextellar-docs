@@ -1,0 +1,212 @@
+---
+title: Soroban View Functions
+description: A guide to read-only view function patterns in Soroban contracts — how to expose storage reads safely, why they cost less than state-changing calls, and a worked example.
+date: 2026-10-16
+---
+
+# Soroban View Functions
+
+A **view function** is a contract method that only reads state. It never writes to storage, never requires authorization, and never changes the ledger. Clients call view functions to answer questions like "what is this account's balance?" or "who is the admin?" without submitting a signed transaction.
+
+This guide covers how to write view functions in Soroban, the storage read patterns you will use most often, and the resource cost considerations that make read-only calls cheaper than state-changing ones.
+
+---
+
+## Why View Functions Matter
+
+State-changing contract calls are expensive. They must be signed, submitted, included in a ledger, and they pay for both reads **and** writes. View functions avoid most of that:
+
+- **No signature required.** Anyone can call a view function; there is no `require_auth` and no signed envelope.
+- **No writes.** Because the contract does not mutate state, the call has no write bytes and no write ledger entries.
+- **Simulatable.** A client can call `simulateTransaction` against a view function to get the return value without ever submitting a transaction. This is the standard way frontends and indexers read contract state.
+- **Safe to repeat.** There is no ordering hazard and no double-spend risk in calling a view function many times.
+
+In Soroban, "view function" is a convention, not a language keyword. Any `pub fn` on a `#[contractimpl]` that only reads is a view function. The patterns below show how to make that convention explicit and reliable.
+
+---
+
+## Read Patterns
+
+Soroban exposes three storage tiers through the host environment. Which tier you read from determines how long the data lives and how much the read costs.
+
+### Instance storage
+
+`env.storage().instance()` holds data tied to the contract's own lifecycle — admin keys, config flags, token addresses. It lives as long as the contract instance does.
+
+```rust
+let admin: Address = env
+    .storage()
+    .instance()
+    .get(&DataKey::Admin)
+    .expect("admin not set");
+```
+
+### Persistent storage
+
+`env.storage().persistent()` holds data that can expire but is restorable via a rent payment — per-user balances, allowances, records. Reads should always handle the missing case, because an entry can be absent or expired.
+
+```rust
+let balance: i128 = env
+    .storage()
+    .persistent()
+    .get(&DataKey::Balance(user.clone()))
+    .unwrap_or(0);
+```
+
+### Temporary storage
+
+`env.storage().temporary()` holds short-lived data such as nonces or in-flight flags. It can expire quickly, so a read that assumes presence is fragile.
+
+```rust
+let nonce: u64 = env
+    .storage()
+    .temporary()
+    .get(&DataKey::Nonce(user.clone()))
+    .unwrap_or(0);
+```
+
+### Checking existence before reading
+
+When the difference between "absent" and "zero" matters, use `has` before `get`:
+
+```rust
+if env.storage().persistent().has(&DataKey::Balance(user.clone())) {
+    let balance: i128 = env
+        .storage()
+        .persistent()
+        .get(&DataKey::Balance(user))
+        .unwrap();
+}
+```
+
+### Typed keys
+
+Always use a `#[contracttype]` enum for keys rather than raw strings. Typed keys are shorter on the wire, harder to mistype, and let the compiler catch missing variants.
+
+```rust
+#[contracttype]
+pub enum DataKey {
+    Admin,
+    Balance(Address),
+    Nonce(Address),
+}
+```
+
+---
+
+## Resource Cost Considerations
+
+Every storage read costs resources against the contract's execution budget. The categories that matter for a view function are:
+
+- **CPU instructions** — the cost of executing the read.
+- **Read bytes** — the size of the value returned from the ledger.
+- **Read ledger entries** — the number of distinct ledger entries touched.
+
+Two practical consequences:
+
+1. **Reads are cheaper than writes, but not free.** A view function still consumes a budget, so it can fail if it reads too much. Use `simulateTransaction` to see the resource cost of a view before relying on it.
+2. **Avoid unbounded iteration in a view.** Looping over an unbounded set of storage keys in a read function will eventually exceed the budget and the call will fail. If a client needs an aggregate, either maintain it incrementally on write or paginate the read.
+
+Because a view function does not write, it can be invoked through `simulateTransaction` without paying a fee or waiting for ledger inclusion. That makes it the correct entry point for frontend reads.
+
+---
+
+## Example: A Read-Only Counter
+
+A minimal contract exposing two view functions and one state-changing function. Only the state-changing function needs authorization.
+
+```rust
+#![no_std]
+use soroban_sdk::{contract, contractimpl, contracttype, Address, Env};
+
+#[contracttype]
+pub enum DataKey {
+    Admin,
+    Counter,
+}
+
+#[contract]
+pub struct CounterContract;
+
+#[contractimpl]
+impl CounterContract {
+    /// State-changing: requires auth, writes to instance storage.
+    pub fn increment(env: Env) {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .expect("admin not set");
+        admin.require_auth();
+
+        let current: u32 = env
+            .storage()
+            .instance()
+            .get(&DataKey::Counter)
+            .unwrap_or(0);
+        env.storage()
+            .instance()
+            .set(&DataKey::Counter, &(current + 1));
+    }
+
+    /// View: reads the counter, never writes.
+    pub fn get_counter(env: Env) -> u32 {
+        env.storage()
+            .instance()
+            .get(&DataKey::Counter)
+            .unwrap_or(0)
+    }
+
+    /// View: reads the admin address, never writes.
+    pub fn get_admin(env: Env) -> Address {
+        env.storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .expect("admin not set")
+    }
+}
+```
+
+### Calling a view function from JavaScript
+
+A client reads `get_counter` by simulating the invocation. No signature, no submission:
+
+```javascript
+import { Contract, rpc, TransactionBuilder, Networks, Account } from '@stellar/stellar-sdk';
+
+const server = new rpc.Server('https://soroban-testnet.stellar.org');
+const contract = new Contract('C...');
+
+const account = new Account('G...', '0');
+const tx = new TransactionBuilder(account, {
+  fee: '100',
+  networkPassphrase: Networks.TESTNET,
+})
+  .addOperation(contract.call('get_counter'))
+  .setTimeout(30)
+  .build();
+
+const simulated = await server.simulateTransaction(tx);
+const counter = simulated.result?.retval;
+```
+
+The simulation returns the value without touching the ledger. To change the counter, the client would instead build, sign, and submit an `increment` transaction.
+
+---
+
+## Common Pitfalls
+
+- **Writing inside a "view" function.** Rust will let you, but a method that writes is not a view function. Keep reads and writes in separate methods so callers know which one needs a signature.
+- **Unbounded loops over storage.** See the resource section above. A view that iterates over all users will fail once the set grows.
+- **Assuming an entry exists.** Persistent and temporary entries can be absent or expired. Use `unwrap_or` for a sensible default, or `has` before `get` when absence is meaningful.
+- **Reading a `temporary` entry you expect to be present.** Temporary storage can expire between calls. Do not build a read path that depends on it surviving.
+- **Returning a complex struct instead of a small value.** Return values are serialized and counted as read bytes. Prefer the smallest type that answers the question.
+
+---
+
+## See Also
+
+- [Soroban Host Functions](/docs/guides/soroban-host-functions) — the storage and environment APIs view functions call into.
+- [Soroban Budget and Resource Fees](/docs/guides/soroban-budget) — how CPU instructions, read bytes, and ledger entries are charged.
+- [Soroban Footprint](/docs/guides/soroban-footprint) — how the set of ledger entries a call touches is declared and priced.
+- [Soroban Contract Authoring](/docs/guides/soroban-contract-authoring) — project setup and the contract authoring workflow.
