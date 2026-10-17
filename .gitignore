@@ -32,7 +32,6 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # env files (can opt-in for committing if needed)
-.env*
 
 # vercel
 .vercel
@@ -55,3 +54,4 @@ fix.md
 /temp_find_bullets.py
 /temp_generated.mdx
 /test_output.txt
+config.bat

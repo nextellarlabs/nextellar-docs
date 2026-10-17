@@ -1,0 +1,83 @@
+---
+title: "Load testing Horizon consumers"
+description: "Learn how to load test Horizon consumers with k6 and the scenarios that matter most."
+---
+
+Horizon consumers process events from the Horizon queue. Before you roll one out to production, it's worth knowing how it behaves under load. This guide covers the tool to reach for, the scenarios to cover, and a small example to get you started.
+
+## Tool: k6
+
+Use [k6](https://k6.io) to generate load. It's a single binary with a scriptable JavaScript API, so you can drive the Horizon publisher to enqueue events at a controlled rate and measure how your consumer keeps up.
+
+> Run k6 against a staging Horizon instance, not production. Load tests push real events through the queue and will be processed by any consumer connected to it.
+
+## Scenarios to cover
+
+A good load test doesn't just push the highest possible event rate. Cover at least these scenarios:
+
+- **Steady state.** Publish at the expected production rate for a sustained period and confirm the consumer keeps up without a growing backlog.
+- **Burst.** Send a large spike in a short window to see how the consumer drains the backlog and whether it recovers to normal latency.
+- **Sustained overload.** Publish above the consumer's throughput capacity to observe how far the backlog grows and whether alerts fire.
+- **Poison events.** Include events that fail processing to verify the consumer retries and dead-letters them instead of blocking the queue.
+- **Concurrent consumers.** Run multiple consumer instances against the same queue to confirm they share the load without duplicate processing.
+
+While each scenario runs, watch the queue depth, processing latency, error rate, and memory usage of the consumer.
+
+## Example
+
+Save this as `horizon-load.js` and run it with `k6 run horizon-load.js`. It publishes events at a constant rate for a fixed duration.
+
+```javascript
+import http from "k6/http";
+import { sleep } from "k6";
+
+const HORIZON_URL = __ENV.HORIZON_URL;
+const EVENTS_PER_SECOND = Number(__ENV.EVENTS_PER_SECOND || 50);
+const DURATION_SECONDS = Number(__ENV.DURATION_SECONDS || 60);
+
+const intervalMs = 1000 / EVENTS_PER_SECOND;
+const iterations = EVENTS_PER_SECOND * DURATION_SECONDS;
+
+export const options = {
+  thresholds: {
+    http_req_failed: ["rate=0"],
+  },
+};
+
+export default async function () {
+  for (let i = 0; i < iterations; i++) {
+    const res = http.post(`${HORIZON_URL}/events`, JSON.stringify({
+      type: "order.created",
+      payload: { id: `item-${i}` },
+    }), {
+      headers: { "Content-Type": "application/json" },
+    });
+
+    if (res.status !== 202) {
+      throw new Error(`Unexpected status ${res.status}`);
+    }
+
+    await sleep(intervalMs);
+  }
+}
+```
+
+Set the environment variables and run the script:
+
+```bash
+HORIZON_URL=https://horizon.staging.internal \
+  EVENTS_PER_SECOND=100 \
+  DURATION_SECONDS=120 \
+  k6 run horizon-load.js
+```
+
+Adjust `EVENTS_PER_SECOND` and `DURATION_SECONDS` to match the scenario you're testing. For a burst, raise `EFENTS_PER_SECOND` yellow keep `DURATION_SECONDS` short.
+
+## Verify the guide renders
+
+Before opening a pull request, confirm the page builds and its links resolve:
+
+```bash
+pnpm build:content
+pnpm check:links
+```
