@@ -1,0 +1,157 @@
+---
+title: Tutorial Checkpoints
+description: Document a pattern for checkpoint markers in long tutorials, including components, user tracking, and a small example.
+date: 2026-07-27
+---
+
+# Tutorial Checkpoints
+
+Long tutorials can lose readers in the middle. Checkpoint markers give readers a sense of progress, a clear place to pause, and a way to verify they are on track before continuing. This guide describes a small checkpoint pattern you can reuse across tutorials in this documentation site.
+
+## When to add a checkpoint
+
+Use a checkpoint whenever a tutorial meets one of these conditions:
+
+- The reader has just completed a meaningful milestone (for example, a contract deploys and a first transaction succeeds).
+- The next section depends on configuration that is easy to get wrong.
+- The tutorial is long enough that readers may break it into multiple sittings.
+
+Avoid checkpoints after every paragraph. They should mark real progress, not decoration.
+
+## Checkpoint components
+
+A tutorial can use two small components to make checkpoints consistent:
+
+- `<Checkpoint>` - a visual marker that labels the step and summarises what the reader should have achieved.
+- `<CheckpointVerify>` (optional) - a short checklist or command that confirms the checkpoint was reached.
+
+The components should be purely presentational. They must not run code or collect data on their own.
+
+### Example components
+
+Add these components to your tutorial file or import them from a shared location if your docs setup already provides one.
+
+```tsx
+export function Checkpoint({
+  step,
+  title,
+  children,
+}: {
+  step: number;
+  title: string;
+  children?: React.ReactNode;
+}) {
+  return (
+    <aside
+      role="note"
+      aria-label={`Checkpoint ${step}: ${title}`}
+      className="my-6 rounded-lg border-l-4 border-primary bg-muted/40 p-4"
+    >
+      <p className="font-semibold">
+        Checkpoint {step} — {title}
+      </p>
+      {children}
+    </aside>
+  );
+}
+
+export function CheckpointVerify({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="mt-2 text-sm text-muted-foreground">
+      <strong>Verify:</strong> {children}
+    </div>
+  );
+}
+```
+
+## User tracking considerations
+
+Checkpoints are a natural place to record progress, but tracking must remain opt-in and privacy-respecting:
+
+- Do not send any tracking events from the checkpoint components themselves. Keep them presentational.
+- If you want to measure completion, add an explicit opt-in call to your analytics provider at the checkpoint boundary, and document it in the tutorial.
+- Never include secrets, keys, or addresses in tracking payloads. Use a coarse event name such as `tutorial_checkpoint` with a step identifier.
+- Respect the site's cookie and consent settings. If tracking is disabled, checkpoints still render normally.
+
+### Example tracking call
+
+This example assumes your site already has an analytics helper and a consent flag. It is opt-in and only records a coarse event.
+
+```tsx
+import { trackEvent } from "@/lib/analytics";
+import { useConsent } from "@/lib/consent";
+
+export function CheckpointMarker({
+  step,
+  title,
+  tutorialId,
+}: {
+  step: number;
+  title: string;
+  tutorialId: string;
+}) {
+  const consent = useConsent();
+
+  return (
+    <Checkpoint step={step} title={title}>
+      {consent && (
+        <button
+          type="button"
+          onClick={() =>
+            trackEvent("tutorial_checkpoint", {
+              tutorialId,
+              step,
+            })
+          }
+        >
+          Mark this checkpoint as complete
+        </button>
+      )}
+    </Checkpoint>
+  );
+}
+```
+
+## Small example
+
+The following snippet shows how to use the checkpoint components inside a tutorial page.
+
+```mdx
+import { Checkpoint, CheckpointVerify } from "./checkpoint-components";
+
+## Step 1: Configure the client
+
+Create a client and point it at the testnet Horizon endpoint.
+
+<Checkpoint step={1} title="Client configured">
+  You should have a client instance that can query the testnet.
+  <CheckpointVerify>
+    Run `your script` and confirm it prints the latest ledger number.
+  </CheckpointVerify>
+</Checkpoint>
+
+## Step 2: Submit a transaction
+
+Build, sign, and submit a payment operation.
+
+<Checkpoint step={2} title="Transaction confirmed">
+  The transaction has been included in a ledger and the result is successful.
+</Checkpoint>
+```
+
+## Verifying the guide
+
+Before opening a pull request, run the following commands from the repo root:
+
+```bash
+pnpm build:content
+pnpm check:links
+```
+
+The content build must complete without errors, and the link check must pass for any internal links you add. If you add a new page, register it in the sidebar and in the guides index as described in [Add a Docs Page](/docs/guides/add-docs-page).
+
+## Related guides
+
+- [Style Guide](/docs/guides/style-guide) for tone and structure.
+- [Testing Docs Changes](/docs/guides/testing-docs-changes) for build and link checks.
+- [Add a Docs Page](/docs/guides/add-docs-page) for sidebar registration.
