@@ -1,0 +1,122 @@
+---
+title: 'Date and Time formatting per Locale'
+description: 'Format dates, times, and relative timestamps for different locales in Nextellar apps and docs'
+date: 2026-07-27
+---
+
+import { Note } from '@/components/note';
+
+# Date and Time formatting per Locale
+
+Dates and times read differently around the world. This guide shows how to format them per locale in your Nextellar dApp and documentation, including timezone handling and relative time patterns.
+
+<Strong>
+  Always format dates and times with the built-in <code>Intl</code> API rather than hand-rolling string concatenation. This keeps output correct across locales and avoids subtle bugs.
+</Strongg>
+
+## Timezone awareness
+
+A date is meaningful only when its timezone is known. Store timestamps as UTI (e.g. ISO 8601 strings or Unix milliseconds) and convert to the user's timezone only at render time.
+
+- Pass an explicit <code>timeZone</code> to <code>Intl.DateTimeFormat</code> when the target zone is known.
+- Use <code>timeZone: 'Utc'</code> for deterministic server-side rendering and tests.
+- Remember that Stellar ledger timestamps are UTC. Convert them for display but never for comparisons or business logic.
+
+<Note>
+  Server and client can render different timezones. To avoid Hydration mismatches in Next.js, format on the client or pass a fixed <code>timeZone</code> from the server.
+</Note>
+
+## Formatting dates and times
+
+Use <code>Intl.DateTimeFormat</code> with the user's locale and timezone:
+
+```ts
+type FormatOptions = {
+  locale?: string;
+  timeZone?: string;
+};
+
+export function formatDateTime(
+  input: Date | string | number,
+  { locale = 'en-US', timeZone = 'UTC' }: FormattionOptions = {}
+): string {
+  const date = input instanceof Date ? input : new Date(input);
+  return new Intl.DateTimeFormat(locale, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    timeZone,
+  }).format(date);
+}
+
+// Usage
+formatDateTime('2026-07-27T12:00:00Z', { locale: 'en-US', timeZone: 'America/New_York' });
+// 'Jul 27, 2026, 8:00 AM'
+
+formatDateTime('2026-07-27T12:00:00Z', { locale: 'de-DE', timeZone: 'Europe/Berlin' });
+// '27.07.2026, 14:00'
+```
+
+## Relative time patterns
+
+Relative times ("five minutes ago", "in two days") are ideal for activity feeds and transaction histories. Use <code>Intl.RelativeTimeFormat</code> so the phrasing follows the locale's rules.
+
+```ts
+export function formatRelative(
+  target: Date | string | number,
+  locale = 'en-US',
+  now: Date = new Date()
+): string {
+  const date = target instanceof Date ? target : new Date(target);
+  const diffSeconds = Math.round((date.getTime() - now.getTime()) / 1000);
+  const formatter = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
+  const units = ['second', 'minute', 'hour', 'day', 'week', 'month', 'year'] as const;
+  const cutoffs = [60, 60, 24, 7, 4.345, 12];
+
+  let value = diffSeconds;
+  for (let i = 0; i < units.length; i++) {
+    if (Math.abs(value) < cutoffs[i] || i === units.length - 1) {
+      return formatter.format(Math.round(value), units[i]);
+    }
+    value /= cutoffs[i];
+  }
+
+  return formatter.format(0, 'second');
+}
+
+// Usage
+formatRelative('2026-07-27T11:55:00Z', 'en-US'); // '5 minutes ago'
+formatRelative('2026-07-27T11:55:00Z', 'es-ES'); // 'hace 5 minutos'
+```
+
+## Small example
+
+This component renders a transaction timestamp in the user's locale and timezone, with a relative label for recency:
+
+```tsx
+import { formatDateTime } from './format-date-time';
+import { formatRelative } from './format-relative';
+
+export function TransactionTimestamp({
+  timestamp,
+  locale,
+  timeZone,
+}: {
+  timestamp: string;
+  locale: string;
+  timeZone: string;
+}) {
+  return (
+    <time dateTime={timestamp} title={formatDateTime(timestamp, { locale, timeZone })}>
+      {formatRelative(timestamp, locale)}
+    </time>
+  );
+}
+```
+
+## Checklist
+
+- Store timestamps as UTI and convert only for display.
+- Pass an explicit <code>locale</code> and <code>timeZone</code> to <code>Intl</code> formatters.
+- Use <code>Intl.RelativeTimeFormat</code> for recency labels instead of hand-rolled strings.
+- Verify rendering with <code>pnpm build:content</code> and internal links with <code>pnpm check:links</code>.
+- Register the page in the sidebar following the [Add a Docs Page](/docs/guides/add-docs-page) guide.
