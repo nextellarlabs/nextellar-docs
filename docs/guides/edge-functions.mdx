@@ -1,0 +1,58 @@
+---
+title: Using Edge Functions
+description: Learn when edge runtimes fit, what they trade off, and how to build a small Next.js edge endpoint.
+date: 2026-10-17
+---
+
+# Using Edge Functions
+
+Edge runtimes can run request handlers close to users around the world. That can reduce network distance for lightweight work, but it does not make every request faster: a handler that must call a database in one distant region can spend more time reaching that database than it saves at the edge.
+
+Vercel's standalone Edge Functions product is deprecated. For new Vercel projects, use a [Vercel Function with the Edge runtime](https://vercel.com/docs/functions/runtimes/edge/edge-functions), or choose the Node.js runtime when you need Node APIs, packages with native dependencies, or more predictable compatibility. This guide uses the Next.js App Router runtime setting; check your deployment provider's current runtime support before shipping.
+
+## Good fits
+
+Choose an edge runtime when the handler is small, request-scoped, and benefits from running near the caller. Common examples include:
+
+- Rewriting or redirecting a URL based on request headers or cookies.
+- Checking a signed token or session cookie before allowing a request through.
+- Returning a lightweight response assembled from request data.
+- Applying locale, device, or experiment routing without loading a large dependency.
+
+Prefer Node.js when work needs filesystem access, Node-specific APIs, native modules, long-running computation, or libraries that assume a full Node environment. For database-heavy work, place the function near the database or use a data service designed for global access; moving only the handler to the edge can add a cross-region round trip.
+
+## Latency and startup tradeoffs
+
+An edge deployment can reduce the distance between a user and the first part of request processing. Actual response time also includes authentication, downstream API calls, database queries, and response transfer. Measure end-to-end latency from the regions your users and data actually occupy.
+
+Edge isolates are designed for quick startup, but no runtime makes startup or execution time a guarantee. A handler may still have initialization work, external calls, or provider-specific scaling behavior. Node.js functions can also reduce startup overhead through platform features such as [Vercel Fluid Compute](https://vercel.com/docs/fluid-compute). Compare observed cold and warm requests in your deployment rather than assuming one runtime always wins.
+
+The [Edge Runtime API surface](https://nextjs.org/docs/app/api-reference/edge) is based on web APIs and is intentionally smaller than Node.js. It does not provide general filesystem access, and some Node APIs and packages are unsupported. Keep imports small and check the compatibility of every dependency used by an edge handler.
+
+## Example: a lightweight request handler
+
+This route reads a public query parameter and returns a simple response. It does not access a database or rely on Node-specific APIs.
+
+```ts
+// app/api/region/route.ts
+export const runtime = 'edge';
+
+export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const locale = url.searchParams.get('locale') ?? 'en';
+
+  return Response.json({ locale, runtime: 'edge' });
+}
+```
+
+Use the `runtime` segment option only where your framework and deployment provider support it. Keep secrets server-side, validate untrusted input, and avoid returning sensitive request data in the response.
+
+## A practical decision checklist
+
+1. **List the work:** identify network calls, libraries, and APIs used by the handler.
+2. **Check compatibility:** confirm the handler and its dependencies work with the edge API surface.
+3. **Map data locations:** find where databases and upstream services run. Prefer a nearby function or a globally accessible data layer.
+4. **Measure both paths:** compare p50 and p95 end-to-end latency for representative regions, including cold and warm requests.
+5. **Choose the simplest fit:** use Node.js if edge constraints add complexity without a measured latency benefit.
+
+See the [Next.js Edge and Node.js runtime guide](https://nextjs.org/docs/13/app/building-your-application/rendering/edge-and-nodejs-runtimes) and [Vercel Functions runtime documentation](https://vercel.com/docs/functions) for provider-specific details.

@@ -105,6 +105,7 @@ export const sidebarNav: SidebarSection[] = [
     defaultOpen: true,
     pages: [
       { title: 'Contributing', href: '/docs/guides/contributing' },
+      { title: 'Using Edge Functions', href: '/docs/guides/edge-functions' },
       {
         title: 'Pull Request Template',
         href: '/docs/guides/pull-request-template',
