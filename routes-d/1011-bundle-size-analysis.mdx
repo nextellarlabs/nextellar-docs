@@ -1,0 +1,281 @@
+---
+title: Bundle Size Analysis for Wallet Applications
+description: Tools, common bloat sources, and a worked example for measuring and reducing JavaScript bundle size in Nextellar wallet dApps.
+date: 2026-10-17
+---
+
+# Bundle Size Analysis for Wallet Applications
+
+Wallet dApps ship more JavaScript than a typical Next.js site. Every SDK, icon set, and animation library you pull in lands in the browser before a user can connect their wallet. This guide walks through the tools to measure what you are shipping, the patterns most likely to bloat the bundle, and a concrete example of catching and fixing a regression.
+
+---
+
+## Why bundle size matters for wallets
+
+- **Cold start on mobile.** Slow networks and mid-range devices are common in the markets Stellar targets. A 1 MB JS payload on a 3G connection adds 5–10 seconds before the page is interactive.
+- **Wallet extension interference.** Freighter, xBull, and other extensions inject scripts that execute before your app. A large app bundle compounds that delay.
+- **Core Web Vitals.** The Nextellar performance budget caps the JS bundle at **500 KB** (warning at 600 KB, critical at 750 KB). Exceeding these thresholds affects LCP scores and can trigger CI failures. See the [Performance Budget Guide](/docs/guides/performance-budget-guide) for the full threshold table.
+
+---
+
+## Tools
+
+### 1. `@next/bundle-analyzer`
+
+The fastest way to get a treemap of every module in your Next.js output.
+
+```bash
+## Install once
+pnpm add -D @next/bundle-analyzer
+```
+
+Wrap your Next.js config:
+
+```typescript
+// next.config.ts
+import withBundleAnalyzer from '@next/bundle-analyzer';
+
+const analyze = withBundleAnalyzer({
+  enabled: process.env.ANALYZE === 'true',
+});
+
+export default analyze({
+  // your existing Next.js config
+});
+```
+
+Run an analysis build:
+
+```bash
+ANALYZE=true pnpm build
+```
+
+Two HTML reports open automatically — one for the client bundle, one for the server bundle. Look for unexpectedly large rectangles; those are the candidates to investigate first.
+
+### 2. `bundlephobia` (quick dependency check)
+
+Before installing any new package, visit [bundlephobia.com](https://bundlephobia.com) or use the CLI equivalent:
+
+```bash
+npx bundlephobia <package-name>
+```
+
+This shows minified + gzipped size, tree-shaking support, and whether a smaller alternative exists. Run it before every `pnpm add` in a wallet project.
+
+### 3. `next build` size output
+
+No extra tooling required. After a production build, Next.js prints a per-route size table:
+
+```text
+Route (app)                    Size     First Load JS
+┌ ○ /                         4.2 kB          312 kB
+├ ○ /docs/[...slug]           1.8 kB          289 kB
+└ ○ /docs/guides/[slug]       2.1 kB          291 kB
+
+First Load JS shared by all   285 kB
+  chunks/framework-*.js       180 kB
+  chunks/main-*.js             42 kB
+  chunks/pages-*.js            63 kB
+```
+
+`First Load JS` is the number to watch. Anything above ~350 KB for a wallet route warrants investigation.
+
+### 4. `webpack-bundle-analyzer` (direct chunk inspection)
+
+For inspecting the raw `.next/static/chunks/` output without a Next.js config change:
+
+```bash
+pnpm dlx webpack-bundle-analyzer .next/static/chunks/pages/*.js
+```
+
+Useful when you have a pre-built artifact (e.g., from CI) and want to inspect it without rebuilding.
+
+### 5. Chrome DevTools Coverage tab
+
+For runtime-only bloat — code that is downloaded but never executed on a given route:
+
+1. Open DevTools → **Coverage** (⌘+Shift+P → "Show Coverage").
+2. Click the record button and reload the page.
+3. Navigate through the wallet flow you want to profile.
+4. Stop recording. The **Unused Bytes** column shows how much of each script ran.
+
+Anything above 60–70 % unused on the critical path is a candidate for dynamic import.
+
+---
+
+## Common bloat sources in wallet dApps
+
+### Full SDK imports
+
+`@stellar/stellar-sdk` is a large library. Importing from the root re-exports everything — including XDR encoding, Horizon client, Soroban RPC, and federation utilities — even if you only need one of them.
+
+```typescript
+// ❌ Pulls the entire SDK into the bundle
+import { TransactionBuilder, Operation, Asset } from '@stellar/stellar-sdk';
+
+// ✅ Import only from the sub-path you need
+import {
+  TransactionBuilder,
+  Operation,
+  Asset,
+} from '@stellar/stellar-sdk/transaction';
+```
+
+Check the SDK's `package.json` `exports` map to see which sub-paths are available.
+
+### Wallet adapter libraries loaded upfront
+
+Nextellar auto-imports adapters for Freighter, xBull, Albedo, Lobstr, and Hana. If a user only ever connects with Freighter, the other four adapters were downloaded for nothing.
+
+Lazy-load adapters behind the wallet picker modal:
+
+```typescript
+// hooks/useWalletAdapters.ts
+import { useMemo } from 'react';
+
+export function useWalletAdapters() {
+  return useMemo(
+    () => ({
+      freighter: () => import('@stellar/freighter-api'),
+      albedo: () => import('@albedo-link/intent'),
+      xbull: () => import('@stellar-asset/xbull-wallet-connect'),
+    }),
+    []
+  );
+}
+```
+
+Each adapter loads only when the user clicks it in the wallet picker.
+
+### Icon libraries
+
+`lucide-react` and similar icon libraries are tree-shakeable when imported by name. The barrel-import pattern defeats that:
+
+```typescript
+// ❌ Imports the full icon library
+import * as Icons from 'lucide-react';
+
+// ✅ Import only what you use
+import { Wallet, ArrowRight, AlertCircle } from 'lucide-react';
+```
+
+Run a build with `ANALYZE=true` and look for `lucide` in the treemap — if it appears as a single large block, a barrel import is the cause.
+
+### Polyfills for non-browser environments
+
+Some Stellar SDK dependencies (like `buffer`, `crypto`, `stream`) include Node.js polyfills that are injected into the browser bundle. If your `next.config.ts` has:
+
+```typescript
+webpack: (config) => {
+  config.resolve.fallback = { fs: false, net: false, tls: false };
+  return config;
+},
+```
+
+...confirm you are not accidentally omitting the `buffer: false` or `stream: false` entries that would otherwise polyfill those modules into every page.
+
+### Large `date-fns` or `lodash` imports
+
+`date-fns` is fine when imported by function. `lodash` (the CommonJS build) is not tree-shakeable — use `lodash-es` or individual function packages instead.
+
+```typescript
+// ❌ CommonJS lodash — not tree-shakeable
+import _ from 'lodash';
+const result = _.debounce(fn, 300);
+
+// ✅ lodash-es — tree-shakeable
+import { debounce } from 'lodash-es';
+const result = debounce(fn, 300);
+```
+
+---
+
+## Worked example: catching an icon-library regression
+
+The following scenario shows the full workflow from detection to fix.
+
+### Step 1 — detect the regression
+
+After a PR that adds a transaction history page, the `next build` output shows:
+
+```text
+First Load JS shared by all   648 kB   ⚠ exceeds 600 KB warning threshold
+```
+
+### Step 2 — isolate the cause
+
+Run the bundle analyzer:
+
+```bash
+ANALYZE=true pnpm build
+```
+
+In the treemap, `lucide-react` occupies ~180 KB in the shared chunk — up from ~12 KB before the PR.
+
+### Step 3 — find the barrel import
+
+```bash
+## Search for the offending import pattern
+grep -r "from 'lucide-react'" src/
+```
+
+The new `TransactionHistoryPage.tsx` has:
+
+```typescript
+// src/components/TransactionHistoryPage.tsx  ← the culprit
+import * as Icons from 'lucide-react';
+
+function StatusIcon({ status }: { status: string }) {
+  const Icon = Icons[status === 'success' ? 'CheckCircle' : 'XCircle'];
+  return <Icon className="h-4 w-4" />;
+}
+```
+
+### Step 4 — fix with named imports
+
+```typescript
+// src/components/TransactionHistoryPage.tsx  ← fixed
+import { CheckCircle, XCircle } from 'lucide-react';
+
+function StatusIcon({ status }: { status: string }) {
+  return status === 'success'
+    ? <CheckCircle className="h-4 w-4" />
+    : <XCircle className="h-4 w-4" />;
+}
+```
+
+### Step 5 — verify the fix
+
+```bash
+pnpm build
+```
+
+```text
+First Load JS shared by all   296 kB   ✅ within 500 KB target
+```
+
+The `lucide-react` block in the treemap is now 11 KB.
+
+---
+
+## Quick reference
+
+| Bloat source                             | Symptom                             | Fix                                               |
+| ---------------------------------------- | ----------------------------------- | ------------------------------------------------- |
+| Full `@stellar/stellar-sdk` import       | SDK block > 400 KB in treemap       | Use sub-path imports (`/transaction`, `/soroban`) |
+| Wallet adapters loaded upfront           | Large adapter block in shared chunk | Dynamic `import()` behind wallet picker           |
+| Barrel icon import (`import * as Icons`) | Icon library block > 100 KB         | Switch to named imports                           |
+| CommonJS `lodash`                        | Lodash block > 70 KB                | Replace with `lodash-es` or individual packages   |
+| Node.js polyfills                        | `buffer`/`stream` in client chunk   | Audit `resolve.fallback` in `next.config.ts`      |
+| Unused wallet-page code                  | > 60 % coverage unused              | Wrap in `next/dynamic` with `ssr: false`          |
+
+---
+
+## Related docs
+
+- [Performance Budget Guide](/docs/guides/performance-budget-guide) — JS and CSS size thresholds with CI enforcement
+- [Docs Build Performance Tips](/docs/guides/docs-build-performance-tips) — keeping the content build fast
+- [Optimizing Transaction Sizes](/docs/guides/optimizing-transaction-sizes) — reducing XDR and fee overhead
+- [Wallet Integration Deep-Dive](/docs/guides/wallet-integration-deep-dive) — adapter architecture and lazy loading patterns
+- [Wallet UX Patterns](/docs/guides/wallet-ux-patterns) — wallet picker and connection flow design
+- [Hook Error Handling](/docs/guides/hook-error-handling) — handling adapter load failures gracefully
