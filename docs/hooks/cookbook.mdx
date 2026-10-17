@@ -14,53 +14,31 @@ This cookbook offers production-ready, runnable recipes that demonstrate how to 
 
 ## Recipe 1: Authenticated Portfolio Dashboard with Live Asset Valuation
 
-**Hooks Composed:** `useStellarWallet` + `useStellarBalances` + `useStellarAssetPrice`
+**Hooks Composed:** `useStellarWallet` + `useStellarBalances`
 
 ### Use Case
 
-When users connect their wallet, the application should display their native XLM balance, all custom trustline token balances, and calculate their real-time total portfolio valuation in USD.
+When users connect their wallet, display the native XLM and issued-asset balances loaded from Horizon.
 
 ### Implementation
 
 ```tsx
 'use client';
 
-import React, { useMemo } from 'react';
 import { useStellarWallet } from '@/hooks/useStellarWallet';
 import { useStellarBalances } from '@/hooks/useStellarBalances';
-import { useStellarAssetPrice } from '@/hooks/useStellarAssetPrice';
 
 export function PortfolioDashboard() {
-  const { connected, publicKey, connect, disconnect, activeWallet } =
+  const { connected, publicKey, connect, disconnect, walletName } =
     useStellarWallet();
   const {
     balances,
     loading: balancesLoading,
     error: balancesError,
-    refetch,
-  } = useStellarBalances(publicKey ?? undefined);
-
-  // Fetch live XLM/USD price
-  const { price: xlmPriceUsd, loading: priceLoading } = useStellarAssetPrice({
-    baseAsset: 'native',
-    quoteAsset: 'USDC',
-  });
-
-  // Calculate portfolio totals
-  const portfolioSummary = useMemo(() => {
-    if (!balances || balances.length === 0) return { totalXlm: 0, totalUsd: 0 };
-
-    let nativeXlm = 0;
-    for (const b of balances) {
-      if (b.asset_type === 'native') {
-        nativeXlm = parseFloat(b.balance);
-        break;
-      }
-    }
-
-    const estimatedUsd = xlmPriceUsd ? nativeXlm * xlmPriceUsd : 0;
-    return { totalXlm: nativeXlm, totalUsd: estimatedUsd };
-  }, [balances, xlmPriceUsd]);
+    refresh,
+  } = useStellarBalances(publicKey);
+  const xlmBalance =
+    balances.find((balance) => balance.asset_type === 'native')?.balance ?? '0';
 
   if (!connected || !publicKey) {
     return (
@@ -71,7 +49,7 @@ export function PortfolioDashboard() {
           valuation.
         </p>
         <button
-          onClick={() => connect('freighter')}
+          onClick={() => void connect()}
           className="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:opacity-90"
         >
           Connect Freighter
@@ -85,13 +63,13 @@ export function PortfolioDashboard() {
       <div className="flex items-center justify-between">
         <div>
           <span className="text-xs font-mono text-muted-foreground">
-            Connected via {activeWallet}
+            Connected via {walletName}
           </span>
           <p className="text-sm font-mono truncate max-w-xs">{publicKey}</p>
         </div>
         <div className="flex gap-2">
           <button
-            onClick={() => refetch()}
+            onClick={() => void refresh()}
             disabled={balancesLoading}
             className="px-3 py-1.5 border rounded-md text-xs font-medium hover:bg-accent"
           >
@@ -116,15 +94,7 @@ export function PortfolioDashboard() {
         <div className="p-4 border rounded-md">
           <p className="text-xs text-muted-foreground">Available XLM</p>
           <p className="text-2xl font-bold">
-            {portfolioSummary.totalXlm.toLocaleString()} XLM
-          </p>
-        </div>
-        <div className="p-4 border rounded-md">
-          <p className="text-xs text-muted-foreground">Estimated USD Value</p>
-          <p className="text-2xl font-bold">
-            {priceLoading
-              ? 'Calculating...'
-              : `$${portfolioSummary.totalUsd.toFixed(2)}`}
+            {Number(xlmBalance).toLocaleString()} XLM
           </p>
         </div>
       </div>
@@ -176,29 +146,26 @@ import { useStellarBalances } from '@/hooks/useStellarBalances';
 
 interface PaymentFormProps {
   senderPublicKey: string;
+  signWithWallet: (unsignedXdr: string) => Promise<string>;
 }
 
-export function PaymentDispatcher({ senderPublicKey }: PaymentFormProps) {
+export function PaymentDispatcher({
+  senderPublicKey,
+  signWithWallet,
+}: PaymentFormProps) {
   const [recipient, setRecipient] = useState('');
   const [amount, setAmount] = useState('');
   const [memo, setMemo] = useState('');
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  // Initialize hooks
+  const { buildPaymentXDR, submitSignedXDR } = useStellarPayment();
+  const { refresh: refreshBalances } = useStellarBalances(senderPublicKey);
   const {
-    sendPayment,
-    loading: submitting,
-    error: paymentError,
-  } = useStellarPayment();
-  const { refetch: refreshBalances } = useStellarBalances(senderPublicKey);
-  const {
-    transactions,
+    items,
     loading: historyLoading,
-    refetch: refreshHistory,
-  } = useTransactionHistory({
-    publicKey: senderPublicKey,
-    limit: 5,
-  });
+    refresh: refreshHistory,
+  } = useTransactionHistory(senderPublicKey, { pageSize: 5, type: 'payments' });
 
   const handlePayment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -214,27 +181,31 @@ export function PaymentDispatcher({ senderPublicKey }: PaymentFormProps) {
       return;
     }
 
+    setSubmitting(true);
     try {
-      const result = await sendPayment({
-        destination: recipient,
+      const unsignedXdr = await buildPaymentXDR({
+        from: senderPublicKey,
+        to: recipient,
         amount,
-        asset: { type: 'native' },
-        memo: memo ? { type: 'text', value: memo } : undefined,
+        asset: 'XLM',
+        memo: memo || undefined,
       });
+      const signedXdr = await signWithWallet(unsignedXdr);
+      const result = await submitSignedXDR(signedXdr);
+      if (!result.success) throw new Error(result.error ?? 'Payment failed');
 
-      if (result.successful) {
-        setFeedback(
-          `Payment succeeded! Transaction Hash: ${result.hash.slice(0, 12)}...`
-        );
-        setRecipient('');
-        setAmount('');
-        setMemo('');
+      setFeedback(
+        `Payment submitted: ${result.txHash?.slice(0, 12) ?? 'pending'}...`
+      );
+      setRecipient('');
+      setAmount('');
+      setMemo('');
 
-        // Concurrently synchronize ledger balances and transaction list
-        await Promise.all([refreshBalances(), refreshHistory()]);
-      }
-    } catch (err: any) {
-      setFeedback(err.message || 'Payment execution failed.');
+      await Promise.all([refreshBalances(), refreshHistory()]);
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : 'Payment failed.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -308,19 +279,17 @@ export function PaymentDispatcher({ senderPublicKey }: PaymentFormProps) {
           )}
         </div>
         <div className="space-y-2">
-          {transactions.slice(0, 3).map((tx) => (
+          {items.slice(0, 3).map((item) => (
             <div
-              key={tx.id}
+              key={item.id}
               className="p-2.5 border rounded-md text-xs flex justify-between items-center"
             >
               <span className="font-mono text-muted-foreground">
-                {tx.hash.slice(0, 8)}...
+                {item.id.slice(0, 8)}...
               </span>
-              <span className="font-medium">
-                {tx.successful ? 'Success' : 'Failed'}
-              </span>
+              <span className="font-medium">{item.type}</span>
               <span className="text-muted-foreground">
-                {new Date(tx.created_at).toLocaleTimeString()}
+                {new Date(item.created_at).toLocaleTimeString()}
               </span>
             </div>
           ))}
@@ -335,11 +304,11 @@ export function PaymentDispatcher({ senderPublicKey }: PaymentFormProps) {
 
 ## Recipe 3: Trustline Guarded DEX Order Book Swapper
 
-**Hooks Composed:** `useTrustlines` + `useOfferBook` + `useNetworkGuard` + `useStellarWallet`
+**Hooks Composed:** `useTrustlines` + `useOfferBook` + `useStellarWallet`
 
 ### Use Case
 
-Before trading a non-native token on Stellar DEX, an account must have an active trustline with sufficient limit. This recipe checks trustline readiness, warns if the network is mismatched, streams live bid/ask spreads from the orderbook, and allows one-click trustline authorization.
+Before receiving a non-native token, an account needs a trustline. This recipe checks trustline readiness, polls a DEX order book, and passes an unsigned change-trust transaction to a caller-provided wallet flow.
 
 ### Implementation
 
@@ -350,36 +319,30 @@ import React, { useMemo } from 'react';
 import { useStellarWallet } from '@/hooks/useStellarWallet';
 import { useTrustlines } from '@/hooks/useTrustlines';
 import { useOfferBook } from '@/hooks/useOfferBook';
-import { useNetworkGuard } from '@/hooks/useNetworkGuard';
 
 const TARGET_ASSET = {
   code: 'USDC',
   issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
 };
 
-export function DEXSwapper() {
+export function DEXSwapper({
+  signChangeTrust,
+}: {
+  signChangeTrust: (xdr: string) => Promise<void>;
+}) {
   const { connected, publicKey } = useStellarWallet();
-  const { isCorrectNetwork, switchNetwork, currentNetwork } =
-    useNetworkGuard('TESTNET');
   const {
     trustlines,
-    createTrustline,
+    buildChangeTrustXDR,
     loading: trustlineLoading,
-  } = useTrustlines(publicKey ?? undefined);
+  } = useTrustlines(publicKey);
 
   // Monitor orderbook depth for XLM/USDC
   const {
     bids,
     asks,
     loading: bookLoading,
-  } = useOfferBook({
-    buying: {
-      type: 'credit_alphanum4',
-      code: TARGET_ASSET.code,
-      issuer: TARGET_ASSET.issuer,
-    },
-    selling: { type: 'native' },
-  });
+  } = useOfferBook(TARGET_ASSET, 'XLM', { pollIntervalMs: 5000 });
 
   // Verify whether active trustline exists
   const hasTrustline = useMemo(() => {
@@ -398,25 +361,13 @@ export function DEXSwapper() {
     );
   }
 
-  if (!isCorrectNetwork) {
-    return (
-      <div className="p-4 border border-amber-300 bg-amber-50 dark:bg-amber-950/30 rounded-lg space-y-3">
-        <h4 className="text-sm font-semibold text-amber-800 dark:text-amber-200">
-          Network Mismatch
-        </h4>
-        <p className="text-xs text-amber-700 dark:text-amber-300">
-          Your wallet is connected to {currentNetwork}, but this trading market
-          operates on TESTNET.
-        </p>
-        <button
-          onClick={() => switchNetwork('TESTNET')}
-          className="px-3 py-1.5 bg-amber-600 text-white rounded text-xs font-medium hover:bg-amber-700"
-        >
-          Switch to Testnet
-        </button>
-      </div>
-    );
-  }
+  const handleAddTrustline = async () => {
+    const unsignedXdr = await buildChangeTrustXDR({
+      code: TARGET_ASSET.code,
+      issuer: TARGET_ASSET.issuer,
+    });
+    await signChangeTrust(unsignedXdr);
+  };
 
   return (
     <div className="p-5 border rounded-lg space-y-5">
@@ -436,18 +387,13 @@ export function DEXSwapper() {
             receive or trade this asset.
           </p>
           <button
-            onClick={() =>
-              createTrustline({
-                assetCode: TARGET_ASSET.code,
-                issuer: TARGET_ASSET.issuer,
-              })
-            }
+            onClick={() => void handleAddTrustline()}
             disabled={trustlineLoading}
             className="px-4 py-2 bg-primary text-primary-foreground text-xs font-medium rounded hover:opacity-90 disabled:opacity-50"
           >
             {trustlineLoading
-              ? 'Establishing Trustline...'
-              : `Authorize ${TARGET_ASSET.code} Trustline`}
+              ? 'Preparing Trustline...'
+              : `Prepare ${TARGET_ASSET.code} Trustline`}
           </button>
         </div>
       )}
@@ -506,7 +452,7 @@ export function DEXSwapper() {
 
 ### Use Case
 
-When invoking Soroban smart contracts, state mutation on ledger happens asynchronously. By combining contract method invocation with a live Soroban event stream and balances polling, the UI can immediately render contract emission logs and update wallet token balances as soon as the contract ledger entry finalizes.
+Preview Soroban contract calls with simulation metadata while polling contract events. The hook does not submit a signed invocation; wallet signing and RPC submission remain an explicit separate step.
 
 ### Implementation
 
@@ -529,42 +475,40 @@ export function SorobanLiquidityManager({
   const [txStatus, setTxStatus] = useState<string | null>(null);
 
   // Contract instance
-  const { invoke, loading: invoking } = useSorobanContract({
+  const { simulateContractCall, loading: simulating } = useSorobanContract({
     contractId: LIQUIDITY_CONTRACT_ID,
-    network: 'TESTNET',
+    network: 'TESTNET' as const,
   });
 
-  // Live contract event subscription
-  const { events, loading: eventsLoading } = useSorobanEvents({
-    contractId: LIQUIDITY_CONTRACT_ID,
-    topic: 'deposit',
+  // Poll contract events; this is not a push subscription.
+  const {
+    events,
+    loading: eventsLoading,
+    isRecovering,
+  } = useSorobanEvents(LIQUIDITY_CONTRACT_ID, {
+    pollIntervalMs: 5000,
     limit: 5,
   });
 
-  // User balances for refresh
-  const { refetch: refreshBalances } = useStellarBalances(userPublicKey);
+  const { refresh: refreshBalances } = useStellarBalances(userPublicKey);
 
-  const handleDeposit = async () => {
+  const handlePreview = async () => {
     if (!depositAmount || parseFloat(depositAmount) <= 0) return;
 
-    setTxStatus('Simulating and invoking deposit on Soroban...');
+    setTxStatus('Simulating deposit on Soroban...');
     try {
-      const result = await invoke({
-        method: 'deposit',
-        args: [
-          userPublicKey,
-          BigInt(Math.floor(parseFloat(depositAmount) * 10_000_000)),
-        ],
-      });
-
-      if (result) {
-        setTxStatus('Deposit confirmed on-chain!');
-        setDepositAmount('');
-        // Synchronize wallet balances
-        await refreshBalances();
-      }
-    } catch (err: any) {
-      setTxStatus(`Invocation failed: ${err.message || err}`);
+      const preview = await simulateContractCall('deposit', [
+        { value: userPublicKey, type: 'address' },
+        {
+          value: BigInt(Math.floor(parseFloat(depositAmount) * 10_000_000)),
+          type: 'u128',
+        },
+      ]);
+      setTxStatus(
+        `Simulation result: ${String(preview.result)}; minimum resource fee: ${preview.minResourceFee} stroops`
+      );
+    } catch (error) {
+      setTxStatus(error instanceof Error ? error.message : 'Simulation failed');
     }
   };
 
@@ -581,11 +525,11 @@ export function SorobanLiquidityManager({
           className="flex-1 p-2 border rounded-md text-sm bg-background"
         />
         <button
-          onClick={handleDeposit}
-          disabled={invoking}
+          onClick={handlePreview}
+          disabled={simulating}
           className="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:opacity-90 disabled:opacity-50"
         >
-          {invoking ? 'Executing...' : 'Deposit'}
+          {simulating ? 'Simulating...' : 'Preview deposit'}
         </button>
       </div>
 
@@ -594,9 +538,10 @@ export function SorobanLiquidityManager({
       )}
 
       <div className="space-y-3">
-        <h4 className="text-sm font-semibold">
-          Live Contract Events (`deposit`)
-        </h4>
+        <h4 className="text-sm font-semibold">Recent Contract Events</h4>
+        {isRecovering && (
+          <p role="status">RPC unavailable; retrying with backoff.</p>
+        )}
         {eventsLoading ? (
           <p className="text-xs text-muted-foreground">
             Listening for contract events...

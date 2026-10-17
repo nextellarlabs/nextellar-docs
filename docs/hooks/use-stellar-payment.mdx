@@ -27,7 +27,11 @@ The `useStellarPayment` hook provides advanced utilities for building, signing, 
 ```tsx
 import { useStellarPayment } from '@/hooks/useStellarPayment';
 
-export default function PaymentBuilder() {
+export default function PaymentBuilder({
+  signWithWallet,
+}: {
+  signWithWallet: (xdr: string) => Promise<string>;
+}) {
   const { buildPaymentXDR, submitSignedXDR } = useStellarPayment();
 
   const handleBuildAndSign = async () => {
@@ -40,13 +44,17 @@ export default function PaymentBuilder() {
       memo: 'Payment for services',
     });
 
-    // Step 2: Sign with external wallet (e.g., Freighter)
-    const signedXDR = await window.freighter.signTransaction(unsignedXDR);
+    // Step 2: Sign with the connected wallet adapter
+    const signedXDR = await signWithWallet(unsignedXDR);
 
     // Step 3: Submit to network
     const result = await submitSignedXDR(signedXDR);
 
-    console.log('Transaction hash:', result.txHash);
+    if (result.success) {
+      console.log('Transaction hash:', result.txHash);
+    } else {
+      console.error(result.error);
+    }
   };
 
   return <button onClick={handleBuildAndSign}>Send Payment</button>;
@@ -182,7 +190,11 @@ const xdr = await buildPaymentXDR({
 ### Multi-Step Payment Flow
 
 ```tsx
-function MultiStepPayment() {
+function MultiStepPayment({
+  signWithWallet,
+}: {
+  signWithWallet: (xdr: string) => Promise<string>;
+}) {
   const { buildPaymentXDR, submitSignedXDR } = useStellarPayment();
   const [xdr, setXdr] = useState('');
   const [step, setStep] = useState(1);
@@ -199,7 +211,7 @@ function MultiStepPayment() {
   };
 
   const handleSign = async () => {
-    const signedXDR = await window.freighter.signTransaction(xdr);
+    const signedXDR = await signWithWallet(xdr);
     setXdr(signedXDR);
     setStep(3);
   };

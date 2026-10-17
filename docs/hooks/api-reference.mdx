@@ -1,66 +1,65 @@
 ---
 title: Complete Hooks API Reference
-description: Authoritative API reference for all 12 Nextellar React hooks — parameters, return values, error types, and verification examples.
+description: Source-aligned API reference for the nine hooks in the default TypeScript scaffold.
 date: 2026-09-24
 ---
 
 # Complete Hooks API Reference
 
-Nextellar provides 12 production-ready React hooks designed for building decentralized applications on the Stellar blockchain and Soroban smart contract platform.
+The default TypeScript scaffold ships nine hooks for wallet access, Horizon data, Soroban interactions, and clipboard actions. JavaScript and minimal variants contain different subsets; use the template comparison for availability by variant.
 
-This document serves as the comprehensive, authoritative API reference for all 12 hooks. Each hook entry specifies its TypeScript signature, configuration parameters, return object, possible runtime error types, and a verified code example.
+This page records the shipped signatures and return values for those hooks.
 
 ---
 
 ## Hooks Summary Matrix
 
-| #   | Hook                                                | Category        | Description                                                                  |
-| --- | --------------------------------------------------- | --------------- | ---------------------------------------------------------------------------- |
-| 1   | [`useStellarWallet`](#1-usestellarwallet)           | Wallet          | Connects, disconnects, and signs transactions with browser wallets.          |
-| 2   | [`useStellarBalances`](#2-usestellarbalances)       | Account         | Fetches native XLM and issued token balances with polling support.           |
-| 3   | [`useStellarPayment`](#3-usestellarpayment)         | Payments        | Builds and submits payment transactions to the Stellar network.              |
-| 4   | [`useTrustlines`](#4-usetrustlines)                 | Account         | Checks, creates, and modifies asset trustlines.                              |
-| 5   | [`useTransactionHistory`](#5-usetransactionhistory) | Account         | Loads and paginates historical transactions and operations.                  |
-| 6   | [`useOfferBook`](#6-useofferbook)                   | DEX             | Queries Stellar DEX order books for bids, asks, and spreads.                 |
-| 7   | [`useSorobanContract`](#7-usesorobancontract)       | Smart Contracts | Simulates and invokes Soroban smart contract methods.                        |
-| 8   | [`useSorobanEvents`](#8-usesorobanevents)           | Smart Contracts | Subscribes to and polls real-time Soroban contract events.                   |
-| 9   | [`useWalletContext`](#9-usewalletcontext)           | Context         | Accesses global wallet and network state from `WalletProvider`.              |
-| 10  | [`useNetworkGuard`](#10-usenetworkguard)            | Network         | Detects and prompts when the connected wallet network mismatches the app.    |
-| 11  | [`useStellarAssetPrice`](#11-usestellarassetprice)  | DEX / Oracles   | Fetches current market exchange rates and trade prices for asset pairs.      |
-| 12  | [`useWindowSize`](#12-usewindowsize)                | UI Utility      | Provides responsive viewport dimensions and mobile/desktop breakpoint flags. |
+| #   | Hook                                                | Category        | Description                                                     |
+| --- | --------------------------------------------------- | --------------- | --------------------------------------------------------------- |
+| 1   | [`useStellarWallet`](#1-usestellarwallet)           | Wallet          | Connects wallets and exposes account/payment state.             |
+| 2   | [`useStellarBalances`](#2-usestellarbalances)       | Account         | Fetches XLM and issued-asset balances from Horizon.             |
+| 3   | [`useStellarPayment`](#3-usestellarpayment)         | Payments        | Builds, simulates, and submits classic Stellar payments.        |
+| 4   | [`useTrustlines`](#4-usetrustlines)                 | Account         | Reads trustlines and builds change-trust transactions.          |
+| 5   | [`useTransactionHistory`](#5-usetransactionhistory) | Account         | Loads and paginates Horizon operations or payments.             |
+| 6   | [`useOfferBook`](#6-useofferbook)                   | DEX             | Queries bids and asks for one Stellar DEX asset pair.           |
+| 7   | [`useSorobanContract`](#7-usesorobancontract)       | Smart Contracts | Simulates calls and builds Soroban invocation XDR.              |
+| 8   | [`useSorobanEvents`](#8-usesorobanevents)           | Smart Contracts | Polls Soroban contract events with retry and recovery behavior. |
+| 9   | [`useClipboard`](#9-useclipboard)                   | UI Utility      | Copies text and exposes copied/error state.                     |
 
 ---
 
 ## 1. `useStellarWallet`
 
-Manages wallet lifecycle, multi-wallet selection (Freighter, Albedo, Lobstr, xBull, Hana), address state, and transaction/blob signing.
+Manages wallet connection, account balances, and classic payment submission.
 
 ### Signature
 
 ```typescript
-function useStellarWallet(options?: WalletOptions): UseStellarWalletReturn;
+function useStellarWallet(
+  horizonUrl?: string,
+  network?: string
+): StellarWalletState;
 ```
 
-### Parameters (`WalletOptions`)
+### Parameters
 
-| Parameter         | Type                                                       | Default       | Description                                       |
-| ----------------- | ---------------------------------------------------------- | ------------- | ------------------------------------------------- |
-| `preferredWallet` | `'freighter' \| 'albedo' \| 'lobstr' \| 'xbull' \| 'hana'` | `'freighter'` | Default wallet extension to connect.              |
-| `network`         | `'PUBLIC' \| 'TESTNET' \| 'FUTURENET'`                     | `'TESTNET'`   | Target Stellar network.                           |
-| `autoConnect`     | `boolean`                                                  | `false`       | Automatically attempt re-connection on page load. |
+| Parameter    | Type     | Default                               | Description                                           |
+| ------------ | -------- | ------------------------------------- | ----------------------------------------------------- |
+| `horizonUrl` | `string` | `https://horizon-testnet.stellar.org` | Horizon URL for account and balance requests.         |
+| `network`    | `string` | `Networks.TESTNET`                    | Network passphrase used to build and submit payments. |
 
-### Return Values (`UseStellarWalletReturn`)
+### Return Values (`StellarWalletState`)
 
-| Property          | Type                                                                      | Description                                                |
-| ----------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| `publicKey`       | `string \| null`                                                          | Connected account address (`G...`).                        |
-| `isConnected`     | `boolean`                                                                 | `true` if a wallet is actively connected.                  |
-| `isConnecting`    | `boolean`                                                                 | `true` while awaiting user wallet approval.                |
-| `walletType`      | `string \| null`                                                          | The active wallet identifier (e.g., `'freighter'`).        |
-| `connect`         | `(walletType?: string) => Promise<string>`                                | Triggers the wallet connection popup.                      |
-| `disconnect`      | `() => Promise<void>`                                                     | Clears active wallet connection state.                     |
-| `signTransaction` | `(xdr: string, opts?: { networkPassphrase?: string }) => Promise<string>` | Requests wallet signature for an XDR transaction envelope. |
-| `error`           | `Error \| null`                                                           | Current wallet error, if any.                              |
+| Property          | Type                                                                                             | Description                           |
+| ----------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------- |
+| `connected`       | `boolean`                                                                                        | Whether a wallet is connected.        |
+| `publicKey`       | `string \| undefined`                                                                            | Connected account address.            |
+| `walletName`      | `string \| undefined`                                                                            | Selected wallet name.                 |
+| `balances`        | `Balance[]`                                                                                      | Account balances loaded from Horizon. |
+| `connect`         | `() => Promise<void>`                                                                            | Opens the configured wallet selector. |
+| `disconnect`      | `() => void`                                                                                     | Disconnects and clears wallet state.  |
+| `refreshBalances` | `() => Promise<void>`                                                                            | Refreshes account balances.           |
+| `sendPayment`     | `((opts: PaymentOptions) => Promise<Horizon.HorizonApi.SubmitTransactionResponse>) \| undefined` | Available only while connected.       |
 
 ### Errors
 
@@ -74,10 +73,9 @@ function useStellarWallet(options?: WalletOptions): UseStellarWalletReturn;
 import { useStellarWallet } from '@/hooks/useStellarWallet';
 
 export function WalletConnect() {
-  const { isConnected, publicKey, connect, disconnect, isConnecting, error } =
-    useStellarWallet();
+  const { connected, publicKey, connect, disconnect } = useStellarWallet();
 
-  if (isConnected) {
+  if (connected) {
     return (
       <button onClick={() => disconnect()}>
         Disconnect ({publicKey?.slice(0, 4)}...)
@@ -87,10 +85,7 @@ export function WalletConnect() {
 
   return (
     <div>
-      <button onClick={() => connect('freighter')} disabled={isConnecting}>
-        {isConnecting ? 'Connecting...' : 'Connect Freighter'}
-      </button>
-      {error && <p className="text-red-500">{error.message}</p>}
+      <button onClick={() => void connect()}>Connect Wallet</button>
     </div>
   );
 }
@@ -333,91 +328,46 @@ function useSorobanEvents(
 
 ---
 
-## 9. `useWalletContext`
+## 9. `useClipboard`
 
-Accesses shared global wallet and configuration state from the parent `WalletProvider`.
+Copies text through the browser Clipboard API and returns copied/error state.
 
-### Signature
-
-```typescript
-function useWalletContext(): WalletContextValue;
-```
-
-### Return Values
-
-| Property        | Type                                   | Description                         |
-| --------------- | -------------------------------------- | ----------------------------------- |
-| `network`       | `'PUBLIC' \| 'TESTNET' \| 'FUTURENET'` | Configured application network.     |
-| `horizonUrl`    | `string`                               | Active Horizon endpoint.            |
-| `sorobanRpcUrl` | `string`                               | Active Soroban RPC endpoint.        |
-| `wallets`       | `string[]`                             | List of enabled wallet identifiers. |
-
----
-
-## 10. `useNetworkGuard`
-
-Validates that the user's connected wallet extension is operating on the exact network required by the dApp.
-
-### Signature
+### Signature and return values
 
 ```typescript
-function useNetworkGuard(expectedNetwork?: string): UseNetworkGuardReturn;
+function useClipboard(options?: UseClipboardOptions): UseClipboardResult;
+
+interface UseClipboardOptions {
+  resetDelayMs?: number;
+}
+
+interface UseClipboardResult {
+  copied: boolean;
+  error: Error | null;
+  copy: (text: string) => Promise<boolean>;
+}
 ```
 
-### Return Values
+`resetDelayMs` defaults to 2000 ms. `copy()` resolves to `true` on success and `false` when the clipboard API is unavailable, input is empty, or the write fails.
 
-| Property              | Type                  | Description                                               |
-| --------------------- | --------------------- | --------------------------------------------------------- |
-| `isMismatch`          | `boolean`             | `true` if wallet network does not match expected network. |
-| `currentNetwork`      | `string \| null`      | The wallet's current active network.                      |
-| `expectedNetwork`     | `string`              | The dApp's configured network.                            |
-| `promptNetworkSwitch` | `() => Promise<void>` | Prompts user to switch network in wallet extension.       |
+### Example
 
----
+```tsx
+import { useClipboard } from '@/hooks/useClipboard';
 
-## 11. `useStellarAssetPrice`
+export function CopyAddress({ address }: { address: string }) {
+  const { copied, error, copy } = useClipboard();
 
-Queries decentralized exchange trade aggregates or oracle contracts to determine asset pair valuation.
-
-### Signature
-
-```typescript
-function useStellarAssetPrice(
-  baseAsset: AssetSpecifier,
-  counterAsset: AssetSpecifier
-): UseStellarAssetPriceReturn;
+  return (
+    <div>
+      <button type="button" onClick={() => void copy(address)}>
+        {copied ? 'Copied' : 'Copy address'}
+      </button>
+      {error && <p role="alert">{error.message}</p>}
+    </div>
+  );
+}
 ```
-
-### Return Values
-
-| Property    | Type             | Description                             |
-| ----------- | ---------------- | --------------------------------------- |
-| `price`     | `string \| null` | Most recent execution price.            |
-| `change24h` | `number \| null` | 24-hour price change percentage.        |
-| `loading`   | `boolean`        | `true` while querying trade aggregates. |
-| `error`     | `Error \| null`  | Network or price resolution error.      |
-
----
-
-## 12. `useWindowSize`
-
-Provides responsive viewport dimensions and layout breakpoint flags for adaptive mobile/desktop UI components.
-
-### Signature
-
-```typescript
-function useWindowSize(): UseWindowSizeReturn;
-```
-
-### Return Values
-
-| Property    | Type      | Description                                             |
-| ----------- | --------- | ------------------------------------------------------- |
-| `width`     | `number`  | Viewport inner width in pixels.                         |
-| `height`    | `number`  | Viewport inner height in pixels.                        |
-| `isMobile`  | `boolean` | `true` when viewport width is below 768px (`md`).       |
-| `isTablet`  | `boolean` | `true` when viewport width is between 768px and 1024px. |
-| `isDesktop` | `boolean` | `true` when viewport width is above 1024px (`lg`).      |
 
 ---
 
