@@ -161,6 +161,8 @@ These variables are read by the Nextellar CLI process. They are never bundled in
 
 **Effect:** Disables anonymous usage telemetry for the current CLI invocation. Takes priority over the persisted config in `~/.nextellar/config.json`. Accepts the values `1`, `true`, `yes`, or `on` (case-insensitive).
 
+**Precedence:** When set, `NEXTELLAR_TELEMETRY_DISABLED` always wins over the persisted config in `~/.nextellar/config.json` and over the `--no-telemetry` flag. Telemetry is off by default until explicitly enabled, so this variable is only needed to force telemetry off after it has been enabled in config.
+
 |                  |                                                              |
 | ---------------- | ------------------------------------------------------------ |
 | **Default**      | unset (telemetry is off by default until explicitly enabled) |
@@ -173,6 +175,8 @@ NEXTELLAR_TELEMETRY_DISABLED=1 npx nextellar my-app
 ## Or export for the session
 export NEXTELLAR_TELEMETRY_DISABLED=true
 ```
+
+Setting this variable for a single run overrides any persisted `telemetry.enabled: true` in `~/.nextellar/config.json`; the config file is not modified.
 
 You can also pass `--no-telemetry` as a flag instead.
 
