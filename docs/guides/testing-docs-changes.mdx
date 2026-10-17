@@ -23,7 +23,8 @@ Run commands from the repository root after `pnpm install`.
 | Sidebar paths   | `pnpm validate:sidebar` | No                  |
 | Internal links  | `pnpm check:links`      | Yes (`pnpm dev`)    |
 | Full site build | `pnpm build`            | No                  |
-| Visual / search | Browser + `pnpm dev`    | Yes                 |
+| Visual regression | `pnpm test:visual` | No (starts automatically) |
+| Search smoke test | Browser + `pnpm dev` | Yes |
 
 ## Content build check
 
@@ -126,9 +127,30 @@ pnpm build
 - Read the first error in the log; fix the referenced file.
 - If Contentlayer failed inside `pnpm build`, run `pnpm build:content` separately for a clearer MDX error message.
 
-## Visual checks
+## Visual regression checks
 
-Automated scripts do not verify layout, images, or MDX components. Review these manually with `pnpm dev`.
+Playwright compares the homepage and CTA page against committed desktop and
+mobile baselines. The same checks run for every pull request, and a failure
+uploads an HTML report with the actual screenshots and pixel diffs.
+
+```bash
+pnpm exec playwright install chromium
+pnpm test:visual
+```
+
+When a visual change is intentional, regenerate the baselines and inspect the
+resulting images before committing them:
+
+```bash
+pnpm test:visual:update
+```
+
+Baseline PNGs are committed next to the visual test under
+`tests/visual/pages.visual.spec.ts-snapshots/`.
+Playwright uses fixed viewport sizes, locale, color scheme, reduced motion, and
+disabled CSS animations to reduce noisy diffs. Review the page manually for
+content quality, working interactions, and dynamic diagrams in addition to the
+automated visual comparison.
 
 ### Page rendering
 

@@ -35,6 +35,8 @@
     "prepare": "husky",
     "test": "npm run test:unit",
     "test:unit": "vitest run",
+    "test:visual": "playwright test --project=visual",
+    "test:visual:update": "playwright test --project=visual --update-snapshots",
     "test:docs-smoke": "node scripts/docs-smoke-test.mjs",
     "report:cli-coverage": "node scripts/report-cli-docs-coverage.mjs",
     "validate:guide-frontmatter": "node scripts/validate-guide-frontmatter.mjs",
@@ -45,12 +47,12 @@
     "validate:heading-hierarchy": "node scripts/validate-heading-hierarchy.mjs",
     "fix:heading-hierarchy": "node scripts/fix-heading-hierarchy.mjs",
     "check:links": "node scripts/check-links.cjs",
-    "audit:frontmatter": "node scripts/audit-frontmatter-comprehensive.cjs"
+    "audit:frontmatter": "node scripts/audit-frontmatter-comprehensive.cjs",
     "check:links:all": "node scripts/link-checker.mjs",
     "check:links:external": "node scripts/link-checker.mjs --check-external",
     "verify:hooks-docs": "node scripts/verify-hooks-docs.mjs",
-    "test:a11y": "playwright test",
-    "test:a11y:headed": "playwright test --headed"
+    "test:a11y": "playwright test --project=a11y",
+    "test:a11y:headed": "playwright test --project=a11y --headed",
     "check:performance": "node scripts/check-performance-budget.mjs",
     "lint:vale": "docker run --rm -v \"$PWD:/workspace\" -w /workspace jdkato/vale:latest sync && docker run --rm -v \"$PWD:/workspace\" -w /workspace jdkato/vale:latest --minAlertLevel=warning ."
   },
@@ -106,6 +108,7 @@
     "tailwindcss-animated": "^2.0.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@axe-core/react": "^4.10.0",
     "@tailwindcss/postcss": "^4.0.13",
     "@testing-library/dom": "^10.4.1",
@@ -123,8 +126,6 @@
     "husky": "^9.1.7",
     "jsdom": "^28.1.0",
     "lint-staged": "^15.5.0",
-    "playwright": "^1.49.0",
-    "@playwright/test": "^1.49.0",
     "postcss": "^8.5.3",
     "prettier": "^3.8.1",
     "tailwindcss": "^4.1.3",
