@@ -13,6 +13,7 @@ Learn how to configure and customize Nextellar projects through CLI options and 
 Nextellar supports two configuration points:
 
 1. **CLI flags** — set during `npx nextellar` project creation
+
 2. **Post-scaffolding** — modify generated files after creation
 
 ## CLI flag configuration
@@ -31,20 +32,22 @@ npx nextellar my-app \
 
 See [CLI Flags & Options](/docs/cli/flags) for the complete flag reference.
 
+Telemetry is configured separately through the `telemetry` subcommand; see [Telemetry configuration](#telemetry-configuration) below.
+
 ## Template variables
 
 Nextellar performs a single-pass replacement of these placeholders during scaffolding. Every file listed in `filesToProcess` inside `src/lib/scaffold.ts` has these tokens replaced before being written to disk.
 
 | Placeholder             | Replaced with           | Example value                         |
-| ----------------------- | ----------------------- | ------------------------------------- |
-| `{{APP_NAME}}`          | Project name            | `my-stellar-app`                      |
+| --------------------- | --------------------- | ------------------------------------ |
+| `{{APP_NAME}}`         | Project name            | `my-stellar-app`                      |
 | `{{HORIZON_URL}}`       | Horizon endpoint        | `https://horizon-testnet.stellar.org` |
-| `{{SOROBAN_URL}}`       | Soroban RPC endpoint    | `https://soroban-testnet.stellar.org` |
-| `{{NETWORK}}`           | Network identifier      | `TESTNET` or `PUBLIC`                 |
-| `{{WALLETS}}`           | Wallet adapter list     | `["freighter","albedo","lobstr"]`     |
-| `{{NEXTELLAR_VERSION}}` | CLI version at scaffold | `1.0.4`                               |
-| `{{TEMPLATE_NAME}}`     | Template used           | `default`, `defi`                     |
-| `{{TIMESTAMP}}`         | ISO 8601 scaffold time  | `2026-07-30T13:24:42.863Z`            |
+| `{{SOROBAN_URL}}`       | Soroban RPC endpoint    | `https://soroban-testnet.stellar.org`|
+| `{{NETWORK}}`           | Network identifier      | `TESTNET` or `PUBLIC`                |
+| `{{WALLETS}}`           | Wallet adapter list     | `["freighter","albedo","lobstr"]`      |
+| `{{NEXTELLAR_VERSION}}` | CLI version at scaffold | `1.0.4`                                   |
+| `{{TEMPLATE_NAME}}`     | Template used           | `default`, `defi`                      |
+| `{{TIMESTAMP}}`          | ISO 8601 scaffold time  | `2026-07-30T13:24:42.863Z`           |
 
 ## `.nextellar/config.json`
 
@@ -67,18 +70,60 @@ The CLI writes a `.nextellar/config.json` file inside every scaffolded project. 
 
 ### Field reference
 
-| Field              | Type       | Description                                           |
-| ------------------ | ---------- | ----------------------------------------------------- |
+| Field              | Type       | Description                                       |
+| ------------------ | ---------- | ---------------------------------------------------------|
 | `appName`          | `string`   | Project name passed to the CLI                        |
 | `horizonUrl`       | `string`   | Horizon endpoint used at scaffold time                |
-| `sorobanUrl`       | `string`   | Soroban RPC endpoint used at scaffold time            |
-| `network`          | `string`   | `"TESTNET"` or `"PUBLIC"`                             |
+| `sorobanUrl`       | `string`   | Soroban RPC endpoint used at scaffold time           |
+| `network`          | `string`   | `"TESTNET"` or `"PUBLIC"`                            |
 | `wallets`          | `string[]` | Wallet adapter identifiers compiled into the project  |
 | `nextellarVersion` | `string`   | Semantic version of the CLI that created the project  |
-| `templateName`     | `string`   | Template name (`"default"`, `"defi"`, etc.)           |
+| `templateName`     | `string`   | Template name (`"default"`, `"defi"t`, etc.)           |
 | `timestamp`        | `string`   | ISO 8601 timestamp of when the project was scaffolded |
 
 > **Do not edit `.nextellar/config.json` by hand.** It is the source of truth for upgrade commands and re-scaffold operations. Modifying it may cause upgrade conflicts.
+
+## Telemetry configuration
+
+The CLI collects anonymous usage telemetry to help improve the tool. You can inspect or change this setting at any time with the `telemetry` subcommand.
+
+The subcommand exposes three actions:
+
+| Action    | Command                 | Description                                                                 |
+| --------- | ---------------------- | -------------------------------------------------------------------------------|
+| `status`  | `npx nextellar telemetry status`  | Reports whether telemetry is currently enabled or disabled, and shows the config file path |
+| `enable`  | `npx nextellar telemetry enable`  | Turns telemetry collection on                                                   |
+| `disable` | `npx nextellar telemetry disable` | Turns telemetry collection off                                                   |
+
+### Examples
+
+Check the current status:
+
+```bash
+npx nextellar telemetry status
+```
+
+Enable telemetry:
+
+```bash
+npx nextellar telemetry enable
+```
+
+Disable telemetry:
+
+```bash
+npx nextellar telemetry disable
+```
+
+### Where telemetry settings are saved
+
+The telemetry preference is stored in the user-level CLI config file at:
+
+``
+~/.nextellar/config.json
+``
+
+This is a global per-user file (in your home directory), not the project-level `.nextellar/config.json` described above. The `telemetry enable` and `telemetry disable` actions update this file, and `telemetry status` reports the value stored there.
 
 ## Post-scaffolding configuration
 
@@ -104,7 +149,7 @@ export const NETWORK = Networks.PUBLIC;
 const allowedWallets = [
   WalletNetwork.FREIGHTER,
   WalletNetwork.XBULL,
-  WalletNetwork.LEDGER,
+  WalletNetwork.LEGGER,
 ];
 ```
 
@@ -242,7 +287,8 @@ import { CustomWallet } from '@custom/wallet-adapter';
 
 const allowedWallets = [
   WalletNetwork.FREIGHTER,
-  WalletNetwork.CUSTOM, // Add new wallet
+  WalletNetwork.CUSTOM,
+  // Add new wallet
 ];
 ```
 
