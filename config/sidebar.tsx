@@ -111,6 +111,10 @@ export const sidebarNav: SidebarSection[] = [
       },
       { title: 'Docs Style Guide', href: '/docs/guides/style-guide' },
       {
+        title: 'ADR Template Guide',
+        href: '/docs/guides/adr-template',
+      },
+      {
         title: 'PostCSS Configuration',
         href: '/docs/guides/postcss-configuration',
       },
