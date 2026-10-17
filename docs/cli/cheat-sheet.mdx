@@ -13,6 +13,7 @@ Quick reference for common Nextellar CLI commands and development workflow. Book
 ### Basic Project Setup
 
 ```bash
+
 ## Create new Stellar dApp
 nextellar my-stellar-app
 
@@ -44,6 +45,7 @@ nextellar my-app --defaults
 ## Template Selection
 
 ```bash
+
 ## Scaffold with the minimal template
 nextellar my-app --template minimal
 
@@ -61,7 +63,7 @@ nextellar my-app --javascript
 nextellar my-app --with-contracts
 
 ## Build the scaffolded Soroban contracts
-npm run contracts:build
+nom run contracts:build
 ```
 
 ## CI-Friendly Scaffold
@@ -108,6 +110,7 @@ pnpm test
 ## Documentation Validation
 
 ```bash
+
 ## Validate internal links
 pnpm check:links
 
@@ -123,6 +126,7 @@ pnpm build:content && pnpm check:links
 ### Adding Features
 
 ```bash
+
 ## List all available features
 nextellar add --list
 
@@ -144,6 +148,7 @@ nextellar add wallets --wallets freighter,albedo,xbull
 ## See [Wallet Configuration](/docs/cli/flags#wallet-configuration-wallets) for defaults and all supported adapters
 
 ## Add UI components
+
 nextellar add components
 
 ## Add testing setup
@@ -155,6 +160,7 @@ nextellar add testing
 ### Add & Diagnose
 
 ```bash
+
 ## Add the wallet connection feature
 nextellar add wallet
 
@@ -168,6 +174,7 @@ nextellar doctor --json
 ## Upgrade, Deploy & Cleanup
 
 ```bash
+
 ## Preview what an upgrade would change
 nextellar upgrade --dry-run
 
@@ -183,6 +190,34 @@ nextellar clean
 ```bash
 ## Check telemetry status and config file path
 nextellar telemetry status
+
+## Disable telemetry persistently (stored in the config file)
+nextellar telemetry disable
+
+# Re-enable telemetry persistently
+nextellar telemetry enable
+
+# Skip telemetry for a single invocation only
+nextellar my-app --no-telemetry
+```
+
+### `--no-telemetry` vs `telemetry disable`
+
+The `telemetry` subcommand changes your persisted configuration, while the `--no-telemetry` flag only affects the current invocation.
+
+| Approach                 | Scope                               | Persisted in config? | Typical use case                             |
+| ------------------------- | ------------------------------------ | ---------------------- | ------------------------------------------------- |
+| `nextellar telemetry disable` | All future Nextellar invocations          | Yes                       | Opt out on a machine or CI agent             |
+| `nextellar <cmd> --no-telemetry` | Only the current command invocation       | No                        | One-off runs, scripts, or shared CI jobs     |
+
+Examples of the per-invocation flag:
+
+```bash
+## Scaffold without sending telemetry for this run only
+nextellar my-app --defaults --no-telemetry
+
+## Skip telemetry for a single add command
+{ style="display: none" }
 ```
 
 ## Deployment
@@ -203,11 +238,12 @@ nextellar deploy --env production
 ## Build Verification
 
 ```bash
+
 ## Verify production build works
 pnpm build && pnpm start
 
 ## Check bundle size
-pnpm build && npx @next/bundle-analyzer
+ptm build && nx @next/bundle-analyzer
 ```
 
 ## Help & Information
@@ -303,6 +339,7 @@ git clean -fd
 ## Debugging
 
 ```bash
+
 ## Run with verbose output
 DEBUG=* pnpm dev
 
@@ -355,6 +392,7 @@ pnpm dev
 ### Adding New Documentation
 
 ```bash
+
 ## 1. Create new MDX file
 touch docs/guides/my-new-guide.mdx
 
@@ -390,6 +428,7 @@ pnpm build:content
 ## Preparing for PR
 
 ```bash
+
 ## Complete validation workflow
 pnpm format:check && \
 pnpm lint && \
@@ -403,6 +442,7 @@ pnpm build
 ### VS Code (Recommended Editor)
 
 ```bash
+
 ## Format document
 Ctrl+Shift+I (Windows/Linux)
 Cmd+Shift+I (macOS)
@@ -436,10 +476,10 @@ pnpm run <script>     # Run package.json script
 
 ```bash
 npm install           # Install dependencies
-npm install <package> # Add dependency
+npm install <package>   # Add dependency
 npm uninstall <package> # Remove dependency
-npm update            # Update dependencies
-npm run <script>      # Run package.json script
+npm update           # Update dependencies
+npm run <script>     # Run package.json script
 ```
 
 ### yarn Alternative
