@@ -185,6 +185,10 @@ export const sidebarNav: SidebarSection[] = [
         href: '/docs/guides/hook-error-handling',
       },
       {
+        title: 'Memoizing Hook Returns',
+        href: '/docs/guides/memoizing-hook-returns',
+      },
+      {
         title: 'Wallet UX Patterns',
         href: '/docs/guides/wallet-ux-patterns',
       },
