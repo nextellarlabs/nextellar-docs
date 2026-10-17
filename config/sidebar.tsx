@@ -413,6 +413,10 @@ export const sidebarNav: SidebarSection[] = [
         title: 'Internationalization Guide',
         href: '/docs/guides/internationalization-guide',
       },
+      {
+        title: 'Date & Time Per Locale',
+        href: '/docs/guides/date-time-per-locale',
+      },
     ],
   },
 
