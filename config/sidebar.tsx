@@ -356,6 +356,10 @@ export const sidebarNav: SidebarSection[] = [
         title: 'MDX Custom Components',
         href: '/docs/guides/mdx-custom-components',
       },
+      {
+        title: 'Embedding Videos in MDX',
+        href: '/docs/guides/embedding-videos-in-mdx',
+      },
       { title: 'Link Validation', href: '/docs/guides/link-validation' },
       {
         title: 'Testing Docs Changes',
