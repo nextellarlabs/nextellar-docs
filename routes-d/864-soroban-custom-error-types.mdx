@@ -1,0 +1,143 @@
+---
+title: Soroban Custom Error Types
+description: Define stable contract error codes, return them from Rust methods, and handle typed failures in a client.
+date: 2026-10-17
+---
+
+# Soroban Custom Error Types
+
+Give callers a contract error they can recognize when an input fails validation. A custom error enum assigns a stable numeric code to each failure and includes those definitions in the contract specification used by generated clients.
+
+## Define and return errors
+
+This small read-only contract doubles a positive amount. Save it as `src/lib.rs` in a Soroban contract crate named `quote`, with `soroban-sdk` as a dependency and `cdylib` enabled. Use the SDK version supported by your project's network and toolchain.
+
+```rust
+#![no_std]
+
+use soroban_sdk::{contract, contracterror, contractimpl};
+
+#[contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[repr(u32)]
+pub enum QuoteError {
+    /// Enter a positive amount.
+    InvalidAmount = 1,
+    /// The amount is too large to double.
+    Overflow = 2,
+}
+
+#[contract]
+pub struct Quote;
+
+#[contractimpl]
+impl Quote {
+    pub fn double(amount: i128) -> Result<i128, QuoteError> {
+        if amount <= 0 {
+            return Err(QuoteError::InvalidAmount);
+        }
+        amount.checked_mul(2).ok_or(QuoteError::Overflow)
+    }
+}
+```
+
+`#[repr(u32)]` makes the code assignment explicit. Keep these numbers stable after deployment: changing code `1` to mean a different failure can make an older client show the wrong recovery message. Append new codes and regenerate bindings when the contract's error definitions change.
+
+The contract error is a failed invocation, not a successful return containing an ordinary error object. A failing invocation reverts its state changes. Avoid using `unwrap()` for expected validation failures; an unexpected trap does not give the caller the same typed error contract.
+
+## Check the error path locally
+
+Append this test module to the same file. Enable the SDK's `testutils` feature in the crate's dev-dependencies before running `cargo test`.
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use soroban_sdk::Env;
+
+    #[test]
+    fn doubles_valid_amounts_and_returns_typed_errors() {
+        let env = Env::default();
+        let id = env.register(Quote, ());
+        let client = QuoteClient::new(&env, &id);
+
+        assert_eq!(client.double(&7), 14);
+        assert_eq!(client.try_double(&0), Err(Ok(QuoteError::InvalidAmount)));
+        assert_eq!(client.try_double(&-1), Err(Ok(QuoteError::InvalidAmount)));
+        assert_eq!(client.try_double(&i128::MAX), Err(Ok(QuoteError::Overflow)));
+    }
+}
+```
+
+The generated Rust client's regular method returns the successful value and panics on a contract failure. Its `try_double` variant lets a caller inspect the failure: `Err(Ok(QuoteError::...))` is the recognized contract error, while the other error cases represent failures that could not be converted to that enum. This generated Rust client is useful in tests and cross-contract code; it is not a browser API.
+
+## Generate the browser client from the same contract
+
+Build the contract and generate TypeScript bindings from its WASM specification. These commands do not deploy or submit a transaction.
+
+```bash
+cargo build --release --target wasm32v1-none
+stellar contract bindings typescript \
+  --wasm target/wasm32v1-none/release/quote.wasm \
+  --output-dir packages/quote
+```
+
+Install the generated package's dependencies and follow its setup instructions. Construct its `Client` with the deployed contract ID, correct RPC URL, and network passphrase. Keep the generated client and its SDK dependency together; do not substitute an unrelated SDK version or assume a generic hook returns the same result type.
+
+## Handle known errors separately from request failures
+
+The example below uses the generated `Client` type from the preceding command. With bindings that expose `contract.Result`, check `isErr()` before calling `unwrap()`. A known error carries the generated message through `unwrapErr()`; transport errors and unrecognized failures still need `try` / `catch`.
+
+```typescript
+import type { Client } from './packages/quote/src/index';
+
+type Preview =
+  | { status: 'ready'; amount: string }
+  | { status: 'invalid'; message: string }
+  | { status: 'unavailable'; message: string };
+
+export async function previewDouble(
+  client: Client,
+  amount: bigint
+): Promise<Preview> {
+  try {
+    const transaction = await client.double({ amount });
+    const result = transaction.result;
+
+    if (result.isErr()) {
+      return { status: 'invalid', message: result.unwrapErr().message };
+    }
+
+    return { status: 'ready', amount: result.unwrap().toString() };
+  } catch {
+    return {
+      status: 'unavailable',
+      message: 'Could not preview the amount. Check the connection and retry.',
+    };
+  }
+}
+```
+
+This only previews a read-only method through simulation. It does not prove that a later state-changing transaction has succeeded. For a write method, check the final transaction result after submission as well; network or contract state can change between simulation and execution.
+
+Here the error messages come from this contract's specification. SDK versions can use the enum's doc comment or name when decoding, so do not compare message text with the generated error constants to identify numeric codes. Keep doc comments suitable for display; use your binding's documented error representation if you need localized messages or code-specific actions.
+
+## Recovery and compatibility
+
+| Result                             | UI response                                                                   |
+| ---------------------------------- | ----------------------------------------------------------------------------- |
+| `InvalidAmount`                    | Ask for a positive amount; keep the entered value available to edit           |
+| `Overflow`                         | Ask for a smaller amount; do not silently truncate it                         |
+| Unknown code or invocation failure | Show a generic failure and retain diagnostic context outside the user message |
+| RPC unavailable                    | Offer a deliberate retry; do not claim this is a contract validation error    |
+
+Do not classify failures by searching a human-readable RPC message for a number. Use the error decoding provided by the binding generated for that contract. If you use the lower-level hook in [useSorobanContract](/docs/hooks/use-soroban-contract), inspect its documented error shape instead of assuming that it returns `contract.Result`.
+
+To check the example, verify `7` produces `14`, zero and negative inputs select the validation branch, and a value above half of `i128::MAX` selects overflow. Also test an unreachable RPC endpoint: it should select the unavailable branch rather than inventing a contract error. Never put signing secrets or raw signed payloads into the displayed error message.
+
+## Related
+
+- [Contracts quick start](/docs/getting-started/contracts-quick-start)
+- [Hook error handling](/docs/guides/hook-error-handling)
+- [Stellar contract error reference](https://developers.stellar.org/docs/learn/fundamentals/contract-development/errors-and-debugging/errors)
+- [Generate TypeScript bindings](https://developers.stellar.org/docs/build/apps/guestbook/bindings)
