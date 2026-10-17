@@ -177,6 +177,10 @@ export const sidebarNav: SidebarSection[] = [
         href: '/docs/guides/soroban-resources-consolidated-guide',
       },
       {
+        title: 'Tutorial Checkpoints',
+        href: '/docs/guides/tutorial-checkpoints',
+      },
+      {
         title: 'Error Handling Patterns',
         href: '/docs/guides/error-handling-patterns',
       },
