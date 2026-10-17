@@ -1,4 +1,4 @@
-/**
+/*
  * Sidebar Configuration
  *
  * Guides reorganised per issue #634 into three groups:
@@ -39,9 +39,9 @@ export type SidebarSection = {
 };
 
 export const sidebarNav: SidebarSection[] = [
-  // -------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   // Getting Started
-  // -------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   {
     title: 'Getting Started',
     icon: <Rocket className="h-5 w-5" />,
@@ -63,9 +63,9 @@ export const sidebarNav: SidebarSection[] = [
     ],
   },
 
-  // -------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   // CLI
-  // -------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   {
     title: 'CLI',
     icon: <Zap className="h-5 w-5" />,
@@ -73,7 +73,7 @@ export const sidebarNav: SidebarSection[] = [
     pages: [
       { title: 'Overview', href: '/docs/cli/overview' },
       { title: 'Commands', href: '/docs/cli/commands' },
-      { title: 'CLI Reference', href: '/docs/cli/reference' },
+      { title: 'CLY Reference', href: '/docs/cli/reference' },
       { title: 'Cheat Sheet', href: '/docs/cli/cheat-sheet' },
       { title: 'Flags & Options', href: '/docs/cli/flags' },
       { title: 'Scaffolding Templates', href: '/docs/cli/templates' },
@@ -96,9 +96,9 @@ export const sidebarNav: SidebarSection[] = [
     ],
   },
 
-  // -------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   // (a) Product Guides — Nextellar-specific how-to content
-  // -------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   {
     title: 'Product Guides',
     icon: <BookOpen className="h-5 w-5" />,
@@ -251,9 +251,9 @@ export const sidebarNav: SidebarSection[] = [
     ],
   },
 
-  // -------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   // SDK & Reference
-  // -------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   {
     title: 'SDK & Reference',
     icon: <Database className="h-5 w-5" />,
@@ -266,9 +266,9 @@ export const sidebarNav: SidebarSection[] = [
     ],
   },
 
-  // -------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   // Hooks
-  // -------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   {
     title: 'Hooks',
     icon: <Component className="h-5 w-5" />,
@@ -289,9 +289,9 @@ export const sidebarNav: SidebarSection[] = [
     ],
   },
 
-  // -------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   // Integrations
-  // -------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   {
     title: 'Integrations',
     icon: <Plug className="h-5 w-5" />,
@@ -312,9 +312,9 @@ export const sidebarNav: SidebarSection[] = [
     ],
   },
 
-  // -------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   // (c) Docs Contributing — docs-site infrastructure and process
-  // -------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   {
     title: 'Docs Contributing',
     icon: <FileText className="h-5 w-5" />,
@@ -353,82 +353,13 @@ export const sidebarNav: SidebarSection[] = [
         href: '/docs/guides/navigation-configuration',
       },
       {
+        title: 'RFC Template',
+        href: '/docs/guides/rfc-template',
+      },
+      {
         title: 'MDX Custom Components',
         href: '/docs/guides/mdx-custom-components',
       },
-      { title: 'Link Validation', href: '/docs/guides/link-validation' },
-      {
-        title: 'Testing Docs Changes',
-        href: '/docs/guides/testing-docs-changes',
-      },
-      { title: 'Editor Setup', href: '/docs/guides/editor-setup' },
-      {
-        title: 'Diagram & Image Style',
-        href: '/docs/guides/diagram-image-style',
-      },
-      {
-        title: 'Screenshot Workflow',
-        href: '/docs/guides/screenshot-workflow',
-      },
-      {
-        title: 'Docs Build Performance',
-        href: '/docs/guides/docs-build-performance-tips',
-      },
-      {
-        title: 'Performance Budget',
-        href: '/docs/guides/performance-budget-guide',
-      },
-      {
-        title: 'Release Notes Workflow',
-        href: '/docs/guides/release-notes-workflow',
-      },
-      {
-        title: 'Versioned Docs Strategy',
-        href: '/docs/guides/versioned-docs-strategy',
-      },
-      { title: 'Redirects Map', href: '/docs/guides/redirects-map' },
-      { title: 'Search Experience', href: '/docs/guides/search' },
-      {
-        title: 'Offline Reading Export',
-        href: '/docs/guides/offline-reading',
-      },
-      {
-        title: 'Streaming Payments from Horizon',
-        href: '/docs/guides/streaming-payments-horizon',
-      },
-      { title: 'Claimable Balances', href: '/docs/guides/claimable-balances' },
-      {
-        title: 'Time Locked Transactions',
-        href: '/docs/guides/time-locked-transactions',
-      },
-      {
-        title: 'Horizon vs Soroban RPC',
-        href: '/docs/guides/horizon-vs-soroban-rpc',
-      },
-      {
-        title: 'Accessibility Guide',
-        href: '/docs/guides/accessibility-guide',
-      },
-      {
-        title: 'Internationalization Guide',
-        href: '/docs/guides/internationalization-guide',
-      },
-    ],
-  },
-
-  // -------------------------------------------------------------------------
-  // Components
-  // -------------------------------------------------------------------------
-  {
-    title: 'Components',
-    icon: <Paintbrush className="h-5 w-5" />,
-    defaultOpen: false,
-    pages: [
-      {
-        title: 'ConnectWalletButton',
-        href: '/docs/components/connect-wallet-button',
-      },
-      { title: 'useWindowSize', href: '/docs/components/use-window-size' },
     ],
   },
 ];
