@@ -14,11 +14,11 @@ Detailed reference for all command-line options available in Nextellar CLI.
 
 Generate a TypeScript project (default).
 
-````bash
+```bash
 nextellar my-app --typescript
 ## or
 nextellar my-app -t
-```css
+```
 
 **Default:** `true`
 **Type:** Boolean
@@ -32,7 +32,7 @@ Generate a JavaScript project.
 nextellar my-app --javascript
 ## or
 nextellar my-app -j
-```css
+```
 
 **Default:** `false`
 **Type:** Boolean
@@ -48,7 +48,7 @@ Override the default Horizon endpoint.
 
 ```bash
 nextellar my-app --horizon-url https://horizon.stellar.org
-```css
+```
 
 **Default:** `https://horizon-testnet.stellar.org`
 **Type:** String (URL)
@@ -66,7 +66,7 @@ Override the default Soroban RPC endpoint.
 
 ```bash
 nextellar my-app --soroban-url https://soroban-rpc.stellar.org
-```css
+```
 
 **Default:** `https://soroban-testnet.stellar.org`
 **Type:** String (URL)
@@ -119,7 +119,7 @@ Skip automatic dependency installation.
 
 ```bash
 nextellar my-app --skip-install
-````
+```
 
 **Default:** `false`
 **Type:** Boolean
@@ -131,10 +131,10 @@ nextellar my-app --skip-install
 
 **After Skipping:**
 
-````bash
+```bash
 cd my-app
 npm install  # or yarn install, pnpm install
-```css
+```
 
 ### --package-manager
 
@@ -142,7 +142,7 @@ Choose which package manager to use.
 
 ```bash
 nextellar my-app --package-manager pnpm
-```css
+```
 
 **Default:** Auto-detected
 **Type:** String
@@ -161,7 +161,7 @@ Set installation timeout in milliseconds.
 
 ```bash
 nextellar my-app --install-timeout 3600000
-```css
+```
 
 **Default:** `1200000` (20 minutes)
 **Type:** Number (milliseconds)
@@ -269,7 +269,7 @@ List all available features that can be added to the project.
 nextellar add --list
 ## or
 nextellar add -l
-````
+```
 
 **Type:** Boolean
 **Status:** Supported
@@ -494,11 +494,11 @@ nextellar deploy --dry-run --size-threshold 20971520
 
 Display CLI version.
 
-````bash
+```bash
 nextellar --version
 ## or
 nextellar -v
-```css
+```
 
 **Output:** Version number (e.g., `1.0.4`)
 
@@ -510,7 +510,7 @@ Display help information.
 nextellar --help
 ## or
 nextellar -h
-````
+```
 
 **Output:** Complete usage guide with all options
 
@@ -594,11 +594,11 @@ nextellar my-dapp-2024
 
 **Invalid:**
 
-````bash
+```bash
 nextellar "my app"        # Spaces not allowed
 nextellar my@app          # Special characters not allowed
 nextellar ../my-app       # Path traversal not allowed
-```bash
+```
 
 ### URLs
 
@@ -617,4 +617,3 @@ nextellar ../my-app       # Path traversal not allowed
 - [CLI Commands](/docs/cli/commands) - Command reference
 - [Configuration](/docs/cli/configuration) - Project configuration
 - [Troubleshooting](/docs/troubleshooting/common-error-messages) - Common issues
-````

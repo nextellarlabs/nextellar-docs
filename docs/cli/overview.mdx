@@ -20,9 +20,9 @@ Nextellar CLI is a one-command solution that:
 
 ## Quick Start
 
-````bash
-npx nextellar my-stellar-app
 ```bash
+npx nextellar my-stellar-app
+```
 
 That's it! Your Stellar dApp is ready in under 2 minutes.
 
@@ -57,7 +57,7 @@ No installation required. Run directly:
 
 ```bash
 npx nextellar my-app
-````
+```
 
 **Pros:**
 
@@ -73,10 +73,10 @@ npx nextellar my-app
 
 Install once, use everywhere:
 
-````bash
+```bash
 npm install -g nextellar
 nextellar my-app
-```bash
+```
 
 **Pros:**
 
@@ -96,7 +96,7 @@ nextellar my-app
 ```bash
 yarn global add nextellar
 nextellar my-app
-````
+```
 
 **pnpm:**
 
@@ -159,11 +159,11 @@ npx nextellar my-app \
 
 ## Skip Installation
 
-````bash
+```bash
 npx nextellar my-app --skip-install
 cd my-app
 pnpm install  # Install with your preferred package manager
-```css
+```
 
 ### Verify Environment
 
@@ -171,7 +171,7 @@ Before scaffolding, confirm your machine meets the requirements:
 
 ```bash
 npx nextellar doctor
-````
+```
 
 Use `nextellar doctor --json` in CI pipelines. See [CLI Commands](/docs/cli/commands) for full output examples.
 
@@ -188,11 +188,11 @@ Nextellar respects these environment variables:
 
 ### Check Version
 
-````bash
+```bash
 npx nextellar --version
 ## or
 nextellar -v
-```bash
+```
 
 ## Update to Latest
 
@@ -200,7 +200,7 @@ nextellar -v
 
 ```bash
 npx nextellar@latest my-app
-````
+```
 
 **Global install:**
 
@@ -244,7 +244,7 @@ sudo chown -R $(whoami) ~/.npm
 
 **Solution:**
 
-````bash
+```bash
 ## Increase timeout
 npx nextellar my-app --install-timeout 3600000
 
@@ -252,7 +252,7 @@ npx nextellar my-app --install-timeout 3600000
 npx nextellar my-app --skip-install
 cd my-app
 npm install
-```bash
+```
 
 ## Next Steps
 
@@ -265,25 +265,25 @@ npm install
     <span className="text-sm text-muted-foreground block">Detailed command reference</span>
   </a>
 
-  <a
-    href="/docs/cli/options"
-    className="block p-4 border rounded-lg hover:border-primary transition-colors"
-  >
-    <h4 className="font-semibold mb-2">CLI Options</h4>
-    <span className="text-sm text-muted-foreground block">
-      All available flags and parameters
-    </span>
-  </a>
+<a
+  href="/docs/cli/options"
+  className="block p-4 border rounded-lg hover:border-primary transition-colors"
+>
+  <h4 className="font-semibold mb-2">CLI Options</h4>
+  <span className="text-sm text-muted-foreground block">
+    All available flags and parameters
+  </span>
+</a>
 
-  <a
-    href="/docs/cli/configuration"
-    className="block p-4 border rounded-lg hover:border-primary transition-colors"
-  >
-    <h4 className="font-semibold mb-2">Configuration</h4>
-    <span className="text-sm text-muted-foreground block">
-      Customize your setup
-    </span>
-  </a>
+<a
+  href="/docs/cli/configuration"
+  className="block p-4 border rounded-lg hover:border-primary transition-colors"
+>
+  <h4 className="font-semibold mb-2">Configuration</h4>
+  <span className="text-sm text-muted-foreground block">
+    Customize your setup
+  </span>
+</a>
 
   <a
     href="/docs/troubleshooting/common-error-messages"
@@ -299,4 +299,3 @@ npm install
 - [Installation Guide](/docs/getting-started/installation) - Detailed installation instructions
 - [Quick Start](/docs/getting-started/quick-start) - Build your first app
 - [Project Structure](/docs/getting-started/installation#project-structure) - Understand the generated code
-````
