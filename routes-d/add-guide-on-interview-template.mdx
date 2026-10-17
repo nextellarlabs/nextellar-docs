@@ -1,0 +1,98 @@
+---
+title: Add a Guide on the Interview Template
+description: Document the interview template for docs authors — outline, example, and tone.
+date: 2026-07-27
+---
+
+# Add a Guide on the Interview Template
+
+This guide documents the interview template for docs authors. Use it when you want to capture a conversation with a maintainer, contributor, or user and turn it into a published guide.
+
+---
+
+## Section Outline
+
+Every interview guide follows the same six sections. Keep the headings exactly as written so readers can scan across guides.
+
+1. **Who this is for** — the audience and the problem the guide solves.
+2. **Prerequisites** — tools, versions, and accounts readers need before starting.
+3. **The interview** — the questions and answers, edited for clarity but keeping the speaker's voice.
+4. **Walkthrough** — the step-by-step process derived from the interview.
+5. **Gotchas** — the mistakes the interviewee warned about.
+6. **Next steps** — links to related guides and reference pages.
+
+---
+
+## Short Example
+
+The following shows the shape of a completed interview guide. The content is illustrative; replace it with the actual interview material.
+
+```mdx
+---
+title: Deploying to Vercel from the CLI
+description: An interview with a Nextellar maintainer on shipping a Stellar dApp with the CLI.
+date: 2026-07-27
+---
+
+## Who this is for
+
+Developers who already have a working dApp and want to deploy it with the Nextellar CLI.
+
+## Prerequisites 
+
+Node 20 or later, a pn pm workspace, and a Vercel account.
+
+## The interview
+
+> **What is the biggest mistake you see in first deploys?**
+>
+> People forget to set the Horizon URL environment variable. The build passes, but the app calls the wrong network at runtime.
+
+## Walkthrough
+
+1. Run `pn pm build:content` to confirm the docs build.
+2. Set `NEXT_PUBLIC_HORIZON_URL` in the Vercel dashboard.
+3. Deploy with `pn pm deploy`.
+
+## Gotchas
+
+- Missing environment variables fail silently at runtime.
+- Preview deployments need separate variables from production.
+
+## Next steps
+
+- [Deployment](/docs/guides/deployment)
+- [Testing Docs Changes](/docs/guides/testing-docs-changes)
+```
+
+---
+
+## Suggested Tone
+
+Use the same voice as the rest of the guides:
+
+- **Second person, active voice.** “ Set the environment variable,” not “The environment variable should be set.”
+- **Short sentences.** Keep paragraphs to two or three sentences.
+- **Quote the interviewee directly.** Preserve their words in blockquotes and edit only for clarity.
+- **No hype.** Describe what the tool does, not how revolutionary it is.
+- **Define jargon on first use.** Link to the [Glossary](/docs/guides/glossary) instead of repeating definitions.
+
+---
+
+## Verifying the Guide Renders Correctly
+
+Before opening a pull request, run the following checks from the repo root:
+
+```bash
+pnpm build:content
+pn pm check:links
+```
+
+Both commands must exit without errors. Then open the rendered page in the dev server and confirm:
+
+- The frontmatter includes `title`, `description`, and `date`.
+- All six section headings are present and in order.
+- Every internal link resolves to an existing page.
+- Code blocks render with syntax highlighting and no horizontal overflow.
+
+See [Testing Docs Changes](/docs/guides/testing-docs-changes) for the full checklist.
