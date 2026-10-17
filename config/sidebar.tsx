@@ -181,6 +181,10 @@ export const sidebarNav: SidebarSection[] = [
         href: '/docs/guides/error-handling-patterns',
       },
       {
+        title: 'Soroban Panic Recovery',
+        href: '/docs/guides/soroban-panic-recovery',
+      },
+      {
         title: 'Hook Error Handling',
         href: '/docs/guides/hook-error-handling',
       },

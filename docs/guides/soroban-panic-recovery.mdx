@@ -1,0 +1,204 @@
+---
+title: Soroban Panic Recovery
+description: Detect panics from Soroban contract calls and recover gracefully in your Nextellar app.
+date: 2026-07-27
+---
+
+# Soroban Panic Recovery
+
+When a Soroban contract panics, the host traps the execution and returns an error instead of a value. The transaction may still land on ledger (consuming a fee), but the invocation result is a failure your client must detect and handle. This guide shows how to detect panics from the client, suggests recovery patterns, and walks through a small example.
+
+---
+
+## What a panic looks like
+
+Soroban contracts panic via constructs like `panic!()`, failed `require(!)`, out-of-bounds access, or an unhandled conversion. The host reports the failure in two places:
+
+- **Submit response:** the `transactionResult` reports a non-success status and includes a diagnostic event list.
+- **Simulation response:** `sorobanRest.Server.simulateTransaction` surfaces the same error before you spend a fee.
+
+A panic typically appears as a `transactionResult.resultX.array[0].sorobanMeta.ext === "trapped"` with a message such as `panicked at called: unauthorized`, or as an `invokeHostFunctionError` in the diagnostic events.
+
+## Detecting panics from the client
+
+The client SDK does not throw on a contract panic by default — it returns a result object. Inspect it explicitly:
+
+```ts import { Contract, TransactionBuilder, sorobanRest, NativeToInternal } from "@stellar-stellar-sdk";
+
+const server = new sorobanRest.Server(SOROBAN_RPC_URL);
+const contract = new Contract(CONTRACT_ID);
+
+export async function invokeSafely(publicKey: string) {
+  const account = await server.getAccount(publicKey);
+  const tx = new TransactionBuilder(account, {
+    fee: "100",
+    networkPassphrase: Networks.TESTNET,
+  })
+    .addOperation(contract.call("transfer", NativeToInternal.address(publicKey), NativeToInternal.i128("100")))
+    .setTimeout(30)
+    .build();
+
+  const sim = await server.simulateTransaction(tx);
+  const simResult = sim.results ? [0] : undefined;
+
+  if (simResult && "resultX" in simResult && simResult.resultX) {
+    const meta = simResult.resultX.array[0]?.sorobanMeta;
+    if (meta?.ext === "trapped") {
+      throw new SorobanPanicError(meta.ext, simResult.resultX);
+    }
+  }
+
+  return tx;
+}
+```
+
+The key checks are:
+
+- *(Simulate first.** It is cheaper to detect a panic during simulation than to submit a transaction that will fail.
+- **Inspect `sorobanMeta.ext`.** The `ext` field is `trapped` for panics and `void` for normal returns.
+- **Check the diagnostic events.** When `ext` is trapped, the diagnostic events include the panic message and contract line.
+
+## Recovery patterns
+
+Panics are not always bugs — they are often intentional guards. Choose a recovery pattern based on the panic message and your user experience.
+
+### 1. Map known panics to user-facing errors
+
+Contracts typically panic with stable messages. Map them to domain errors so your UI can respond appropriately:
+
+```ts
+const PANIC_MESSAGES: Record<string, string> = {
+  "unauthorized": "You do not have permission for this action.",
+  "insufficient balance": "Your balance is too low for this transfer.",
+  "already initialized": "This contract is already set up.",
+};
+
+export function describePanic(message: string): string {
+  for (const [key, value] of Object.entries(PANIC_MESSAGES)) {
+    if (message.includes(key)) return value;
+  }
+  return "Something went wrong. Please try again.";
+}
+```
+
+### 2. Retry with backoff for transient panics
+
+Panics caused by contention or timeouts are worth retrying. Do not retry panics that represent logical failures (unauthorized, balance too low) — they will fail again.
+
+```ts
+export async function retryOnTransientPanic<T>(
+  fn: () => Promise<T>,
+  attempts = 3,
+): Promise<T> {
+  let lastError: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err;
+      if (!(err instanceof SorobanPanicError)) throw err;
+      if (!/timeout|contention|congested/i.test(err.message)) throw err;
+      await new Promise((r) => setTimeout(r, 2 ** i * 250));
+    }
+  }
+  throw lastError;
+}
+```
+
+### 3. Surface the panic message in development
+
+In development, show the raw panic message and contract IDso you can fix the contract. In production, log the details to your telemetry sink and show a safe message to the user.
+
+### 4. Preflight with simulation
+
+Always simulate before signing. Simulation is free and catches the majority of panics before they cost a fee. See [Testing Horizon & Soroban](/docs/guides/testing-horizon-soroban) for test setup and [Cross-Contract Calls](/docs/guides/cross-contract-calls) for how panics propagate across contract boundaries.
+
+## A small example
+
+This example wraps a contract call in a hook that detects panics, maps them to a user-facing message, and retries transient failures.
+
+```ts
+import { useState } from "react";
+import { Contract, TransactionBuilder, sorobanRest, NativeToInternal, Networks } from "@stellar-stellar-sdk";
+
+class SorobanPanicError extends Error {
+  constructor(readonly panicMessage: string) {
+    super(panicMessage);
+    this.name = "SorobanPanicError";
+  }
+}
+
+const server = new sorobanRest.Server(SOROBAN_RPC_URL);
+const contract = new Contract(CONTRACT_ID);
+
+async function buildTransfer(publicKey: string, amount: string) {
+  const account = await server.getAccount(publicKey);
+  return new TransactionBuilder(account, {
+    fee: "100",
+    networkPassphrase: Networks.TESTNET,
+  })
+    .addOperation(contract.call("transfer", NativeToInternal.address(publicKey), NativeToInternal.i128(amount)))
+    .setTimeout(30)
+    .build();
+}
+
+async function simulateTransfer(publicKey: string, amount: string) {
+  const tx = await buildTransfer(publicKey, amount);
+  const sim = await server.simulateTransaction(tx);
+  const result = sim.results?.[0];
+  if (result && "resultX" in result && result.resultX) {
+    const meta = result.resultX.array[0]?.sorobanMeta;
+    if (meta?.ext === "trapped") {
+      const msg = sim.events?.find((e => e.type === "diagnostic")?.body?.v0?.value?.string;
+      throw new SorobanPanicError(msg ?? "unknown panic");
+    }
+  }
+  return tx;
+}
+
+export function useTransfer() {
+  const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit(publicKey: string, amount: string) {
+    setStatus("loading");
+    setError(null);
+    try {
+      const tx = await simulateTransfer(publicKey, amount);
+      // Sign tx with the user's wallet and submit here.
+      setStatus("idle");
+    } catch (err) {
+      if (err instanceof SorobanPanicError) {
+        setError(describePanic(err.message));
+      } else {
+        setError("Unexpected error. Please try again.");
+      }
+      setStatus("error");
+    }
+  }
+
+  return { status, error, submit };
+}
+```
+
+This hook demonstrates the full loop:
+
+1. Build and simulate the transaction.
+2. Detect `sorobanMeta.ext === "trapped"` and throw a `SorobanPanicError`.
+3. Map the panic message to a human-readable error.
+4. Surface the error to the UI without exposing raw contract internals.
+
+## Checklist
+
+- [] Simulate before signing to catch panics for free.
+- [] Inspect `sorobanMeta.ext` on every simulation result.
+- [] Map known panic messages to user-facing errors.
+- [] Retry only transient panics (timeout, contention).
+- [] Log the raw panic message and contract ID for debugging.
+
+## Related
+
+- [Hook Error Handling](/docs/guides/hook-error-handling) — common failure modes and recovery patterns.
+- [Transaction Lifecycle](/docs/guides/transaction-lifecycle) — build, sign, submit, and confirm.
+- [Testing Horizon & Soroban](/docs/guides/testing-horizon-soroban) — MSW mocking and Docker integration.
+- [Cross-Contract Calls](/docs/guides/cross-contract-calls) — client and host invocation, auth propagation.
