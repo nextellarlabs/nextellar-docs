@@ -261,29 +261,52 @@ nextellar my-app -y
 
 The following options apply to the `nextellar add` command:
 
-### --list, -l
+### --list
 
-List all available features that can be added to the project.
+List every feature that can be added to the project. The CLI groups the output into two sections — `Hooks & providers:` and `UI components:` — so it is clear which entries are logic and providers and which are UI widgets.
 
 ```bash
 nextellar add --list
-## or
-nextellar add -l
-````
+```
+
+Output starts with an `Available features:` header and lists each feature id followed by a short description. A group is printed only when it has at least one feature:
+
+```text
+Available features:
+
+Hooks & providers:
+  wallet                   Wallet connection: WalletProvider, WalletConnectButton, stellar-wallet-kit, useStellarWallet
+  balances                 Account balances: useStellarBalances hook
+  payments                 Send payments: useStellarPayment hook
+  history                  Transaction history: useTransactionHistory hook
+  trustlines               Trust lines: useTrustlines hook
+  defi                     DEX / order book: useOfferBook and useTrustlines
+  contracts                Soroban contracts: useSorobanContract, useSorobanEvents
+  contract-event-history   Historical Soroban contract events with pagination: useContractEventHistory hook
+
+UI components:
+  network-switcher         NetworkSwitcher component (testnet/mainnet toggle)
+  balance-display          BalanceDisplay component (renders useStellarBalances)
+  send-form                SendForm component (renders useStellarPayment)
+  receive-form             ReceiveForm component (QR code + address display for incoming payments)
+  transaction-list         TransactionList component (renders useTransactionHistory)
+  contract-call            ContractCallForm + ContractCallPreview components (build, simulate, and submit a Soroban contract call)
+  components               All Nextellar UI components and the hooks they render
+```
+
+Pass any listed id to `nextellar add` to install it along with its dependencies. See [Add Command Feature Catalog](/docs/cli/add-feature-catalog) for what each feature installs.
 
 **Type:** Boolean
 **Status:** Supported
 
 ---
 
-## --force, -f
+## --force
 
 Force addition of a feature, overwriting existing files without prompting.
 
 ```bash
 nextellar add freighter --force
-## or
-nextellar add freighter -f
 ```
 
 **Default:** `false`
