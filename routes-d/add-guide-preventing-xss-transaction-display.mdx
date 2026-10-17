@@ -1,0 +1,80 @@
+---
+title: Preventing XSS in Transaction Display
+description: Safe rendering practices for Stellar transaction data, including memos and user-provided fields.
+date: 2026-07-27
+tags: ["security", "stellar", "react"]
+---
+
+# Preventing XSS in Transaction Display
+
+Transaction data is attacker-controlled. Any field that originates from a signer -- memos, addresses, asset codes, and custom Soroban event payloads -- should be treated as untrusted input when rendered in your frontend. This guide covers the practices that keep that data from becoming executable markup.
+
+## Why transaction data is risky
+
+A transaction memo is an arbitrary byte string that any signer can set. The same is true for asset codes, account labels, and custom event data. If your dashboard renders those values without escaping, a transaction can inject markup into your page and execute scripts in the context of the viewing user.
+
+The danger is not limited to `<script>`. Event handler attributes, javascript: URLs, and `data:` URLs all execute code when rendered unsafely.
+
+## Escape every user-provided field
+
+The default safe path in React is text interpolation. React escapes strings before they reach the DOM, so `<span>{memo}</span>` is safe even when the memo contains markup.
+
+The risk appears when you bypass escaping:
+
+- `dangerouslySetInnerHTML` on any element that displays transaction data.
+- Manually building HTML strings and injecting them into the page.
+- Rendering transaction data inside an attribute that accepts a URL, such as `a href={memo}` or `a src={memo}`.
+
+Avoid all three. If you must render rich text, route it through a sanitizer such as DOMPurify with an explicit allowlist, and never feed raw transaction data into it without a sanitizing step.
+
+## Warn about memo rendering
+
+Memos deserve special attention because they are free-form bytes controlled by the sender. Two practical rules:
+
+1. **Render memos as text, not HTML.** Treat the memo as an opaque string and let React escape it.
+2. **Never interpret memos as URLs or expressions.** A memo that looks like `invoid()` or `javascript:` is still just text.
+
+Additionally, consider truncating very long memos and stripping control characters before display. This improves legibility and reduces the chance of homoglyph attacks in your UI
+
+## Small example
+
+The following component renders a transaction memo safely. It relies on React's default escaping and does not use `dangerouslySetInnerHTML`.
+
+```tsx import type { FC } from "react";
+
+type TransactionMemoProps = {
+  memo: string | null | undefined;
+};
+
+const MAX_MEMO_LENGTH = 120;
+
+export const TransactionMemo: FC<TransactionMemoProps> = ( { memo } ) => {
+  if (!memo) {
+    return <span className="text-muted-foreground">No memo</span>;
+  }
+
+  const safeMemo = memo.replace(/[\u0000-\u001F\u007F]/g, "");
+  const truncated =
+    safeMemo.length > MAX_MEMO_LENGTH ? `${safeMemo.slice(0, MAX_MEMO_LENGTH)}…` : safeMemo;
+
+  // React escapes the string before it reaches the DOM.
+  return <span className="font-mono text-sm">{truncated}</span>;
+};
+Safe rendering of a transaction memo.
+```
+
+The same principle applies to addresses and asset codes. Render them as text inside a tag and avoid building hrefs from raw transaction fields unless you validate the value against a known scheme.
+
+## Checklist
+
+- [x] Render user-provided fields as text interpolation.
+- [x] Avoid `dangerouslySetInnerHTML` for transaction data.
+- [x] Treat memos as opaque strings and never as URLs or expressions.
+- [x] Sanitize rich text with an allowlist before rendering.
+- [x] Truncate and strip control characters from long memos.
+
+## Further reading
+
+- [Transaction Lifecycle](/docs/guides/transaction-lifecycle)
+- [Hook Error Handling](/docs/guides/hook-error-handling)
+- [Stellar dApp Analytics Pipeline](/docs/guides/stellar-dapp-analytics-pipeline)
