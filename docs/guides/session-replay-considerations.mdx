@@ -1,0 +1,73 @@
+---
+title: Session Replay Considerations for Wallet UIs
+description: Evaluate the privacy tradeoffs of session replay in Stellar wallet interfaces and apply practical exclusion and masking rules.
+date: 2026-10-17
+tags: [wallet, privacy, analytics, security]
+---
+
+# Session Replay Considerations for Wallet UIs
+
+Session replay can help teams reproduce confusing wallet connection and transaction flows. It can also record a user's financial activity and identifying information in a third-party service. Treat replay as sensitive data collection, not as a harmless debugging switch. Decide what is necessary to observe, disclose it appropriately, and exclude sensitive flows before enabling recording.
+
+## Benefits and Tradeoffs
+
+Replay can show where a user gets stuck, whether an error message is visible, and how a flow behaves across devices. In a wallet UI, the same recording may reveal which account a user controls, when they transact, and what they intended to send. A public Stellar address and its ledger activity may become identifying when linked to a replay, IP address, account profile, or support request.
+
+Replay vendors may receive DOM snapshots, interaction events, URLs, browser details, and network metadata. Depending on the SDK and configuration, they may also capture text, form values, clipboard content, or rendered canvas content. Review the vendor's collection, retention, access, and data-location practices. Determine whether notice or consent is required for your users and jurisdictions; replay should remain off until your product has made that determination.
+
+## Wallet-Specific Privacy Risks
+
+- **Credentials and recovery material:** A recovery phrase, private key, password, or authentication code must never enter a recording.
+- **Transaction intent:** Recipient addresses, asset amounts, memo text, transaction details, and unsigned transaction data can expose financial relationships even before anything is submitted on-chain.
+- **Wallet identity:** Public keys, balances, asset holdings, and transaction history can connect an otherwise pseudonymous wallet to a person.
+- **Incidental personal data:** Names, email addresses, support messages, notifications, clipboard values, and URL query parameters may be captured outside the main wallet form.
+- **Re-identification:** A replay combined with timestamps, IP addresses, device information, or public ledger events can reveal more than any one data source alone.
+
+Never rely on a vendor's default settings to protect wallet data. Client-side masking can also fail if a recording SDK captures data before the UI is masked, or if a new component is added without the right attribute.
+
+## Exclusion and Masking Rules
+
+Use a deny-by-default policy and apply protections at both the recording configuration and UI levels:
+
+1. **Do not record sensitive flows.** Exclude recovery and key management, wallet connection and account selection, transaction composition and signing, payment confirmation, and any screen showing balances or account history. If the replay tool cannot reliably exclude these routes or components, do not use it in the wallet app.
+2. **Mask all inputs by default.** Explicitly mask text, number, search, and content-editable fields. Exclude password, recovery, and key-entry controls entirely rather than merely obscuring their displayed values.
+3. **Block sensitive regions.** Block full components containing addresses, balances, transaction data, QR codes, notifications, or personal information. Prefer blocking over masking when surrounding structure or interaction timing could disclose sensitive details.
+4. **Reduce metadata.** Avoid recording full URLs, query strings, hash fragments, clipboard data, console output, and network request or response bodies. Disable capture of canvas, images, and other rendered content where the SDK supports it.
+5. **Minimize access and retention.** Restrict replay access to staff who need it, set the shortest useful retention period, and periodically review access and configuration.
+6. **Verify the actual recording.** Use synthetic accounts and test values to inspect saved replays and vendor payloads. Test every sensitive flow after SDK, UI, and configuration changes; do not assume a visible mask proves the underlying data was not sent.
+
+These controls are defense in depth, not a guarantee that recordings are anonymous or compliant. Document the data collected and its purpose, and review applicable requirements with your privacy or legal team. For broader data-handling context, see the [GDPR compliance guide](/docs/guides/gdpr-compliance).
+
+## Small Example
+
+Mark sensitive UI regions in the application, then map these conceptual selectors to the blocking and masking options supported by your replay provider. Provider APIs and the point at which they apply masking differ, so verify the resulting recording rather than copying these option names as a specific SDK contract.
+
+```tsx
+function PaymentReview({ recipient, amount }: { recipient: string; amount: string }) {
+  return (
+    <section data-replay="block" aria-label="Payment details">
+      <p>Recipient: {recipient}</p>
+      <p>Amount: {amount}</p>
+      <button type="button">Review and sign</button>
+    </section>
+  );
+}
+
+const replayPolicy = {
+  maskAllInputs: true,
+  blockSelector: '[data-replay="block"]',
+  maskSelector: '[data-replay="mask"]',
+};
+```
+
+In this example, the entire payment review is excluded instead of recording a masked address or amount. Apply the policy before initializing the SDK, confirm that blocked content is omitted from both playback and uploaded data, and keep replay disabled on routes where this cannot be verified.
+
+## Before Enabling Replay
+
+- Define a specific support or product question that replay is intended to answer.
+- Identify each data source the SDK can collect, including metadata and network capture.
+- Confirm route exclusions, component blocking, input masking, and retention in a test environment.
+- Provide appropriate notice and consent controls where required, and respect opt-outs.
+- Re-test after SDK upgrades and changes to wallet or transaction flows.
+
+If these safeguards make replay impractical, use aggregated events and redacted error reports instead. They often answer product questions without storing a video-like record of a user's wallet activity.
