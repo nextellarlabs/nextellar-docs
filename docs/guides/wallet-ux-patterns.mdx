@@ -6,7 +6,7 @@ date: 2026-06-29
 
 # Wallet UX Patterns
 
-Wallet interactions are the highest-friction points in any Stellar dApp. This guide documents the recommended UX patterns for the three core flows — connect, sign, and disconnect — along with guidance for error and empty states.
+Wallet interactions are the highest-friction points in any Stellar dApp. This guide documents the recommended UX patterns for the three core flows — connect, sign, and disconnect — along with guidance on error and empty states.
 
 ---
 
@@ -16,8 +16,8 @@ The connect flow asks the user to authorise a wallet extension or WalletConnect 
 
 ### States
 
-| State      | What to show                                                 |
-| ---------- | ------------------------------------------------------------ |
+| State      | What to show                                         |
+| ---------- | ----------------------------------------------------------- |
 | Idle       | A single "Connect Wallet" button, disabled during loading    |
 | Connecting | Button replaced by a spinner with "Connecting…" label        |
 | Connected  | Public key (truncated) and a Disconnect action               |
@@ -36,7 +36,7 @@ export function ConnectButton() {
   if (connected) {
     return (
       <span>
-        {publicKey?.slice(0, 6)}…{publicKey?.slice(-4)}
+        {publicKey?.slice(0, 6)}… {publicKey?.slice(-4)}
       </span>
     );
   }
@@ -55,11 +55,11 @@ export function ConnectButton() {
 ### Error states
 
 | Error             | Cause                               | Recovery                                     |
-| ----------------- | ----------------------------------- | -------------------------------------------- |
+| ---------------- | ----------------------------------- | --------------------------------------------- |
 | `WalletNotFound`  | Extension not installed             | Show install links for supported wallets     |
 | `UserRejected`    | User dismissed the permission popup | Keep the connect button; add a retry prompt  |
 | `NetworkMismatch` | Wallet is on wrong network          | Show the expected network and how to switch  |
-| `Timeout`         | Extension did not respond in time   | Auto-retry once; fall back to a manual retry |
+| `Timeout`        | Extension did not respond in time   | Auto-retry once; fall back to a manual retry |
 
 ---
 
@@ -69,8 +69,8 @@ The sign flow covers transaction building, requesting the wallet signature, and 
 
 ### States
 
-| State      | What to show                                                      |
-| ---------- | ----------------------------------------------------------------- |
+| State      | What to show                                                  |
+| ---------- | ----------------------------------------------------------------------- |
 | Idle       | Action button (e.g. "Send Payment") enabled when form is valid    |
 | Building   | Button disabled, optional progress indicator                      |
 | Awaiting   | "Waiting for wallet approval…" message; cancel option if possible |
@@ -89,7 +89,7 @@ export function PaymentButton({ destination, amount }: Props) {
   if (status === 'success') {
     return (
       <p>
-        Sent!{' '}
+        Sent! {' '}
         <a
           href={`https://stellar.expert/explorer/testnet/tx/${txHash}`}
           target="_blank"
@@ -117,12 +117,12 @@ export function PaymentButton({ destination, amount }: Props) {
 
 ### Error states
 
-| Error                        | Cause                                   | Recovery                                        |
-| ---------------------------- | --------------------------------------- | ----------------------------------------------- |
-| `UserRejected`               | User dismissed the signing prompt       | Show "Transaction cancelled" and reset to idle  |
-| `InsufficientBalance`        | XLM or asset balance too low            | Surface the required amount and current balance |
-| `BadSequence`                | Sequence number out of sync             | Refresh account state and rebuild the tx        |
-| `HorizonSubmitFailed`        | Network or node error during submission | Show the Horizon error code and suggest retry   |
+| Error                        | Cause                               | Recovery                                        |
+| -------------------------- | -------------------------------------- | -------------------------------------------------- |
+| `UserRejected`               | User dismissed the signing prompt           | Show "Transaction cancelled" and reset to idle  |
+| `InsufficientBalance`         | XLM or asset balance too low                | Surface the required amount and current balance |
+| `BadSequence`                | Sequence number out of sync                 | Refresh account state and rebuild the tx        |
+| `HorizonSubmitFailed`       | Network or node error during submission | Show the Horizon error code and suggest retry   |
 | `SimulationFailed` (Soroban) | Contract simulation returned an error   | Surface the contract error message              |
 
 ---
@@ -134,10 +134,10 @@ Disconnecting should clear all wallet state without requiring a page reload.
 ### States
 
 | State         | What to show                                  |
-| ------------- | --------------------------------------------- |
-| Connected     | Disconnect option accessible (menu or button) |
-| Disconnecting | Brief loading state; no spinner needed        |
-| Disconnected  | Return to the idle connect state              |
+| ------------- | ------------------------------------------------- |
+| Connected     | Disconnect option accessible (menu or button)       |
+| Disconnecting | Brief loading state; no spinner needed                |
+| Disconnected  | Return to the idle connect state                      |
 
 ### Example
 
@@ -150,14 +150,13 @@ export function AccountMenu() {
   return (
     <div>
       <p>
-        {publicKey?.slice(0, 6)}…{publicKey?.slice(-4)}
+        {publicKey?.slice(0, 6)}… {publicKey?.slice(-4)}
       </p>
       <button onClick={disconnect}>Disconnect</button>
     </div>
   );
 }
 ```
-
 Disconnect should also clear any cached state (localStorage session, balance cache) so the next connect starts fresh.
 
 ---
@@ -198,11 +197,11 @@ export function BalancePanel() {
 
 ## Summary
 
-| Flow        | Key principle                                                 |
-| ----------- | ------------------------------------------------------------- |
+| Flow        | Key principle                                         |
+| ----------- | ------------------------------------------------------------ |
 | Connect     | Non-blocking; surface install prompts for missing wallets     |
 | Sign        | Show what is being signed; distinguish rejection from failure |
-| Disconnect  | Clear all state; return to idle; no page reload needed        |
+| Disconnect  | Clear of state; return to idle; no page reload needed        |
 | Empty state | Prompt to connect; never show a blank content area            |
 
 ---
