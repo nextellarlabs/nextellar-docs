@@ -1,101 +1,64 @@
 ---
 title: Scaffolding Templates
-description: Reference page for template support in the Nextellar CLI.
-date: 2026-07-28
+description: Reference for all six TypeScript and JavaScript scaffold variants and their public CLI options.
+date: 2026-10-17
 ---
 
 # Nextellar CLI Scaffolding Templates
 
-The Nextellar CLI ships three project templates, selected with `--template`, plus a JavaScript variant and a Soroban contracts overlay.
+Nextellar has three template families, each available in TypeScript and JavaScript. The CLI's `TEMPLATE_LIST` contains the three selectable family names: `default`, `minimal`, and `defi`. Add `--javascript` to choose the corresponding JavaScript source directory.
 
 ```bash
-npx nextellar my-app --template minimal
+npx nextellar my-app --template default
+npx nextellar my-js-app --template default --javascript
 ```
 
-If you omit `--template`, the CLI uses `default`. Passing anything else fails fast:
+Omitting `--template` selects `default`; TypeScript is the default language. The JavaScript directory names (`js-template`, `js-minimal`, and `js-defi`) are internal scaffold IDs, not valid values for `--template`.
 
 ```bash
-npx nextellar my-app --template nope
-## Unknown template "nope". Available: default, minimal, defi
-```
-
-> **Not sure which template to choose?** See the [Template Comparison](/docs/cli/template-comparison) for a feature-by-feature breakdown.
-
----
-
-## Templates
-
-### `default`
-
-The full starter: wallet connection, balances, payments, trustlines, offer book, Soroban contract calls and events, transaction history, and a testnet/mainnet switcher.
-
-- **Hooks:** `useStellarWallet`, `useStellarBalances`, `useStellarPayment`, `useTrustlines`, `useOfferBook`, `useSorobanContract`, `useSorobanEvents`, `useTransactionHistory`
-- **Components:** `WalletConnectButton`, `NetworkSwitcher`
-- **Lib:** `stellar-wallet-kit.ts`, `storage.ts` (wraps `localStorage` for wallet/network persistence), `config/networks.ts`
-
-### `minimal`
-
-A lightweight starter: connect a wallet and read balances, nothing else.
-
-- **Hooks:** `useStellarWallet`, `useStellarBalances`
-- **Components:** `WalletConnectButton`
-- **Lib:** `stellar-wallet-kit.ts`, `storage.ts`
-
-### `defi`
-
-A DeFi-focused starter: wallet, payments, trustlines, and the DEX offer book.
-
-- **Hooks:** `useStellarWallet`, `useStellarBalances`, `useStellarPayment`, `useTrustlines`, `useOfferBook`
-- **Components:** `WalletConnectButton`
-- **Lib:** `stellar-wallet-kit.ts`
-
-```bash
-npx nextellar my-app --template defi
-```
-
----
-
-## Comparison
-
-|                                 | `default` | `minimal` | `defi` |
-| ------------------------------- | --------- | --------- | ------ |
-| Wallet connect                  | ✅        | ✅        | ✅     |
-| Balances                        | ✅        | ✅        | ✅     |
-| Payments                        | ✅        | –         | ✅     |
-| Trustlines                      | –         | –         | ✅     |
-| Offer book                      | –         | –         | ✅     |
-| Soroban contract calls / events | ✅        | –         | –      |
-| Transaction history             | ✅        | –         | –      |
-| Network switcher                | ✅        | –         | –      |
-| `--javascript` support          | ✅        | ✅        | ✅     |
-
-## JavaScript variant
-
-Add `-j` or `--javascript` to scaffold `.jsx` and `.js` files instead of TypeScript. All three templates include a JavaScript variant:
-
-```bash
-npx nextellar my-app --javascript
 npx nextellar my-app --template minimal --javascript
 npx nextellar my-app --template defi --javascript
 ```
 
-See [Using JavaScript](/docs/getting-started/javascript) for language differences. See [Create a JavaScript DeFi project](/docs/cli/js-defi) for the DeFi template's features and setup.
+> **Not sure which template to choose?** See the [Template Comparison](/docs/cli/template-comparison) for a feature-by-feature breakdown.
 
-## `--with-contracts` overlay
+## Six scaffold variants
 
-Add `-c` / `--with-contracts` to layer a Soroban `hello_world` contract (Rust, under `contracts/`) on top of any template. It also adds `contracts:build` / `contracts:test` npm scripts and a `NEXT_PUBLIC_HELLO_WORLD_CONTRACT_ID` entry to `.env.example`.
+| Variant | Internal directory | Command | What it is for |
+| --- | --- | --- | --- |
+| `default` (TypeScript) | `default` | `nextellar my-app --template default` | Full Stellar starter with wallet and balances, payments, transaction history, trustlines, offer-book access, Soroban contract/event hooks, and network switching. |
+| `default` (JavaScript) | `js-template` | `nextellar my-app --template default --javascript` | The full starter in `.js`/`.jsx`, with the same broad wallet, payment, history, and Soroban use cases. |
+| `minimal` (TypeScript) | `minimal` | `nextellar my-app --template minimal` | A small starting point centered on wallet connection and balances, for apps that will add their own UI and features. |
+| `minimal` (JavaScript) | `js-minimal` | `nextellar my-app --template minimal --javascript` | The minimal starter in `.js`/`.jsx`, without TypeScript configuration or source files. |
+| `defi` (TypeScript) | `defi` | `nextellar my-app --template defi` | A DeFi-oriented starter for swap, liquidity-pool, and price-feed experiences. |
+| `defi` (JavaScript) | `js-defi` | `nextellar my-app --template defi --javascript` | The DeFi starter in `.js`/`.jsx` for teams not using TypeScript. |
+
+The `--template` flag accepts only the three family names in `TEMPLATE_LIST`: `default`, `minimal`, and `defi`. The JavaScript variants are selected by combining one of those values with `--javascript` (or `-j`); passing an internal directory name such as `js-minimal` directly to `--template` is not supported.
+
+## TypeScript and JavaScript
+
+TypeScript is selected by default and generates `.ts`/`.tsx` files with TypeScript configuration. Add `--javascript` or `-j` to generate `.js`/`.jsx` files and JavaScript configuration instead. The language option does not change the template family you select.
+
+```bash
+npx nextellar my-app --template minimal
+npx nextellar my-js-app --template minimal --javascript
+```
+
+See [Using JavaScript](/docs/getting-started/javascript) for language details and [Create a JavaScript project](/docs/cli/js-template) for the default JavaScript starter.
+
+## Add Soroban contracts
+
+`--with-contracts` adds a Soroban `hello_world` contract (Rust, under `contracts/`) to the selected template. It also adds `contracts:build` and `contracts:test` scripts and a `NEXT_PUBLIC_HELLO_WORLD_CONTRACT_ID` entry to `.env.example`.
 
 ```bash
 npx nextellar my-app --template defi --with-contracts
 ```
 
-See the [Contracts Quick Start](/docs/getting-started/contracts-quick-start) for building, testing, and invoking the generated contract.
+See the [Contracts Quick Start](/docs/getting-started/contracts-quick-start) for building and invoking the generated contract.
 
----
+## Related docs
 
-## Related
-
-- [CLI Flags & Options](/docs/cli/flags) — full `--template`/`--javascript`/`--with-contracts` flag reference
-- [Using JavaScript](/docs/getting-started/javascript) — JS scaffold specifics and current parity gaps
-- [Extending the CLI](/docs/guides/extending-the-cli) — adding features to an existing project with `nextellar add`
-- [Contracts Quick Start](/docs/getting-started/contracts-quick-start) — scaffold and deploy Soroban contracts with `--with-contracts`
+- [CLI Flags & Options](/docs/cli/flags) — full `--template`, `--javascript`, and `--with-contracts` reference
+- [Template Comparison](/docs/cli/template-comparison) — compare template capabilities
+- [Using JavaScript](/docs/getting-started/javascript) — JavaScript scaffold details
+- [Contracts Quick Start](/docs/getting-started/contracts-quick-start) — build and invoke Soroban contracts
