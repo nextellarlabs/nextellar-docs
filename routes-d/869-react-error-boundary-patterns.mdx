@@ -1,0 +1,170 @@
+---
+title: React Error Boundaries for Wallet Flows
+description: Keep a failed wallet panel contained, offer a useful reset, and handle rejected wallet requests separately.
+date: 2026-10-17
+---
+
+# React Error Boundaries for Wallet Flows
+
+A wallet summary can fail while rendering even when the rest of the app is usable. Place a boundary around that panel so navigation and the connected-account controls remain available. Handle expected failures such as a rejected connection request in the action that started them.
+
+## Choose the boundary scope
+
+Keep the wallet provider above the boundary when resetting the panel should preserve the connection. Put separate boundaries around independently useful panels, rather than replacing the entire dashboard when one balance display crashes.
+
+| Failure                                      | Where to handle it                                 |
+| -------------------------------------------- | -------------------------------------------------- |
+| A child throws while rendering               | Error boundary                                     |
+| Wallet connection or signing promise rejects | `try` / `catch` in the action                      |
+| A hook returns an RPC error                  | Render the hook's error state and a suitable retry |
+| A boundary's own fallback throws             | An ancestor boundary                               |
+| Server rendering fails                       | The framework's server error handling              |
+
+An ordinary rejected promise in an event handler is not caught by a boundary. React also documents special handling for errors thrown inside a transition; do not rely on that to handle a wallet request started by a click.
+
+## Add a resettable boundary
+
+Save this as `components/WalletBoundary.tsx` in the generated app. The optional reporter receives the React error context; sanitize it before sending it to a monitoring service.
+
+```tsx
+'use client';
+
+import { Component, type ErrorInfo, type ReactNode } from 'react';
+
+type Props = {
+  children: ReactNode;
+  onReset: () => void;
+  reportError?: (error: Error, info: ErrorInfo) => void;
+};
+
+type State = { failed: boolean };
+
+export class WalletBoundary extends Component<Props, State> {
+  state: State = { failed: false };
+
+  static getDerivedStateFromError(): State {
+    return { failed: true };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    this.props.reportError?.(error, info);
+  }
+
+  private reset = () => {
+    this.props.onReset();
+    this.setState({ failed: false });
+  };
+
+  render() {
+    if (this.state.failed) {
+      return (
+        <section role="alert" aria-label="Wallet panel error">
+          <h2>Wallet panel unavailable</h2>
+          <p>
+            We could not display this panel. You can reset it and try again.
+          </p>
+          <button type="button" onClick={this.reset}>
+            Reset wallet panel
+          </button>
+        </section>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+```
+
+Reset the cause as well as the boundary. Clearing `failed` while passing the same broken data simply renders the fallback again. If recovery requires a refetch, show a loading state while it runs and handle its rejection separately.
+
+## Try it around a wallet summary
+
+This local demo intentionally supplies an invalid display value when you select **Break summary**. It makes recovery reproducible without connecting a wallet or sending a transaction. Both files belong in the same directory for this relative import.
+
+```tsx
+'use client';
+
+import { useState } from 'react';
+import { WalletBoundary } from './WalletBoundary';
+
+function WalletSummary({ balance }: { balance: number }) {
+  if (!Number.isFinite(balance)) {
+    throw new Error('Invalid balance display value');
+  }
+  return <p>Balance: {balance.toFixed(7)} XLM</p>;
+}
+
+export function WalletBoundaryDemo() {
+  const [broken, setBroken] = useState(false);
+
+  return (
+    <div>
+      <h1>Wallet dashboard</h1>
+      <button type="button" onClick={() => setBroken(true)}>
+        Break summary
+      </button>
+      <WalletBoundary onReset={() => setBroken(false)}>
+        <WalletSummary balance={broken ? Number.NaN : 12.5} />
+      </WalletBoundary>
+    </div>
+  );
+}
+```
+
+For a real account switch, give the boundary a `key` derived from both the public account and network. Changing that key remounts the panel and clears its local state. Avoid putting unsaved payment inputs inside a subtree that will be discarded this way.
+
+## Catch wallet requests at the action boundary
+
+The following component accepts your existing wallet adapter's asynchronous `connect` function. It handles a rejection inline instead of throwing from the click handler and expecting the render boundary to catch it.
+
+```tsx
+'use client';
+
+import { useState } from 'react';
+
+export function ConnectWallet({ connect }: { connect: () => Promise<void> }) {
+  const [pending, setPending] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  async function handleConnect() {
+    setPending(true);
+    setFailed(false);
+    try {
+      await connect();
+    } catch {
+      setFailed(true);
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <div>
+      <button type="button" disabled={pending} onClick={handleConnect}>
+        {pending ? 'Connecting...' : 'Connect wallet'}
+      </button>
+      {failed && (
+        <p role="alert">
+          Connection did not complete. Check your wallet and retry.
+        </p>
+      )}
+    </div>
+  );
+}
+```
+
+## Recovery checks
+
+1. Render the demo: the summary shows `12.5000000 XLM`.
+2. Select **Break summary**: only the summary is replaced; the dashboard heading remains.
+3. Select **Reset wallet panel**: the original balance returns without reloading the page.
+4. Pass a rejecting `connect` function to `ConnectWallet`: the inline message appears and the button becomes available again.
+5. Check the fallback with keyboard navigation and a screen reader. Keep the reset button reachable; manage focus deliberately if the failed panel removed the previously focused element.
+
+A reset never proves that a payment failed or succeeded. Keep transaction hashes and submission state outside the failed panel, check ledger status, and require a new explicit action before signing or submitting again. Avoid showing raw exception text or logging secrets, signed payloads, or private contact details.
+
+## Related
+
+- [Hook error handling](/docs/guides/hook-error-handling)
+- [Wallet UX patterns](/docs/guides/wallet-ux-patterns)
+- [React error boundary reference](https://react.dev/reference/react/Component#catching-rendering-errors-with-an-error-boundary)
