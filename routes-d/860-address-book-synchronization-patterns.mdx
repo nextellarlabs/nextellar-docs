@@ -1,0 +1,209 @@
+---
+title: Address Book Synchronization Patterns
+description: Compare address book storage options and handle cross-device conflicts, offline edits, deletions, and recovery with server-version checks.
+date: 2026-10-17
+---
+
+# Address Book Synchronization Patterns
+
+An address book saved in one browser does not appear on another device automatically. Start with [dApp Address Book Design](/docs/guides/dapp-address-book-design) for entry fields and UI patterns. This guide explains the synchronization contract between a local copy and shared storage; it does not implement a backend.
+
+## Choose Where Data Lives
+
+| Option                          | Cross-device behavior                                  | Costs and limitations                                                                                                               |
+| ------------------------------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `localStorage` only             | None; export and import are manual                     | Simple for small books, but synchronous, readable by same-origin scripts, and lost when site data is cleared.                       |
+| IndexedDB only                  | None without a separate sync service                   | Better for structured records and a durable outbox; still browser-local and subject to storage loss.                                |
+| Authenticated sync backend      | Devices fetch the same owner's book                    | Requires authorization, version checks, backups, and an offline cache. The operator can read plaintext unless clients encrypt it.   |
+| Soroban storage                 | Devices read shared contract state                     | Writes require transactions and fees; contract storage needs TTL management. Public chain data is not private or reliably erasable. |
+| Local cache plus shared storage | Local edits remain available offline, then synchronize | Requires pending-write state, conflict handling, and recovery rules. Neither browser storage API supplies this protocol.            |
+
+For private labels and memos, an authenticated backend with a local cache is often the simplest starting point. A wallet connection alone neither synchronizes data nor creates an authenticated backend session. Avoid putting personal contact details on-chain; even hashes can disclose low-entropy labels through guessing.
+
+## Define the Sync Contract
+
+Use stable entry IDs, a schema version for migrations, and a **server-issued book version** for concurrency. These are separate concepts. Timestamps can describe activity, but device clocks must not decide which edit wins.
+
+For a small address book, compare and replace the whole book:
+
+1. A read returns the current book and its version, including tombstones.
+2. A write sends the proposed entries and the version last read, scoped to the authenticated owner.
+3. The server atomically compares that version with its current version. On a match, it stores the proposal, increments the version, and returns the accepted snapshot.
+4. On a mismatch, it returns HTTP `409 Conflict` and the current snapshot without changing anything.
+
+The comparison and write must be one database transaction or conditional write. A read followed by an unconditional update can lose concurrent changes. Use version `0` only for an owner whose book has never existed; do not reset versions after deleting all entries.
+
+For example, devices A and B both read version 7. A saves a label change and receives version 8. B submits a different label against version 7 and gets `409`. Show both labels and any address or memo differences. The user can accept the server copy or review a new proposal based on version 8. A second intervening write can still cause another conflict.
+
+Book-level versions also conflict when devices edit unrelated entries. Per-entry versions can reduce that contention later, but need the same conditional-write and deletion rules.
+
+## Runnable TypeScript Example
+
+The following client keeps the pending proposal when a conflict occurs. A deleted entry is a tombstone with the same ID, not a missing array item. `send` represents an authenticated HTTP adapter; the scripted responses are fixtures, not a sync server.
+
+Run this standalone example in a TypeScript runner, outside this repository's package scope if its manifest cannot be parsed:
+
+```bash
+npx --yes tsx address-book-sync.ts
+```
+
+```typescript
+// address-book-sync.ts
+type Entry =
+  | { id: string; deleted: false; label: string; address: string }
+  | { id: string; deleted: true };
+type Snapshot = { version: number; entries: Entry[] };
+type Write = { expectedVersion: number; entries: Entry[] };
+type Reply = { status: 200 | 409; current: Snapshot };
+type Send = (write: Write) => Promise<Reply>;
+type State = {
+  base: Snapshot;
+  pending: Entry[] | null;
+  conflict: Snapshot | null;
+};
+
+// Replace this sink with durable storage before enabling offline editing.
+let saved = '';
+const persist = (state: State) => {
+  saved = JSON.stringify(state);
+};
+let state: State = {
+  base: { version: 7, entries: [] },
+  pending: null,
+  conflict: null,
+};
+
+function update(next: State): void {
+  persist(next); // If storage fails, do not claim the edit was saved.
+  state = next;
+}
+
+function stage(entries: Entry[]): void {
+  if (state.conflict) throw new Error('Resolve the conflict first');
+  update({ ...state, pending: structuredClone(entries) });
+}
+
+async function sync(send: Send): Promise<'idle' | 'saved' | 'conflict'> {
+  if (state.conflict) return 'conflict';
+  if (state.pending === null) return 'idle';
+  const reply = await send({
+    expectedVersion: state.base.version,
+    entries: structuredClone(state.pending),
+  });
+  if (reply.status === 409) {
+    update({ ...state, conflict: reply.current });
+    return 'conflict';
+  }
+  update({ base: reply.current, pending: null, conflict: null });
+  return 'saved';
+}
+
+// Call only after the user reviews the conflict. No automatic overwrite.
+function resolve(choice: 'server' | 'reviewed', reviewed?: Entry[]): void {
+  if (!state.conflict) throw new Error('No conflict to resolve');
+  if (choice === 'reviewed' && !reviewed) {
+    throw new Error('A reviewed proposal is required');
+  }
+  update({
+    base: state.conflict,
+    pending: choice === 'server' ? null : structuredClone(reviewed!),
+    conflict: null,
+  });
+}
+
+async function main(): Promise<void> {
+  const id = 'contact-1';
+  const address = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF';
+  const local: Entry[] = [{ id, deleted: false, label: 'Alice', address }];
+  const remote: Entry[] = [
+    { id, deleted: false, label: 'Alice (team)', address },
+  ];
+  const replies: Reply[] = [
+    { status: 409, current: { version: 8, entries: remote } },
+    { status: 200, current: { version: 9, entries: local } },
+    { status: 200, current: { version: 10, entries: [{ id, deleted: true }] } },
+  ];
+  const versions: number[] = [];
+  const send: Send = async (write) => {
+    versions.push(write.expectedVersion);
+    const reply = replies.shift();
+    if (!reply) throw new Error('Unexpected request');
+    return reply;
+  };
+  const check = (ok: boolean) => {
+    if (!ok) throw new Error('Check failed');
+  };
+
+  stage(local);
+  try {
+    await sync(async () => {
+      throw new Error('Offline');
+    });
+  } catch {
+    check(state.pending?.[0].id === id); // Failed sends preserve the draft.
+  }
+  check((await sync(send)) === 'conflict');
+  check(state.pending?.[0].deleted === false);
+  check((await sync(send)) === 'conflict'); // No request while unresolved.
+  resolve('reviewed', local); // Fixture for an explicit user decision.
+  check((await sync(send)) === 'saved');
+  stage([{ id, deleted: true }]);
+  check((await sync(send)) === 'saved');
+  check(JSON.parse(saved).base.entries[0].deleted === true);
+  check(versions.join(',') === '7,8,9');
+  stage(local);
+  await sync(async () => ({ status: 409, current: state.base }));
+  resolve('server');
+  check(state.pending === null && state.base.version === 10);
+  console.log(
+    'Passed: offline draft, conflict, reviewed retry, delete, server choice'
+  );
+}
+
+void main();
+```
+
+The expected output starts with `Passed:`. The example omits UI, authentication, runtime payload validation, and durable storage. It demonstrates client transitions only; its fixtures do not verify a server's atomic concurrency behavior.
+
+In a browser, replace the sink with `localStorage.setItem(ownerScopedKey, JSON.stringify(state))` for a small prototype, or an IndexedDB transaction for an outbox. Persist the base, pending proposal, and conflict together. Restore and validate that envelope before rendering. Serialize local editing and synchronization while a request is in flight; the small example assumes one caller. Multiple tabs need a single writer or transactional coordination, not just a `storage` event listener.
+
+The HTTP adapter must translate only a successful accepted write or `409` into `Reply`, validate response shapes and versions at runtime, and throw for network failures or other statuses. Do not treat `401`, `403`, `429`, or `500` as successful saves. Never send a new write merely because a background read arrived.
+
+## Offline Writes and Recovery
+
+- Persist an edit before showing it as saved locally. Display pending, syncing, conflict, and synced states separately; a local save is not a server acknowledgment.
+- On reconnect, send the proposal against its original base version. Do not replace its base with a freshly fetched version and silently retry. A changed server copy requires review.
+- Keep pending data on timeouts and retry transient failures with bounded backoff. If the response was lost after acceptance, retrying the old version may produce `409` even for your own accepted write. Compare with the server copy or use an owner-scoped idempotency key that the server records atomically with the write.
+- Pause on authentication failure and resume only under the same owner after reauthentication. Never replay one wallet's outbox under another wallet's session.
+- If the cache is missing and there are no pending edits, fetch a full snapshot. If data is corrupt, preserve an export where possible and ask before resetting; do not interpret a parse failure as an empty book to upload.
+- Version the local envelope separately from the server book. Validate and migrate older schemas before use; unsupported imports should produce an error, not overwrite a working copy.
+
+Export is a backup, not sync. Treat restored entries as proposals against a current server snapshot, with duplicate review. An old backup must not silently resurrect deleted contacts. Unsynchronized local edits cannot be recovered from the backend after browser data is lost.
+
+## Propagate Deletes with Tombstones
+
+Remove tombstoned entries from the visible contact list, but keep their IDs in synchronized state. A stale device editing a deleted entry will then hit a version conflict instead of restoring it through an ordinary save. Offer restoration only as an explicit reviewed action.
+
+For incremental sync, retain tombstones until supported clients have acknowledged a cursor beyond the deletion. If retention expires or a client is too old, reject its stale cursor and require a full snapshot; preserve its pending edits for review. Do not merge an old full array into current state by ID alone. The server must also reject replacement snapshots that drop retained tombstones without an allowed compaction operation.
+
+Tombstones are not a privacy guarantee. Strip labels, addresses, and memos from deletion markers when possible. Define retention and erasure for server records, logs, exports, and backups separately. Deleting a contact locally, disconnecting a wallet, or deleting contract state does not erase every previous copy.
+
+## Privacy and Security Boundaries
+
+- Authenticate the owner and authorize every read and write server-side. Wallet sign-in challenges need domain binding, nonces, and expiry; knowing a public address is not authorization.
+- Use HTTPS and protect cookie-authenticated writes against CSRF. Keep seed phrases, private keys, and bearer credentials out of address book records and exports.
+- Treat localStorage and IndexedDB as readable by compromised same-origin code. Neither encrypts records for your application. Reduce XSS risk and never render labels as raw HTML.
+- Validate entry IDs, field sizes, Stellar addresses, and memo types and values on both client and server. Scope records by network and owner, and confirm the destination and memo before signing a payment. A synced label does not prove recipient identity.
+- If the operator must not read contacts, use client-side authenticated encryption with reviewed key management. Plan cross-device key transfer and recovery first; losing the only key makes encrypted backups unusable. Encryption does not prevent XSS from reading unlocked data.
+- Clear or lock owner-scoped caches on sign-out according to an explicit policy. Warn before discarding pending edits, and never expose the previous owner's contacts after switching accounts. Exclude contact data from analytics and routine error logs.
+
+## Verification Checklist
+
+- [ ] Two devices editing the same base produce one accepted write and one `409`, with both proposals available for review.
+- [ ] Accept-server and reviewed-proposal choices work; another concurrent write can cause another conflict.
+- [ ] Offline edits survive reload; quota failures and corrupt caches do not report successful persistence.
+- [ ] Lost acknowledgments, expired sessions, account switches, and multiple tabs cannot silently lose or cross-send edits.
+- [ ] Deletes reach other devices; stale cursors and old exports cannot silently restore them.
+- [ ] Unauthenticated and wrong-owner requests fail, imports are validated, and recovery policy covers encryption keys and backups.
+
+Follow [Contributing to Documentation](/docs/guides/contributing) for content build and link checks. Run the example separately from MDX rendering checks: passing one does not validate the other.
