@@ -149,6 +149,10 @@ export const sidebarNav: SidebarSection[] = [
         href: '/docs/guides/testing-horizon-soroban',
       },
       {
+        title: 'Property-Based Testing for XDR',
+        href: '/docs/guides/property-based-testing-xdr',
+      },
+      {
         title: 'Testing Transactions on Testnet',
         href: '/docs/guides/testing-transactions-testnet',
       },

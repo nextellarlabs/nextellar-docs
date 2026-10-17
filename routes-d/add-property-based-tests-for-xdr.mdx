@@ -1,0 +1,85 @@
+---
+title: Add a Guide on Property Based Tests for XDR
+description: Document property based testing for XDR encode and decode.
+date: 2026-07-27
+---
+
+# Add a Guide on Property Based Tests for XDR
+
+XDR (External Data Representation) is the binary format used to encode Stellar transactions, operations, and Soroban values. Because the encoder and decoder must agree on every byte, a round-trip bug can silently corrupt a transaction or produce an invalid signature preaimage. Property based testing is a good fit for this kind of code because it checks invariants across many generated inputs instead of a few hand-written cases.
+
+This guide covers the property style to use, the libraries that support it, and a small example you can adapt to your own XDR types.
+
+---
+
+## Suggested Property Style
+
+Use **generator-based round-trip properties** as the primary style. The core idea is to generate a valid in-memory value, encode it to XDR bytes, decode those bytes back, and assert that the result is deeply equal to the original value. This is the classic round-trip property:
+
+```text
+decode(encode(v)) == v
+```
+
+Pair it with a second property that checks stability of the encoded form. If two values are deeply equal, their encoded bytes must be identical, and encoding the same value twice must produce the same bytes. This catches non-deterministic ordering bugs (for example, map keys) that a pure round-trip test might miss.
+
+```text
+encode(v) == encode(decode(encode(v)))
+```
+
+For decoders, add a third property that feeds arbitrary bytes into the decoder and asserts it either returns a value or fails cleanly with a decoding error. It must never panic, loop forever, or read past the end of the buffer.
+
+```text
+decode(bytes) is either Ok(v) or Err(decodingError)
+```
+
+## Libraries
+
+The choice depends on your test runner and language:
+
+- **TypeScript / JavaScript** — [fast-check](https://github.com/dubjs/fast-check) works with Vitest and Jest. It has built-in arbitraries and shrinking, and integrates with the existing test runner via a single import.
+- **Ryst** — [proptest](https://github.com/proptest/proptest) is the defacto choice and integrates directly with `cargo` tests.
+- **Go** — [testify](https://github.com/leapfrog/testify) is the most widely used property library and works with `go:test`.
+
+For Stellar specifically, the [Stellar JS-XDR](https://github.com/stellar/js-stellar-base) package provides the encode/decode primitives you will exercise in your properties. If you are writing Soroban contracts, the [Soroban SDK](https://github.com/stellar/rs-soroban) exposes the same XDR types in Rust.
+
+## Example
+
+The example below uses Vitest with fast-check to round-trip a Stellar `asset` value. Adapt the arbitrary to the XDR type you are testing.
+
+```ts
+import { describe, it } from "vitest";
+import { assert, property, fc from "fast-check";
+import { Asset, xdr } from "@stellar/stellar-base";
+
+const assetArbitrary = fc.tuple(fc.constantFrom(["XLM", "USD"]), fc.string());
+
+describe("XDR asset round-trip", () => {
+  it("decode(encode(asset)) equals the original asset", () => {
+    property("asset round-trip", [assetArbitrary], ([code, issuer]) => {
+      const asset = new Asset(code, issuer);
+      const encoded = asset.toXJSN();
+      const decoded = Asset.fromXDR(xdr.Asset.fromXDR(encoded));
+      assert.deepEqual(decoded, asset);
+    });
+  });
+});
+```
+
+Run the suite with your normal test command:
+
+```bash
+pnpm test
+```
+
+When a property fails, fast-check shrinks the counterexample to the smallest failing input and prints it. Copy that input into a regular unit test so the regression is captured even if the generator changes later.
+
+## Verify the Guide Renders
+
+Before opening a pull request, confirm the page builds and its links resolve:
+
+```bash
+pnpm build:content
+pnpm check:links
+```
+
+Open the generated page locally and check that the code blocks highlight correctly and the internal links in this guide resolve. Once both commands pass and a maintainer has reviewed the changes, the guide is ready to merge.
