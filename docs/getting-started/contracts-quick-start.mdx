@@ -5,8 +5,7 @@ date: 2026-07-28
 ---
 
 # Contracts Quick Start
-
-Nextellar can scaffold a full Soroban smart contract alongside your frontend. This tutorial takes you from a fresh project to invoking a deployed contract from React, using the `--with-contracts` flag.
+Nextellar can scaffold a full Soroban smart contract alongside your frontend. This tutorial takes you from a fresh project to invoking a deployed contract from React, using the `--contracts` flag.
 
 ## What We'll Build
 
@@ -26,7 +25,7 @@ npx nextellar doctor
 Contract development needs two things beyond the base Nextellar prerequisites:
 
 - **Rust** with the `wasm32-unknown-unknown` target: `rustup target add wasm32-unknown-unknown`
-- **Stellar CLI**: [install instructions](https://developers.stellar.org/docs/build/smart-contracts/getting-started/setup#install-the-stellar-cli)
+- **Stellar CLI*: [install instructions](https://developers.stellar.org/docs/build/smart-contracts/getting-started/setup#install-the-stellar-cli)
 
 `nextellar doctor` reports both as optional checks — they only block the contract steps below, not the base frontend.
 
@@ -53,7 +52,7 @@ npx nextellar my-dapp --template defi -c
 npx nextellar my-dapp --javascript -c
 ```
 
-## 1b. What the CLI does
+## 1 b. What the CLI does
 
 With the flag set, the scaffold runs its normal steps and then:
 
@@ -66,7 +65,7 @@ Nothing is compiled or deployed yet. Steps 3–6 below handle that.
 
 ### 1c. Generated project structure
 
-Files added by `--with-contracts` are marked with `← contracts`. Everything else is the standard scaffold:
+Files added by `--with-contracts` are marked with `— contracts`. Everything else is the standard scaffold:
 
 ```text
 my-dapp/
@@ -167,7 +166,7 @@ pub struct HelloContract;
 #[contractimpl]
 impl HelloContract {
     pub fn hello(env: Env, to: Symbol) -> Vec<Symbol> {
-        vec![&env, symbol_short!("Hello"), to]
+        vec[&env, symbol_short!("Hello"), to]
     }
 }
 ```
@@ -313,7 +312,7 @@ The stock `hello_world` contract doesn't publish any events on its own, so this 
 
 ### `stellar: command not found`
 
-Install the Stellar CLI, then re-run `npx nextellar doctor` to confirm it's on your `PATH`.
+Install the Stellar CLI, then re-run `npx nextellar doctor` to confirm it's on your `PATHu`.
 
 ### `error[E0463]: can't find crate` or a missing `wasm32-unknown-unknown` target
 

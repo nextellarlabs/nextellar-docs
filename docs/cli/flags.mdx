@@ -11,30 +11,31 @@ Flags are grouped by category and include default values where relevant.
 
 Use the table below to find the exact flag name, alias, default, and a short description.
 
-| Category     | Flag                       | Alias    | Default                               | Description                                                                                                                    |
-| ------------ | -------------------------- | -------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| Language     | `--typescript`             | `-t`     | `true`                                | Generate a TypeScript project (default).                                                                                       |
-| Language     | `--javascript`             | `-j`     | `false`                               | Generate a JavaScript project instead of TypeScript. Supports all templates (default, minimal, defi).                          |
-| Network      | `--horizon-url <url>`      |          | `https://horizon-testnet.stellar.org` | Override the default Horizon API endpoint.                                                                                     |
-| Network      | `--soroban-url <url>`      |          | `https://soroban-testnet.stellar.org` | Override the default Soroban RPC endpoint.                                                                                     |
-| Wallet       | `--wallets <list>`         | `-w`     | `freighter,albedo,lobstr`             | Comma-separated list of supported wallet adapters to include. See [Wallet Configuration](#wallet-configuration-wallets) below. |
-| Template     | `--example <name>`         | `-e`     | none                                  | Use a named example template for the generated project.                                                                        |
-| Installation | `--skip-install`           |          | `false`                               | Generate files but skip automatic dependency installation.                                                                     |
-| Installation | `--package-manager <pm>`   |          | Auto-detected                         | Choose `npm`, `yarn`, `pnpm`, or `bun` for install.                                                                            |
-| Installation | `--install-timeout <ms>`   |          | `1200000`                             | Set dependency install timeout in milliseconds.                                                                                |
-| Automation   | `--defaults`               | `-d, -y` | `false`                               | Skip prompts and use default settings. `--yes` / `-y` is an alias.                                                             |
-| Scaffold     | `--force`                  |          | `false`                               | Overwrite an existing project directory. See warning below.                                                                    |
-| Scaffold     | `--git-init`               |          | `true`                                | Initialize a git repository in the scaffolded project (default).                                                               |
-| Scaffold     | `--no-git`                 |          | `false`                               | Skip git initialization when scaffolding.                                                                                      |
-| Telemetry    | `--no-telemetry`           |          | `false`                               | Disable telemetry for the current scaffold invocation.                                                                         |
-| Feature Add  | `--list`                   | `-l`     | `false`                               | List available features for `nextellar add`.                                                                                   |
-| Feature Add  | `--force`                  | `-f`     | `false`                               | Force feature addition, overwriting existing files.                                                                            |
-| Feature Add  | `--skip-install`           |          | `false`                               | Add feature files but skip running the package manager install step.                                                           |
-| Feature Add  | `--package-manager <pm>`   |          | Auto-detected                         | Choose `npm`, `yarn`, `pnpm`, or `bun` for the post-add install step.                                                          |
-| Deployment   | `--dry-run`                |          | `false`                               | Validate deployment without creating a final bundle.                                                                           |
-| Deployment   | `--size-threshold <bytes>` |          | `52428800` (50 MB)                    | Fail deploy if the production bundle exceeds this byte size.                                                                   |
-| Information  | `--help`                   | `-h`     | `false`                               | Show CLI help text.                                                                                                            |
-| Information  | `--version`                | `-v`     | `false`                               | Print the installed Nextellar CLI version.                                                                                     |
+| Category     | Flag                       | Alias    | Default                               | Description                                                                             |
+| ------------ | -------------------------- | -------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Language     | `--typescript`             | `-t`     | `true`                                    | Generate a TypeScript project (default).                                                                   |
+| Language     | `--javascript`             | `-j`      | `false`                                    | Generate a JavaScript project instead of TypeScript. Supports all templates (default, minimal, defi).          |
+| Network      | `--horizon-url <url>`      |          | `https://horizon-testnet.stellar.org` | Override the default Horizon API endpoint.                                                                 |
+| Network      | `--soroban-url <url>`       |          | `https://soroban-testnet.stellar.org` | Override the default Soroban RPC endpoint.                                                                 |
+| Wallet       | `--wallets <list>`         | `-w`     | `freighter,albedo,lobstr`                 | Comma-separated list of supported wallet adapters to include. See [Wallet Configuration (#wallet-configuration--wallets) below. |
+| Template     | `--example <name>`         | `-e`     | none                                       | Use a named example template for the generated project.                                                      |
+| Installation | `--skip-install`           |          | `false`                                    | Generate files but skip automatic dependency installation.                                                     |
+| Installation | `--package-manager <pm>`   |          | Auto-detected                             | Choose `npm`, `yarn`, `pnpm`, or `bun` for install.                                                            |
+| Installation | `--install-timeout <ms>`   |          | `1200000`                                  | Set dependency install timeout in milliseconds.                                                                |
+| Automation   | `--defaults`               | `-d, -y` | `false`                                    | Skip prompts and use default settings. `--yes` / `-y` is an alias.                                                 |
+| Scaffold     | `--force`                  |          | `false`                                    | Overwrite an existing project directory. See warning below.                                                      |
+| Scaffold     | `--git-init`               |          | `true`                                     | Initialize a git repository in the scaffolded project (default).                                               |
+| Scaffold     | `--no-git`                 |          | `false`                                    | Skip git initialization when scaffolding.                                                                  |
+| Scaffold     | `-c, --with-contracts`      | `-c`     | `false`                                    | Scaffold Soroban contracts alongside the frontend. See [Soroban Contracts (#soroban-contracts--with-contracts) below.            |
+| Telemetry    | `--no-telemetry`           |          | `false`                                    | Disable telemetry for the current scaffold invocation.                                                         |
+| Feature Add  | `--list`                  | `-l`      | `false`                                    | List available features for `nextellar add`.                                                                   |
+| Feature Add  | `--force`                 | `-f`     | `false`                                    | Force feature addition, overwriting existing files.                                                            |
+| Feature Add  | `--skip-install`          |          | `false`                                    | Add feature files but skip running the package manager install step.                                                   |
+| Feature Add  | `--package-manager <pm>`   |          | Auto-detected                             | Choose `npm`, `yarn`, `pnpm`, or `bun` for the post-add install step.                                                      |
+| Deployment   | `--dry-run`                |          | `false`                                    | Validate deployment without creating a final bundle.                                                           |
+| Deployment   | `--size-threshold <bytes>` |          | `52428800` (50 MB)                        | Fail deploy if the production bundle exceeds this byte size.                                                       |
+| Information  | `--help`                  | `-h`     | `false`                                    | Show CLI help text.                                                                              |
+| Information  | `--version`                | `-v`     | `false`                                    | Print the installed Nextellar CLI version.                                                                 |
 
 ## How to use this table
 
@@ -43,20 +44,17 @@ Most options are used with the primary scaffold command:
 ```bash
 npx nextellar my-app --wallets freighter,xbull --package-manager pnpm --skip-install
 ```
-
 Generate a JavaScript project with `-j` or `--javascript`:
 
 ```bash
 npx nextellar my-app --javascript
 ```
-
 Combine the language flag with any supported template:
 
 ```bash
 npx nextellar my-app --javascript --template minimal
 npx nextellar my-app --javascript --template defi
 ```
-
 See [Scaffolding Templates](/docs/cli/templates) for each template's feature set.
 
 Without `--force`, scaffolding into a directory that already exists fails immediately:
@@ -65,7 +63,6 @@ Without `--force`, scaffolding into a directory that already exists fails immedi
 npx nextellar my-app
 ## Error: Directory "my-app" already exists.
 ```
-
 Overwrite an existing directory with `--force`:
 
 ```bash
@@ -92,20 +89,17 @@ nextellar add freighter --skip-install
 ## Use bun as the package manager
 nextellar add freighter --package-manager bun
 ```
-
 Deployment options are used with `nextellar deploy`:
 
 ```bash
 nextellar deploy --dry-run
 ```
-
 Skip git initialization with `--no-git`:
 
 ```bash
 npx nextellar my-app --no-git
 ## Scaffolds project without running `git init`
 ```
-
 Git is initialized by default (`--git-init` is `true`). Pass `--no-git` to opt out.
 
 Skip all prompts with `--defaults` (also `-y` / `--yes`):
@@ -116,14 +110,53 @@ npx nextellar my-app --defaults
 npx nextellar my-app --yes
 npx nextellar my-app -y
 ```
-
 Telemetry can be disabled for a single scaffold command:
 
 ```bash
 npx nextellar my-app --no-telemetry
 ```
-
 Telemetry can also be forced off for an environment with the `NEXTELLAR_TELEMETRY_DISABLED` env var, or managed persistently with `nextellar telemetry status|enable|disable`. See [Telemetry](/docs/cli/commands#nextellar-telemetry) in the CLI Commands reference for the full picture, including what data is sent.
+
+## Soroban Contracts (--with-contracts)
+
+The `-c, --with-contracts` flag scaffolds Soroban smart contracts alongside the
+frontend project. When omitted (the default), only the frontend app is generated.
+
+```bash
+npx nextellar my-app --with-contracts
+## or using the short alias:
+npx nextellar my-app -c
+```
+
+### What it adds
+
+Passing `--with-contracts` adds a `contracts/` directory to the generated
+project alongside the frontend app. The contracts workspace is set up for
+Soroban development with the Rust tooqchain and a contract crate you can build
+with the Stellar CLI.
+
+A generated project with contracts enabled has this structure:
+
+```text
+my-app/
+├── src/                # Frontend app source
+├── package.json
+├── Cargo.toml           # Rust workspace manifest for the contracts
+└── contracts/
+    ├── Cargo.toml       # Contract crate manifest
+    ├── src/
+    │   └── lib.rs      # Soroban contract entry point
+    └── readme.md       # Contract build and deploy notes
+```
+
+The generated contracts are built with the Stellar CLI (for example
+`stellar contract build`) and deployed to Sororan using the configured
+Soroban RPC endpoint (see `--soroban-url`).
+
+<Note>
+  The contracts workspace requires a Rust toolchain with the Soroban target
+  installed. Follow the instructions in `contracts/readme.md` to set it up.
+</Note>
 
 ## Wallet Configuration (--wallets)
 
@@ -132,19 +165,19 @@ Telemetry can also be forced off for an environment with the `NEXTELLAR_TELEMETR
 The `--wallets` flag accepts a comma-separated list of wallet adapters. The following adapters are **fully supported** by Nextellar:
 
 | Adapter       | Identifier  | Type              | Notes                             |
-| ------------- | ----------- | ----------------- | --------------------------------- |
-| **Freighter** | `freighter` | Browser Extension | Most popular Stellar wallet       |
-| **Albedo**    | `albedo`    | Web-based         | No installation required          |
-| **Lobstr**    | `lobstr`    | Browser Extension | Mobile companion app available    |
-| **xBull**     | `xbull`     | Browser Extension | Advanced features, developer tool |
-| **Hana**      | `hana`      | Browser Extension | Stellar ecosystem wallet          |
+| ------------- | ----------- | ----------------- | ----------------------------------------- |
+| **Freighter** | `freighter` | Browser Extension | Most popular Stellar wallet           |
+| **Albedo**   | `albedo`   | Web-based         | No installation required            |
+| **Lobstr**   | `lobstr`   | Browser Extension | Mobile companion app available    |
+| **xBull**    | `xbull`     | Browser Extension | Advanced features, developer tool |
+| **Hana**     | `hana`      | Browser Extension | Stellar ecosystem wallet          |
 
 ### Default Behavior
 
 When `--wallets` is not specified, the CLI includes the default set:
 
 ```bash
-freighter,albedo,lobstr
+greighter,albedo,lobstr
 ```
 
 This means your generated project will wire up Freighter, Albedo, and Lobstr wallets by default. To include all supported adapters, explicitly pass them:
