@@ -1,0 +1,44 @@
+---
+title: Case Study Template for Documentation Authors
+description: A reusable case study outline, example, and recommended length for documenting project outcomes.
+date: 2026-10-17
+---
+
+# Case Study Template for Documentation Authors
+
+A case study explains a real problem, the choices made to address it, and the evidence for the result. It should help readers decide whether the approach applies to their own situation, not read like a product announcement.
+
+## Recommended outline
+
+1. **Title:** Name the project or outcome in plain language.
+2. **Summary:** State the audience, challenge, approach, and result in a few sentences.
+3. **Context:** Describe the users, system constraints, and starting conditions.
+4. **Challenge:** Explain the specific problem and why it mattered.
+5. **Options considered:** Summarize relevant alternatives and constraints.
+6. **Approach:** Describe the implementation and the reasons behind key choices.
+7. **Results:** Report measured outcomes, dates, and how they were measured. Separate observed evidence from estimates.
+8. **Lessons and tradeoffs:** Explain what worked, what did not, and what you would change.
+9. **Next steps:** Note remaining work and link to relevant documentation or resources.
+
+## Suggested length
+
+Aim for 800–1,200 words for a focused case study. Use a shorter account when the problem and result are simple; go longer only when readers need implementation detail to understand the decision. Keep code excerpts short and link to a maintained example when the full implementation is substantial.
+
+## Short example
+
+This compact example shows the level of detail to include; replace the bracketed fields with verified project information.
+
+> **Challenge:** `[Team or user group]` needed to show contract activity alongside existing payment history, but the application only queried Horizon.
+>
+> **Approach:** The team kept Horizon for classic payment history and added Soroban RPC polling for contract events. The UI displayed the source and last-updated ledger for each feed.
+>
+> **Result:** `[Report a measured result, the measurement period, and the source. If no metric was collected, describe the verified outcome without inventing a number.]`
+>
+> **Lesson:** Separate services made each data source's retention and update behavior visible, so users could tell a delayed event feed from missing payment history.
+
+## Editorial checklist
+
+- Get permission to identify the organization, contributors, users, and systems described.
+- Support results with reproducible data or label qualitative outcomes clearly.
+- Include tradeoffs and limitations, not just successes.
+- Confirm links, code, and technical claims with the project owner before publication.

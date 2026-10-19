@@ -1,0 +1,72 @@
+---
+title: Understanding Account Subentry Count
+description: Brief explanation of Stellar account subentry count, how it changes, and its effect on minimum reserves.
+date: 2026-10-17
+---
+
+# Understanding Account Subentry Count
+
+Every Stellar account has a **subentry count** that tracks the number of trustlines, offers, claimable balances, and data entries the account owns. This number directly affects the account's minimum XLM reserve requirement.
+
+## What Are Subentries?
+
+Subentries are on-chain objects owned by an account:
+
+- **Trustlines** — Authorization to hold a specific issued asset
+- **Offers** — Open orders on the DEX
+- **Claimable Balances** — Funds locked for conditional claiming
+- **Data Entries** — Custom key-value data attached to the account
+
+Each subentry increases the account's subentry count by 1.
+
+## How Subentry Count Changes
+
+The subentry count increases when you:
+
+- Create a trustline for a new asset
+- Create a DEX offer
+- Create a claimable balance
+- Add a data entry to the account
+
+The subentry count decreases when you:
+
+- Remove a trustline
+- Cancel a DEX offer
+- Claim a claimable balance
+- Delete a data entry
+
+You can query the subentry count via Horizon:
+
+```javascript
+import { Horizon } from '@stellar/stellar-sdk';
+
+const server = new Horizon.Server('https://horizon-testnet.stellar.org');
+const account = await server.accounts().accountId(publicKey).call();
+
+console.log('Subentry count:', account.subentry_count);
+```
+
+## Effect on Reserves
+
+Stellar accounts must maintain a **minimum balance** in XLM. The minimum reserve is calculated as:
+
+```
+Minimum Balance = (2 + subentry_count) × 0.5 XLM
+```
+
+- **Base reserve**: 0.5 XLM
+- **Account reserve**: 0.5 XLM (always required)
+- **Per-subentry reserve**: 0.5 XLM × subentry_count
+
+**Example:**
+- A new account with 0 subentries requires: `(2 + 0) × 0.5 = 1 XLM`
+- An account with 3 trustlines requires: `(2 + 3) × 0.5 = 2.5 XLM`
+- An account with 10 subentries requires: `(2 + 10) × 0.5 = 6 XLM`
+
+When you reduce subentries, your minimum reserve decreases, freeing up XLM for withdrawal or spending.
+
+## Related
+
+- [Trustlines](/docs/guides/glossary) — Asset authorization on Stellar
+- [Claimable Balances](/docs/guides/claimable-balances) — Conditional fund transfers
+- [Stellar Horizon](/docs/integrations/horizon) — Account queries via the Horizon API

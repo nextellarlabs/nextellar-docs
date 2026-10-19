@@ -10,42 +10,49 @@ Use `nextellar add` when an existing app needs one capability from another start
 
 ```bash
 npx nextellar add wallet
-npx nextellar add soroban-contract
+npx nextellar add defi
 npx nextellar add network-switcher
 ```
 
+The tables below mirror the CLI's internal feature registry — the same source that powers `nextellar add --list`, which groups features into **hooks** and **components**.
+
 ## Hooks
 
-| Feature id            | Adds                                                 | Common use                                          | Dependencies       |
-| --------------------- | ---------------------------------------------------- | --------------------------------------------------- | ------------------ |
-| `wallet`              | `useStellarWallet`, wallet kit setup, wallet context | Connect Freighter, xBull, and other Stellar wallets | None               |
-| `balances`            | `useStellarBalances`                                 | Read account balances after wallet connection       | `wallet`           |
-| `payment`             | `useStellarPayment`                                  | Send XLM or Stellar asset payments from the UI      | `wallet`           |
-| `trustlines`          | `useTrustlines`                                      | Add, remove, and inspect asset trustlines           | `wallet`           |
-| `offer-book`          | `useOfferBook`                                       | Read Stellar DEX order book data                    | `wallet`           |
-| `soroban-contract`    | `useSorobanContract`                                 | Call Soroban contract methods from React            | `wallet`           |
-| `soroban-events`      | `useSorobanEvents`                                   | Listen to Soroban contract events                   | `soroban-contract` |
-| `transaction-history` | `useTransactionHistory`                              | Display recent operations and payments              | `wallet`           |
+| Feature id   | Adds                                                                          | Common use                                                 | Dependencies |
+| ------------ | ----------------------------------------------------------------------------- | ---------------------------------------------------------- | ------------ |
+| `wallet`     | `WalletProvider`, `WalletConnectButton`, wallet kit setup, `useStellarWallet` | Connect Freighter, Albedo, Lobstr, xBull, and Hana wallets | None         |
+| `balances`   | `useStellarBalances`                                                          | Read account balances after wallet connection              | `wallet`     |
+| `payments`   | `useStellarPayment`                                                           | Build, sign, and send XLM or Stellar asset payments        | `wallet`     |
+| `history`    | `useTransactionHistory`                                                       | Display recent operations and payments                     | None         |
+| `trustlines` | `useTrustlines`                                                               | Add, remove, and inspect asset trustlines                  | `wallet`     |
+| `defi`       | `useOfferBook` and `useTrustlines`                                            | Read Stellar DEX order book data                           | `wallet`     |
+| `contracts`  | `useSorobanContract` and `useSorobanEvents`                                   | Call Soroban contract methods and listen to their events   | `wallet`     |
 
 ## Components
 
-| Feature id         | Adds                  | Common use                                          | Dependencies |
-| ------------------ | --------------------- | --------------------------------------------------- | ------------ |
-| `wallet-button`    | `WalletConnectButton` | Drop-in connect and disconnect button               | `wallet`     |
-| `network-switcher` | `NetworkSwitcher`     | Toggle between testnet and mainnet in the app shell | `wallet`     |
+| Feature id         | Adds                  | Common use                                                                   | Dependencies                                                                                     |
+| ------------------ | --------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `network-switcher` | `NetworkSwitcher`     | Toggle between testnet and mainnet in the app shell                          | `wallet`                                                                                         |
+| `balance-display`  | `BalanceDisplay`      | Render the balances fetched by `useStellarBalances`                          | `balances`                                                                                       |
+| `send-form`        | `SendForm`            | Payment form wired to `useStellarPayment`                                    | `payments`                                                                                       |
+| `receive-form`     | `ReceiveForm`         | QR code and address display for incoming payments                            | `wallet`                                                                                         |
+| `transaction-list` | `TransactionList`     | Paginated list rendered from `useTransactionHistory`                         | `wallet`, `history`                                                                              |
+| `components`       | Every component above | Umbrella feature: install all components (and the hooks they render) at once | `wallet`, `network-switcher`, `balance-display`, `send-form`, `receive-form`, `transaction-list` |
+
+Installing a feature also ensures its npm packages are present: `wallet` adds `@stellar/stellar-sdk` and `@creit.tech/stellar-wallets-kit`, every other hook feature adds `@stellar/stellar-sdk`, and `receive-form` adds `qrcode`.
 
 ## Choosing features
 
-Start with the smallest feature that unlocks the workflow you need. A wallet-only page usually needs `wallet` and `wallet-button`. A payments page adds `payment` and often `balances`. A DeFi page typically combines `trustlines`, `offer-book`, and `payment`. A contract dashboard starts with `soroban-contract` and adds `soroban-events` when it needs live updates.
+Start with the smallest feature that unlocks the workflow you need. A wallet-only page usually needs `wallet` and `network-switcher`. A payments page adds `payments` and often `balances` (or the `send-form` and `balance-display` components). A DeFi page typically combines `trustlines`, `defi`, and `payments`. A contract dashboard starts with `contracts` and adds nothing else — `useSorobanEvents` already ships in that same feature for live updates.
 
 ## Install flow
 
 ```bash
-## Show available features
+## Show available features (grouped as Hooks and Components)
 npx nextellar add --list
 
 ## Add one feature and any required dependencies
-npx nextellar add transaction-history
+npx nextellar add history
 
 ## Replace existing generated files when intentionally refreshing scaffolding
 npx nextellar add wallet --force

@@ -73,6 +73,10 @@ through a server-side proxy rather than exposing credentials in a
 | `useTrustlines`         | `POST /transactions` - ChangeTrust ops |
 | `useOfferBook`          | `GET /order_book` - DEX queries        |
 
+## Account Data Entries
+
+An account can store up to 100 data entries, each with a value of up to 64 bytes. Each entry counts as a subentry and increases the account's minimum balance by one base reserve. The base reserve is set by the network.
+
 ## Using Horizon in Hooks
 
 ### With WalletProvider (Recommended)
@@ -192,6 +196,10 @@ if (error?.message.includes('404')) {
   return <p>Account not funded yet</p>;
 }
 ```
+
+## Horizon Ingest Lag
+
+Ingest lag is the gap between the latest ledger closed by Stellar Core and the latest ledger indexed by Horizon. Check the Horizon root endpoint (`GET /`) and compare `core_latest_ledger` with `history_latest_ledger`; their difference is the lag in ledgers.
 
 ## Rate Limiting
 

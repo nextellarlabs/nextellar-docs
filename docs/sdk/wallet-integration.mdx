@@ -167,6 +167,8 @@ localStorage.getItem('stellar_wallet_connected'); // 'true' | 'false'
 localStorage.getItem('stellar_wallet_id'); // wallet adapter ID
 localStorage.getItem('stellar_wallet_address'); // public key
 localStorage.getItem('stellar_wallet_name'); // display name
+localStorage.getItem('stellar_wallet_accounts'); // serialized account list (multi-account)
+localStorage.getItem('stellar_wallet_current_account_index'); // active account index
 ```
 
 On page reload, the `WalletProvider` or `useStellarWallet` hook automatically reconnects if a previous session exists.

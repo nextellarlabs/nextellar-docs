@@ -45,12 +45,12 @@
     "validate:heading-hierarchy": "node scripts/validate-heading-hierarchy.mjs",
     "fix:heading-hierarchy": "node scripts/fix-heading-hierarchy.mjs",
     "check:links": "node scripts/check-links.cjs",
-    "audit:frontmatter": "node scripts/audit-frontmatter-comprehensive.cjs"
+    "audit:frontmatter": "node scripts/audit-frontmatter-comprehensive.cjs",
     "check:links:all": "node scripts/link-checker.mjs",
     "check:links:external": "node scripts/link-checker.mjs --check-external",
     "verify:hooks-docs": "node scripts/verify-hooks-docs.mjs",
     "test:a11y": "playwright test",
-    "test:a11y:headed": "playwright test --headed"
+    "test:a11y:headed": "playwright test --headed",
     "check:performance": "node scripts/check-performance-budget.mjs",
     "lint:vale": "docker run --rm -v \"$PWD:/workspace\" -w /workspace jdkato/vale:latest sync && docker run --rm -v \"$PWD:/workspace\" -w /workspace jdkato/vale:latest --minAlertLevel=warning ."
   },
