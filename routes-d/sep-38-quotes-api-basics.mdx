@@ -1,0 +1,172 @@
+---
+title: SEP-38 Quotes API Basics
+description: How a Stellar client requests indicative and firm quotes from an anchor using SEP-38, including price binding and a small TypeScript example.
+date: 2026-10-16
+---
+
+# SEP-38 Quotes API Basics
+
+[SEP-38](https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0038.md) defines how an anchor tells a client what an asset swap will cost before money moves. If a user wants to deposit EUR and receive USDC, or withdraw USDC and receive NGN, the client asks the anchor's quote server for a price instead of guessing from a market feed.
+
+Quotes are a companion to the deposit and withdrawal flows in [Anchor Onboarding with KYC](/docs/guides/anchor-onboarding-kyc). SEP-38 only quotes prices. It does not move funds.
+
+## Indicative vs Firm Quotes
+
+SEP-38 has two kinds of price, and the difference matters for your UI.
+
+| Kind       | Endpoint                | Auth                | Binding                                        |
+| ---------- | ----------------------- | ------------------- | ---------------------------------------------- |
+| Indicative | `GET /price`, `/prices` | Optional            | No. The price can change before the user acts. |
+| Firm       | `POST /quote`           | SEP-10 JWT required | Yes. The price is held until `expires_at`.     |
+
+Use indicative prices while the user is typing an amount. Request a firm quote only when the user commits to the swap.
+
+## Discovering the Quote Server
+
+The anchor publishes its quote server in `stellar.toml`:
+
+```toml
+ANCHOR_QUOTE_SERVER = "https://anchor.example.com/sep38"
+```
+
+`GET {ANCHOR_QUOTE_SERVER}/info` lists the assets the anchor will quote:
+
+```json
+{
+  "assets": [
+    {
+      "asset": "stellar:USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN"
+    },
+    { "asset": "iso4217:USD", "country_codes": ["USA"] }
+  ]
+}
+```
+
+Assets use two identifier schemes: `stellar:CODE:ISSUER` for Stellar assets and `iso4217:CODE` for off-chain fiat.
+
+## Requesting an Indicative Price
+
+`GET /price` takes the asset pair and exactly one amount. Pass `sell_amount` to ask "what do I get?" or `buy_amount` to ask "what does it cost?"
+
+```http
+GET /price?sell_asset=iso4217:USD&buy_asset=stellar:USDC:GA5Z...&sell_amount=100&context=sep6
+```
+
+```json
+{
+  "total_price": "1.0204",
+  "price": "1.0101",
+  "sell_amount": "100",
+  "buy_amount": "98.00",
+  "fee": {
+    "total": "1.00",
+    "asset": "iso4217:USD"
+  }
+}
+```
+
+- `price` is the exchange rate before fees.
+- `total_price` is `sell_amount / buy_amount` after fees, so it is the number to show the user as the effective rate.
+- `context` tells the anchor which flow the quote is for: `sep6`, `sep24`, or `sep31`.
+
+## Requesting a Firm Quote
+
+`POST /quote` needs a [SEP-10](https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0010.md) JWT in the `Authorization` header. The body mirrors `/price`, with an optional `expire_after` to ask for a minimum lifetime.
+
+```json
+{
+  "sell_asset": "iso4217:USD",
+  "buy_asset": "stellar:USDC:GA5Z...",
+  "sell_amount": "100",
+  "context": "sep6"
+}
+```
+
+The response adds an `id` and an `expires_at`:
+
+```json
+{
+  "id": "de762cda-a193-4961-861e-57b31fed6eb3",
+  "expires_at": "2026-10-16T12:05:00Z",
+  "total_price": "1.0204",
+  "price": "1.0101",
+  "sell_asset": "iso4217:USD",
+  "sell_amount": "100",
+  "buy_asset": "stellar:USDC:GA5Z...",
+  "buy_amount": "98.00",
+  "fee": { "total": "1.00", "asset": "iso4217:USD" }
+}
+```
+
+`GET /quote/:id` returns the same object later, which is useful for restoring a pending swap after a page reload.
+
+## Price Binding
+
+A firm quote is a commitment from the anchor. For as long as `expires_at` has not passed, the anchor must honour `price`, `sell_amount`, and `buy_amount` no matter how the market moves. The client holds up its end by:
+
+1. Passing the quote `id` as `quote_id` when it starts the SEP-6, SEP-24, or SEP-31 transaction.
+2. Sending the funds before `expires_at`. After expiry the quote is void and the anchor may re-price or reject the transaction.
+3. Not mixing amounts. The transaction amount must match the quoted `sell_amount`.
+
+Surface `expires_at` in the UI as a countdown, and request a fresh quote instead of reusing a stale one.
+
+## Example
+
+A small helper that fetches an indicative price and then locks it in as a firm quote:
+
+```typescript
+// lib/sep38.ts
+const QUOTE_SERVER = 'https://anchor.example.com/sep38';
+
+export interface Quote {
+  id: string;
+  expires_at: string;
+  total_price: string;
+  sell_amount: string;
+  buy_amount: string;
+}
+
+export async function getIndicativePrice(
+  sellAsset: string,
+  buyAsset: string,
+  sellAmount: string
+) {
+  const params = new URLSearchParams({
+    sell_asset: sellAsset,
+    buy_asset: buyAsset,
+    sell_amount: sellAmount,
+    context: 'sep6',
+  });
+  const res = await fetch(`${QUOTE_SERVER}/price?${params}`);
+  if (!res.ok) throw new Error(`Price request failed: ${res.status}`);
+  return res.json();
+}
+
+export async function requestFirmQuote(
+  jwt: string,
+  sellAsset: string,
+  buyAsset: string,
+  sellAmount: string
+): Promise<Quote> {
+  const res = await fetch(`${QUOTE_SERVER}/quote`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${jwt}`,
+    },
+    body: JSON.stringify({
+      sell_asset: sellAsset,
+      buy_asset: buyAsset,
+      sell_amount: sellAmount,
+      context: 'sep6',
+    }),
+  });
+  if (!res.ok) throw new Error(`Quote request failed: ${res.status}`);
+  return res.json();
+}
+
+export const isExpired = (quote: Quote) =>
+  Date.now() >= new Date(quote.expires_at).getTime();
+```
+
+Call `getIndicativePrice` as the user edits the amount, then `requestFirmQuote` once they confirm. Check `isExpired(quote)` immediately before starting the anchor transaction, and fetch a new quote if it returns `true`.

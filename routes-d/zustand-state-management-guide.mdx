@@ -1,0 +1,186 @@
+---
+title: State Management with Zustand
+description: Use Zustand to manage wallet application state in a Nextellar app, with a comparison to alternatives, a small store setup, and testing tips.
+date: 2026-10-16
+---
+
+# State Management with Zustand
+
+A wallet UI shares a lot of state across unrelated components: the connected address, the active network, balances, and the status of any pending transaction. [Zustand](https://github.com/pmndrs/zustand) is a small store library that fits this shape well. This guide compares it with the common alternatives, shows a minimal wallet store, and covers how to test it.
+
+Nextellar's [WalletProvider](/docs/hooks/wallet-provider) already handles wallet connection and reconnect-on-reload. Zustand is for the app state that sits around it, such as pending transactions, UI preferences, and cached balances. You do not need to replace the provider.
+
+## Comparison with Alternatives
+
+| Option             | Boilerplate | Re-render control               | Best for                                     |
+| ------------------ | ----------- | ------------------------------- | -------------------------------------------- |
+| React Context      | Low         | Poor: every consumer re-renders | Rarely changing values such as config, theme |
+| Zustand            | Low         | Good: components select a slice | Shared app state that changes often          |
+| Redux Toolkit      | Medium      | Good: selectors and middleware  | Large teams that need strict conventions     |
+| Jotai              | Low         | Excellent: atom-level updates   | Many small, independent pieces of state      |
+| TanStack Query/SWR | Low         | Built in                        | Server state such as Horizon responses       |
+
+Some guidance on choosing:
+
+- **Context** re-renders every consumer when its value changes. That is fine for a network name and wasteful for a balance that updates every few seconds.
+- **Zustand** needs no provider and lets each component subscribe to only the fields it reads.
+- **Redux Toolkit** is a good choice if your team already uses it. For a typical wallet UI it adds more structure than the problem needs.
+- **TanStack Query or SWR** are a better home for data fetched from Horizon. Keep fetched data there and keep client-only state in Zustand.
+
+## Store Setup
+
+Install the package:
+
+```bash
+pnpm add zustand
+```
+
+Define a store with its state and actions together:
+
+```typescript
+// lib/store/wallet-store.ts
+import { create } from 'zustand';
+import { createJSONStorage, persist } from 'zustand/middleware';
+
+export type TxStatus = 'idle' | 'signing' | 'submitting' | 'success' | 'error';
+
+interface WalletState {
+  address: string | null;
+  network: 'testnet' | 'mainnet';
+  balances: Record<string, string>; // asset code -> amount
+  txStatus: TxStatus;
+  txError: string | null;
+}
+
+interface WalletActions {
+  setAccount: (address: string | null) => void;
+  setNetwork: (network: WalletState['network']) => void;
+  setBalances: (balances: Record<string, string>) => void;
+  setTxStatus: (status: TxStatus, error?: string) => void;
+  reset: () => void;
+}
+
+export const initialState: WalletState = {
+  address: null,
+  network: 'testnet',
+  balances: {},
+  txStatus: 'idle',
+  txError: null,
+};
+
+export const useWalletStore = create<WalletState & WalletActions>()(
+  persist(
+    (set) => ({
+      ...initialState,
+      setAccount: (address) => set({ address }),
+      setNetwork: (network) => set({ network, balances: {} }),
+      setBalances: (balances) => set({ balances }),
+      setTxStatus: (txStatus, error) =>
+        set({ txStatus, txError: error ?? null }),
+      reset: () => set(initialState),
+    }),
+    {
+      name: 'nextellar:wallet',
+      storage: createJSONStorage(() => localStorage),
+      // Persist only what should survive a reload.
+      partialize: (state) => ({ network: state.network }),
+    }
+  )
+);
+```
+
+Two details are deliberate:
+
+- **`partialize`** limits what reaches `localStorage`. Balances go stale and transaction status is meaningless after a reload, so only the network preference is saved. Never put secret keys or seed phrases in a store, persisted or not.
+- **`setNetwork` clears `balances`.** Balances from testnet must never display against mainnet.
+
+## Using the Store in Components
+
+Select only the fields a component reads. A component that selects `balances` does not re-render when `txStatus` changes.
+
+```tsx
+// components/BalanceList.tsx
+'use client';
+import { useWalletStore } from '@/lib/store/wallet-store';
+
+export function BalanceList() {
+  const balances = useWalletStore((s) => s.balances);
+
+  return (
+    <ul>
+      {Object.entries(balances).map(([asset, amount]) => (
+        <li key={asset}>
+          {asset}: {amount}
+        </li>
+      ))}
+    </ul>
+  );
+}
+```
+
+Avoid selecting a new object on every call, such as `useWalletStore((s) => ({ a: s.a, b: s.b }))`. That creates a fresh reference each time and causes extra renders or, in newer versions, an infinite loop. Select fields individually, or wrap the selector in `useShallow` from `zustand/react/shallow`.
+
+Actions can also be called outside React, which helps in transaction code:
+
+```typescript
+// lib/send-payment.ts
+import { useWalletStore } from '@/lib/store/wallet-store';
+
+export async function sendPayment(submit: () => Promise<void>) {
+  const { setTxStatus } = useWalletStore.getState();
+  try {
+    setTxStatus('submitting');
+    await submit();
+    setTxStatus('success');
+  } catch (err) {
+    setTxStatus('error', err instanceof Error ? err.message : 'Unknown error');
+  }
+}
+```
+
+## Server Rendering
+
+In the Next.js App Router, a module-level store is shared by every request on the server. That is safe here because the store holds only client-side wallet state and nothing is set during server render. Read persisted values in a client component after mount. If you see hydration warnings, delay rendering persisted fields until after mount, or set `skipHydration: true` in the `persist` options and call `useWalletStore.persist.rehydrate()` in an effect.
+
+## Testing Tips
+
+Because the store is a plain module, it needs no provider or special setup in tests.
+
+**Reset between tests.** Module state survives across tests in a file, so restore the initial state in `beforeEach`:
+
+```typescript
+// lib/store/wallet-store.test.ts
+import { beforeEach, describe, expect, it } from 'vitest';
+import { initialState, useWalletStore } from './wallet-store';
+
+beforeEach(() => {
+  useWalletStore.setState(initialState, true);
+  localStorage.clear();
+});
+
+describe('wallet store', () => {
+  it('clears balances when the network changes', () => {
+    const { setBalances, setNetwork } = useWalletStore.getState();
+
+    setBalances({ XLM: '100.0000000' });
+    setNetwork('mainnet');
+
+    expect(useWalletStore.getState().balances).toEqual({});
+  });
+
+  it('records an error message on failure', () => {
+    useWalletStore.getState().setTxStatus('error', 'op_underfunded');
+
+    const { txStatus, txError } = useWalletStore.getState();
+    expect(txStatus).toBe('error');
+    expect(txError).toBe('op_underfunded');
+  });
+});
+```
+
+Other tips:
+
+- **Test actions through `getState()`**, without rendering. It is faster and keeps store logic separate from UI tests.
+- **Seed state with `setState`** to put a component in a given scenario, such as `useWalletStore.setState({ address: 'G...', balances: { XLM: '10' } })`, before rendering it.
+- **Use a `jsdom` environment** if you keep the `persist` middleware, since it touches `localStorage`. In a Node-only environment, Zustand falls back to in-memory behaviour and logs a warning.
+- **Reset in a shared setup file** when many test files use the store, so each file does not repeat `beforeEach`.

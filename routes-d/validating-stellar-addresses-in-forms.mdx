@@ -1,0 +1,175 @@
+---
+title: Validating Stellar Addresses in Forms
+description: Validate Stellar address inputs robustly with the canonical StrKey check, a federation resolution fallback, and a small React form example.
+date: 2026-10-16
+---
+
+# Validating Stellar Addresses in Forms
+
+A mistyped recipient is one of the most expensive mistakes a payment form can allow, because Stellar payments are irreversible. This guide shows how to validate address inputs in layers: a fast local check that decides what the user typed, a federation lookup for human-readable names, and a form example that ties them together.
+
+## The Canonical Check
+
+A Stellar address is a base32 string with a version prefix and a CRC16 checksum. Do not validate with a regex alone. A regex such as `/^G[A-Z2-7]{55}$/` accepts any string of the right shape, including ones with a wrong checksum. Use `StrKey` from `@stellar/stellar-sdk`, which verifies the prefix, length, and checksum:
+
+```typescript
+import { StrKey } from '@stellar/stellar-sdk';
+
+StrKey.isValidEd25519PublicKey(input); // G... account
+StrKey.isValidMed25519PublicKey(input); // M... muxed account
+StrKey.isValidContract(input); // C... contract
+```
+
+| Prefix | Kind               | Valid as a payment destination                   |
+| ------ | ------------------ | ------------------------------------------------ |
+| `G`    | Account public key | Yes                                              |
+| `M`    | Muxed account      | Yes, if your SDK and the receiving service allow |
+| `C`    | Contract           | Only for Soroban transfers, not classic payments |
+| `S`    | Secret key         | Never. Reject it and warn the user               |
+
+Treat a pasted secret key as an error, not just an invalid address. A user who pastes a `S...` key into a recipient field has made a serious mistake, so say so, and do not log, store, or send the value anywhere.
+
+## Federation Resolution Fallback
+
+Users sometimes type a federation address such as `alice*example.com`. It is not a `StrKey`, so the canonical check fails. Do not discard it. Detect the `*` and fall back to a federation lookup:
+
+1. Run the canonical check first. If it passes, you are done and there is no network call.
+2. If the input contains `*`, resolve it through the domain's federation server.
+3. Validate the `account_id` the server returns with the canonical check again. A federation server is a third party, so never trust its answer without checking it.
+4. Otherwise report the input as invalid.
+
+Federation can fail for reasons the user did not cause: the server is down, the domain has no `FEDERATION_SERVER` in its `stellar.toml`, or the name does not exist. Keep these cases distinct from "invalid address" so the message can say what went wrong.
+
+## Example
+
+A validator that returns a typed result, so the form can render the right message:
+
+```typescript
+// lib/validate-address.ts
+import { Federation, StrKey } from '@stellar/stellar-sdk';
+
+export type AddressResult =
+  | { ok: true; address: string; memo?: string; memoType?: string }
+  | {
+      ok: false;
+      reason:
+        | 'empty'
+        | 'secret-key'
+        | 'invalid'
+        | 'not-found'
+        | 'lookup-failed';
+    };
+
+export async function validateAddress(raw: string): Promise<AddressResult> {
+  const input = raw.trim();
+
+  if (!input) return { ok: false, reason: 'empty' };
+  if (StrKey.isValidEd25519SecretSeed(input)) {
+    return { ok: false, reason: 'secret-key' };
+  }
+
+  // 1. Canonical check: no network call needed.
+  if (StrKey.isValidEd25519PublicKey(input)) {
+    return { ok: true, address: input };
+  }
+
+  // 2. Federation fallback for name*domain.
+  if (input.includes('*')) {
+    try {
+      const record = await Federation.Server.resolve(input);
+      // 3. Never trust a third-party response without re-checking it.
+      if (StrKey.isValidEd25519PublicKey(record.account_id)) {
+        return {
+          ok: true,
+          address: record.account_id,
+          memo: record.memo,
+          memoType: record.memo_type,
+        };
+      }
+      return { ok: false, reason: 'lookup-failed' };
+    } catch (err) {
+      const notFound =
+        (err as { response?: { status?: number } })?.response?.status === 404;
+      return { ok: false, reason: notFound ? 'not-found' : 'lookup-failed' };
+    }
+  }
+
+  return { ok: false, reason: 'invalid' };
+}
+
+export const messages: Record<
+  Exclude<AddressResult, { ok: true }>['reason'],
+  string
+> = {
+  empty: 'Enter a recipient address.',
+  'secret-key':
+    'That looks like a secret key. Never share it. Enter a public address starting with G.',
+  invalid:
+    'Enter a valid address starting with G, or a name like alice*example.com.',
+  'not-found': 'No account was found for that federation address.',
+  'lookup-failed':
+    'Could not resolve that name right now. Try the G... address instead.',
+};
+```
+
+A form field that validates as the user finishes typing:
+
+```tsx
+// components/RecipientField.tsx
+'use client';
+import { useState } from 'react';
+import { messages, validateAddress } from '@/lib/validate-address';
+
+export function RecipientField({
+  onValid,
+}: {
+  onValid: (address: string) => void;
+}) {
+  const [value, setValue] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
+
+  async function check() {
+    setChecking(true);
+    const result = await validateAddress(value);
+    setChecking(false);
+
+    if (result.ok) {
+      setError(null);
+      onValid(result.address); // always the resolved G... address
+    } else {
+      setError(messages[result.reason]);
+    }
+  }
+
+  return (
+    <div>
+      <label htmlFor="recipient">Recipient</label>
+      <input
+        id="recipient"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={check}
+        aria-invalid={error !== null}
+        aria-describedby={error ? 'recipient-error' : undefined}
+        autoComplete="off"
+        spellCheck={false}
+      />
+      {checking && <p>Checking…</p>}
+      {error && (
+        <p id="recipient-error" role="alert">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+```
+
+## Practical Notes
+
+- **Validate on blur, not on every keystroke.** Running a federation lookup per keystroke floods the server and flashes errors while the user is still typing.
+- **Pass on the resolved address.** After a federation lookup, submit the `G...` account, and show it to the user so they can confirm where the money goes.
+- **Honour the returned memo.** If the federation record includes `memo` and `memo_type`, pre-fill them. Skipping a required memo is a common cause of lost deposits at exchanges.
+- **Validate again on submit.** Field state can go stale, so repeat the canonical check right before building the transaction.
+- **Pair with saved contacts.** Store the resolved address, not the federation name, as described in [dApp Address Book Design](/docs/guides/dapp-address-book-design). For presenting failures, see [Error Handling Patterns](/docs/guides/error-handling-patterns).

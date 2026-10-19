@@ -1,0 +1,180 @@
+---
+title: Building a Contact Picker
+description: Build a small contact picker for wallet UIs, covering a suggested data model, local storage of contacts, and a minimal React component.
+date: 2026-10-16
+---
+
+# Building a Contact Picker
+
+A contact picker lets a user choose a saved recipient instead of pasting a 56-character public key into a send form. This guide builds a small, local-only picker: a data model, a storage layer on top of `localStorage`, and a React component you can drop into a payment form.
+
+For a broader look at address books, including on-chain sync and name resolution, see [dApp Address Book Design](/docs/guides/dapp-address-book-design). This guide covers the smallest useful version.
+
+## Data Model
+
+Keep the stored shape flat and versioned so it is easy to migrate later.
+
+```typescript
+// lib/contacts/types.ts
+export interface Contact {
+  id: string; // crypto.randomUUID()
+  name: string; // user-provided label, e.g. "Alice"
+  address: string; // G... public key
+  memo?: string; // default memo, if the contact needs one
+  createdAt: number; // unix ms
+  lastUsedAt?: number; // drives "recent" ordering
+}
+
+export interface ContactsStore {
+  version: 1;
+  contacts: Contact[];
+}
+```
+
+A few choices worth keeping:
+
+- **Store the resolved `G...` address**, not a federation name such as `alice*example.com`. Federation records can change, and a payment should go to the address the user confirmed.
+- **Keep `memo` optional.** Exchanges and anchors often require one. Personal wallets do not.
+- **Include `version`.** A stored version number lets you migrate the shape without guessing what an old payload looked like.
+
+## Local Storage of Contacts
+
+`localStorage` needs no backend and no account, which suits a contact list. The trade-offs are that the data is per-browser and per-origin, and that anything in `localStorage` is readable by any script on the page.
+
+```typescript
+// lib/contacts/storage.ts
+import { StrKey } from '@stellar/stellar-sdk';
+import type { Contact, ContactsStore } from './types';
+
+const KEY = 'nextellar:contacts';
+const empty: ContactsStore = { version: 1, contacts: [] };
+
+export function loadContacts(): Contact[] {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (!raw) return empty.contacts;
+    const parsed = JSON.parse(raw) as ContactsStore;
+    return parsed.version === 1 ? parsed.contacts : empty.contacts;
+  } catch {
+    // Corrupt JSON, blocked storage, or SSR: fall back to an empty list.
+    return empty.contacts;
+  }
+}
+
+function persist(contacts: Contact[]) {
+  localStorage.setItem(KEY, JSON.stringify({ version: 1, contacts }));
+}
+
+export function addContact(name: string, address: string, memo?: string) {
+  if (!StrKey.isValidEd25519PublicKey(address)) {
+    throw new Error('Invalid Stellar address');
+  }
+  const contact: Contact = {
+    id: crypto.randomUUID(),
+    name: name.trim(),
+    address,
+    memo,
+    createdAt: Date.now(),
+  };
+  persist([...loadContacts(), contact]);
+  return contact;
+}
+
+export function touchContact(id: string) {
+  persist(
+    loadContacts().map((c) =>
+      c.id === id ? { ...c, lastUsedAt: Date.now() } : c
+    )
+  );
+}
+
+export function removeContact(id: string) {
+  persist(loadContacts().filter((c) => c.id !== id));
+}
+```
+
+Never store secret keys or seed phrases in contacts. A contact is a public address and a label, nothing more.
+
+## Example Component
+
+The picker is a controlled input with a filtered list. Typing a name narrows the list, and picking an entry reports the full contact to the parent form.
+
+```tsx
+// components/ContactPicker.tsx
+'use client';
+import { useEffect, useMemo, useState } from 'react';
+import { loadContacts, touchContact } from '@/lib/contacts/storage';
+import type { Contact } from '@/lib/contacts/types';
+
+interface ContactPickerProps {
+  onSelect: (contact: Contact) => void;
+}
+
+export function ContactPicker({ onSelect }: ContactPickerProps) {
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [query, setQuery] = useState('');
+
+  // Read storage after mount so server and client markup match.
+  useEffect(() => setContacts(loadContacts()), []);
+
+  const matches = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return contacts
+      .filter(
+        (c) => c.name.toLowerCase().includes(q) || c.address.startsWith(query)
+      )
+      .sort((a, b) => (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0));
+  }, [contacts, query]);
+
+  function choose(contact: Contact) {
+    touchContact(contact.id);
+    setQuery(contact.name);
+    onSelect(contact);
+  }
+
+  return (
+    <div>
+      <label htmlFor="contact-search">Send to</label>
+      <input
+        id="contact-search"
+        type="search"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Search contacts"
+        autoComplete="off"
+      />
+      <ul role="listbox" aria-label="Contacts">
+        {matches.length === 0 && <li>No matching contacts</li>}
+        {matches.map((c) => (
+          <li key={c.id} role="option" aria-selected={false}>
+            <button type="button" onClick={() => choose(c)}>
+              <strong>{c.name}</strong>
+              <span>
+                {c.address.slice(0, 6)}…{c.address.slice(-6)}
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+```
+
+Use it inside a payment form:
+
+```tsx
+<ContactPicker
+  onSelect={(c) => {
+    setDestination(c.address);
+    if (c.memo) setMemo(c.memo);
+  }}
+/>
+```
+
+## Design Notes
+
+- **Show a truncated address next to the name.** Two contacts called "Alice" should still be distinguishable, and users can spot a look-alike address.
+- **Sort by `lastUsedAt`.** The recipient someone paid yesterday is the one they most likely want today.
+- **Read storage in `useEffect`.** `localStorage` does not exist during server rendering, so reading it during render causes a hydration mismatch in Next.js.
+- **Validate on add, not just on send.** Checking the address when it is saved keeps bad data out of the list. See the [Wallet Integration Deep Dive](/docs/guides/wallet-integration-deep-dive) for how sends are submitted once a recipient is chosen.

@@ -53,6 +53,8 @@
     "verify:hooks-docs": "node scripts/verify-hooks-docs.mjs",
     "test:a11y": "playwright test --project=a11y",
     "test:a11y:headed": "playwright test --project=a11y --headed",
+    "test:a11y": "playwright test",
+    "test:a11y:headed": "playwright test --headed",
     "check:performance": "node scripts/check-performance-budget.mjs",
     "lint:vale": "docker run --rm -v \"$PWD:/workspace\" -w /workspace jdkato/vale:latest sync && docker run --rm -v \"$PWD:/workspace\" -w /workspace jdkato/vale:latest --minAlertLevel=warning ."
   },

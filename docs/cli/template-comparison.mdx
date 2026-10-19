@@ -6,43 +6,37 @@ date: 2026-08-09
 
 # Template Comparison
 
-Nextellar provides three starter templates for different project needs. Use this comparison to see exactly what each template includes before choosing one.
+Nextellar provides three template families, each with TypeScript and JavaScript source variants. Select a family with `--template`; add `--javascript` (or `-j`) for its JavaScript variant. Internal directory names such as `js-template` are not `--template` values.
 
 ## Quick Template Guide
 
-| Template    | Best For                                                                 |
-| ----------- | ------------------------------------------------------------------------ |
-| **default** | Full applications that need the broadest standard starting point         |
-| **minimal** | Wallet-only or lightweight starts where developers want less scaffolding |
-| **defi**    | DEX, trading, order-book, and other DeFi-focused applications            |
+| Template family | TypeScript directory | JavaScript directory | Best for                                                                             |
+| --------------- | -------------------- | -------------------- | ------------------------------------------------------------------------------------ |
+| `default`       | `default`            | `js-template`        | Full Stellar apps that need the broad wallet, transaction, and Soroban hook set.     |
+| `minimal`       | `minimal`            | `js-minimal`         | Lightweight wallet applications and incremental feature development.                 |
+| `defi`          | `defi`               | `js-defi`            | DeFi interfaces using the starter's swap, liquidity-pool, and price-feed components. |
 
 ## Feature Comparison
 
-| Capability              | default | minimal | defi |
-| ----------------------- | ------- | ------- | ---- |
-| **Hooks**               |         |         |      |
-| `useStellarWallet`      | ✓       | ✓       | ✓    |
-| `useStellarBalances`    | ✓       | ✓       | ✓    |
-| `useStellarPayment`     | ✓       | —       | ✓    |
-| `useTransactionHistory` | ✓       | —       | —    |
-| `useTrustlines`         | ✓       | —       | ✓    |
-| `useOfferBook`          | ✓       | —       | ✓    |
-| `useSorobanContract`    | ✓       | —       | —    |
-| `useSorobanEvents`      | ✓       | —       | —    |
-| **Components**          |         |         |      |
-| `WalletConnectButton`   | ✓       | ✓       | ✓    |
-| `NetworkSwitcher`       | ✓       | —       | —    |
-| **Infrastructure**      |         |         |      |
-| `lib/storage`           | ✓       | ✓       | ✓    |
-| `config/networks`       | ✓       | —       | —    |
-| `.env.example`          | ✓       | —       | —    |
-| **JavaScript Support**  | ✓       | ✓       | ✓    |
+| Hook                    | `default` (TS) | `js-template` | `minimal` (TS) | `js-minimal` | `defi` (TS) | `js-defi` |
+| ----------------------- | :------------: | :-----------: | :------------: | :----------: | :---------: | :-------: |
+| `useClipboard`          |       ✓        |       ✓       |       ✓        |      ✓       |      ✓      |     ✓     |
+| `useStellarWallet`      |       ✓        |       ✓       |       ✓        |      ✓       |      ✓      |     ✓     |
+| `useStellarBalances`    |       ✓        |       ✓       |       ✓        |      ✓       |      ✓      |     ✓     |
+| `useStellarPayment`     |       ✓        |       ✓       |       —        |      —       |      ✓      |     ✓     |
+| `useTransactionHistory` |       ✓        |       ✓       |       ✓        |      —       |      ✓      |     ✓     |
+| `useTrustlines`         |       ✓        |       ✓       |       —        |      —       |      ✓      |     ✓     |
+| `useOfferBook`          |       ✓        |       ✓       |       —        |      —       |      ✓      |     ✓     |
+| `useSorobanContract`    |       ✓        |       ✓       |       —        |      —       |      ✓      |     —     |
+| `useSorobanEvents`      |       ✓        |       ✓       |       —        |      —       |      ✓      |     —     |
+
+The matrix reflects hook files shipped in each template's `src/hooks` directory. The TypeScript `minimal` variant includes `useTransactionHistory`; the JavaScript `js-minimal` variant does not.
 
 ## Template Details
 
 ### default
 
-The comprehensive starter template with full Stellar and Soroban capabilities:
+The full starter includes wallet connection, balances, transaction history, a network switcher, and the broadest set of classic Stellar and Soroban hooks.
 
 - **Wallet Features**: Connection, balance display, payment sending
 - **Soroban Integration**: Smart contract calls and event listening
@@ -54,40 +48,26 @@ The comprehensive starter template with full Stellar and Soroban capabilities:
 
 ### minimal
 
-The lightweight template focused on essential wallet operations:
+The lightweight family centers on wallet connection and balances. Its TypeScript source also includes transaction history; the JavaScript variant is smaller and omits that hook.
 
-- **Core Wallet**: Connection and balance checking only
-- **Minimal Dependencies**: Fewest external integrations
-- **Clean Foundation**: Perfect for custom builds without extra scaffolding
-
-**Choose minimal when**: Building wallet-only applications or when you want to add features incrementally.
+**Choose minimal when**: Building a wallet-focused application or adding features incrementally.
 
 ### defi
 
-The DeFi-focused template optimized for trading and DEX applications:
+The DeFi family includes wallet and payment hooks, trustlines, offer-book access, and a DeFi-oriented starter UI. The TypeScript variant also includes Soroban contract and event hooks; the JavaScript variant does not.
 
-- **Wallet Features**: Connection, balances, and payments
-- **DeFi Tools**: Asset trustlines and DEX order book integration
-- **Trading Ready**: Optimized for DEX interactions and asset management
-
-**Choose defi when**: Building DEX interfaces, trading applications, or other DeFi-focused projects.
+**Choose defi when**: Building a DeFi interface using the starter's swap, liquidity-pool, or price-feed components.
 
 ## JavaScript Support
 
-The `--javascript` flag generates `.jsx`/`.js` files instead of TypeScript:
+The `--javascript` flag generates `.jsx`/`.js` files instead of TypeScript. All three template families have JavaScript source directories:
 
 ```bash
 npx nextellar my-app --javascript
 npx nextellar my-app --javascript --template defi
 ```
 
-**Current JavaScript Support:**
-
-- **default**: ✓ Full JavaScript variant available
-- **minimal**: ✓ Full JavaScript variant available
-- **defi**: ✓ Full JavaScript variant available
-
-**Note**: `--javascript` is a language option that works with compatible templates, not a separate template itself.
+The CLI's `TEMPLATE_LIST` accepts only `default`, `minimal`, and `defi`; the internal JavaScript directory names are not accepted as `--template` values.
 
 ## Smart Contract Support
 
@@ -126,7 +106,7 @@ npx nextellar my-app --template defi --with-contracts
 - You're building DEX or trading interfaces
 - You need trustline and order book features
 - You're focusing on DeFi use cases
-- You want DeFi tools without Soroban complexity
+- You want DeFi starter components; the TypeScript variant also includes Soroban contract and event hooks
 
 ## Template Migration
 

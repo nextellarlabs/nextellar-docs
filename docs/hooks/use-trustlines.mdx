@@ -136,6 +136,7 @@ interface Trustline {
 }
 ```
 
+When no limit is provided, the trustline defaults to Stellar's maximum amount: `922337203685.4775807`. Set a lower limit to cap the asset balance. A limit of `0` requests trustline removal and succeeds only when the balance is zero and the trustline has no liabilities.
 Trustlines are parsed from Horizon `account.balances` entries where `asset_type !== 'native'`. `authorized` maps from Horizon `is_authorized`.
 
 ## Examples
@@ -384,6 +385,11 @@ if (error) {
 
 The hook uses `WalletProvider`'s `horizonUrl` as a fallback. Pass `network` yourself if you need mainnet transaction building:
 
+`````tsx
+// In your app layout
+<WalletProvider horizonUrl="https://horizon.stellar.org" network="PUBLIC">
+  <App />
+</WalletProvider>;
 ```tsx
 import { WalletProvider } from '@/contexts';
 import { useStellarWallet } from '@/hooks/useStellarWallet';
@@ -420,3 +426,4 @@ const { trustlines } = useTrustlines(publicKey, {
 - [`useStellarBalances`](/docs/hooks/use-stellar-balances) - View asset balances
 - [`useStellarPayment`](/docs/hooks/use-stellar-payment) - Send custom assets
 - [`useStellarWallet`](/docs/hooks/use-stellar-wallet) - Wallet connection and management
+`````
