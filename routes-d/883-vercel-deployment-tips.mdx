@@ -1,0 +1,188 @@
+---
+title: Vercel Deployment Tips
+description: Practical tips for deploying the Nextellar docs site on Vercel — build settings, environment variables, analytics hooks, and the pitfalls specific to a contentlayer + pnpm setup.
+date: 2026-10-16
+tags: [deployment, vercel, environment-variables, analytics, build]
+---
+
+# Vercel Deployment Tips
+
+This guide collects the Vercel-specific settings and pitfalls that matter when deploying the Nextellar docs site. It assumes you already have a Vercel account and a Git repository connected to a Vercel project. For a full end-to-end production deployment walkthrough, see [Production Deployment Guide (Vercel + Nextellar Cloud)](/docs/guides/production-deployment-vercel-nextellar-cloud).
+
+---
+
+## Build Settings
+
+Vercel auto-detects Next.js projects, but this repo's build pipeline runs more than `next build`. Confirm these settings in **Project Settings → Build & Development Settings**.
+
+### Framework preset
+
+**Next.js**. Do not override this — Vercel needs the framework preset to wire up output, image optimization, and serverless functions correctly.
+
+### Install command
+
+```
+pnpm install
+```
+
+The repo ships a `pnpm-lock.yaml` and declares `packageManager: pnpm@9.15.4` in `package.json`. Vercel reads the `packageManager` field and uses Corepack to install the exact pnpm version. Do **not** change this to `npm install` — the lockfile is pnpm-specific.
+
+### Build command
+
+```
+pnpm build
+```
+
+Which expands to the full pipeline defined in `package.json`:
+
+```
+contentlayer2 build && next build && npm run build:search-index && npm run validate:search-index
+```
+
+That means the Vercel build does four things in order:
+
+1. Compiles every MDX file in `docs/` through contentlayer2.
+2. Builds the Next.js app.
+3. Generates the search index.
+4. Validates the search index.
+
+If any step fails, the deployment fails. That is intentional — a broken search index in production is worse than a failed deploy.
+
+### Output directory
+
+Leave the default (`.next`). Next.js writes both the static output and the serverless functions there, and Vercel knows how to serve both.
+
+### Node.js version
+
+Set to **Node.js 20.x** in **Project Settings → General → Node.js Version**. The `engines` field in `package.json` requires `>=18`, but Node 20 is what the repo is tested against and what Vercel recommends for Next.js 16.
+
+---
+
+## Environment Variables
+
+Vercel distinguishes between variables available at build time, at runtime, and to the browser. Getting the prefixes right prevents two common bugs: secrets leaking to the client, and `undefined` showing up in the browser.
+
+### The `NEXT_PUBLIC_` prefix
+
+Only variables prefixed with `NEXT_PUBLIC_` are exposed to the browser. Everything else stays on the server.
+
+| Variable | Exposed to browser? | Typical use |
+| --- | --- | --- |
+| `NEXT_PUBLIC_SITE_URL` | Yes | Canonical URL for metadata, sitemap, Open Graph |
+| `NEXT_PUBLIC_ANALYTICS_ID` | Yes | Client-side analytics key |
+| `DATABASE_URL` | No | Server-only secrets |
+| `VERCEL_URL` | No (injected by Vercel) | Preview deployment URL |
+
+### Where to set them
+
+**Project Settings → Environment Variables**. Each variable can be scoped to one or more environments:
+
+- **Production** — only the production domain
+- **Preview** — every PR and non-production branch deployment
+- **Development** — only when running `vercel dev` locally
+
+Set the same variable value for both **Production** and **Preview** if you want preview builds to behave like production. A common mistake is setting a variable only for Production and then wondering why preview deploys break.
+
+### Recommended variables for this docs site
+
+| Name | Scope | Value |
+| --- | --- | --- |
+| `NEXT_PUBLIC_SITE_URL` | Production | `https://docs.nextellar.dev` |
+| `NEXT_PUBLIC_SITE_URL` | Preview | Leave unset — the code should fall back to `VERCEL_URL` |
+| `NEXT_PUBLIC_ANALYTICS_ID` | All | Your analytics provider's public key |
+
+`VERCEL_URL` is injected automatically for every deployment and reflects the current deployment's hostname. Use it as a fallback when building absolute URLs:
+
+```ts
+const siteUrl =
+  process.env.NEXT_PUBLIC_SITE_URL ??
+  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+```
+
+### Redeploy after changing env vars
+
+Environment variables are baked into the build. Changing one in the dashboard does **not** affect existing deployments. Trigger a redeploy from **Deployments → ⋯ → Redeploy** for the change to take effect.
+
+---
+
+## Analytics Hooks
+
+Vercel ships first-party analytics that integrate with Next.js through two small packages. Add them to the app root.
+
+### Vercel Analytics
+
+```bash
+pnpm add @vercel/analytics
+```
+
+Then in your root layout (`src/app/layout.tsx`):
+
+```tsx
+import { Analytics } from '@vercel/analytics/next';
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <body>
+        {children}
+        <Analytics />
+      </body>
+    </html>
+  );
+}
+```
+
+This records pageviews and Web Vitals without any further configuration. Data appears under **Analytics** in the Vercel dashboard.
+
+### Speed Insights
+
+```bash
+pnpm add @vercel/speed-insights
+```
+
+```tsx
+import { SpeedInsights } from '@vercel/speed-insights/next';
+```
+
+Add `<SpeedInsights />` next to `<Analytics />` in the layout. It collects Core Web Vitals per route and reports them in the Vercel dashboard.
+
+### Alternatives
+
+If you already use another analytics provider, you do not need Vercel's. Common choices:
+
+- **Plausible** — privacy-friendly, lightweight, self-hostable.
+- **PostHog** — product analytics with session recording and feature flags.
+- **Umami** — self-hosted, minimal.
+
+Whichever you pick, load the script inside a client component and read the public key from `NEXT_PUBLIC_ANALYTICS_ID` so preview and production can report separately.
+
+### Don't double-count in development
+
+Guard analytics initialization so it does not fire during local development:
+
+```tsx
+{process.env.NODE_ENV === 'production' && <Analytics />}
+```
+
+Otherwise your local browsing shows up in production dashboards.
+
+---
+
+## Common Pitfalls
+
+- **Using `npm install` instead of `pnpm install`.** The repo ships a pnpm lockfile. Using npm silently installs whatever semver allows and can produce a build that passes locally but fails on Vercel, or vice versa.
+- **Missing env var on Preview.** A variable set only for Production will be `undefined` in preview deployments. Set both.
+- **Stale env vars after a change.** Env vars are compiled into the build. Redeploy after editing them.
+- **Contentlayer cache confusion.** Vercel caches `node_modules` and `.next` between builds. If a docs page appears to render stale content, use **Redeploy → Use existing build cache: off** to force a clean build.
+- **Monorepo root directory.** If this docs repo is ever nested inside a larger monorepo, set **Root Directory** to `nextellar-docs` in Project Settings. Otherwise Vercel looks for `package.json` at the wrong level and fails at install.
+- **Analytics double-firing.** Mount analytics only in the root layout, and guard against development as shown above.
+- **Assuming `VERCEL_URL` is stable.** It changes on every deployment. Only `NEXT_PUBLIC_SITE_URL` is stable across deploys.
+
+---
+
+## See Also
+
+- [Production Deployment Guide (Vercel + Nextellar Cloud)](/docs/guides/production-deployment-vercel-nextellar-cloud) — the full end-to-end deployment walkthrough.
+- [Deployment](/docs/guides/deployment) — general deployment concepts that apply to any host.
+- [Analytics Setup](/docs/guides/analytics-setup) — configuring analytics providers beyond Vercel's built-in offering.
+- [Docs Build Performance Tips](/docs/guides/docs-build-performance-tips) — keeping contentlayer and Next.js builds fast as the docs grow.
