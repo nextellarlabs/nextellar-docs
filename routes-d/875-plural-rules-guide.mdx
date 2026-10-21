@@ -1,0 +1,62 @@
+---
+title: Plural Rules Guide
+description: Use locale-aware plural rules to write clear, natural plural forms in documentation and user interfaces.
+date: 2026-10-16
+tags:
+  - internationalization
+  - localization
+---
+
+# Plural Rules Guide
+
+Plural forms affect more than grammar. A message such as “1 transactions” feels unfinished, while a message that assumes every language uses only singular and plural can be incorrect after translation. Use the locale's plural rules for count-dependent text in documentation and user interfaces.
+
+## Use `Intl.PluralRules`
+
+JavaScript's `Intl.PluralRules` API selects the plural category for a number in a locale. The categories are `zero`, `one`, `two`, `few`, `many`, and `other`; which categories a language uses depends on that language's rules. English commonly uses `one` and `other`, but other locales may use additional categories.
+
+Use the selected category to choose a complete message from your translations. Do not build a sentence by appending an English `s` or assume that a count of `1` is the only singular case.
+
+```js
+function itemCountMessage(count, locale) {
+  const category = new Intl.PluralRules(locale).select(count);
+  const formattedCount = new Intl.NumberFormat(locale).format(count);
+
+  // This message map is for English; provide translated categories per locale.
+  const messages = {
+    one: `${formattedCount} item`,
+    other: `${formattedCount} items`,
+  };
+
+  return messages[category] ?? messages.other;
+}
+
+itemCountMessage(1, 'en'); // "1 item"
+itemCountMessage(3, 'en'); // "3 items"
+```
+
+This example intentionally supplies English messages only. A locale can select `few` or `many`, for example, so a production translation should provide the categories required by each language rather than relying on the English fallback. An internationalization library with message-format plural support can manage those translations and interpolation.
+
+For ordinal text such as “1st” or “2nd,” request ordinal rules with `new Intl.PluralRules(locale, { type: 'ordinal' })`. Cardinal rules are the default and are used for quantities such as item counts.
+
+## Keep Counts and Messages Localized
+
+Format the count with `Intl.NumberFormat` for the same locale as the message. Keep the number as a number until formatting; do not use formatted strings to select a plural category.
+
+When a translation has a placeholder, pass the formatted count into the translated message. Let the translation determine the word order, punctuation, and any surrounding text. A count may appear in a different position in another language.
+
+## Choose a Clear, Respectful Tone
+
+Use a concise, neutral, helpful tone. Name what is being counted (“3 files uploaded”) instead of showing a bare number when the context is not obvious. Prefer plain, direct wording and avoid jokes, scolding, or language that blames people for an empty or large count.
+
+Check that the surrounding message still reads naturally for every supported category. For example, “No files uploaded” may be clearer than forcing a translated zero count into a sentence that sounds awkward. Keep labels and actions consistent across the UI, and avoid shortening text in ways that make assistive-technology output unclear.
+
+## Review Pluralized Content
+
+Before publishing documentation or shipping a UI change:
+
+- Check each supported locale, including categories beyond `one` and `other`.
+- Test zero, one, and representative values for each locale's rules.
+- Review the complete translated sentence, not just the changed noun.
+- Confirm counts are formatted for the same locale as their messages.
+- Check the message in context, including narrow layouts and screen-reader output.
