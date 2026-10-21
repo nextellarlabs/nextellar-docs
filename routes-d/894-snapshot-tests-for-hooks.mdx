@@ -1,0 +1,71 @@
+---
+title: Snapshot Tests for React Hooks
+description: Use focused, deterministic snapshots to document stable hook output, with matcher guidance and common pitfalls to avoid.
+---
+
+# Snapshot Tests for React Hooks
+
+Snapshots can make a hook's structured, user-facing output easy to review, especially when a hook returns several related values. They work best as a supplement to assertions about behavior: a snapshot shows what changed, but it does not explain whether the new behavior is correct.
+
+## Matcher setup
+
+Vitest includes snapshot matchers on `expect`; no snapshot plugin or additional matcher setup is needed. Import `expect` from `vitest` when the project does not enable global test APIs:
+
+```ts
+import { expect, it } from 'vitest';
+import { renderHook } from '@testing-library/react';
+```
+
+Choose the matcher based on how the expected output should be maintained:
+
+| Matcher | Use it when |
+| --- | --- |
+| `toMatchSnapshot()` | The expected output is large enough to keep in a separate snapshot file, or several tests share the same snapshot workflow. |
+| `toMatchInlineSnapshot()` | The expected output is short and keeping it beside the test makes changes easy to review. |
+| `toEqual()` or focused matchers | The expected behavior is small and explicit assertions communicate it more clearly than a snapshot. |
+
+Use the matcher conventions already established in the project. For Jest, snapshot matchers are also built in; use its configured test imports and runner instead of adding Vitest-specific setup.
+
+## A small example
+
+This hook returns a concise validation summary. The test snapshots only that stable, user-facing output:
+
+```tsx
+import { expect, it } from 'vitest';
+import { renderHook } from '@testing-library/react';
+import { useMemo } from 'react';
+
+function useValidationSummary(errors: Record<string, string>) {
+  return useMemo(
+    () => Object.entries(errors).map(([field, message]) => `${field}: ${message}`),
+    [errors]
+  );
+}
+
+it('summarizes validation errors', () => {
+  const errors = {
+    email: 'Enter a valid email address',
+    name: 'Name is required',
+  };
+  const { result } = renderHook(() => useValidationSummary(errors));
+
+  expect(result.current).toMatchInlineSnapshot(`
+    [
+      "email: Enter a valid email address",
+      "name: Name is required",
+    ]
+  `);
+});
+```
+
+In a real test, prefer a direct assertion for a single important outcome—for example, that a particular field has an error. Keep the snapshot for the combined output when its shape is useful to review as a whole.
+
+## Pitfalls to avoid
+
+- **Snapshotting the entire hook result by default.** Results may include functions, context values, or internal state that are not part of the hook's public contract. Snapshot a deliberate projection or stable output instead.
+- **Including nondeterministic values.** Dates, random IDs, generated addresses, and environment-dependent data create noisy snapshots. Supply fixed inputs or normalize values that are not relevant to the behavior under test.
+- **Using snapshots instead of behavior assertions.** A snapshot can be updated to match a regression. Assert critical transitions, return values, and side effects directly, then snapshot only where the broader shape adds value.
+- **Capturing asynchronous output too early.** Wait for the expected state with `waitFor` before reading `result.current`; use `act` when triggering updates directly. A snapshot of the initial render does not verify a later state.
+- **Accepting updates without review.** When output intentionally changes, run the focused test with snapshot updates enabled (for Vitest, `pnpm exec vitest run --update path/to/test-file.test.ts`) and review the diff as carefully as a code change. Do not update snapshots merely to make a failing test pass.
+
+For broader hook-testing patterns, see the [Testing Guide](/docs/guides/testing).
