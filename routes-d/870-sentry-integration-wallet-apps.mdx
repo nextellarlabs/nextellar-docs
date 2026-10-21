@@ -1,0 +1,152 @@
+---
+title: Sentry Integration for Stellar Wallet Apps
+description: A privacy-first guide to adding Sentry to a Stellar wallet app, with environment configuration, sensitive-data scrubbing, useful tags, and a small Next.js example.
+date: 2026-10-16
+---
+
+# Sentry Integration for Stellar Wallet Apps
+
+Sentry is useful for finding failures that are difficult to reproduce locally: a wallet provider may time out, a Horizon or RPC request may fail for one network, or a transaction-status poll may stop making progress. In a wallet app, observability must be designed around the fact that the user may be handling signing material and other sensitive data.
+
+This guide uses the Next.js browser SDK (`@sentry/nextjs`) as an example because the documentation site and its examples use Next.js. The same privacy rules apply if your wallet uses another Sentry SDK.
+
+## Install and configure the SDK
+
+Install the SDK in the wallet application:
+
+```bash
+pnpm add @sentry/nextjs
+```
+
+Keep the DSN in the deployment environment, not in source control. A DSN identifies the Sentry project; it is not a password, but it should still be configured per environment so local and production events remain separate.
+
+For a Next.js app, initialize the browser SDK in `sentry.client.config.ts` (or the equivalent file created by the Sentry setup wizard):
+
+```typescript
+import * as Sentry from '@sentry/nextjs';
+
+const environment = process.env.NEXT_PUBLIC_APP_ENV ?? 'development';
+
+Sentry.init({
+  dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+  environment,
+  enabled: environment === 'production' || environment === 'staging',
+  sendDefaultPii: false,
+  tracesSampleRate: environment === 'production' ? 0.1 : 0,
+  beforeSend(event) {
+    return scrubEvent(event);
+  },
+});
+```
+
+Only expose the DSN through a public environment variable because browser-side initialization needs it. Do not put a private key, seed phrase, API token, or signing secret in a `NEXT_PUBLIC_*` variable. Keep reporting disabled in local development unless you deliberately use a separate development Sentry project.
+
+The exact configuration file names can vary by Next.js version. Follow the current [`@sentry/nextjs` setup documentation](https://docs.sentry.io/platforms/javascript/guides/nextjs/) for server, edge, and client initialization, and keep the privacy settings consistent across each runtime.
+
+## Scrub before sending
+
+The safest sensitive value is one the app never collects in an error event. Never attach seed phrases, private keys, wallet-provider tokens, authentication headers, or signed transaction envelopes to an exception, breadcrumb, URL, or user context. Do not log them first and rely on a later filter.
+
+Pay particular attention to:
+
+- **Signing material:** seed phrases, secret keys, auth tokens, and wallet-provider responses.
+- **Transaction data:** raw XDR, signed envelopes, authorization entries, memo contents, and request bodies.
+- **Identity data:** full account addresses, email addresses, names, and KYC or payment details unless the privacy policy explicitly permits a carefully designed identifier.
+- **Network data:** query parameters, cookies, authorization headers, breadcrumb data, and URLs that may contain tokens or user input.
+
+Use `beforeSend` as a last safety boundary. Keep the scrubber allow-list-oriented: retain only fields that are useful and known to be safe. The example below removes common sensitive fields from request metadata, breadcrumbs, and extra context. It also removes full account addresses rather than attempting to hash them in the browser.
+
+```typescript
+import type { Event } from '@sentry/nextjs';
+
+const sensitiveKey = /seed|secret|private.?key|token|authorization|cookie|password|mnemonic|xdr|signature|address/i;
+
+function scrubValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(scrubValue);
+  if (!value || typeof value !== 'object') return value;
+
+  return Object.fromEntries(
+    Object.entries(value).map(([key, child]) => [
+      key,
+      sensitiveKey.test(key) ? '[Filtered]' : scrubValue(child),
+    ]),
+  );
+}
+
+function scrubEvent(event: Event): Event {
+  if (event.request) {
+    event.request = {
+      ...event.request,
+      url: undefined,
+      query_string: undefined,
+      headers: undefined,
+      cookies: undefined,
+      data: undefined,
+    };
+  }
+
+  event.breadcrumbs = event.breadcrumbs?.map((breadcrumb) => ({
+    ...breadcrumb,
+    data: scrubValue(breadcrumb.data) as Record<string, unknown> | undefined,
+    message: undefined,
+  }));
+  event.extra = scrubValue(event.extra) as Record<string, unknown> | undefined;
+  event.contexts = scrubValue(event.contexts) as Event['contexts'];
+  event.user = undefined;
+
+  return event;
+}
+```
+
+For production applications, prefer explicit safe fields over a broad recursive scrubber when the event shape is known. Add server-side inbound data scrubbing and retention controls in Sentry as a second layer, but do not treat those controls as permission to collect secrets in the client.
+
+## Add useful, low-cardinality tags
+
+Tags make an issue searchable and groupable. Good wallet-app tags describe the release and operation without identifying the wallet:
+
+- `app.version`: the deployed application version.
+- `app.environment`: `development`, `staging`, or `production`.
+- `stellar.network`: `testnet` or `public`.
+- `wallet.operation`: a small set such as `connect`, `sign`, `submit`, or `balance-refresh`.
+- `wallet.provider`: a provider category such as `freighter` or `wallet-sdk`.
+- `stellar.sdk_version`: the installed SDK version.
+
+Keep tag values bounded and predictable. Never use a seed phrase, private key, access token, raw XDR, full wallet address, memo, or arbitrary user input as a tag. Avoid full transaction hashes and account identifiers unless the product's privacy review explicitly approves them and the identifier is necessary; they are high-cardinality and can make incidents harder to group.
+
+Set tags immediately before capturing an error, or use a scope so that concurrent operations do not leak one operation's context into another:
+
+```typescript
+import * as Sentry from '@sentry/nextjs';
+
+export function reportWalletSubmitFailure(error: unknown, network: 'testnet' | 'public') {
+  Sentry.withScope((scope) => {
+    scope.setTag('app.environment', process.env.NEXT_PUBLIC_APP_ENV ?? 'development');
+    scope.setTag('stellar.network', network);
+    scope.setTag('wallet.operation', 'submit');
+    scope.setTag('wallet.provider', 'wallet-sdk');
+
+    Sentry.captureException(error);
+  });
+}
+```
+
+The captured error should describe the failure category, not include the transaction envelope or signing response. If a server error includes an unsafe payload, normalize it before passing it to Sentry.
+
+## Test the integration safely
+
+1. Use a separate Sentry project or environment for development and staging.
+2. Trigger a deliberate error with a fake account and a fabricated transaction identifier; never use a real seed phrase, private key, token, or signed transaction to test reporting.
+3. Confirm that the event has the expected environment and low-cardinality tags.
+4. Inspect the event's request data, breadcrumbs, contexts, extras, and user fields in Sentry. Confirm that URLs, query parameters, headers, request bodies, account addresses, and signing material are absent or filtered.
+5. Verify that reporting is disabled when the production DSN is not configured or when the app environment is local development.
+6. Keep sampling and retention appropriate for the incident-response need and the project's privacy policy.
+
+For wallet transaction construction and submission, follow Stellar's [wallet integration documentation](https://developers.stellar.org/docs/tools/developer-tools/wallets) and [transaction signing guidance](https://developers.stellar.org/docs/build/guides/transactions/signing-soroban-invocations). Sentry should report that a non-sensitive operation failed; it should never become a second place where a wallet's signing material is stored.
+
+## Summary
+
+- Configure `@sentry/nextjs` per environment and keep the DSN out of source control.
+- Avoid collecting wallet secrets and raw transaction material in the first place.
+- Use `beforeSend` and Sentry's server-side controls as defense-in-depth.
+- Tag events with release, environment, network, operation, provider, and SDK information—not wallet identity or secrets.
+- Validate the integration with fabricated data before enabling production reporting.
