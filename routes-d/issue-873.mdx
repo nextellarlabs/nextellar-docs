@@ -1,0 +1,41 @@
+---
+title: Currency Symbols Per Locale
+description: A guide on rendering currency symbols accurately across different locales using native formatting APIs.
+date: 2026-10-20
+---
+
+# Currency Symbols Per Locale
+
+When building global applications, formatting currencies correctly for different locales is critical. The recommended approach is to use the native `Intl.NumberFormat` API rather than hardcoding symbols like `$` or `€`.
+
+## Formatting APIs
+
+The native `Intl.NumberFormat` object enables language-sensitive number formatting. By setting the `style` property to `"currency"`, the browser automatically renders the correct currency symbol, decimal separator, and symbol placement based on the user's locale.
+
+## Small Example
+
+Here is a quick example of how to format US Dollars (USD) for both US English and German locales:
+
+```typescript
+const amount = 1234.56;
+
+// US English: $1,234.56
+const usFormat = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+}).format(amount);
+
+// German: 1.234,56 $
+const deFormat = new Intl.NumberFormat('de-DE', {
+  style: 'currency',
+  currency: 'USD',
+}).format(amount);
+```
+
+## Edge Cases
+
+When rendering currency symbols across locales, you must account for the following edge cases:
+
+- **Symbol Placement:** The position of the currency symbol (before or after the number) varies by locale. For example, USD in `en-US` is formatted as `$100`, but in `fr-FR` it is formatted as `100 $US`.
+- **Spacing Characters:** Many locales insert a non-breaking space (`&nbsp;`) between the number and the symbol. Attempting to manually parse or split these strings can lead to layout breaks.
+- **Currency vs. Locale Definition:** The `currency` parameter strictly dictates *what* currency is displayed (e.g., USD or EUR), while the locale string (`en-US`, `de-DE`) dictates *how* it is formatted. Always define both.
