@@ -209,8 +209,16 @@ export const sidebarNav: SidebarSection[] = [
         href: '/docs/guides/package-managers-and-lockfiles',
       },
       {
+        title: 'Bundle Size Analysis',
+        href: '/docs/guides/bundle-size-analysis',
+      },
+      {
         title: 'Optimizing Transaction Sizes',
         href: '/docs/guides/optimizing-transaction-sizes',
+      },
+      {
+        title: 'Bundle Size Analysis',
+        href: '/docs/guides/bundle-size-analysis',
       },
       {
         title: 'Transaction Batching',
