@@ -39,9 +39,10 @@ npx nextellar my-app \
   --horizon-url https://horizon.example.com
 ```
 
-The generated project writes the value to `NEXT_PUBLIC_HORIZON_URL`. Use an
-endpoint for the same Stellar network as the wallet and network passphrase, and
-pass that value to `WalletProvider` if you configure the provider manually:
+The generated project writes the value to `NEXT_PUBLIC_HORIZON_URL` in
+`.env.example` (copy it to `.env.local`). The generated app does not read this
+variable on its own, so pass it to `WalletProvider` yourself. Use an endpoint for the same Stellar
+network as the wallet and network passphrase:
 
 ```tsx
 const horizonUrl = process.env.NEXT_PUBLIC_HORIZON_URL!;
@@ -57,6 +58,10 @@ Confirm that the custom endpoint is reachable before running the app:
 npx nextellar doctor --horizon-url https://horizon.example.com
 ```
 
+The scaffold sets `NEXT_PUBLIC_NETWORK` to `PUBLIC` only when the URL contains
+the text `public`; otherwise it writes `TESTNET`. For a custom mainnet endpoint,
+check that value and correct it.
+
 Use the Horizon server's base URL without an endpoint suffix such as
 `/accounts`. If the server requires authentication headers, route requests
 through a server-side proxy rather than exposing credentials in a
@@ -64,14 +69,14 @@ through a server-side proxy rather than exposing credentials in a
 
 ### Hooks That Use Horizon
 
-| Hook                    | Horizon Operations                     |
-| ----------------------- | -------------------------------------- |
-| `useStellarBalances`    | `GET /accounts/{id}` - Fetch balances  |
-| `useStellarPayment`     | `POST /transactions` - Submit payments |
-| `useStellarWallet`      | Account queries and payments           |
-| `useTransactionHistory` | `GET /accounts/{id}/operations`        |
-| `useTrustlines`         | `POST /transactions` - ChangeTrust ops |
-| `useOfferBook`          | `GET /order_book` - DEX queries        |
+| Hook                    | Horizon Operations                                                       |
+| ----------------------- | ------------------------------------------------------------------------ |
+| `useStellarBalances`    | `GET /accounts/{id}` - Fetch balances                                    |
+| `useStellarPayment`     | `POST /transactions` - Submit payments                                   |
+| `useStellarWallet`      | Account queries and payments                                             |
+| `useTransactionHistory` | `GET /accounts/{id}/operations` (or `/payments` with `type: 'payments'`) |
+| `useTrustlines`         | `POST /transactions` - ChangeTrust ops                                   |
+| `useOfferBook`          | `GET /order_book` - DEX queries                                          |
 
 ## Account Data Entries
 
@@ -83,7 +88,7 @@ An account can store up to 100 data entries, each with a value of up to 64 bytes
 
 Configure once at the provider level:
 
-````tsx
+```tsx
 <WalletProvider horizonUrl="https://horizon.stellar.org">
   <App /> {/* All hooks use mainnet Horizon */}
 </WalletProvider>
@@ -181,18 +186,19 @@ const horizonUrl = process.env.NEXT_PUBLIC_HORIZON_URL;
 
 Horizon returns specific error codes. Hooks handle common ones:
 
-| Error          | Meaning              | Hook Response                 |
-| -------------- | -------------------- | ----------------------------- |
-| 404            | Account not found    | Empty balances, `error` state |
-| 400            | Bad request          | Validation error              |
-| 504            | Timeout              | Network error                 |
-| tx_bad_seq     | Sequence mismatch    | Retry needed                  |
-| op_underfunded | Insufficient balance | Payment failed                |
+| Error          | Meaning              | Hook Response                     |
+| -------------- | -------------------- | --------------------------------- |
+| 404            | Account not found    | Empty `balances`, no `error`      |
+| 400            | Bad request          | `Client error: ... (Status: 400)` |
+| 5xx (e.g. 504) | Server error/timeout | `Network error: ...`              |
+| tx_bad_seq     | Sequence mismatch    | Retry needed                      |
+| op_underfunded | Insufficient balance | Payment failed                    |
 
 ```tsx
-const { error, refresh } = useStellarBalances(publicKey);
+const { balances, loading, error } = useStellarBalances(publicKey);
 
-if (error?.message.includes('404')) {
+// A 404 is not reported as an error: balances is simply empty
+if (!loading && !error && balances.length === 0) {
   return <p>Account not funded yet</p>;
 }
 ```
@@ -205,7 +211,7 @@ Ingest lag is the gap between the latest ledger closed by Stellar Core and the l
 
 Stellar's public Horizon servers have rate limits. For production:
 
-1. **Use polling sparingly** - Set `pollIntervalMs` to 10+ seconds
+1. **Use polling sparingly** - Set `pollIntervalMs` to 10+ seconds (values below 5 seconds are raised to 5 seconds)
 2. **Consider self-hosting** - Run your own Horizon instance
 3. **Use caching** - Implement client-side caching
 
@@ -222,4 +228,4 @@ const { balances } = useStellarBalances(publicKey, {
 - [useStellarBalances](/docs/hooks/use-stellar-balances) - Balance fetching hook
 - [useStellarPayment](/docs/hooks/use-stellar-payment) - Payment transactions
 - [useTransactionHistory](/docs/hooks/use-transaction-history) - Transaction queries
-````
+

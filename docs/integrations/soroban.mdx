@@ -22,7 +22,7 @@ Soroban is Stellar's smart contract platform that enables:
 | Network | Soroban RPC URL                       |
 | ------- | ------------------------------------- |
 | Testnet | `https://soroban-testnet.stellar.org` |
-| Mainnet | `https://soroban-rpc.stellar.org`     |
+| Mainnet | `https://soroban.stellar.org`         |
 
 ## View a Contract on Stellar Expert
 
@@ -34,7 +34,7 @@ Open `https://stellar.expert/explorer/{network}/contract/{contract-id}`, replaci
 
 The primary hook for contract interaction:
 
-````tsx
+```tsx
 import { useSorobanContract } from '@/hooks/useSorobanContract';
 
 function TokenBalance() {
@@ -63,7 +63,7 @@ function EventListener() {
   const { events, loading, error } = useSorobanEvents(
     'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQAHHXK3AWCM',
     {
-      pollingInterval: 5000,
+      pollIntervalMs: 5000,
       limit: 20,
     }
   );
@@ -124,20 +124,26 @@ const result = await submitInvokeWithSecret(xdr, 'SABC123...');
 
 The hook automatically converts between JavaScript and Soroban types:
 
-| JavaScript | Soroban (ScVal)  |
-| ---------- | ---------------- |
-| `string`   | ScvString        |
-| `number`   | ScvI32 / ScvI128 |
-| `boolean`  | ScvBool          |
-| `Array`    | ScvVec           |
-| `Object`   | ScvMap           |
-| `Address`  | ScvAddress       |
+| JavaScript                       | Soroban (ScVal) |
+| -------------------------------- | --------------- |
+| `string`                         | ScvString       |
+| `string` (56-char `G...`/`C...`) | ScvAddress      |
+| `number`                         | ScvI32          |
+| `bigint`                         | ScvI128         |
+| `boolean`                        | ScvBool         |
+| `Uint8Array`                     | ScvBytes        |
+| `Array`                          | ScvVec          |
+| `Object`                         | ScvMap          |
+| `Address`                        | ScvAddress      |
+
+Pass `{ value, type }` (for example `{ value: 1000, type: 'u128' }`) to choose a
+different type, such as `u128` instead of `i32` or `symbol` instead of `string`.
 
 ```tsx
 // Automatic conversion
 await callFunction('transfer', [
-  'GABC...', // -> ScvAddress
-  1000, // -> ScvI128
+  'GABC...', // -> ScvAddress (full 56-character address)
+  1000n, // -> ScvI128 (a plain number becomes ScvI32)
   true, // -> ScvBool
 ]);
 ```
@@ -150,7 +156,7 @@ Configure the Soroban RPC endpoint when scaffolding your project using the `--so
 
 ```bash
 # Use mainnet Soroban RPC endpoint
-npx nextellar my-app --soroban-url https://soroban-rpc.stellar.org
+npx nextellar my-app --soroban-url https://soroban.stellar.org
 
 # Use testnet (default)
 npx nextellar my-app --soroban-url https://soroban-testnet.stellar.org
@@ -159,16 +165,19 @@ npx nextellar my-app --soroban-url https://soroban-testnet.stellar.org
 npx nextellar my-app --soroban-url https://custom-soroban-rpc.example.com
 ```
 
-The `--soroban-url` flag sets the default Soroban RPC endpoint for your project. You can verify or check the current endpoint from the CLI using:
+The `--soroban-url` flag writes the endpoint to `NEXT_PUBLIC_SOROBAN_URL` in `.env.example`. Pass it to `WalletProvider` or the hooks yourself, as shown below. You can check that an endpoint is reachable from the CLI using:
 
 ```bash
-nextellar doctor --soroban-url https://soroban-rpc.stellar.org
+nextellar doctor --soroban-url https://soroban.stellar.org
 ```
 
 ### With WalletProvider
 
 ```tsx
-<WalletProvider sorobanRpc="https://soroban-rpc.stellar.org" network="PUBLIC">
+<WalletProvider
+  sorobanUrl="https://soroban.stellar.org"
+  network="Public Global Stellar Network ; September 2015"
+>
   <App />
 </WalletProvider>
 ```
@@ -178,7 +187,7 @@ nextellar doctor --soroban-url https://soroban-rpc.stellar.org
 ```tsx
 const contract = useSorobanContract({
   contractId: 'CDLZ...',
-  sorobanRpc: 'https://soroban-rpc.stellar.org',
+  sorobanRpc: 'https://soroban.stellar.org',
   network: 'PUBLIC',
 });
 ```
@@ -215,19 +224,27 @@ function TokenActions({ contractId, userAddress }) {
 ### Listening to Mint Events
 
 ```tsx
+import { scValToNative, xdr } from '@stellar/stellar-sdk';
+
 function MintEventMonitor({ contractId }) {
   const { events } = useSorobanEvents(contractId, {
-    pollingInterval: 10000,
+    pollIntervalMs: 10000,
   });
 
-  const mintEvents = events.filter((e) => e.topic?.includes('mint'));
+  // Topics and values are returned as base64 XDR strings; decode them first
+  const mintEvents = events.filter((e) => {
+    const [name] = e.topic.map((t) =>
+      scValToNative(xdr.ScVal.fromXDR(t, 'base64'))
+    );
+    return name === 'mint';
+  });
 
   return (
     <div>
       <h3>Recent Mints</h3>
       {mintEvents.map((event, i) => (
         <div key={i}>
-          Minted {event.value} to {event.to}
+          Mint event in ledger {event.ledger} (tx {event.txHash})
         </div>
       ))}
     </div>
@@ -255,7 +272,7 @@ try {
 
 ```bash
 ## .env.local
-NEXT_PUBLIC_SOROBAN_RPC=https://soroban-rpc.stellar.org
+NEXT_PUBLIC_SOROBAN_URL=https://soroban.stellar.org
 NEXT_PUBLIC_NETWORK=PUBLIC
 ```
 
@@ -266,4 +283,4 @@ NEXT_PUBLIC_NETWORK=PUBLIC
 - [useSorobanContract](/docs/hooks/use-soroban-contract) - Full hook documentation
 - [useSorobanEvents](/docs/hooks/use-soroban-events) - Event listening hook
 - [Stellar Horizon](/docs/integrations/horizon) - Standard Stellar operations
-````
+

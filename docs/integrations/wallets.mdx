@@ -6,13 +6,14 @@ date: 2026-06-02
 
 # Wallet Integration
 
-Nextellar uses [@creit.tech/stellar-wallets-kit](https://github.com/AhaLabs/stellar-wallets-kit) to provide seamless multi-wallet support. This integration enables connecting to Freighter, Albedo, Lobstr, and other Stellar wallets.
+Nextellar uses [@creit.tech/stellar-wallets-kit](https://github.com/Creit-Tech/Stellar-Wallets-Kit) to provide seamless multi-wallet support. This integration enables connecting to Freighter, Albedo, Lobstr, and other Stellar wallets.
 
 > **CLI Configuration:** For details on configuring wallet adapters during project scaffolding with the `--wallets` flag (including defaults and supported adapters), see [Wallet Configuration](/docs/cli/flags#wallet-configuration-wallets) in the CLI Flags reference.
 
 ## Supported Wallets
 
-Out of the box, Nextellar supports:
+Nextellar supports the wallets below. A new project enables Freighter, Albedo,
+and Lobstr by default; pass `--wallets` to enable others:
 
 | Wallet        | Type              | Features                    |
 | ------------- | ----------------- | --------------------------- |
@@ -21,6 +22,9 @@ Out of the box, Nextellar supports:
 | **Lobstr**    | Browser Extension | Mobile-friendly companion   |
 | **xBull**     | Browser Extension | Advanced features           |
 | **Hana**      | Browser Extension | Stellar ecosystem wallet    |
+| **Ledger**    | Hardware (WebUSB) | Enable with `ledger`        |
+
+The `walletconnect` option is covered on the [WalletConnect](/docs/integrations/walletconnect) page.
 
 ## Set Up xBull
 
@@ -52,31 +56,28 @@ If a new Testnet account has no balance, fund it with the steps in
 
 ### Wallet Kit Configuration
 
-The wallet kit is configured in `src/lib/stellar-wallet-kit.ts`:
+The wallet kit is created lazily in `src/lib/stellar-wallet-kit.ts`. The modules
+are chosen from the `--wallets` list written at scaffold time, and the network
+(`TESTNET` or `PUBLIC`) comes from the scaffold-time network value unless you
+pass one:
 
-````typescript
-import {
-  StellarWalletsKit,
-  FREIGHTER_ID,
-  FreighterModule,
-  AlbedoModule,
-  LobstrModule,
-  xBullModule,
-  HanaModule,
-  WalletNetwork,
-} from '@creit.tech/stellar-wallets-kit';
+```typescript
+const INJECTED_WALLETS: string[] = ['freighter', 'albedo', 'lobstr']; // set by --wallets
 
-const kit = new StellarWalletsKit({
-  network: WalletNetwork.TESTNET,
-  selectedWalletId: FREIGHTER_ID,
-  modules: [
-    new FreighterModule(),
-    new AlbedoModule(),
-    new LobstrModule(),
-    new xBullModule(),
-    new HanaModule(),
-  ],
-});
+export const getKit = (network?: WalletNetwork): StellarWalletsKit => {
+  // ...
+  const modules = [];
+  if (walletList.includes('freighter')) modules.push(new FreighterModule());
+  if (walletList.includes('albedo')) modules.push(new AlbedoModule());
+  if (walletList.includes('lobstr')) modules.push(new LobstrModule());
+  if (walletList.includes('xbull')) modules.push(new xBullModule());
+  if (walletList.includes('hana')) modules.push(new HanaModule());
+  // ledger and walletconnect modules are added the same way
+  // ...
+};
+
+// `kit` is a function that returns the kit instance
+export const kit = (network?: WalletNetwork) => getKit(network);
 ```
 
 ### Connection Flow
@@ -122,7 +123,8 @@ import { useStellarWallet } from '@/hooks/useStellarWallet';
 function MyComponent() {
   const { connected, publicKey, connect, disconnect } = useStellarWallet();
 
-  // Same interface as useWallet
+  // Same core fields as useWallet, without the multi-account
+  // (accounts, switchAccount) and network mismatch fields
 }
 ```
 
@@ -159,12 +161,12 @@ On page load, the provider checks for an existing session and auto-reconnects.
 When transactions need to be signed, the wallet kit handles it:
 
 ```tsx
-import { kit } from '@/lib/stellar-wallet-kit';
+import { signTransaction } from '@/lib/stellar-wallet-kit';
 
-// Sign an XDR transaction
-const { signedTxXdr } = await kit.signTransaction(unsignedXdr, {
+// Sign an XDR transaction; the network is set when the kit is created
+const signedTxXdr = await signTransaction({
+  unsignedTransaction: unsignedXdr,
   address: publicKey,
-  networkPassphrase: Networks.TESTNET,
 });
 ```
 
@@ -183,28 +185,15 @@ await sendPayment({
 
 ## Adding More Wallets
 
-To add additional wallet support, edit `src/lib/stellar-wallet-kit.ts`:
+Wallets are enabled through the `--wallets` flag when you scaffold:
 
-```typescript
-import {
-  StellarWalletsKit,
-  FreighterModule,
-  AlbedoModule,
-  LobstrModule,
-  xBullModule, // Add new import
-} from '@creit.tech/stellar-wallets-kit';
-
-const kit = new StellarWalletsKit({
-  network: WalletNetwork.TESTNET,
-  selectedWalletId: FREIGHTER_ID,
-  modules: [
-    new FreighterModule(),
-    new AlbedoModule(),
-    new LobstrModule(),
-    new xBullModule(), // Add to array
-  ],
-});
+```bash
+npx nextellar my-app --wallets freighter,albedo,lobstr,xbull
 ```
+
+In an existing project, add the wallet id (`freighter`, `albedo`, `lobstr`,
+`xbull`, `hana`, `ledger` or `walletconnect`) to the `INJECTED_WALLETS` array in
+`src/lib/stellar-wallet-kit.ts`.
 
 ## Network Configuration
 
@@ -292,10 +281,17 @@ interface WalletState {
   publicKey?: string; // Stellar G-address
   walletName?: string; // "Freighter", "Albedo", etc.
   balances: Balance[]; // Account balances
+  accounts: WalletAccount[]; // Accounts exposed by the wallet
+  currentAccountIndex: number;
   connect: () => Promise<void>;
   disconnect: () => void;
   refreshBalances: () => Promise<void>;
-  sendPayment?: (opts) => Promise<TransactionResponse>;
+  switchAccount: (address: string) => Promise<void>;
+  sendPayment?: (
+    opts: PaymentOptions
+  ) => Promise<SubmitTransactionResponse | UnsignedFeeBumpResult>;
+  walletNetworkPassphrase?: string; // Network reported by the wallet
+  networkMismatch: boolean; // Wallet network differs from the app's
 }
 ```
 
@@ -315,4 +311,4 @@ Freighter is the most popular Stellar wallet. Some specific notes:
 - [WalletProvider](/docs/hooks/wallet-provider) - Context provider docs
 - [useStellarWallet](/docs/hooks/use-stellar-wallet) - Standalone hook docs
 - [Wallet Integration Guide](/docs/sdk/wallet-integration) - Advanced setup
-````
+
