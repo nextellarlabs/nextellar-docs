@@ -13,16 +13,16 @@ This page is the complete reference for environment variables that control **Nex
 ## Quick Reference
 
 | Variable                       | Type    | Default                | Required | Scope |
-| ------------------------------ | ------- | ---------------------- | -------- | ----- |
+| -------------------------------- | ------- | ---------------------- | -------- | ----- |
 | `NEXTELLAR_TELEMETRY_DISABLED` | boolean | `false` (off)          | No       | CLI   |
 | `NEXTELLAR_TELEMETRY_ENDPOINT` | string  | `https://nextellar...` | No       | CLI   |
 | `NEXTELLAR_HORIZON_URL`        | string  | testnet URL            | No       | CLI   |
 | `NEXTELLAR_SOROBAN_URL`        | string  | testnet URL            | No       | CLI   |
-| `NEXTELLAR_NETWORK`            | string  | `TESTNET`              | No       | CLI   |
-| `NEXTELLAR_SKIP_INSTALL`       | boolean | `false`                | No       | CLI   |
+| `NEXTELLAR_NETWORK`             | string  | `TESTNET`              | No       | CLI   |
+| `NEXTELLAR_SKIP_INSTALL`        | boolean | `false`                | No       | CLI   |
 | `NEXTELLAR_PACKAGE_MANAGER`    | string  | auto-detect            | No       | CLI   |
-| `NEXTELLAR_LOG_LEVEL`          | string  | `info`                 | No       | CLI   |
-| `NEXTELLAR_NO_ANALYTICS`       | boolean | `false`                | No       | CLI   |
+| `NEXTELLAR_LOG_LEVEL`          | string  | `info`                | No       | CLI   |
+| `NEXTELLAR_NO_ANALYTICS`        | boolean | `false`                | No       | CLI   |
 
 ---
 
@@ -34,11 +34,21 @@ These variables control Nextellar CLI behavior during scaffolding, adding featur
 
 #### `NEXTELLAR_TELEMETRY_DISABLED`
 
+Setting `NEXTELLAR_TELEMETRY_DISABLED` forces telemetry off for the CLI invocation.
+
 **Type:** `boolean` (unset = `false`, set to any value = `true`)
 
 **Effect:** Disables telemetry collection for the current CLI invocation. Telemetry is off by default; set this variable only to explicitly disable in CI environments.
 
 **Default (scaffold):** `false` (telemetry off)
+
+**Precedence:** This environment variable takes precedence over telemetry settings stored in the project configuration (e.g. `.nextellarrc`, `package.json`, or the CLI config file). When the variable is set to any value, telemetry is disabled regardless of what the configuration says. The resolution order is:
+
+1. `NEXTELLAR_TELEMETRY_DISABLED` (highest)
+2. Project configuration (telemetry settings in `.nextellarrc` / `package.json`)
+3. Default (telemetry off) (lowest)
+
+This means you can opt in to telemetry in a config file but still force it off for a specific run or CI job by setting the environment variable.
 
 **When to use:**
 
@@ -49,7 +59,7 @@ These variables control Nextellar CLI behavior during scaffolding, adding featur
 **Examples:**
 
 ```bash
-## Disable telemetry for one command
+|## Disable telemetry for one command
 NEXTELLAR_TELEMETRY_DISABLED=1 nextellar my-app
 
 ## In GitHub Actions
@@ -77,7 +87,7 @@ env:
 **Examples:**
 
 ```bash
-## Send telemetry to custom endpoint
+|## Send telemetry to custom endpoint
 export NEXTELLAR_TELEMETRY_ENDPOINT="https://my-analytics.internal/telemetry"
 nextellar my-app
 
@@ -123,9 +133,9 @@ NEXTELLAR_HORIZON_URL=http://localhost:8000 nextellar upgrade --check
 **Precedence:**
 
 1. `NEXTELLAR_HORIZON_URL` (highest)
-2. `--horizon-url` flag on the command
+2. `-horizon-url` flag on the command
 3. `.env` variables in the project
-4. Default testnet URL (lowest)
+4. Default testnet URL (most lowest)
 
 ---
 
@@ -162,9 +172,9 @@ NEXTELLAR_SOROBAN_URL=http://localhost:8001 nextellar upgrade --check
 
 **Valid values:**
 
-| Value     | Network              | Horizon Passphrase                               |
-| --------- | -------------------- | ------------------------------------------------ |
-| `TESTNET` | Stellar test network | `Test SDF Network ; September 2015`              |
+| Value     | Network              | Horizon Passphrase                           |
+| --------- | -------------------- | ---------------------------------------------- |
+| `TESTNET` | Stellar test network | `Test SDF Network ; September 2015`             |
 | `PUBLIC`  | Stellar mainnet      | `Public Global Stellar Network ; September 2015` |
 
 **Examples:**
@@ -192,7 +202,7 @@ NEXTELLAR_NETWORK=TESTNET nextellar deploy
 **Examples:**
 
 ```bash
-## Skip installation (useful in Docker or CI)
+|## Skip installation (useful in Docker or CI)
 NEXTELLAR_SKIP_INSTALL=1 nextellar my-app
 
 ## GitHub Actions with npm cache
@@ -225,7 +235,7 @@ NEXTELLAR_SKIP_INSTALL=1 nextellar my-app
 **Examples:**
 
 ```bash
-## Force pnpm
+|## Force pnpm
 export NEXTELLAR_PACKAGE_MANAGER="pnpm"
 nextellar my-app
 
@@ -248,11 +258,11 @@ NEXTELLAR_PACKAGE_MANAGER=npm nextellar my-app
 **Valid values:**
 
 | Level    | Description              | Example Output        |
-| -------- | ------------------------ | --------------------- |
+| -------- | ---------------------- | ------------------- |
 | `debug`  | Verbose debugging output | All steps logged      |
 | `info`   | Normal operation info    | Key milestones logged |
 | `warn`   | Warnings and errors only | Issues only           |
-| `error`  | Errors only              | Fatal errors only     |
+| `error`  | Errors only            | Fatal errors only     |
 | `silent` | No output                | (nothing)             |
 
 **Examples:**
@@ -278,7 +288,7 @@ NEXTELLAR_LOG_LEVEL=silent nextellar my-app > output.txt
 **Examples:**
 
 ```bash
-## Disable all analytics tracking
+|## Disable all analytics tracking
 export NEXTELLAR_NO_ANALYTICS=1
 nextellar my-app
 ```
@@ -317,7 +327,7 @@ export async function getServerSideProps() {
 Create a `.env.local` file in your project root:
 
 ```bash
-## .env.local
+|## .env.local
 NEXTELLAR_TELEMETRY_DISABLED=1
 NEXTELLAR_HORIZON_URL=https://horizon.stellar.org
 NEXTELLAR_LOG_LEVEL=debug
@@ -325,8 +335,7 @@ NEXTELLAR_LOG_LEVEL=debug
 
 Then run CLI commands:
 
-```bash
-nextellar add useHorizonServer
+```bash nextellar add useHorizonServer
 ```
 
 ## In CI/CD Pipelines
