@@ -1,0 +1,358 @@
+---
+title: End-to-End Testing Wallet Flows with Playwright
+description: How to write Playwright end-to-end tests for Stellar dApp wallet flows — covering wallet mocking, a working example for connect and send, and CI patterns.
+date: 2026-10-16
+---
+
+# End-to-End Testing Wallet Flows with Playwright
+
+Unit and integration tests verify logic in isolation, but the critical user paths — connecting a wallet, reviewing a transaction, confirming a send — can only be validated fully at the browser level. Playwright drives a real browser, so it catches issues that jsdom-based tests miss: CSS that hides a button, an off-screen modal, or a race condition in the wallet extension handshake.
+
+This guide explains the wallet mocking approach, walks through a complete working example, and describes CI patterns that keep your suite stable.
+
+---
+
+## Why E2E for wallet flows
+
+Wallet extensions like Freighter communicate over the `window.stellar` API injected by the extension. In a real browser the extension is present; in CI it is not. This means:
+
+- You cannot drive a real wallet extension in Playwright on CI.
+- Tests that call `window.stellar.getPublicKey()` directly will hang or throw.
+
+The solution is to **replace the wallet API at the browser boundary** before the page script runs, using Playwright's `page.addInitScript`. This injects a mock object into every page before any other JavaScript executes, so your app's hooks call the mock instead of the real extension.
+
+---
+
+## Wallet mocking approach
+
+Create a mock factory that matches the `window.stellar` interface Freighter exposes:
+
+```typescript
+// tests/e2e/fixtures/mock-stellar-wallet.ts
+export interface MockStellarWalletOptions {
+  publicKey?: string;
+  /** Simulate the wallet being absent (extension not installed) */
+  absent?: boolean;
+  /** Reject the next getPublicKey call with this error message */
+  rejectConnect?: string;
+  /** Reject the next signTransaction call with this error message */
+  rejectSign?: string;
+}
+
+export function buildMockWalletScript(opts: MockStellarWalletOptions): string {
+  if (opts.absent) {
+    return `delete window.stellar;`;
+  }
+
+  const pk =
+    opts.publicKey ??
+    'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5';
+  const rejectConnect = opts.rejectConnect
+    ? JSON.stringify(opts.rejectConnect)
+    : null;
+  const rejectSign = opts.rejectSign ? JSON.stringify(opts.rejectSign) : null;
+
+  return `
+    window.stellar = {
+      isFreighter: true,
+      getPublicKey() {
+        return ${
+          rejectConnect
+            ? `Promise.reject(new Error(${rejectConnect}))`
+            : `Promise.resolve(${JSON.stringify(pk)})`
+        };
+      },
+      signTransaction(xdr, opts) {
+        return ${
+          rejectSign
+            ? `Promise.reject(new Error(${rejectSign}))`
+            : `Promise.resolve({ signedTxXdr: xdr })`
+        };
+      },
+      getNetwork() {
+        return Promise.resolve({ network: 'TESTNET', networkPassphrase: 'Test SDF Network ; September 2015' });
+      },
+    };
+  `;
+}
+```
+
+The script string is passed to `page.addInitScript({ content: script })` and runs synchronously before the page renders, so there is no window between the real `window.stellar` being absent and the mock being in place.
+
+---
+
+## Example: connect → send flow
+
+The test below covers the full path a user takes from landing on a page to completing a payment.
+
+### Project layout
+
+```
+tests/
+  e2e/
+    fixtures/
+      mock-stellar-wallet.ts   ← mock factory (above)
+    wallet-flow.spec.ts        ← test file (below)
+playwright.config.ts
+```
+
+### Test file
+
+```typescript
+// tests/e2e/wallet-flow.spec.ts
+import { test, expect } from '@playwright/test';
+import { buildMockWalletScript } from './fixtures/mock-stellar-wallet';
+
+const RECIPIENT = 'GDRXE2BQUC3AZNPVFSCEZ76NJ3WWL25FYFK6RGZGIEKWE4SOOHSUJUJ6';
+const AMOUNT = '10';
+
+test.describe('Wallet flows', () => {
+  test.beforeEach(async ({ page }) => {
+    // Inject the mock wallet before any page script runs
+    await page.addInitScript({
+      content: buildMockWalletScript({
+        publicKey: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+      }),
+    });
+  });
+
+  test('user can connect wallet and see truncated public key', async ({
+    page,
+  }) => {
+    await page.goto('/');
+
+    await page.getByRole('button', { name: 'Connect Wallet' }).click();
+
+    // After connecting, the truncated key should appear
+    await expect(page.getByText(/GBBD4.*LA5/)).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Connect Wallet' })
+    ).not.toBeVisible();
+  });
+
+  test('user can fill send form and confirm transaction', async ({ page }) => {
+    await page.goto('/send');
+
+    await page.addInitScript({
+      content: buildMockWalletScript({}),
+    });
+
+    // Connect first
+    await page.getByRole('button', { name: 'Connect Wallet' }).click();
+    await expect(page.getByText(/GBBD4/)).toBeVisible();
+
+    // Fill send form
+    await page.getByLabel('Recipient address').fill(RECIPIENT);
+    await page.getByLabel('Amount').fill(AMOUNT);
+    await page.getByRole('button', { name: 'Review' }).click();
+
+    // Confirmation modal
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await expect(page.getByText(AMOUNT + ' XLM')).toBeVisible();
+    await expect(page.getByText(RECIPIENT.slice(0, 4))).toBeVisible();
+
+    await page.getByRole('button', { name: 'Confirm and sign' }).click();
+
+    // Success state
+    await expect(page.getByText(/Transaction submitted/i)).toBeVisible();
+  });
+
+  test('shows install prompt when wallet extension is absent', async ({
+    page,
+  }) => {
+    // Override the default mock with an absent wallet
+    await page.addInitScript({
+      content: buildMockWalletScript({ absent: true }),
+    });
+    await page.goto('/');
+
+    await page.getByRole('button', { name: 'Connect Wallet' }).click();
+
+    await expect(page.getByText(/install freighter/i)).toBeVisible();
+  });
+
+  test('shows error message when user rejects connection', async ({ page }) => {
+    await page.addInitScript({
+      content: buildMockWalletScript({
+        rejectConnect: 'User rejected the request',
+      }),
+    });
+    await page.goto('/');
+
+    await page.getByRole('button', { name: 'Connect Wallet' }).click();
+
+    await expect(page.getByRole('alert')).toContainText(/rejected/i);
+    // Button remains available for retry
+    await expect(
+      page.getByRole('button', { name: 'Connect Wallet' })
+    ).toBeVisible();
+  });
+
+  test('shows error message when user rejects signing', async ({ page }) => {
+    await page.addInitScript({
+      content: buildMockWalletScript({
+        rejectSign: 'User declined to sign the transaction',
+      }),
+    });
+    await page.goto('/send');
+
+    await page.getByRole('button', { name: 'Connect Wallet' }).click();
+    await page.getByLabel('Recipient address').fill(RECIPIENT);
+    await page.getByLabel('Amount').fill(AMOUNT);
+    await page.getByRole('button', { name: 'Review' }).click();
+    await page.getByRole('button', { name: 'Confirm and sign' }).click();
+
+    await expect(page.getByRole('alert')).toContainText(/declined/i);
+  });
+});
+```
+
+### What each test covers
+
+| Test                 | Wallet state              | Assertion                                         |
+| -------------------- | ------------------------- | ------------------------------------------------- |
+| Connect success      | Connected, valid key      | Truncated public key visible, Connect button gone |
+| Send and confirm     | Connected, sign succeeds  | Confirmation modal, success message               |
+| Extension absent     | `window.stellar` deleted  | Install prompt visible                            |
+| User rejects connect | `getPublicKey` rejects    | Error alert, button retained for retry            |
+| User rejects sign    | `signTransaction` rejects | Error alert on confirmation step                  |
+
+---
+
+## Playwright configuration
+
+The existing `playwright.config.ts` in this repo targets the accessibility test suite. Add a second project entry for wallet E2E tests, or create a dedicated config:
+
+```typescript
+// playwright.config.ts (additions)
+import { defineConfig, devices } from '@playwright/test';
+
+export default defineConfig({
+  testDir: './tests/e2e',
+  timeout: 30_000,
+  retries: process.env.CI ? 2 : 0,
+  use: {
+    baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:3000',
+    trace: 'on-first-retry',
+    screenshot: 'only-on-failure',
+  },
+  projects: [
+    {
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'webkit',
+      use: { ...devices['Desktop Safari'] },
+    },
+  ],
+  // Start the Next.js dev server automatically during local runs
+  webServer: process.env.CI
+    ? undefined
+    : {
+        command: 'pnpm dev',
+        url: 'http://localhost:3000',
+        reuseExistingServer: true,
+        timeout: 120_000,
+      },
+});
+```
+
+Set `E2E_BASE_URL` in CI to point at the preview deployment instead of spinning up a local server.
+
+---
+
+## CI patterns
+
+### GitHub Actions workflow
+
+```yaml
+# .github/workflows/e2e.yml
+name: E2E wallet tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium webkit
+
+      - name: Build app
+        run: pnpm build
+
+      - name: Run E2E tests
+        run: pnpm exec playwright test
+        env:
+          E2E_BASE_URL: http://localhost:3000
+
+      - name: Upload test report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+```
+
+### Run against preview deployments
+
+On PR workflows that deploy a preview (Vercel, Netlify, or Nextellar Cloud), pass the preview URL as `E2E_BASE_URL` and skip the `webServer` block entirely:
+
+```yaml
+- name: Run E2E tests against preview
+  run: pnpm exec playwright test
+  env:
+    E2E_BASE_URL: ${{ steps.deploy.outputs.preview_url }}
+```
+
+This removes the need to build the app in CI twice — the preview deployment is the SUT.
+
+### Parallelism and sharding
+
+For suites that grow beyond a minute, shard across runners:
+
+```yaml
+strategy:
+  matrix:
+    shard: [1, 2, 3, 4]
+steps:
+  - name: Run E2E shard ${{ matrix.shard }}
+    run: pnpm exec playwright test --shard=${{ matrix.shard }}/4
+```
+
+Merge the HTML reports in a follow-up job using `playwright merge-reports`.
+
+### Retries and flakiness
+
+Set `retries: 2` in CI (shown in the config above). Playwright retries the entire test, re-running `beforeEach` setup including `addInitScript`, so the mock state is always fresh on retry. Do not set retries higher than 2 — a test that needs three attempts has a real problem that retries are masking.
+
+---
+
+## Relationship to other testing layers
+
+This guide covers the E2E layer. For the unit and integration layers below it, see:
+
+- [Testing Guide for Scaffolded dApps](/docs/guides/testing) — Vitest, RTL, and MSW setup
+- [Testing Horizon and Soroban Interactions](/docs/guides/testing-horizon-soroban) — mocking Horizon and Soroban RPC at the HTTP boundary
+- [Wallet UX Patterns](/docs/guides/wallet-ux-patterns) — the states your E2E tests should cover
+
+Visual regression tests that screenshot the wallet UI on each PR are covered in the working draft `routes-d/947-visual-regression-testing-guide.mdx`.
