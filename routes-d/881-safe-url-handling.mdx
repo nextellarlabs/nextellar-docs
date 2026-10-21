@@ -1,0 +1,84 @@
+---
+title: Safe URL Handling in Wallet UIs
+description: How to validate wallet-app URLs with an explicit allowlist, reject dangerous protocols, and avoid unsafe browser navigation sinks.
+date: 2026-10-16
+---
+
+# Safe URL Handling in Wallet UIs
+
+Wallet interfaces commonly render links to documentation, wallet providers, explorers, and transaction details. An unsafe URL can send a user to a phishing page, make a trusted destination look convincing, or execute script when it reaches a browser URL sink. Treat every URL received from a user, an API, a transaction memo, or remote configuration as untrusted until it has been validated at the point of use.
+
+## Use an explicit allowlist
+
+Parse URLs with the platform `URL` parser. Do not rely on substring checks such as `url.includes('trusted.example')`: `https://trusted.example.attacker.test` contains the trusted text but is a different origin.
+
+For external wallet destinations, allow only `https:` unless a specific, reviewed use case requires another protocol. Compare the complete origin against an explicit set, and decide each subdomain separately. An allowlist containing `https://wallet.example.com` does not implicitly allow `https://admin.example.com` or every host ending in `example.com`.
+
+Also reject malformed URLs and unexpected credentials. A URL such as `https://trusted.example:443@attacker.test` has a misleading appearance but its actual host is `attacker.test`. Validate again immediately before navigation or rendering; validating only when a value is stored leaves later call sites exposed.
+
+## Reject `javascript:` URLs
+
+Never assign an untrusted string directly to `window.location`, an iframe source, a link's `href`, or another sensitive URL sink. A `javascript:` URL can execute script in a browser context instead of navigating to a page. Checking only whether the original string starts with the literal text `javascript:` is not enough: parsing, protocol validation, origin allowlisting, and safe use of the resulting URL must work together.
+
+Do not “sanitize” a rejected URL by displaying it as though it were trusted. Show a safe fallback or an error state, and require an explicitly approved destination.
+
+## A small allowlist helper
+
+This example accepts only two exact HTTPS origins. It rejects `javascript:`, `http:`, embedded credentials, unexpected ports, malformed values, and unapproved hosts. The returned `URL` object is the value to use; the original string should not be sent to a navigation sink.
+
+```typescript
+const allowedOrigins = new Set([
+  'https://stellar.org',
+  'https://docs.stellar.org',
+]);
+
+export function safeExternalUrl(candidate: string): URL | null {
+  try {
+    const url = new URL(candidate);
+
+    if (url.protocol !== 'https:') return null;
+    if (url.username || url.password) return null;
+    if (!allowedOrigins.has(url.origin)) return null;
+
+    return url;
+  } catch {
+    return null;
+  }
+}
+
+const destination = safeExternalUrl(untrustedDestination);
+
+if (destination) {
+  window.location.assign(destination.href);
+} else {
+  showError('This destination is not supported.');
+}
+```
+
+The helper deliberately does not accept arbitrary subdomains. If a wallet needs `wallet.stellar.org`, add that exact origin after reviewing it; do not replace the set with a suffix check such as `url.hostname.endsWith('stellar.org')`. If a destination is an internal route rather than an external URL, use the framework's route helper and allow only the route shapes the application defines.
+
+For a link opened in a new tab, use the validated URL and add the appropriate browser isolation attributes:
+
+```tsx
+const destination = safeExternalUrl(untrustedDestination);
+
+return destination ? (
+  <a href={destination.href} target="_blank" rel="noopener noreferrer">
+    Open Stellar documentation
+  </a>
+) : null;
+```
+
+Validation is not a replacement for content security policy, trusted-types policy, or a safe component API. It is one boundary around a value that is about to be used. Keep URL values out of logs and analytics when they may contain query parameters, tokens, wallet addresses, or other user data.
+
+## Practical review checklist
+
+- Parse with `new URL()` rather than regular expressions or substring checks.
+- Allow only the protocols required for the use case; external wallet destinations should normally be `https:`.
+- Compare exact origins and explicitly review every permitted subdomain and port.
+- Reject credentials, malformed values, unexpected schemes, and unapproved destinations.
+- Never send untrusted strings directly to navigation or rendering sinks.
+- Test `javascript:`, `data:`, `http:`, look-alike hosts, alternate ports, credentials, malformed URLs, and approved URLs.
+- Validate again at the point of use, including after a value comes from storage or remote configuration.
+
+For Stellar-specific wallet and transaction flows, see the [Stellar wallet integration documentation](https://developers.stellar.org/docs/tools/developer-tools/wallets). The browser safety rules above still apply whether a link came from a wallet provider, an explorer, or a Stellar transaction.
