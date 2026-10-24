@@ -157,12 +157,15 @@ const xdr = await buildChangeTrustXDR({
 const signedXdr = await freighter.signTransaction(xdr);
 ```
 
-`buildChangeTrustXDR` validates the asset before talking to Horizon. Invalid input throws:
+`buildChangeTrustXDR` validates its inputs before loading the account from Horizon. Invalid input throws:
 
-- `'Invalid asset code: must be 1-12 alphanumeric characters'`
-- `'Invalid asset issuer: must be a valid Stellar public key'`
+- `'Asset code is required'`
+- `'Valid asset issuer is required'`
 - `'Asset limit must be a positive number'` (the string `"0"` is allowed and removes the trustline)
 - `'Public key required to build change trust XDR'`
+- `'Invalid public key format'` (the `publicKey` passed to the hook is malformed)
+
+The hook only checks that the code is non-empty. A code that is not 1-12 alphanumeric characters is rejected by the Stellar SDK when the asset is created, which also surfaces as a thrown `Error`.
 
 If the account is not on the network yet, it throws `Account {publicKey} not found. Account may need funding.`
 
@@ -191,7 +194,7 @@ if (result.success) {
 }
 ```
 
-Validation failures (bad secret, XDR, or mismatched key) **throw**. Horizon submission failures **return** `{ success: false, error, raw }` instead of throwing. On success the hook calls `refresh()` so `trustlines` updates.
+A malformed secret key (`'Invalid secret key format'`) or an empty or non-string XDR (`'Invalid XDR: must be a non-empty string'`) **throws**. Every other failure **returns** `{ success: false, error, raw }` instead of throwing, including a secret that does not match `publicKey`, an XDR that cannot be parsed, and Horizon rejections. On success the hook calls `refresh()` so `trustlines` updates.
 
 ### Remove Trustline
 
@@ -323,7 +326,7 @@ What to expect:
 
 1. **Add** — the wallet prompts you to sign a `change_trust` operation. Once Horizon confirms it, the status flips to `active (balance 0)` and the account's minimum balance rises by 0.5 XLM.
 2. **Remove** — only enabled while the balance is `0`. Signing a `change_trust` with `limit: '0'` deletes the trustline and releases the 0.5 XLM reserve.
-3. **Failures** — Horizon result codes such as `op_low_reserve` (not enough XLM to add) or `op_invalid_limit` (balance still above 0 when removing) are shown in the status message; the buttons re-enable so the user can retry.
+3. **Failures** — if Horizon rejects the transaction, the status message shows the generic `Transaction failed - tx_failed`. The specific operation code, such as `op_low_reserve` (not enough XLM to add) or `op_invalid_limit` (balance still above 0 when removing), is in `result.raw` under `extras.result_codes.operations`. The buttons re-enable so the user can retry.
 
 <Note>
   Using a different wallet? Replace step 2 with that wallet's signing call.
@@ -347,10 +350,10 @@ try {
 
 ### Insufficient Reserve
 
-The hook does **not** check account reserve locally. Opening a trustline requires an additional base reserve (0.5 XLM) on the account. If Horizon rejects the submitted change-trust as underfunded, `submitChangeTrustWithSecret` returns `{ success: false, error }` with the Horizon result codes, typically:
+The hook does **not** check account reserve locally. Opening a trustline requires an additional base reserve (0.5 XLM) on the account. If Horizon rejects the submitted change-trust as underfunded, `submitChangeTrustWithSecret` returns `{ success: false, error, raw }`. A failed operation produces the generic message below, and the specific code (here `op_low_reserve`) is in `raw.extras.result_codes.operations`:
 
 ```text
-Transaction failed - op_low_reserve
+Transaction failed - tx_failed
 ```
 
 Surface `result.error` (or the wallet/Horizon message when signing externally) and keep the form editable so the user can fund the account and retry.
