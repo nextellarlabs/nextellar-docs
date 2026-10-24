@@ -118,6 +118,10 @@ export const sidebarNav: SidebarSection[] = [
         title: 'CDN and Cache Invalidation',
         href: '/docs/guides/cdn-cache-invalidation',
       },
+      {
+        title: 'CDN Caching for the Hooks Bundle',
+        href: '/docs/guides/cdn-caching-hooks-bundle',
+      },
       { title: 'Deployment', href: '/docs/guides/deployment' },
       {
         title: 'Production Deployment (Vercel + Cloud)',
