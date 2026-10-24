@@ -1,0 +1,71 @@
+---
+title: "RFC template guide"
+description: "Learn how to write and review an RFC for larger changes in this project."
+---
+
+If you are proposing a larger change, write an RFC (Request for Comments) first. An RFC lets contributors and maintainers agree on the problem and the approach before any code is written.
+
+This guide covers the section outline, the review process, and a short example you can copy and adapt.
+
+## Section outline
+
+Use the following sections in order. Keep each section focused on its own question.
+
+1. **Summary** - One or two sentences describing the change and the problem it solves.
+2. **Motivation** - Why this change is needed now, who it affects, and what happens if we do nothing.
+3. **Detailed design** - The proposed approach, including key data structures, APIs, and flow changes.
+4. **Alternatives** - Other approaches considered and why they were rejected.
+5. **Tradeoffs** - Costs, risks, and lims of the proposed design.
+6. **Drawbacks** - Known downsides and how they will be mitigated.
+7. **Implementation plan** - Milestones, owners, and any migration steps.
+8. **Unresolved questions** - Open decisions that need discussion during review.
+
+## Review process
+
+1. Open a pull request that adds the RFC as a MDX file under the guides directory.
+2. A maintainer labels the PR `area: rfc` and requests review from the relevant code owners.
+3. Reviewers leave inline comments and approve or request changes. Discussion happens in the PR thread.
+4. Once at least one maintainer approves and the content build passes, the RFC is merged.
+5. Merged RFCs are the reference for implementation and future discussions.
+
+## Example
+
+The following is a short example of a filled-in RFC for a hypothetical change.
+
+```mdx
+## Summary
+Add a cache layer to the search endpoint to reduce latency for repeated queries.
+
+## Motivation
+Repeated searches currently hit the database every time, causing high load during peak hours.
+
+## Detailed design
+Wrap the search handler in a short-lived, in-memory cache keyed by the normalized query string.
+
+## Alternatives  
+Considered a redis cache, but the extra infrastructure was not justified for the expected hit rate.
+
+## Tradeoffs
+Memory usage increases slightly, and cached results may be stale for up to one minute.
+
+## Drawbacks
+Stale results are acceptable for this feature; the TTL is documented in the code.
+
+## Implementation plan
+- Add the cache module and unit tests.
+- Wrap the search handler and add integration tests.
+
+## Unresolved questions
+Should the cache be shared across workers or kept per-worker?
+```
+
+## Verifying your RFC
+
+Before opening the pull request, run the content build and link checker locally:
+
+```bash
+pnpm build:content
+pnpm check:links
+```
+
+Both commands must pass before the RFC is ready for review.

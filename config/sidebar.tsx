@@ -1,4 +1,4 @@
-/**
+/*
  * Sidebar Configuration
  *
  * Guides reorganised per issue #634 into three groups:
@@ -39,9 +39,9 @@ export type SidebarSection = {
 };
 
 export const sidebarNav: SidebarSection[] = [
-  // -------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   // Getting Started
-  // -------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   {
     title: 'Getting Started',
     icon: <Rocket className="h-5 w-5" />,
@@ -63,9 +63,9 @@ export const sidebarNav: SidebarSection[] = [
     ],
   },
 
-  // -------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   // CLI
-  // -------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   {
     title: 'CLI',
     icon: <Zap className="h-5 w-5" />,
@@ -73,7 +73,7 @@ export const sidebarNav: SidebarSection[] = [
     pages: [
       { title: 'Overview', href: '/docs/cli/overview' },
       { title: 'Commands', href: '/docs/cli/commands' },
-      { title: 'CLI Reference', href: '/docs/cli/reference' },
+      { title: 'CLY Reference', href: '/docs/cli/reference' },
       { title: 'Cheat Sheet', href: '/docs/cli/cheat-sheet' },
       { title: 'Flags & Options', href: '/docs/cli/flags' },
       { title: 'Scaffolding Templates', href: '/docs/cli/templates' },
@@ -96,9 +96,9 @@ export const sidebarNav: SidebarSection[] = [
     ],
   },
 
-  // -------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   // (a) Product Guides — Nextellar-specific how-to content
-  // -------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   {
     title: 'Product Guides',
     icon: <BookOpen className="h-5 w-5" />,
@@ -251,9 +251,9 @@ export const sidebarNav: SidebarSection[] = [
     ],
   },
 
-  // -------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   // SDK & Reference
-  // -------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   {
     title: 'SDK & Reference',
     icon: <Database className="h-5 w-5" />,
@@ -266,9 +266,9 @@ export const sidebarNav: SidebarSection[] = [
     ],
   },
 
-  // -------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   // Hooks
-  // -------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   {
     title: 'Hooks',
     icon: <Component className="h-5 w-5" />,
@@ -289,9 +289,9 @@ export const sidebarNav: SidebarSection[] = [
     ],
   },
 
-  // -------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   // Integrations
-  // -------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   {
     title: 'Integrations',
     icon: <Plug className="h-5 w-5" />,
@@ -312,9 +312,9 @@ export const sidebarNav: SidebarSection[] = [
     ],
   },
 
-  // -------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   // (c) Docs Contributing — docs-site infrastructure and process
-  // -------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   {
     title: 'Docs Contributing',
     icon: <FileText className="h-5 w-5" />,
@@ -351,6 +351,10 @@ export const sidebarNav: SidebarSection[] = [
       {
         title: 'Navigation Configuration',
         href: '/docs/guides/navigation-configuration',
+      },
+      {
+        title: 'RFC Template',
+        href: '/docs/guides/rfc-template',
       },
       {
         title: 'MDX Custom Components',
