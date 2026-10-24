@@ -1,0 +1,46 @@
+---
+title: Protocol Upgrade Voting
+description: How Stellar protocol upgrades are voted on and the cadence at which they are deployed.
+date: 2026-10-17
+---
+
+# Protocol Upgrade Voting
+
+Stellar protocol upgrades are coordinated across the network through a consensus process involving validators. Understanding how upgrades are voted on and the typical timeline helps developers anticipate network changes and plan integrations accordingly.
+
+## Voting Process
+
+Protocol upgrades in Stellar are approved through **validator voting**. Validators in the network signal their readiness to upgrade by setting the `upgradetime` field in their configuration to a specific ledger close time. Once a supermajority (67% or greater quorum agreement) of the network's validators signals readiness, the upgrade automatically activates at the agreed ledger close time.
+
+The voting process is decentralized and transparent:
+
+1. **Proposal & Discussion**: New features or fixes are proposed and discussed in the Stellar Community Forum and through Core Advancement Proposals (CAPs)
+2. **Implementation**: Stellar Core and associated tooling are updated to support the new protocol version
+3. **Validator Signaling**: Validators set `upgradetime` in their configuration when ready
+4. **Network Consensus**: When 67%+ of validators signal readiness, the protocol version increments at the scheduled time
+5. **Deployment**: All nodes running the new version continue operation; older versions fall out of sync
+
+## Upgrade Cadence
+
+Protocol upgrades are **infrequent** and carefully planned. Typically, the Stellar network sees a few protocol upgrades per year. Upgrades are coordinated publicly and announced well in advance through:
+
+- The [Stellar Community Forum](https://stellar.community)
+- The [Stellar Blog](https://stellar.org/blog)
+- Core Advancement Proposals (CAPs) in the [Stellar Protocol Repository](https://github.com/stellar/stellar-protocol)
+
+Developers have ample time to review changes, test against the new protocol version, and prepare applications before an upgrade activates.
+
+## Monitoring Upgrades
+
+To check the current protocol version or monitor upcoming upgrades, you can:
+
+- Query Horizon's `/network` endpoint for current network information
+- Monitor validator `upgradetime` settings through Stellar Expert or validator APIs
+- Follow official Stellar communications channels for upgrade announcements
+
+## Related
+
+- [Stellar Protocol Repository](https://github.com/stellar/stellar-protocol) — CAPs and protocol specifications
+- [Stellar Core Configuration](https://developers.stellar.org/docs/run-core-node/configure-core) — Understanding validator settings
+- [Horizon Integration](/docs/integrations/horizon) — Network queries including protocol version
+- [Glossary](/docs/guides/glossary) — Stellar network terminology

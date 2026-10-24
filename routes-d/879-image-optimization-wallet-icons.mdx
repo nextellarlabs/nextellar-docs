@@ -1,0 +1,66 @@
+---
+title: Image Optimization for Wallet Icons
+description: Choose safe image formats and practical sizes for wallet icons, with loading guidance for asset lists.
+date: 2026-10-17
+---
+
+# Image Optimization for Wallet Icons
+
+Wallets can display many token, network, and account icons in a small area. Consistent dimensions, suitable formats, and deliberate loading behavior help the interface stay sharp without making a long asset list expensive to render.
+
+## Choose a Format
+
+- Use AVIF or WebP for photographic or detailed raster artwork when the asset pipeline and target browsers support it; retain a compatible fallback where required.
+- Use PNG when transparency and broad compatibility matter, or JPEG for opaque photographic artwork.
+- Use SVG for simple vector marks only when the source is trusted and sanitized. Do not render arbitrary user-provided SVG as inline markup.
+- Provide a neutral fallback when an icon is missing or fails to load. Never make the icon the only way to identify an asset; include its code or name in text.
+
+## Supply Stable Sizes
+
+Use a consistent display box, commonly 24, 32, or 48 CSS pixels, and provide an image source that is at least as large as the highest expected device-pixel ratio. Use `srcset` or the framework image component to avoid sending an oversized source to small displays. Set explicit width and height so an image load cannot shift balances or rows.
+
+Keep the icon's visual padding and crop consistent across assets. Test both light and dark surfaces, and do not distort an image to fit a square box; use `object-fit: contain` for marks with varying proportions.
+
+## Load According to Visibility
+
+Load the active account and icons visible in the initial viewport eagerly. Use lazy loading for icons well below the fold, and virtualize very long lists when appropriate. Avoid lazy-loading an image that is immediately needed to understand the current balance or transaction.
+
+## Small Example
+
+```tsx
+import { useState } from 'react';
+
+type AssetIconProps = {
+  code: string;
+  src: string;
+  isAboveFold?: boolean;
+};
+
+export function AssetIcon({ code, src, isAboveFold = false }: AssetIconProps) {
+  const [hasError, setHasError] = useState(false);
+
+  return (
+    <span>
+      <img
+        src={hasError ? '/images/asset-placeholder.png' : src}
+        alt=""
+        width={32}
+        height={32}
+        loading={isAboveFold ? 'eager' : 'lazy'}
+        decoding="async"
+        onError={() => setHasError(true)}
+      />
+      <span>{code}</span>
+    </span>
+  );
+}
+```
+
+The asset code is adjacent text, so the icon is decorative and has empty alt text. If the fallback also fails to load, it does not repeatedly change the source.
+
+## Check Before Shipping
+
+- Verify image dimensions and bytes at common display sizes, including high-density screens.
+- Confirm layout remains stable while images load and after an image error.
+- Check lazy loading on long lists and eager loading for the active account's visible assets.
+- Ensure the fallback and adjacent text remain understandable without the image.

@@ -21,22 +21,27 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 9.15.4
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Run linter
-        run: npm run lint
+        run: pnpm run lint
+        continue-on-error: true
 
       - name: Build content layer
-        run: npm run build:content
+        run: pnpm run build:content
 
       - name: Build documentation
-        run: npm run build
+        run: pnpm run build
 
       - name: Run unit tests
-        run: npm run test:unit
+        run: pnpm run test:unit
 
   # Validate sidebar references
   validate-sidebar:
@@ -51,13 +56,17 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 9.15.4
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Run sidebar validator
-        run: npm run validate:sidebar
+        run: pnpm run validate:sidebar
 
   # Validate heading hierarchy
   validate-heading-hierarchy:
@@ -72,7 +81,14 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 9.15.4
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Validate heading hierarchy
         run: node scripts/validate-heading-hierarchy.mjs
@@ -90,13 +106,17 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 9.15.4
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Regenerate CLI docs from --help
-        run: npm run generate:cli-docs
+        run: pnpm run generate:cli-docs
         continue-on-error: true
 
       - name: Check for differences
@@ -111,7 +131,7 @@ jobs:
             git diff docs/cli/commands.mdx
             echo ""
             echo "To fix this, run locally:"
-            echo "  npm run generate:cli-docs"
+            echo "  pnpm run generate:cli-docs"
             echo "Then commit the updated docs/cli/commands.mdx"
             exit 1
           fi

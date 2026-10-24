@@ -1,0 +1,266 @@
+---
+title: Creating a Passive Sell Offer on Stellar
+description: Learn when and how to use the create_passive_sell_offer operation — including a working SDK example, passive vs regular offer trade-offs, and the full management flow for modifying or cancelling passive offers.
+date: 2026-10-20
+---
+
+# Creating a Passive Sell Offer on Stellar
+
+A **passive sell offer** lets you place liquidity on Stellar's decentralized exchange (SDEX) without crossing against a matching offer that was posted at the same price. Regular sell offers cross immediately when a mirror bid exists at the ask price; passive offers sit in the order book and wait for a *future* taker — making them ideal for market-makers and liquidity providers who want to earn the spread rather than pay it.
+
+---
+
+## When to Use Passive Offers
+
+<Note type="info">
+  Use `create_passive_sell_offer` when you are providing liquidity — quoting both sides of a market, running an automated market-maker, or seeding a new trading pair. Use a regular `manage_sell_offer` when you simply want to exchange assets at a specific price and don't mind crossing immediately.
+</Note>
+
+| Scenario | Recommended operation |
+|---|---|
+| Market-making / spread capture | `create_passive_sell_offer` |
+| Seeding a new trading pair with initial depth | `create_passive_sell_offer` |
+| Avoiding accidental self-fill race conditions | `create_passive_sell_offer` |
+| Simple one-time asset swap at a limit price | `manage_sell_offer` |
+| Removing or updating an existing offer | `manage_sell_offer` (with the offer's ID) |
+
+### Key Difference from `manage_sell_offer`
+
+When Stellar processes a transaction, all operations in that transaction are matched against the current order book **before** any new offers are committed. A regular sell offer will therefore fill against offers that were posted *in the same transaction* at the same price. A passive sell offer skips that same-transaction crossing, so it always lands in the book and lets the next external taker fill it.
+
+---
+
+## How the SDEX Processes Passive Offers
+
+<Mermaid chart={`
+sequenceDiagram
+  participant App as Your Application
+  participant Horizon as Horizon API
+  participant Ledger as Stellar Ledger
+  participant Book as Order Book
+
+  App->>Horizon: Submit transaction with create_passive_sell_offer
+  Horizon->>Ledger: Broadcast to validators
+  Ledger->>Book: Check for crossing offers at same price
+  alt No crossing offer exists
+    Book-->>Ledger: Add passive offer to book
+    Ledger-->>Horizon: Success — offer_id assigned
+  else Crossing offer exists at same price
+    Book-->>Ledger: Passive offer does NOT cross — still added to book
+    Ledger-->>Horizon: Success — offer_id assigned
+  end
+  Horizon-->>App: Transaction result with offer_id
+`} />
+
+A regular sell offer would cross in the first branch above. A passive offer always adds to the book regardless.
+
+---
+
+## Prerequisites
+
+1. **Nextellar CLI** — `npx nextellar --version` or globally installed.
+2. A **funded Stellar testnet account** with enough XLM to cover the base reserve and transaction fees.
+3. **Trustlines** on your account for both the selling asset and the buying asset (unless one is XLM).
+4. The `stellar-sdk` npm package (`npm install @stellar/stellar-sdk`).
+
+```bash
+# Fund a testnet account via Friendbot
+curl "https://friendbot.stellar.org/?addr=GYOUR_PUBLIC_KEY"
+```
+
+---
+
+## Creating a Passive Sell Offer
+
+The example below sells **100 USDC** (GA5ZSE... issuer) for **XLM** at a price of **10 XLM per USDC** (i.e. you receive at least 10 XLM for every 1 USDC you sell).
+
+```typescript
+import {
+  Keypair,
+  Networks,
+  TransactionBuilder,
+  Operation,
+  Asset,
+  BASE_FEE,
+  Horizon,
+} from "@stellar/stellar-sdk";
+
+const server = new Horizon.Server("https://horizon-testnet.stellar.org");
+
+// Replace with your actual secret key — never commit real keys to version control
+const sellerKeypair = Keypair.fromSecret(process.env.STELLAR_SECRET_KEY!);
+
+const USDC = new Asset(
+  "USDC",
+  "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
+);
+
+async function createPassiveSellOffer() {
+  const account = await server.loadAccount(sellerKeypair.publicKey());
+
+  const transaction = new TransactionBuilder(account, {
+    fee: BASE_FEE,
+    networkPassphrase: Networks.TESTNET,
+  })
+    .addOperation(
+      Operation.createPassiveSellOffer({
+        selling: USDC,         // asset you are selling
+        buying: Asset.native(), // XLM
+        amount: "100",         // sell up to 100 USDC
+        price: "10",           // 10 XLM per 1 USDC (price = buying/selling)
+      })
+    )
+    .setTimeout(30)
+    .build();
+
+  transaction.sign(sellerKeypair);
+
+  try {
+    const result = await server.submitTransaction(transaction);
+    console.log("Passive offer created!");
+    console.log("Transaction hash:", result.hash);
+
+    // Extract the offer ID from the operation result
+    const operationResult =
+      result.result_xdr; // decode with xdr.TransactionResult if needed
+    console.log("Raw XDR result:", operationResult);
+  } catch (error: any) {
+    console.error("Failed to create passive offer:", error.response?.data);
+    throw error;
+  }
+}
+
+createPassiveSellOffer();
+```
+
+<Note type="warning">
+  The `price` field is expressed as **buying asset / selling asset** (buying per selling). In the example above, `"10"` means you want at least 10 XLM for every 1 USDC you sell. Double-check the ratio direction before submitting — an inverted price will create an unexpectedly cheap offer.
+</Note>
+
+### Retrieving the Offer ID
+
+Stellar encodes operation results in XDR. The easiest way to retrieve a newly created offer's ID is to load the account's open offers after the transaction confirms:
+
+```typescript
+async function getOpenPassiveOffers(publicKey: string) {
+  const offers = await server.offers().forAccount(publicKey).call();
+  console.log("Open offers:", JSON.stringify(offers.records, null, 2));
+  return offers.records;
+}
+```
+
+Each record in `offers.records` includes:
+
+| Field | Description |
+|---|---|
+| `id` | Numeric offer ID — save this to manage the offer later |
+| `selling` | Asset you are selling |
+| `buying` | Asset you are buying |
+| `amount` | Remaining unfilled amount |
+| `price` | Current price ratio |
+| `last_modified_ledger` | Last ledger that touched this offer |
+
+---
+
+## Managing Passive Offers
+
+After creation, passive offers are managed with the `manage_sell_offer` operation — using the offer's ID. There is no separate "manage_passive_sell_offer" operation; the same `manage_sell_offer` handles modifications and cancellations for both offer types.
+
+<Note type="info">
+  Once a passive offer is in the order book it behaves identically to a regular offer from a management perspective. The passivity only applies at creation time.
+</Note>
+
+### Modifying a Passive Offer
+
+To change the price or amount, submit a `manage_sell_offer` with the existing `offerId`:
+
+```typescript
+async function modifyPassiveOffer(
+  offerId: string,
+  newAmount: string,
+  newPrice: string
+) {
+  const account = await server.loadAccount(sellerKeypair.publicKey());
+
+  const transaction = new TransactionBuilder(account, {
+    fee: BASE_FEE,
+    networkPassphrase: Networks.TESTNET,
+  })
+    .addOperation(
+      Operation.manageSellOffer({
+        selling: USDC,
+        buying: Asset.native(),
+        amount: newAmount, // new amount; set to "0" to cancel
+        price: newPrice,   // updated price ratio (buying / selling)
+        offerId,           // MUST reference the existing offer's numeric ID
+      })
+    )
+    .setTimeout(30)
+    .build();
+
+  transaction.sign(sellerKeypair);
+  const result = await server.submitTransaction(transaction);
+  console.log("Offer updated. Hash:", result.hash);
+}
+```
+
+### Cancelling a Passive Offer
+
+Set `amount` to `"0"` in the `manage_sell_offer` call to remove the offer from the order book:
+
+```typescript
+async function cancelPassiveOffer(offerId: string) {
+  await modifyPassiveOffer(offerId, "0", "10"); // price is ignored when amount is 0
+  console.log(`Offer ${offerId} cancelled.`);
+}
+```
+
+### Full Management Flow
+
+<Mermaid chart={`
+flowchart TD
+  A[create_passive_sell_offer] -->|success| B[Offer lives in order book]
+  B --> C{Management action}
+  C -->|Update price or amount| D[manage_sell_offer with new price/amount]
+  C -->|Cancel| E[manage_sell_offer with amount = 0]
+  C -->|Leave open| F[Offer fills passively over time]
+  D --> B
+  E --> G[Offer removed from book]
+  F -->|Fully filled| G
+`} />
+
+---
+
+## Error Handling
+
+The Stellar network returns structured error codes inside `extras.result_codes` on a failed submission. The most common errors for offer operations are:
+
+| Error code | Cause | Resolution |
+|---|---|---|
+| `op_low_reserve` | Account balance below minimum reserve after the offer | Fund the account with more XLM |
+| `op_underfunded` | Not enough of the selling asset in the account | Reduce the offer amount or acquire more of the asset |
+| `op_line_full` | The buying asset trustline is at capacity | Raise the trustline limit or reduce the offer |
+| `op_sell_no_trust` | No trustline for the selling asset | Establish a trustline first with `change_trust` |
+| `op_buy_no_trust` | No trustline for the buying asset | Establish a trustline first with `change_trust` |
+| `tx_insufficient_fee` | Fee too low to get into a ledger | Increase `BASE_FEE` or use fee-bumping |
+
+```typescript
+try {
+  await server.submitTransaction(transaction);
+} catch (error: any) {
+  const codes = error.response?.data?.extras?.result_codes;
+  if (codes) {
+    console.error("Operation result codes:", codes.operations);
+    // e.g. ["op_underfunded"]
+  }
+}
+```
+
+---
+
+## Summary
+
+- `create_passive_sell_offer` places an offer that **never crosses same-price offers in the same transaction**, making it safe for market-makers and liquidity providers.
+- After creation, manage (update price/amount or cancel) the offer with `manage_sell_offer` using the assigned offer ID.
+- Retrieve open offers with `server.offers().forAccount(publicKey).call()`.
+- Common pitfalls: inverted price ratios, missing trustlines, and underfunded accounts.

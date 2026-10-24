@@ -26,7 +26,7 @@ npx nextellar my-app \
   --wallets freighter,xbull \
   --package-manager pnpm
 ## Note: freighter,xbull is a custom wallet selection.
-## See [Wallet Configuration](/docs/cli/flags#wallet-configuration-wallets) for defaults and all supported adapters.
+## See [Wallet Configuration](/docs/cli/flags#wallet-configuration---wallets) for defaults and all supported adapters.
 ```
 
 See [CLI Flags & Options](/docs/cli/flags) for the complete flag reference.
@@ -54,14 +54,13 @@ The CLI writes a `.nextellar/config.json` file inside every scaffolded project. 
 
 ```json
 {
-  "appName": "my-stellar-app",
+  "schemaVersion": 1,
+  "nextellarVersion": "1.0.4",
+  "template": "default",
+  "createdAt": "2026-07-30T13:24:42.863Z",
   "horizonUrl": "https://horizon-testnet.stellar.org",
   "sorobanUrl": "https://soroban-testnet.stellar.org",
-  "network": "TESTNET",
-  "wallets": ["freighter", "albedo", "lobstr"],
-  "nextellarVersion": "1.0.4",
-  "templateName": "default",
-  "timestamp": "2026-07-30T13:24:42.863Z"
+  "wallets": ["freighter", "albedo", "lobstr"]
 }
 ```
 
@@ -69,14 +68,13 @@ The CLI writes a `.nextellar/config.json` file inside every scaffolded project. 
 
 | Field              | Type       | Description                                           |
 | ------------------ | ---------- | ----------------------------------------------------- |
-| `appName`          | `string`   | Project name passed to the CLI                        |
+| `schemaVersion`    | `number`   | Version of the config schema (currently `1`)          |
+| `nextellarVersion` | `string`   | Semantic version of the CLI that created the project  |
+| `template`         | `string`   | Template name (`"default"`, `"defi"`, etc.)           |
+| `createdAt`        | `string`   | ISO 8601 timestamp of when the project was scaffolded |
 | `horizonUrl`       | `string`   | Horizon endpoint used at scaffold time                |
 | `sorobanUrl`       | `string`   | Soroban RPC endpoint used at scaffold time            |
-| `network`          | `string`   | `"TESTNET"` or `"PUBLIC"`                             |
 | `wallets`          | `string[]` | Wallet adapter identifiers compiled into the project  |
-| `nextellarVersion` | `string`   | Semantic version of the CLI that created the project  |
-| `templateName`     | `string`   | Template name (`"default"`, `"defi"`, etc.)           |
-| `timestamp`        | `string`   | ISO 8601 timestamp of when the project was scaffolded |
 
 > **Do not edit `.nextellar/config.json` by hand.** It is the source of truth for upgrade commands and re-scaffold operations. Modifying it may cause upgrade conflicts.
 

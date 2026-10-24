@@ -9,19 +9,21 @@ date: 2026-06-02
 The `useStellarWallet` hook provides a complete solution for connecting to Stellar wallets, managing account state, and executing payments. It's the foundation of wallet integration in Nextellar apps.
 
 <Note>
-  **Ships in:** default, js
+  **Ships in:** `default`, `js-template`, `minimal`, `js-minimal`, `defi`, and
+  `js-defi`
   <br />
-  Not in your scaffold? Run `nextellar add wallet`
+  Not in your scaffold? Run `nextellar add --list` to see available wallet
+  features.
 </Note>
 
 ## Features
 
-- **Multi-Wallet Support**: Freighter, Albedo, Lobstr, xBull, Hana
-- **Persistent Connection**: Auto-reconnect on page reload via localStorage
-- **Real-Time Balances**: Automatic balance fetching and updates
-- **Payment Transactions**: Build, sign, and submit payments
+- **Wallet Connection**: Connect through the configured Stellar Wallets Kit
+- **Persistent Connection**: Attempt to reconnect to the previously selected wallet on mount
+- **Balances**: Load account balances from Horizon when connecting and refresh on demand
+- **Payment Transactions**: Build, wallet-sign, and submit classic payments
 - **Error Handling**: Graceful handling of unfunded accounts and network errors
-- **Auto-Refresh**: Manual and automatic balance refresh capabilities
+- **Post-Payment Refresh**: Refresh balances after a successful payment
 
 ## Basic Usage
 
@@ -53,11 +55,13 @@ export default function WalletDemo() {
 ### Parameters
 
 ```typescript
-useStellarWallet(
+function useStellarWallet(
   horizonUrl?: string,
   network?: string
-): StellarWalletState
+): StellarWalletState;
 ```
+
+The parameters default to the testnet Horizon URL and `Networks.TESTNET`, respectively.
 
 | Parameter    | Type     | Default                                 | Description                |
 | ------------ | -------- | --------------------------------------- | -------------------------- |
@@ -67,6 +71,8 @@ useStellarWallet(
 ### Return Value
 
 ```typescript
+import { Horizon } from '@stellar/stellar-sdk';
+
 interface StellarWalletState {
   connected: boolean;
   publicKey?: string;
@@ -77,9 +83,19 @@ interface StellarWalletState {
   refreshBalances: () => Promise<void>;
   sendPayment?: (
     opts: PaymentOptions
-  ) => Promise<HorizonApi.SubmitTransactionResponse>;
+  ) => Promise<Horizon.HorizonApi.SubmitTransactionResponse>;
+}
+
+interface PaymentOptions {
+  to: string;
+  amount: string;
+  asset?: 'XLM' | { code: string; issuer: string };
+  memo?: string;
+  secret?: string;
 }
 ```
+
+`sendPayment` is `undefined` until the wallet is connected. The source marks `secret` as development-only; the implementation signs through the connected wallet kit, so do not pass or store secret keys in application UI.
 
 #### Properties
 
@@ -142,7 +158,7 @@ interface Balance {
 
 **`connect()`** `() => Promise<void>`
 
-Opens the wallet selection modal and connects to the chosen wallet.
+Opens the configured wallet selection modal and connects to the chosen wallet.
 
 ```tsx
 const handleConnect = async () => {
@@ -161,7 +177,7 @@ const handleConnect = async () => {
 
 **`disconnect()`** `() => void`
 
-Disconnects the current wallet and clears all state.
+Disconnects the current wallet and clears wallet and balance state. The exported `StellarWalletState` type declares this method as returning `void`.
 
 ```tsx
 <button onClick={disconnect}>Disconnect</button>
@@ -182,7 +198,7 @@ const handleRefresh = async () => {
 
 ---
 
-**`sendPayment()`** `(opts: PaymentOptions) => Promise<TransactionResponse>`
+**`sendPayment()`** `(opts: PaymentOptions) => Promise<Horizon.HorizonApi.SubmitTransactionResponse>`
 
 Send a payment transaction. Only available when wallet is connected.
 
@@ -192,19 +208,26 @@ interface PaymentOptions {
   amount: string;
   asset?: 'XLM' | { code: string; issuer: string };
   memo?: string;
+  secret?: string; // Declared as development-only in the source
 }
 ```
 
 ```tsx
-const result = await sendPayment({
-  to: 'GDEF456...',
-  amount: '10.5',
-  asset: 'XLM',
-  memo: 'Payment for services',
-});
+async function submitPayment() {
+  if (!sendPayment) throw new Error('Connect a wallet before sending');
 
-console.log('Transaction hash:', result.hash);
+  const result = await sendPayment({
+    to: 'GDEF456...',
+    amount: '10.5',
+    asset: 'XLM',
+    memo: 'Payment for services',
+  });
+
+  console.log('Transaction hash:', result.hash);
+}
 ```
+
+Check that `sendPayment` is defined before calling it; it is exposed only while connected.
 
 ## Advanced Examples
 
@@ -213,6 +236,8 @@ console.log('Transaction hash:', result.hash);
 Connect to Stellar mainnet instead of testnet:
 
 ```tsx
+import { Networks } from '@stellar/stellar-sdk';
+
 const wallet = useStellarWallet(
   'https://horizon.stellar.org', // Mainnet Horizon
   Networks.PUBLIC // Mainnet passphrase
@@ -225,6 +250,8 @@ Send a custom asset instead of XLM:
 
 ```tsx
 const { sendPayment } = useStellarWallet();
+
+if (!sendPayment) throw new Error('Connect a wallet before sending');
 
 await sendPayment({
   to: 'GDEF456...',
@@ -280,6 +307,8 @@ function SendPaymentWithRefresh() {
 
   const handleSend = async () => {
     try {
+      if (!sendPayment) return;
+
       await sendPayment({
         to: 'GDEF456...',
         amount: '10',
@@ -336,23 +365,44 @@ For shared recovery patterns across hooks, see [Hook Error Handling](/docs/guide
 
 ### Connection Errors
 
+Use the hook's `connect()` method inside a component and render the caught error so both the rejected-connection and wallet-unavailable cases are visible to the user:
+
 ```tsx
-const handleConnect = async () => {
-  try {
-    await connect();
-  } catch (error) {
-    if (error.message.includes('User rejected')) {
-      // User cancelled the connection
-      console.log('Connection cancelled by user');
-    } else if (error.message.includes('not installed')) {
-      // Wallet extension not found
-      alert('Please install a Stellar wallet extension');
-    } else {
-      // Other errors
-      console.error('Connection failed:', error);
+'use client';
+
+import { useState } from 'react';
+import { useStellarWallet } from '@/hooks/useStellarWallet';
+
+export default function WalletConnectionWithErrors() {
+  const { connected, walletName, connect, disconnect } = useStellarWallet();
+  const [errorMessage, setErrorMessage] = useState('');
+
+  const handleConnect = async () => {
+    setErrorMessage('');
+    try {
+      await connect();
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : 'Unable to connect wallet.'
+      );
     }
-  }
-};
+  };
+
+  return (
+    <div>
+      {connected ? (
+        <button type="button" onClick={disconnect}>
+          Disconnect {walletName ? `(${walletName})` : 'wallet'}
+        </button>
+      ) : (
+        <button type="button" onClick={handleConnect}>
+          Connect wallet
+        </button>
+      )}
+      {errorMessage && <p role="alert">Connection failed: {errorMessage}</p>}
+    </div>
+  );
+}
 ```
 
 ### Payment Errors
@@ -398,13 +448,6 @@ interface Balance {
   asset_issuer?: string;
 }
 
-interface PaymentOptions {
-  to: string;
-  amount: string;
-  asset?: 'XLM' | { code: string; issuer: string };
-  memo?: string;
-}
-
 interface StellarWalletState {
   connected: boolean;
   publicKey?: string;
@@ -416,6 +459,14 @@ interface StellarWalletState {
   sendPayment?: (
     opts: PaymentOptions
   ) => Promise<Horizon.HorizonApi.SubmitTransactionResponse>;
+}
+
+interface PaymentOptions {
+  to: string;
+  amount: string;
+  asset?: 'XLM' | { code: string; issuer: string };
+  memo?: string;
+  secret?: string;
 }
 ```
 
@@ -458,6 +509,8 @@ const isValidStellarAddress = (address: string) => {
 };
 
 const handleSend = async () => {
+  if (!sendPayment) return;
+
   if (!isValidStellarAddress(recipient)) {
     alert('Invalid Stellar address');
     return;
@@ -469,6 +522,8 @@ const handleSend = async () => {
 ### 4. Use Memos for Tracking
 
 ```tsx
+if (!sendPayment) return;
+
 await sendPayment({
   to: recipient,
   amount: amount,
@@ -479,7 +534,7 @@ await sendPayment({
 
 ## Related Hooks
 
-- [`useStellarPayment`](/docs/hooks/use-stellar-payment) - Advanced payment building and submission
+- [`useStellarPayment`](/docs/hooks/use-stellar-payment) - Advanced payment building and submission, including [fee and memo handling](/docs/hooks/use-stellar-payment#fee-and-memo-handling)
 - [`useStellarBalances`](/docs/hooks/use-stellar-balances) - Detailed balance tracking with real-time updates
 - [`useTransactionHistory`](/docs/hooks/use-transaction-history) - View account transaction history
 - [`useTrustlines`](/docs/hooks/use-trustlines#adding-and-removing-a-trustline) - Add and remove trustlines for the connected account

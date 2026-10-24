@@ -14,34 +14,36 @@ npx nextellar my-app --javascript
 
 ## Template support
 
-`--javascript` works with the `default`, `minimal`, and `defi` templates:
+`--javascript` works with all four public templates: `default`, `minimal`, `defi`, and `full`:
 
 ```bash
+npx nextellar my-app --javascript
 npx nextellar my-app --javascript --template minimal
 npx nextellar my-app --javascript --template defi
+npx nextellar my-app --javascript --template full
 ```
 
-See [Scaffolding Templates](/docs/cli/templates) for what each template contains.
+`full` starts from the default JavaScript template, adds the Soroban demo, and includes the contracts scaffold. `minimal` is focused on wallet connection and balances; `defi` adds payment, trustline, and offer-book features. See [Scaffolding Templates](/docs/cli/templates) for the complete feature comparison.
 
 ## What's different from the TypeScript scaffold
 
-- **File extensions** — components and pages are `.jsx`, everything else is `.js` (the TypeScript scaffold uses `.tsx`/`.ts`).
+- **File extensions** — components and pages are `.jsx`, and other JavaScript source files are `.js`; tooling configuration may use `.mjs`. The TypeScript scaffold uses `.tsx`/`.ts` for source files.
 - **No type exports** — hooks like `useSorobanEvents` no longer export `Options`, `SorobanEvent`, or other type/interface declarations. Function signatures and shapes are documented with JSDoc comments instead.
-- **`jsconfig.json` instead of `tsconfig.json`** — same path aliases (`@/*`) and `strict` checking of `.js`/`.jsx` files via `allowJs`, but no type-checked build step.
-- **JavaScript configuration**: generated projects use `next.config.js`, JavaScript network configuration, and a JavaScript storage helper.
+- **`jsconfig.json` instead of `tsconfig.json`** — the `@/*` alias is available in JavaScript source files.
+- **JavaScript configuration**: generated projects use `next.config.js` and JavaScript versions of applicable network and storage helpers. The files included vary by template.
 
-Everything else — hooks, wallet connection, payments, Soroban contract calls — is functionally identical to the TypeScript scaffold; only the syntax and type information differ.
+All variants use JavaScript syntax, but feature availability follows the selected template. For example, `minimal` does not include payment or Soroban hooks, while `defi` does not include transaction history or Soroban hooks. `default` and `full` provide the broadest feature sets.
 
 ## Quick-start payment snippet in JavaScript
 
-This is the JavaScript equivalent of the payment form from [Quick Start](/docs/getting-started/quick-start), verified against a fresh `npx nextellar my-app --javascript` scaffold. Replace `src/app/page.jsx` with:
+This is the JavaScript equivalent of the payment form from [Quick Start](/docs/getting-started/quick-start). It uses the default JavaScript scaffold (`--template default`; also the base of `full`). Replace `src/app/page.jsx` with:
 
 ```jsx
 'use client';
 
 import { useState } from 'react';
-import { useStellarWallet } from '../hooks/useStellarWallet';
-import WalletConnectButton from '../components/WalletConnectButton';
+import { useStellarWallet } from '@/hooks/useStellarWallet';
+import WalletConnectButton from '@/components/WalletConnectButton';
 
 export default function Home() {
   const { connected, publicKey, balances, sendPayment } = useStellarWallet();

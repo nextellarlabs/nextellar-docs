@@ -18,7 +18,7 @@ export const generateStaticParams = () => {
   return LOCALES.map((locale) => ({ locale }));
 };
 
-export default function LocaleLayout({
+export default async function LocaleLayout({
   children,
   params,
 }: Readonly<{
@@ -27,7 +27,7 @@ export default function LocaleLayout({
 }>) {
   // Validate locale - this will be caught by middleware in dev/preview,
   // but we validate here for static generation safety
-  const { locale } = params;
+  const { locale } = await params;
 
   if (!isValidLocale(locale)) {
     notFound();

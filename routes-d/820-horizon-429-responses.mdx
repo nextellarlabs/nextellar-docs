@@ -1,0 +1,6 @@
+---
+title: Horizon 429 responses
+description: Working draft for issue #820
+---
+
+Horizon commonly returns `429` after bursts of requests, frequent polling, or concurrent clients sharing an IP. Honor `Retry-After` when present; otherwise use exponential backoff with jitter and reduce request volume. Do not retry immediately.

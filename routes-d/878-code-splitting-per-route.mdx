@@ -1,0 +1,64 @@
+---
+title: Code Splitting per Route in Wallet Applications
+description: Define route-level code-splitting boundaries and prefetch strategies for responsive wallet applications.
+date: 2026-10-17
+---
+
+# Code Splitting per Route in Wallet Applications
+
+Wallet applications often combine a small account overview with heavier experiences such as charts, token discovery, swaps, and contract interactions. Route-level code splitting keeps the initial interface responsive without delaying the flow a user has already chosen.
+
+## Choose Split Boundaries
+
+Keep the application shell and shared navigation available across routes. Split substantial route-specific features at their route boundary:
+
+| Boundary                | Examples                                              | Loading behavior                                                              |
+| ----------------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Shared shell            | Wallet connection state, navigation, account identity | Load with the application entry point                                         |
+| Route                   | Activity history, portfolio charts, token search      | Load when the route is opened or prefetched                                   |
+| Optional feature        | Swap quote chart, NFT gallery, advanced filters       | Load when the feature is requested                                            |
+| Transaction-critical UI | Review details, signing status, recovery actions      | Keep the active flow available; avoid a late, surprising load at confirmation |
+
+Share foundational code where it is genuinely used across routes, but avoid importing every route's dependencies into the shell. Keep wallet and transaction state above route boundaries when navigation should not discard it.
+
+## Prefetch Intentionally
+
+Prefetch likely next routes when there is a clear signal, such as pointer hover, keyboard focus, or an idle browser after the account overview is ready. Avoid prefetching every large route on initial load, especially on metered or constrained connections. Respect the framework's prefetch controls and user data-saving preferences.
+
+Show a stable loading state for route content and preserve the previous screen until the next route can render. A failed chunk should expose a retry path without clearing the connected account or an in-progress transaction draft.
+
+## Small Example
+
+This React example keeps the route module lazy and starts its import when the user indicates likely navigation:
+
+```tsx
+import { lazy, Suspense } from 'react';
+
+const SwapRoute = lazy(() => import('./routes/SwapRoute'));
+
+function WalletRoutes({ pathname }: { pathname: string }) {
+  if (pathname !== '/swap') return null;
+
+  return (
+    <Suspense fallback={<p role="status">Loading swap…</p>}>
+      <SwapRoute />
+    </Suspense>
+  );
+}
+
+export function SwapLink() {
+  const prefetchSwap = () => import('./routes/SwapRoute');
+
+  return (
+    <a href="/swap" onPointerEnter={prefetchSwap} onFocus={prefetchSwap}>
+      Swap
+    </a>
+  );
+}
+```
+
+In a routed application, render `SwapRoute` only when `/swap` matches. The example demonstrates the boundary and a deliberate prefetch trigger; use the router's native link and prefetch API when available.
+
+## Measure the Result
+
+Compare initial JavaScript size and route chunk sizes, then test first navigation to each split route on a throttled connection. Confirm that prefetch does not start duplicate work, the loading state is announced accessibly, and route transitions do not reset wallet state.

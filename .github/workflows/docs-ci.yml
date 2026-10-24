@@ -167,6 +167,31 @@ jobs:
       - name: Validate Mermaid diagrams
         run: pnpm run check:mermaid
 
+  # Validate the Contentlayer frontmatter schema across all documentation.
+  validate-frontmatter:
+    name: Validate Frontmatter Schema
+    runs-on: ubuntu-latest
+    needs: setup
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 9.15.4
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate documentation frontmatter
+        run: pnpm run validate:frontmatter
+
   # Job 7: Spellcheck documentation
   spellcheck:
     name: Spellcheck Documentation
@@ -374,8 +399,23 @@ jobs:
 
   # Job 8: Link validation (requires built docs)
   # Job 7: Link validation (requires built docs)
+  check-anchors:
+    name: Validate Documentation Heading Anchors
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Check documentation heading anchors
+        run: node scripts/check-links.cjs --anchors-only
+
   check-links:
-    name: Validate Documentation Links
+    name: Validate Documentation Links and Anchors
     runs-on: ubuntu-latest
     needs: build
     steps:
@@ -437,7 +477,7 @@ jobs:
         env:
           CI: true
 
-      - name: Check documentation links
+      - name: Check documentation links and heading anchors
         run: pnpm run check:links
 
   # Job 7: Hooks documentation verification
@@ -561,7 +601,18 @@ jobs:
   all-checks:
     name: All Checks Passed
     runs-on: ubuntu-latest
-    needs: [build, lint, format, validate-sidebar, check-links, verify-hooks-docs, test-a11y]
+    needs:
+      [
+        build,
+        lint,
+        format,
+        validate-frontmatter,
+        validate-sidebar,
+        check-anchors,
+        check-links,
+        verify-hooks-docs,
+        test-a11y,
+      ]
     if: always()
     steps:
       - name: Check job statuses
@@ -576,6 +627,10 @@ jobs:
           fi
           if [ "${{ needs.format.result }}" != "success" ]; then
             echo "❌ Format check failed"
+            exit 1
+          fi
+          if [ "${{ needs.validate-frontmatter.result }}" != "success" ]; then
+            echo "❌ Frontmatter schema validation failed"
             exit 1
           fi
           if [ "${{ needs.mdx-lint.result }}" != "success" ]; then
@@ -598,12 +653,18 @@ jobs:
             echo "❌ Link validation failed"
             exit 1
           fi
+          if [ "${{ needs.check-anchors.result }}" != "success" ]; then
+            echo "❌ Heading anchor validation failed"
+            exit 1
+          fi
           if [ "${{ needs.verify-hooks-docs.result }}" != "success" ]; then
             echo "❌ Hooks docs verification failed"
             exit 1
           fi
           if [ "${{ needs.test-a11y.result }}" != "success" ]; then
             echo "❌ Accessibility testing failed"
+            exit 1
+          fi
           if [ "${{ needs.spellcheck.result }}" != "success" ]; then
             echo "❌ Spellcheck failed"
             exit 1

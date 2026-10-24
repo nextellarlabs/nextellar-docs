@@ -14,7 +14,7 @@ The **Nextellar SDK** is a set of React hooks, utilities, and typed APIs that ma
 
 ### React Hooks
 
-8 production-ready hooks for common Stellar operations:
+Eight production-ready hooks for common Stellar operations (the default template also ships the general-purpose `useClipboard` utility hook):
 
 | Hook                                                           | Purpose                                     |
 | -------------------------------------------------------------- | ------------------------------------------- |
@@ -47,7 +47,7 @@ The **Nextellar SDK** is a set of React hooks, utilities, and typed APIs that ma
 
 ## Architecture
 
-````text
+```text
 flowchart TB
     APP["Your Application"]
     HOOKS["React Hooks<br/>useStellarWallet · useStellarPayment · useStellarBalances"]
@@ -62,7 +62,7 @@ flowchart TB
     CONTEXT --> SDK2
     SDK1 --> NETWORK
     SDK2 --> NETWORK
-```css
+```
 
 ---
 
@@ -76,18 +76,26 @@ All hooks automatically consume configuration from `WalletProvider`:
 <WalletProvider horizonUrl="https://horizon.stellar.org">
   <App /> {/* All hooks use mainnet automatically */}
 </WalletProvider>
-````
+```
 
 ### XDR Building Pattern
 
 Hooks provide methods to build unsigned XDR for external wallet signing:
 
 ```tsx
+import { useStellarPayment } from '@/hooks/useStellarPayment';
+import { signTransaction } from '@/lib/stellar-wallet-kit';
+
+const { buildPaymentXDR, submitSignedXDR } = useStellarPayment();
+
 // Build unsigned transaction
 const xdr = await buildPaymentXDR({ from, to, amount });
 
 // Sign with wallet
-const signedXdr = await wallet.signTransaction(xdr);
+const signedXdr = await signTransaction({
+  unsignedTransaction: xdr,
+  address: publicKey,
+});
 
 // Submit to network
 const result = await submitSignedXDR(signedXdr);
@@ -111,12 +119,12 @@ interface Balance {
 
 Consistent loading/error states across all hooks:
 
-````tsx
+```tsx
 const { data, loading, error, refresh } = useSomeHook();
 
 if (loading) return <Spinner />;
 if (error) return <button onClick={refresh}>Retry</button>;
-```bash
+```
 
 ---
 
@@ -126,10 +134,10 @@ The SDK is built on:
 
 | Package                           | Version | Purpose                     |
 | --------------------------------- | ------- | --------------------------- |
-| `@stellar/stellar-sdk`            | ^14.0.0 | Horizon/Soroban interaction |
-| `@creit.tech/stellar-wallets-kit` | ^1.8.0  | Multi-wallet support        |
+| `@stellar/stellar-sdk`            | ^14.4.3 | Horizon/Soroban interaction |
+| `@creit.tech/stellar-wallets-kit` | ^1.9.5  | Multi-wallet support        |
 | `react`                           | ^19.0.0 | React hooks                 |
-| `next`                            | ^16.0.0 | App framework               |
+| `next`                            | 16.1.2  | App framework               |
 
 ---
 
@@ -148,7 +156,7 @@ The SDK is built on:
 
    ```bash
    npx nextellar my-app
-```bash
+   ```
 
 2. **Wrap with WalletProvider**
 
@@ -156,13 +164,14 @@ The SDK is built on:
    <WalletProvider>
      <App />
    </WalletProvider>
-```bash
+   ```
 
 3. **Use hooks**
+
    ```tsx
    const { connect, publicKey } = useWallet();
    const { balances } = useStellarBalances(publicKey);
-```bash
+   ```
 
 ---
 
@@ -174,5 +183,3 @@ The SDK is built on:
 - [Error Class Hierarchy](/docs/sdk/error-class-hierarchy) - SDK error types and handling
 - [BigNumber Usage](/docs/sdk/bignumber-usage) - Fixed-point arithmetic and conversion helpers
 - [CLI Reference](/docs/cli/commands) - Scaffolding options
-
-````

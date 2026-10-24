@@ -10,13 +10,13 @@ Nextellar templates trade setup speed against how much Stellar functionality is 
 
 ## Quick decision table
 
-| If you are building... | Choose | Why |
-| --- | --- | --- |
-| A full Stellar dApp, dashboard, marketplace, or learning project | [`default`](/docs/cli/templates#default) | It includes wallet connection, balances, payments, Soroban helpers, transaction history, and network switching. |
-| A landing flow, wallet gate, profile page, or prototype | [`minimal`](/docs/cli/templates#minimal) | It keeps the scaffold small while still handling wallet connection and balances. |
-| A DEX, trading tool, portfolio app, or asset-management UI | [`defi`](/docs/cli/templates#defi) | It adds payment, trustline, and offer-book primitives without the full Soroban surface. |
-| Any template that needs JavaScript instead of TypeScript | Add [`--javascript`](/docs/getting-started/javascript) | It keeps the same feature set but emits `.js` and `.jsx` files. |
-| Any template that needs a starter Soroban contract | Add [`--with-contracts`](/docs/cli/templates#--with-contracts-overlay) | It layers Rust contract scaffolding on top of the selected frontend template. |
+| If you are building...                                           | Choose                                                              | Why                                                                                                             |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| A full Stellar dApp, dashboard, marketplace, or learning project | [`default`](/docs/cli/templates)                                    | It includes wallet connection, balances, payments, Soroban helpers, transaction history, and network switching. |
+| A landing flow, wallet gate, profile page, or prototype          | [`minimal`](/docs/cli/templates)                                    | It keeps the scaffold small while still handling wallet connection and balances.                                |
+| A DEX, trading tool, portfolio app, or asset-management UI       | [`defi`](/docs/cli/templates)                                       | It adds payment, trustline, and offer-book primitives without the full Soroban surface.                         |
+| Any template that needs JavaScript instead of TypeScript         | Add [`--javascript`](/docs/getting-started/javascript)              | It keeps the same feature set but emits `.js` and `.jsx` files.                                                 |
+| Any template that needs a starter Soroban contract               | Add [`--with-contracts`](/docs/cli/templates#add-soroban-contracts) | It layers Rust contract scaffolding on top of the selected frontend template.                                   |
 
 ## Decision criteria
 
@@ -46,9 +46,9 @@ If you began with `minimal` and need DeFi features, add `payment`, `trustlines`,
 
 ## Template links
 
-- [`default`](/docs/cli/templates#default)
-- [`minimal`](/docs/cli/templates#minimal)
-- [`defi`](/docs/cli/templates#defi)
+- [`default`](/docs/cli/templates)
+- [`minimal`](/docs/cli/templates)
+- [`defi`](/docs/cli/templates)
 - [JavaScript variant](/docs/getting-started/javascript)
 - [Contracts overlay](/docs/getting-started/contracts-quick-start)
 - [Template comparison](/docs/cli/template-comparison)

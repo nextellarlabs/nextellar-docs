@@ -255,6 +255,8 @@ NEXT_PUBLIC_NETWORK={{NETWORK}}
 NEXT_PUBLIC_APP_NAME={{APP_NAME}}
 ```
 
+The `{{NETWORK}}` placeholder is derived from the Horizon URL: if the URL contains "public", it becomes `PUBLIC`; otherwise, it defaults to `TESTNET`.
+
 When `--with-contracts` is used, the CLI appends:
 
 ```bash

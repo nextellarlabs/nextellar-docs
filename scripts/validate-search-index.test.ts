@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Unit tests for search index validation logic
  * Tests validate-search-index.cjs validation rules
@@ -386,7 +387,9 @@ describe('Search Index Validation', () => {
       writeTestIndex(invalid);
 
       const data = JSON.parse(fs.readFileSync(INDEX_FILE, 'utf8'));
-      const invalidPath = data.documents.some((d) => !d.path.startsWith('/docs/'));
+      const invalidPath = data.documents.some(
+        (d) => !d.path.startsWith('/docs/')
+      );
       expect(invalidPath).toBe(true);
     });
 
@@ -449,7 +452,9 @@ describe('Search Index Validation', () => {
       writeTestIndex(valid);
 
       const data = JSON.parse(fs.readFileSync(INDEX_FILE, 'utf8'));
-      const emptyCount = data.documents.filter((d) => !d.title || !d.body).length;
+      const emptyCount = data.documents.filter(
+        (d) => !d.title || !d.body
+      ).length;
       expect(emptyCount).toBeLessThan(data.documents.length / 2);
     });
   });

@@ -1,0 +1,48 @@
+---
+title: Ledger Checkpoint Cadence
+description: Understanding how Stellar History Archives create ledger checkpoints and their role in historical data archival.
+date: 2026-10-17
+---
+
+# Ledger Checkpoint Cadence
+
+Stellar History Archives store snapshots of ledger state at regular intervals called checkpoints. These checkpoints are critical for applications that need historical ledger data and for disaster recovery and node catchup operations.
+
+## Checkpoint Frequency
+
+Stellar creates ledger checkpoints every **64 ledgers**. Since the Stellar network typically closes a ledger every 4-5 seconds, this means a new checkpoint is created approximately every **4-5 minutes** (64 ledgers × 4-5 seconds per ledger ≈ 256-320 seconds).
+
+Each checkpoint contains:
+
+- **Full ledger state**: Account balances, trustlines, offers, and other account data
+- **Transaction history**: All transactions included in the 64-ledger window
+- **Operation results**: Success or failure status for each operation
+- **Metadata**: Ledger headers and closing information
+
+## Role in Historical Data Archival
+
+Stellar History Archives serve as a complete, immutable record of the network's history. Checkpoints enable efficient historical data retrieval without requiring nodes to replay every individual ledger close:
+
+### Data Ingestion
+Horizon and other services use checkpoints to ingest historical data into their databases. Rather than processing transactions in real-time from the network, tools can download checkpoints from archives and import the data in batches, significantly improving performance and reducing resource consumption.
+
+### Node Catchup
+When a Stellar Core node falls behind or restarts after downtime, it can use checkpoints to quickly catch up to the current network state. Instead of replaying thousands of individual ledger closes, the node can restore from a nearby checkpoint and then synchronize only the remaining recent ledgers.
+
+### Data Retention & Recovery
+History Archives provide a permanent, publicly accessible record of all network activity. Developers and auditors can query historical data indefinitely, making it possible to reconstruct account states, verify past transactions, and conduct forensic analysis.
+
+## Accessing Historical Data
+
+You can access checkpoint data and historical information through:
+
+- **Official Stellar History Archives**: https://data.stellar.org/core-testnet or https://data.stellar.org/core-live
+- **Horizon API**: Query historical transactions, payments, and account states
+- **Archive Download Tools**: Directly download checkpoint files for offline analysis
+
+## Related
+
+- [Stellar History Archive Specification](https://github.com/stellar/stellar-core/blob/master/docs/history.md) — Technical details on checkpoint format and structure
+- [Stellar Horizon Integration](/docs/integrations/horizon) — Querying historical data via API
+- [Running a Stellar Core Node](/docs/run-core-node) — Understanding archival and catchup operations
+- [Glossary](/docs/guides/glossary) — Stellar network terminology

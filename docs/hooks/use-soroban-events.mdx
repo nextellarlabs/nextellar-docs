@@ -9,9 +9,10 @@ date: 2026-07-28
 The `useSorobanEvents` hook polls a Soroban contract for events, retrying transient RPC failures with exponential backoff and continuing at a reduced rate instead of giving up.
 
 <Note>
-  **Ships in:** default, js
+  **Ships in:** `default`, `js-template`, and the TypeScript `defi` variant.
   <br />
-  Not in your scaffold? Run `nextellar add contracts`
+  Check `nextellar add --list` for features available to add to another
+  scaffold.
 </Note>
 
 ## Features
@@ -67,13 +68,13 @@ useSorobanEvents(contractId: string, opts?: Options): UseSorobanEventsReturn
 
 ### Options
 
-| Option           | Type             | Default                                                                               | Description                                                                                                       |
-| ---------------- | ---------------- | ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `sorobanRpc`     | `string`         | `WalletProvider`'s configured Soroban URL, else `https://soroban-testnet.stellar.org` | Soroban RPC endpoint                                                                                              |
-| `fromCursor`     | `string`         | none                                                                                  | Starting cursor. If omitted, the first request uses `startLedger: 1`; later polls advance via the response cursor |
-| `pollIntervalMs` | `number \| null` | `10000`                                                                               | Poll interval in ms. Pass `null` to disable polling (only the initial fetch runs)                                 |
-| `topics`         | `string[][]`     | none                                                                                  | XDR-encoded topic filters, one array per segment (max 4)                                                          |
-| `limit`          | `number`         | `100`                                                                                 | Max events per poll                                                                                               |
+| Option           | Type             | Default                                                                               | Description                                                                                                                |
+| ---------------- | ---------------- | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `sorobanRpc`     | `string`         | `WalletProvider`'s configured Soroban URL, else `https://soroban-testnet.stellar.org` | Soroban RPC endpoint                                                                                                       |
+| `fromCursor`     | `string`         | none                                                                                  | Exclusive starting cursor. If omitted, the first request starts at ledger 1; later polls advance using the response cursor |
+| `pollIntervalMs` | `number \| null` | `10000`                                                                               | Poll interval in ms. Pass `null` to disable polling (only the initial fetch runs)                                          |
+| `topics`         | `string[][]`     | none                                                                                  | XDR-encoded topic filters, one array per segment (max 4)                                                                   |
+| `limit`          | `number`         | `100`                                                                                 | Max events per poll                                                                                                        |
 
 ### Return value
 
@@ -111,13 +112,100 @@ If all 3 attempts fail:
 
 As soon as a later poll succeeds, `error` clears, `isRecovering` returns to `false`, and polling resumes at the normal `pollIntervalMs`.
 
+### Reconnect/Backoff Example
+
+Here's a practical example showing how to build a resilient event feed that handles connection issues gracefully:
+
+```tsx
+import { useSorobanEvents } from '@/hooks/useSorobanEvents';
+
+function ResilientEventFeed({ contractId }: { contractId: string }) {
+  const { events, loading, error, isRecovering, refresh, stopPolling } =
+    useSorobanEvents(contractId, {
+      pollIntervalMs: 5000, // Poll every 5 seconds normally
+      topics: [['AAAADgAAAAh0cmFuc2Zlcg==']], // Filter for 'transfer' events
+    });
+
+  return (
+    <div className="event-feed">
+      {/* Connection status indicator */}
+      <div className="status-bar">
+        {isRecovering ? (
+          <span className="status-warning">
+            ⚠️ Connection issues – polling at reduced rate
+          </span>
+        ) : loading && events.length === 0 ? (
+          <span className="status-loading">🔄 Loading events...</span>
+        ) : (
+          <span className="status-ok">✅ Connected</span>
+        )}
+      </div>
+
+      {/* Error display with manual retry */}
+      {error && (
+        <div className="error-banner">
+          <p>Failed to fetch events: {error.message}</p>
+          <button onClick={refresh} className="retry-button">
+            Retry Now
+          </button>
+        </div>
+      )}
+
+      {/* Event list */}
+      <div className="events-list">
+        {events.length === 0 && !loading ? (
+          <p className="empty-state">No events found yet</p>
+        ) : (
+          events.map((event) => (
+            <div key={event.id} className="event-item">
+              <div className="event-header">
+                <span className="event-type">{event.type}</span>
+                <span className="event-ledger">Ledger {event.ledger}</span>
+              </div>
+              <div className="event-time">
+                {new Date(event.ledgerClosedAt).toLocaleString()}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Manual controls */}
+      <div className="controls">
+        <button onClick={refresh} disabled={loading}>
+          Refresh
+        </button>
+        <button onClick={stopPolling} variant="outline">
+          Stop Polling
+        </button>
+      </div>
+    </div>
+  );
+}
+```
+
+**Key patterns in this example:**
+
+1. **Status indicator**: Shows `isRecovering` state to users when the hook is in degraded mode
+2. **Error banner**: Displays the last error with a manual retry button
+3. **Empty state**: Shows a helpful message when no events exist
+4. **Manual controls**: Allows users to force refresh or stop polling entirely
+
+The hook's built-in retry logic handles transient failures automatically, but exposing the UI states lets users understand what's happening and take manual action if needed.
+
 ## RPC endpoint configuration
 
 `sorobanRpc` is **not hardcoded**. If you don't pass it explicitly, the hook reads it from the surrounding `WalletProvider`'s config (set at scaffold time via `--soroban-url` or `NEXT_PUBLIC_SOROBAN_URL`). The literal testnet URL in the table above is only the last-resort fallback when no provider config is present.
 
+## Initial fetch and reconnect behavior
+
+The hook is a polling client, not a server-push subscription. When `contractId` or the resolved RPC URL changes, it resets its cursor to `fromCursor` and immediately fetches. Without a cursor, that first request starts at ledger 1, so provide a saved cursor when resuming a long-running feed.
+
+Each fetch gets up to three attempts with waits of 1, 3, and 9 seconds. If all attempts fail, `error` is set, `isRecovering` becomes `true`, and scheduled polling continues at twice the normal interval, capped at 30 seconds. A successful later poll clears the error and recovery state and returns to the configured interval. This retry-and-poll behavior is the hook's reconnect mechanism; it does not maintain a streaming socket.
+
 ## Cleanup
 
-`useSorobanEvents` clears its poll timer and any in-flight retry timer on unmount — no manual cleanup needed. To stop polling early without unmounting, call `stopPolling()`; `refresh()` can still be called afterward to resume.
+`useSorobanEvents` clears scheduled poll and retry timers on unmount; an in-flight RPC request is not aborted, but its response is ignored after unmount. To stop polling early without unmounting, call `stopPolling()`; `refresh()` performs a fetch and resumes polling when `pollIntervalMs` is enabled.
 
 ## Related Hooks
 

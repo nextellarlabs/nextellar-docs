@@ -6,34 +6,42 @@ date: 2026-06-02
 
 # useOfferBook
 
-The `useOfferBook` hook queries Stellar's decentralized exchange (DEX) order books, enabling trading interfaces and price discovery.
+The `useOfferBook` hook queries one Stellar DEX buying/selling asset pair and returns bids, asks, loading/error state, and manual refresh controls.
 
 <Note>
-  **Ships in:** default, js
+  **Ships in:** TypeScript `default` and `defi` and JavaScript `js-template` and
+  `js-defi`
   <br />
   Not in your scaffold? Run `nextellar add defi`
 </Note>
 
 ## Features
 
-- **Order Book Data**: Fetch bids and asks for trading pairs
-- **Price Discovery**: Get current market prices
+- **Order Book Data**: Fetch bids and asks for a trading pair
+- **Price Discovery**: Derive market prices from the top of the book
 - **Depth Analysis**: Analyze order book depth
-- **Real-Time Updates**: Optional live order book updates
-- **Multiple Pairs**: Query multiple trading pairs
+- **Live Updates**: Optional built-in polling via `pollIntervalMs`
+- **Multiple Pairs**: Call the hook once per trading pair
 
 ## Basic Usage
 
-`````tsx
+```tsx
 import { useOfferBook } from '@/hooks/useOfferBook';
 
 export default function OrderBook() {
-  const { bids, asks, loading } = useOfferBook({
-    selling: { code: 'XLM', type: 'native' },
-    buying: { code: 'USDC', issuer: 'GA5Z...' },
-  });
+  const { bids, asks, loading } = useOfferBook(
+    'XLM',
+    { code: 'USDC', issuer: 'GA5Z...' },
+    { limit: 20 }
+  );
 
   if (loading) return <div>Loading order book...</div>;
+  if (error)
+    return (
+      <div>
+        {error.message} <button onClick={refresh}>Retry</button>
+      </div>
+    );
 
   return (
     <div>
@@ -59,50 +67,78 @@ export default function OrderBook() {
 
 ### Parameters
 
-````typescript
-useOfferBook(options: {
-  selling: Asset;
-  buying: Asset;
-  limit?: number;
-  horizonUrl?: string;
-}): OfferBookState
-```css
-
-| Parameter    | Type     | Default      | Description               |
-| ------------ | -------- | ------------ | ------------------------- |
-| `selling`    | `Asset`  | **Required** | Asset being sold          |
-| `buying`     | `Asset`  | **Required** | Asset being bought        |
-| `limit`      | `number` | `20`         | Number of offers per side |
-| `horizonUrl` | `string` | Testnet      | Horizon URL               |
-
-### Return Value
+`useOfferBook` takes the two assets as positional arguments, followed by an options object:
 
 ```typescript
+useOfferBook(
+  buying: Asset,
+  selling: Asset,
+  opts?: {
+    horizonUrl?: string;
+    limit?: number;
+    pollIntervalMs?: number | null;
+  }
+): OfferBookState
+```
+
+An `Asset` is either the literal string `'XLM'` for the native asset or an object with `code` and `issuer` for issued assets:
+
+```typescript
+type Asset = 'XLM' | { code: string; issuer: string };
+```
+
+| Parameter        | Type             | Default                                                     | Description                                                                                                          |
+| ---------------- | ---------------- | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `buying`         | `Asset`          | **Required**                                                | Asset being bought (first positional argument)                                                                       |
+| `selling`        | `Asset`          | **Required**                                                | Asset being sold (second positional argument)                                                                        |
+| `horizonUrl`     | `string`         | Provider's `horizonUrl`, else `https://horizon.stellar.org` | Horizon endpoint to query. When used inside a `WalletProvider`, the provider's `horizonUrl` is used as the fallback. |
+| `limit`          | `number`         | `20`                                                        | Number of offers per side                                                                                            |
+| `pollIntervalMs` | `number \| null` | `null`                                                      | When set, the hook refetches the book on this interval (in milliseconds)                                             |
+
+type Asset = 'XLM' | { code: string; issuer: string };
+
 interface OfferBookState {
   bids: Offer[];
   asks: Offer[];
-  spread: number;
-  midPrice: number;
   loading: boolean;
-  error: Error | null;
   refresh: () => Promise<void>;
+  stopPolling: () => void;
+  error: Error | null;
 }
-`````
+
+type Offer = {
+  price: string;
+  amount: string;
+  seller: string;
+  buying: Asset;
+  selling: Asset;
+};
+```
+
+The hook does not return `midPrice` or `spread` — derive them from `bids` and `asks` as shown in [Get Current Price](#get-current-price).
 
 ## Examples
 
 ### Get Current Price
 
+Derive the mid price and spread from the top of the book:
+
 ```tsx
-const { midPrice, spread } = useOfferBook({
-  selling: { code: 'XLM', type: 'native' },
-  buying: { code: 'USDC', issuer: 'GA5Z...' },
+const { bids, asks } = useOfferBook('XLM', {
+  code: 'USDC',
+  issuer: 'GA5Z...',
 });
+
+const bestBid = bids.length > 0 ? parseFloat(bids[0].price) : null;
+const bestAsk = asks.length > 0 ? parseFloat(asks[0].price) : null;
+const midPrice =
+  bestBid !== null && bestAsk !== null ? (bestBid + bestAsk) / 2 : null;
+const spread = bestBid !== null && bestAsk !== null ? bestAsk - bestBid : null;
 
 return (
   <div>
-    <p>Price: ${midPrice}</p>
-    <p>Spread: {spread}%</p>
+    <p>Price: {midPrice !== null ? `$${midPrice}` : '—'}</p>
+    <p>Spread: {spread ?? '—'}</p>
   </div>
 );
 ```
@@ -110,7 +146,10 @@ return (
 ### Calculate Order Book Depth
 
 ```tsx
-const { bids, asks } = useOfferBook({ selling, buying });
+const { bids, asks } = useOfferBook('XLM', {
+  code: 'USDC',
+  issuer: 'GA5Z...',
+});
 
 const totalBidVolume = bids.reduce(
   (sum, bid) => sum + parseFloat(bid.amount),
@@ -127,25 +166,26 @@ console.log('Sell pressure:', totalAskVolume);
 
 ### Live Updates
 
-Refresh the order book on an interval and clean up the timer when the component unmounts:
+Pass `pollIntervalMs` to have the hook refetch the book on an interval. The timer is cleared automatically when the component unmounts; call `stopPolling()` to stop it earlier:
 
 ```tsx
-import { useEffect } from 'react';
 import { useOfferBook } from '@/hooks/useOfferBook';
 
-export function LiveOrderBook({ selling, buying }) {
-  const { bids, asks, loading, error, refresh } = useOfferBook({
-    selling,
+// The hook doesn't export its Asset type — derive it from the signature
+type Asset = Parameters<typeof useOfferBook>[0];
+
+export function LiveOrderBook({
+  buying,
+  selling,
+}: {
+  buying: Asset;
+  selling: Asset;
+}) {
+  const { bids, asks, loading, error, refresh, stopPolling } = useOfferBook(
     buying,
-  });
-
-  useEffect(() => {
-    const interval = window.setInterval(() => {
-      void refresh();
-    }, 5000);
-
-    return () => window.clearInterval(interval);
-  }, [refresh]);
+    selling,
+    { pollIntervalMs: 5000 }
+  );
 
   if (loading && bids.length === 0 && asks.length === 0) {
     return <p>Loading order book...</p>;
@@ -154,9 +194,12 @@ export function LiveOrderBook({ selling, buying }) {
   return (
     <section aria-live="polite">
       {error && <p role="alert">Unable to update: {error.message}</p>}
-      <p>{bids.length + asks.length} offers, updated every 5 seconds</p>
+      <p>{bids.length + asks.length} offers, refreshed every 5 seconds</p>
       <button type="button" onClick={() => void refresh()} disabled={loading}>
         Refresh now
+      </button>
+      <button type="button" onClick={stopPolling}>
+        Stop live updates
       </button>
     </section>
   );
@@ -178,11 +221,24 @@ Validate the assets before querying the order book so malformed pairs fail befor
 If Horizon is unavailable, keep the last known book visible and expose `refresh()` so the user can retry.
 
 ```tsx
-if (error) {
+type Asset = 'XLM' | { code: string; issuer: string };
+
+export function OrderBookRetry({
+  buying,
+  selling,
+}: {
+  buying: Asset;
+  selling: Asset;
+}) {
+  const { error, refresh } = useOfferBook(buying, selling);
+  if (!error) return null;
+
   return (
     <div>
       <p>{error.message}</p>
-      <button onClick={refresh}>Retry</button>
+      <button type="button" onClick={() => void refresh()}>
+        Retry
+      </button>
     </div>
   );
 }

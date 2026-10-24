@@ -1,0 +1,113 @@
+---
+title: Horizon 5xx Retry Behavior
+description: Recommended retry strategy for Horizon 5xx server errors and idempotency considerations.
+date: 2026-10-17
+---
+
+# Horizon 5xx Retry Behavior
+
+When Horizon returns a 5xx server error (500, 502, 503, 504), it indicates a transient service issue. This guide covers recommended retry behavior and idempotency concerns.
+
+## When to Retry
+
+Retry when you receive:
+
+- `500 Internal Server Error` — Temporary service issue
+- `502 Bad Gateway` — Upstream connectivity problem
+- `503 Service Unavailable` — Server overloaded or maintenance
+- `504 Gateway Timeout` — Request exceeded timeout
+
+These are **transient failures** and should be retried.
+
+## Recommended Retry Policy
+
+Use **exponential backoff with jitter** to avoid overwhelming the server:
+
+```javascript
+async function fetchWithRetry(url, maxRetries = 3) {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const response = await fetch(url);
+
+      if (response.status < 500) {
+        // 4xx errors are permanent — don't retry
+        return response;
+      }
+
+      // 5xx error — retry with backoff
+      if (attempt < maxRetries - 1) {
+        const delayMs = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
+        await new Promise((r) => setTimeout(r, delayMs));
+        continue;
+      }
+    } catch (error) {
+      // Network error — retry
+      if (attempt < maxRetries - 1) {
+        const delayMs = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
+        await new Promise((r) => setTimeout(r, delayMs));
+        continue;
+      }
+    }
+  }
+
+  throw new Error('Max retries exceeded');
+}
+```
+
+**Example backoff sequence:**
+- Attempt 1: Fail immediately, wait ~1s + jitter
+- Attempt 2: Fail, wait ~2s + jitter
+- Attempt 3: Fail, wait ~4s + jitter
+- Attempt 4: Give up
+
+## Idempotency Concerns
+
+**Read operations** (GET requests to fetch accounts, balances, history) are safe to retry — they do not change state.
+
+**Transaction submission** (POST to `/transactions`) requires careful handling:
+
+1. **Build and sign offline** — The transaction XDR is immutable once signed
+2. **Submit once, then check** — If submission times out or returns 5xx, query the ledger to see if it was applied before retrying
+3. **Avoid duplicate submissions** — Submitting the same signed transaction twice is harmless (Stellar deduplicates by transaction hash), but submitting a different transaction with the same sequence number will fail with `tx_bad_seq`
+
+```javascript
+// Safe: Check ledger before retrying
+async function submitWithRetry(txXdr) {
+  const txHash = hash(txXdr);
+
+  // Try initial submission
+  try {
+    const response = await horizon.submitTransaction(txXdr);
+    return response;
+  } catch (error) {
+    // If 5xx, check if already applied
+    const existing = await horizon
+      .transactions()
+      .hash(txHash)
+      .call()
+      .catch(() => null);
+
+    if (existing) {
+      // Already on ledger — success
+      return existing;
+    }
+
+    // Not on ledger yet — retry submission
+    return submitWithRetry(txXdr);
+  }
+}
+```
+
+## Best Practices
+
+- **Retry reads aggressively** — GET requests are safe
+- **Check before retrying transactions** — Verify the transaction wasn't already applied
+- **Set reasonable timeouts** — 30–60 seconds is typical
+- **Monitor retry rates** — High retry rates may indicate a real outage
+- **Use regional endpoints** — Reduces latency and can avoid timeout-related 5xx errors
+
+## Related
+
+- [Stellar Horizon Integration](/docs/integrations/horizon) — Horizon configuration and error handling
+- [Error Handling Patterns](/docs/guides/error-handling-patterns) — Application-level error recovery
+- [Transaction Lifecycle](/docs/guides/transaction-lifecycle) — Understanding transaction states

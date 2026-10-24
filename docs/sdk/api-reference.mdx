@@ -21,19 +21,29 @@ Nextellar uses `@creit.tech/stellar-wallets-kit` for multi-wallet support.
 import { kit, getKit, signTransaction } from '@/lib/stellar-wallet-kit';
 ```
 
-### `getKit()`
+### `getKit(network?)`
 
-Returns the StellarWalletsKit singleton instance.
+Returns the `StellarWalletsKit` singleton, creating it on first use. The optional `network` argument re-initializes the kit when the network changes.
 
 ```typescript
 const kit = getKit();
 ```
 
-### `kit.openModal(options)`
-
-Opens the wallet selection modal.
+`kit` is exported as a lazy accessor **function** — `kit()` is equivalent to `getKit()`. Prefer it over importing `@creit.tech/stellar-wallets-kit` directly at module scope, since the underlying module is loaded on demand:
 
 ```typescript
+import { kit } from '@/lib/stellar-wallet-kit';
+
+const kitInstance = kit(); // same singleton as getKit()
+```
+
+### `kit.openModal(options)`
+
+Opens the wallet selection modal on a kit instance returned by `getKit()`:
+
+```typescript
+const kit = getKit();
+
 await kit.openModal({
   modalTitle: 'Connect to your favorite wallet',
   onWalletSelected: async (option) => {
@@ -189,6 +199,7 @@ interface Trustline {
   limit?: string;
   balance?: string;
   authorized?: boolean;
+  authorizedToMaintainLiabilities?: boolean;
 }
 ```
 
@@ -200,6 +211,7 @@ interface PaymentOptions {
   amount: string;
   asset?: 'XLM' | { code: string; issuer: string };
   memo?: string;
+  secret?: string; // DEV-ONLY: sign locally with a secret key (never in production)
 }
 ```
 
@@ -223,6 +235,9 @@ interface PaymentResult {
   txHash?: string;
   raw?: unknown;
   error?: string;
+  /** Raw Horizon result codes (e.g. tx_failed, op_no_destination), present
+   * only on a failed submission that returned extras.result_codes */
+  resultCodes?: { transaction?: string; operations?: string[] };
 }
 ```
 
@@ -234,10 +249,20 @@ interface WalletContextState {
   publicKey?: string;
   walletName?: string;
   balances: Balance[];
+  accounts: WalletAccount[];
+  currentAccountIndex: number;
   connect: () => Promise<void>;
   disconnect: () => void;
   refreshBalances: () => Promise<void>;
-  sendPayment?: (opts: PaymentOptions) => Promise<TransactionResponse>;
+  switchAccount: (address: string) => Promise<void>;
+  sendPayment?: (
+    opts: PaymentOptions
+  ) => Promise<Horizon.HorizonApi.SubmitTransactionResponse>;
+}
+
+interface WalletAccount {
+  address: string;
+  displayName?: string;
 }
 ```
 
@@ -245,8 +270,11 @@ interface WalletContextState {
 
 ```typescript
 interface WalletConfigContextState {
+  activeNetworkKey: string;
   horizonUrl: string;
+  sorobanUrl: string;
   network: string;
+  switchNetwork: (networkKey: string) => void;
 }
 ```
 
@@ -293,8 +321,10 @@ Recommended environment variables for production:
 ```bash
 NEXT_PUBLIC_HORIZON_URL=https://horizon.stellar.org
 NEXT_PUBLIC_NETWORK=PUBLIC
-NEXT_PUBLIC_SOROBAN_RPC=https://soroban-rpc.stellar.org
+NEXT_PUBLIC_SOROBAN_URL=https://soroban-rpc.stellar.org
 ```
+
+`WalletProvider` reads these as defaults: `NEXT_PUBLIC_HORIZON_URL` for the Horizon server, `NEXT_PUBLIC_SOROBAN_URL` for the Soroban RPC server, and `NEXT_PUBLIC_NETWORK` (set to `PUBLIC` for mainnet; anything else falls back to testnet).
 
 ---
 

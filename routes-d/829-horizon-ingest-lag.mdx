@@ -1,0 +1,6 @@
+---
+title: Horizon Ingest Lag
+description: Understand and measure Horizon ingest lag
+---
+
+Ingest lag is the gap between the latest ledger closed by Stellar Core and the latest ledger indexed by Horizon. Check the Horizon root endpoint (`GET /`) and compare `core_latest_ledger` with `history_latest_ledger`; their difference is the lag in ledgers.

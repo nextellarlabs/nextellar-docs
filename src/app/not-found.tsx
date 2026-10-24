@@ -1,3 +1,5 @@
+'use client';
+
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
@@ -12,6 +14,7 @@ import {
 import { useState } from 'react';
 
 export default function NotFound() {
+  const pathname = usePathname();
   return (
     <div className="min-h-screen bg-background text-foreground flex items-center justify-center px-4">
       <style>{`
@@ -165,8 +168,8 @@ export default function NotFound() {
             Browse All Docs
           </Link>
         </div>
-      </body>
-    </html>
+      </div>
+    </div>
   );
 }
 

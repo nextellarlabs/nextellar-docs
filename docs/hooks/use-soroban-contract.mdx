@@ -9,9 +9,10 @@ date: 2026-06-02
 The `useSorobanContract` hook provides a complete interface for interacting with Soroban smart contracts. It handles XDR value conversion, transaction simulation, and contract invocation.
 
 <Note>
-  **Ships in:** default, js
+  **Ships in:** `default`, `js-template`, and the TypeScript `defi` variant.
   <br />
-  Not in your scaffold? Run `nextellar add contracts`
+  Check `nextellar add --list` for features available to add to another
+  scaffold.
 </Note>
 
 ## Features
@@ -28,20 +29,37 @@ The `useSorobanContract` hook provides a complete interface for interacting with
 import { useSorobanContract } from '@/hooks/useSorobanContract';
 
 export default function ContractDemo() {
-  const { callFunction, buildInvokeXDR, loading, error } = useSorobanContract({
-    contractId: 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQAHHXK3AWCM',
-    network: 'TESTNET',
-  });
+  const { callFunction, simulateContractCall, loading, error } =
+    useSorobanContract({
+      contractId: 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQAHHXK3AWCM',
+      network: 'TESTNET' as const,
+    });
 
   const handleReadContract = async () => {
-    const result = await callFunction('get_balance', ['GABC123...']);
+    const result = await callFunction('balance', [
+      { value: 'GABC123...', type: 'address' },
+    ]);
     console.log('Balance:', result);
   };
 
+  const handlePreview = async () => {
+    const preview = await simulateContractCall('balance', [
+      { value: 'GABC123...', type: 'address' },
+    ]);
+    console.log('Decoded result:', preview.result);
+    console.log('Minimum resource fee:', preview.minResourceFee);
+  };
+
   return (
-    <button onClick={handleReadContract} disabled={loading}>
-      Read Contract {loading && '(Loading...)'}
-    </button>
+    <div>
+      {error && <p role="alert">{error.message}</p>}
+      <button onClick={handleReadContract} disabled={loading}>
+        Read Contract {loading && '(Loading...)'}
+      </button>
+      <button onClick={handlePreview} disabled={loading}>
+        Preview
+      </button>
+    </div>
   );
 }
 ```
@@ -51,11 +69,11 @@ export default function ContractDemo() {
 ### Parameters
 
 ```typescript
-useSorobanContract(options: {
+function useSorobanContract(options: {
   contractId: string;
   sorobanRpc?: string;
   network?: 'TESTNET' | 'PUBLIC';
-}): SorobanContractReturn
+}): SorobanContractReturn;
 ```
 
 | Parameter    | Type                    | Default                                 | Description                  |
@@ -68,16 +86,28 @@ useSorobanContract(options: {
 
 ```typescript
 interface SorobanContractReturn {
-  callFunction: (name: string, args: unknown[]) => Promise<unknown>;
-  buildInvokeXDR: (name: string, args: unknown[]) => Promise<string>;
+  callFunction: (name: string, args: TypedArg[]) => Promise<unknown>;
+  simulateContractCall: (
+    name: string,
+    args: TypedArg[]
+  ) => Promise<SimulateContractCallResult>;
+  buildInvokeXDR: (name: string, args: TypedArg[]) => Promise<string>;
   submitInvokeWithSecret: (
     xdr: string,
     secret: string
-  ) => Promise<SendTransactionResponse>;
+  ) => Promise<rpc.Api.SendTransactionResponse>;
   loading: boolean;
-  error: Error | null;
+  error?: Error | null;
+}
+
+interface SimulateContractCallResult {
+  result: unknown;
+  minResourceFee: string;
+  latestLedger: number;
 }
 ```
+
+The RPC endpoint defaults to `https://soroban-testnet.stellar.org`; `network` defaults to `TESTNET`. `simulateContractCall()` returns the decoded value, minimum resource fee in stroops, and ledger used for simulation.
 
 ## Methods
 
@@ -87,49 +117,57 @@ Call a contract function in read-only mode (simulation).
 
 ```tsx
 // Simple call
-const balance = await callFunction('get_balance', ['GABC123...']);
+const balance = await callFunction('balance', [
+  { value: 'GABC123...', type: 'address' },
+]);
 
 // With multiple arguments
 const result = await callFunction('transfer', [
-  'GABC123...', // from
-  'GDEF456...', // to
-  1000, // amount
+  { value: 'GABC123...', type: 'address' },
+  { value: 'GDEF456...', type: 'address' },
+  { value: 1000n, type: 'u128' },
 ]);
 ```
 
-**Supported Argument Types:**
-
-- `string` → ScvString
-- `number` → ScvI32
-- `boolean` → ScvBool
-- `Address` → ScvAddress
-- `Array` → ScvVec
-- `Object` → ScvMap
+The hook accepts tagged `{ value, type }` arguments for `u32`, `i32`, `u64`, `i64`, `u128`, `i128`, `bool`, `string`, `symbol`, `address`, `bytes`, `vec`, `map`, `enum`, `timepoint`, and `duration`. It also auto-detects common JavaScript values. `callFunction` returns `unknown`; narrow the decoded value before using it. Large integers decode to `bigint`, vectors to arrays, and XDR maps to plain objects.
 
 ### buildInvokeXDR()
 
 Build an unsigned contract invocation XDR.
 
 ```tsx
-const xdr = await buildInvokeXDR('mint', [
-  'GABC123...', // recipient
-  1000, // amount
-]);
-
-// Sign with wallet
-const signedXDR = await wallet.signTransaction(xdr);
+async function createMintXdr(
+  recipient: string,
+  buildInvokeXDR: (name: string, args: TypedArg[]) => Promise<string>
+) {
+  return buildInvokeXDR('mint', [
+    { value: recipient, type: 'address' },
+    { value: 1000n, type: 'u128' },
+  ]);
+}
 ```
+
+`buildInvokeXDR()` returns an unsigned transaction. Sign it with a wallet adapter before submitting it through Soroban RPC.
 
 ### submitInvokeWithSecret()
 
 **DEV-ONLY**: Sign and submit contract invocation.
 
 ```tsx
-const result = await submitInvokeWithSecret(xdr, 'SABC123...');
-console.log('Transaction status:', result.status);
+async function submitForDevelopment(
+  submitInvokeWithSecret: (
+    xdr: string,
+    secret: string
+  ) => Promise<rpc.Api.SendTransactionResponse>,
+  signedXdr: string,
+  developmentSecret: string
+) {
+  const result = await submitInvokeWithSecret(signedXdr, developmentSecret);
+  console.log('RPC send status:', result.status);
+}
 ```
 
-> **Warning**: Never use in production. For testing only.
+> **Warning**: This method signs with a secret key and is for development only. Never handle secret keys in production client code.
 
 ## Advanced Examples
 
@@ -168,6 +206,94 @@ try {
   }
 }
 ```
+
+### Typed Args and Return Decoding
+
+When working with complex Soroban contracts, you can type your function arguments and decode return values for better type safety.
+
+```tsx
+import { useSorobanContract } from '@/hooks/useSorobanContract';
+import { Address } from '@stellar/stellar-sdk';
+
+// Define your contract function types
+interface TokenContract {
+  balance: (owner: Address) => Promise<bigint>;
+  allowance: (owner: Address, spender: Address) => Promise<bigint>;
+  transfer: (from: Address, to: Address, amount: bigint) => Promise<void>;
+}
+
+export function TokenContractDemo() {
+  const { callFunction, loading } = useSorobanContract({
+    contractId: 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQAHHXK3AWCM',
+    network: 'TESTNET',
+  });
+
+  const getBalance = async (ownerAddress: string) => {
+    const owner = new Address(ownerAddress);
+    const balance = await callFunction('balance', [owner]);
+
+    // The hook automatically decodes XDR to JavaScript types
+    // For ScvU128/ScvI128, you'll get a bigint
+    if (typeof balance === 'bigint') {
+      console.log('Balance:', balance.toString());
+      return balance;
+    }
+
+    throw new Error('Unexpected return type');
+  };
+
+  const checkAllowance = async (owner: string, spender: string) => {
+    const ownerAddr = new Address(owner);
+    const spenderAddr = new Address(spender);
+
+    const allowance = await callFunction('allowance', [ownerAddr, spenderAddr]);
+
+    // Decode the returned value
+    if (typeof allowance === 'bigint') {
+      console.log('Allowance:', allowance.toString());
+      return allowance;
+    }
+
+    throw new Error('Unexpected return type');
+  };
+
+  const transferTokens = async (from: string, to: string, amount: string) => {
+    const fromAddr = new Address(from);
+    const toAddr = new Address(to);
+    const amountBigInt = BigInt(amount);
+
+    const result = await callFunction('transfer', [fromAddr, toAddr, amountBigInt]);
+    console.log('Transfer result:', result);
+  };
+
+  return (
+    <div>
+      <button onClick={() => getBalance('GABC123...')} disabled={loading}>
+        Get Balance
+      </button>
+      <button onClick={() => checkAllowance('GABC123...', 'GDEF456...')} disabled={loading}>
+        Check Allowance
+      </button>
+      <button onClick={() => transferTokens('GABC123...', 'GDEF456...', '1000')} disabled={loading}>
+        Transfer 1000 Tokens
+      </button>
+    </div>
+  );
+}
+```
+
+**Type conversion reference:**
+
+| Soroban Type | JavaScript Type | Example |
+| ------------ | --------------- | ------- |
+| `ScvString` | `string` | `'hello'` |
+| `ScvI32` | `number` | `42` |
+| `ScvI64`/`ScvI128` | `bigint` | `1000000000n` |
+| `ScvU64`/`ScvU128` | `bigint` | `1000000000n` |
+| `ScvBool` | `boolean` | `true` |
+| `ScvAddress` | `Address` object | `new Address('G...')` |
+| `ScvVec` | `Array` | `[1, 2, 3]` |
+| `ScvMap` | `Object` | `{ key: 'value' }` |
 
 ## Type Conversion
 
@@ -210,7 +336,7 @@ const result = await callFunction('get_data', []);
 const contractConfig = useMemo(
   () => ({
     contractId: 'CDLZ...',
-    network: 'TESTNET',
+    network: 'TESTNET' as const,
   }),
   []
 );
@@ -221,9 +347,12 @@ const contract = useSorobanContract(contractConfig);
 ### 2. Handle Loading States
 
 ```tsx
-const { callFunction, loading } = useSorobanContract({ contractId });
+function ContractLoading({ contractId }: { contractId: string }) {
+  const { callFunction, loading } = useSorobanContract({ contractId });
 
-if (loading) return <Spinner />;
+  if (loading) return <Spinner />;
+  return <button onClick={() => callFunction('get_data', [])}>Read</button>;
+}
 ```
 
 ### 3. Validate Contract Responses

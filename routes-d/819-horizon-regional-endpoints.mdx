@@ -1,0 +1,70 @@
+---
+title: Using Horizon Regional Endpoints
+description: Brief guide to Stellar Horizon's regional endpoint availability and how to choose the best one for your region.
+date: 2026-10-17
+---
+
+# Using Horizon Regional Endpoints
+
+Stellar provides regional Horizon endpoints to reduce latency and improve reliability for applications serving users in different geographic regions. This guide explains which endpoints are available and how to pick the best one.
+
+## Available Regional Endpoints
+
+Stellar maintains Horizon servers in multiple regions:
+
+| Region     | Endpoint                                |
+| ---------- | --------------------------------------- |
+| US (North) | `https://horizon.stellar.org`           |
+| Testnet    | `https://horizon-testnet.stellar.org`   |
+| EU         | `https://eu.horizon.stellar.org`        |
+| Asia       | `https://asia.horizon.stellar.org`      |
+
+All endpoints serve the **same Stellar network** and ledger data. The only difference is geographic location, which affects network round-trip time (RTT).
+
+## Picking a Regional Endpoint
+
+Choose the endpoint closest to your users or application servers:
+
+- **US-based application** → `https://horizon.stellar.org`
+- **EU-based application** → `https://eu.horizon.stellar.org`
+- **Asia-based application** → `https://asia.horizon.stellar.org`
+- **Testing** → `https://horizon-testnet.stellar.org`
+
+Reducing latency improves user experience, especially for interactive flows like balance fetching or transaction submission.
+
+## Configure a Regional Endpoint
+
+Pass the regional URL when scaffolding your Nextellar app:
+
+```bash
+npx nextellar my-app \
+  --horizon-url https://eu.horizon.stellar.org
+```
+
+Or set it in your environment:
+
+```bash
+# .env.local
+NEXT_PUBLIC_HORIZON_URL=https://asia.horizon.stellar.org
+```
+
+Then use it in your WalletProvider:
+
+```tsx
+<WalletProvider horizonUrl={process.env.NEXT_PUBLIC_HORIZON_URL}>
+  <App />
+</WalletProvider>
+```
+
+## Verify Endpoint Reachability
+
+Test that your chosen endpoint is reachable before deployment:
+
+```bash
+npx nextellar doctor --horizon-url https://eu.horizon.stellar.org
+```
+
+## Related
+
+- [Stellar Horizon Integration](/docs/integrations/horizon) — Comprehensive Horizon configuration guide
+- [Testing Horizon and Soroban](/docs/guides/testing-horizon-soroban) — Network endpoint testing

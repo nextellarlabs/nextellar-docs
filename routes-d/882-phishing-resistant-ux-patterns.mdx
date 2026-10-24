@@ -1,0 +1,91 @@
+---
+title: Phishing-Resistant UX Patterns
+description: Help wallet users verify the application domain and understand transaction intent before they approve.
+date: 2026-10-17
+---
+
+# Phishing-Resistant UX Patterns
+
+Wallet UX cannot eliminate phishing, but it can make impersonation and unexpected transaction requests easier to notice before a user connects or signs. Make the trusted context and the transaction's effect visible at the decision point.
+
+## Make the Domain Verifiable
+
+- Show the application origin in a stable, recognizable place, especially around wallet connection and signing flows. Use the browser's actual origin rather than a display name supplied by a remote page.
+- Encourage users to compare the complete hostname with a trusted bookmark or known source. Do not present a green badge, lock icon, logo, or matching page design as proof that a site is legitimate.
+- When a wallet connection or signing request includes an origin, display that origin using a consistent format. Preserve the full hostname where practical; do not hide meaningful subdomains behind truncation.
+- Clearly distinguish the product's own application from external sites, embedded content, and third-party integrations. Do not let an embedded frame imitate trusted browser or wallet chrome.
+- Keep security cues consistent and avoid urgent or ambiguous copy that pressures users to approve.
+
+Domain confirmation is a cue, not a guarantee. A lookalike hostname, compromised legitimate site, or malicious integration can still request harmful actions.
+
+## Preview the Transaction Clearly
+
+Before approval, explain the requested action in plain language and show the values a user needs to verify:
+
+- Action and effect, such as sending, swapping, creating an offer, or granting an authorization.
+- Asset and exact amount, including whether a value is estimated or may change.
+- Full recipient, contract, or spender identity, with copy and inspect affordances where useful.
+- Network, expected fee, and memo or other consequential fields.
+- For contract calls, the contract identity and decoded method or permissions. Flag fields the interface cannot confidently interpret instead of presenting them as harmless.
+
+Keep the summary adjacent to the approval action. Highlight differences from the user's selected recipient, network, or expected action, and provide a way to cancel or return to editing. Do not use truncated identifiers as the only way to distinguish destinations.
+
+## Small Example
+
+The page origin must come from the browser context, and the transaction summary should be built from the request being reviewed rather than unrelated UI state.
+
+```tsx
+'use client';
+
+type PaymentReviewProps = {
+  destination: string;
+  amount: string;
+  asset: string;
+  network: string;
+  fee: string;
+  onApprove: () => void;
+  onCancel: () => void;
+};
+
+export function PaymentReview(props: PaymentReviewProps) {
+  const origin = window.location.origin;
+
+  return (
+    <section aria-labelledby="review-title">
+      <p>
+        Application origin: <strong>{origin}</strong>
+      </p>
+      <h2 id="review-title">Review payment</h2>
+      <dl>
+        <dt>Action</dt>
+        <dd>
+          Send {props.amount} {props.asset}
+        </dd>
+        <dt>To</dt>
+        <dd>
+          <code>{props.destination}</code>
+        </dd>
+        <dt>Network</dt>
+        <dd>{props.network}</dd>
+        <dt>Estimated fee</dt>
+        <dd>{props.fee}</dd>
+      </dl>
+      <button type="button" onClick={props.onCancel}>
+        Cancel
+      </button>
+      <button type="button" onClick={props.onApprove}>
+        Approve payment
+      </button>
+    </section>
+  );
+}
+```
+
+This example is a presentation pattern, not a trust check. Validate transaction data and the active network in the transaction layer, and let the wallet independently show what it will sign.
+
+## Verification Checklist
+
+- Confirm the displayed origin matches the browser's current hostname, including subdomains and internationalized names.
+- Test long addresses, lookalike destinations, wrong-network requests, missing transaction fields, and undecodable contract calls.
+- Verify users can cancel without signing and can inspect full identifiers before approval.
+- Check the preview with keyboard and assistive technology, and ensure warnings are not conveyed by color alone.

@@ -1,0 +1,69 @@
+---
+title: RTL Support for Wallet UIs
+description: Layout, text direction, and icon mirroring patterns for right-to-left wallet interfaces.
+date: 2026-10-17
+---
+
+# RTL Support for Wallet UIs
+
+Right-to-left (RTL) support affects more than translated text. A wallet must preserve the meaning and usability of navigation, amounts, addresses, and transaction controls when the interface direction changes.
+
+## Set Direction at the Interface Boundary
+
+Set the document or application container direction from the active locale, rather than reversing individual components. Prefer CSS logical properties such as `margin-inline-start`, `padding-inline-end`, and `border-inline-start`; they adapt to either direction without separate layout rules.
+
+Keep DOM order aligned with the intended reading and keyboard order. Avoid using `row-reverse` as a general RTL fix, since it can make visual order disagree with screen-reader and focus order.
+
+## Preserve Bidirectional Values
+
+Wallet interfaces mix RTL text with left-to-right values. Render public keys, transaction hashes, URLs, and many numeric identifiers in an isolated left-to-right region so punctuation and truncation remain predictable. Keep localized labels and surrounding prose in the selected direction.
+
+For amounts, use locale-aware number formatting and keep the asset code visually associated with its amount. Do not reverse the characters in an address or manually reorder separators.
+
+## Mirror Directional Icons Only
+
+Mirror icons whose meaning depends on direction, such as back, forward, or breadcrumb arrows. Do not mirror logos, currency marks, clocks, checkmarks, or other symbols whose meaning is not directional. Ensure mirrored controls still have clear accessible names.
+
+## Small Example
+
+```tsx
+type WalletSummaryProps = {
+  direction: 'ltr' | 'rtl';
+  amount: string;
+  address: string;
+};
+
+export function WalletSummary({
+  direction,
+  amount,
+  address,
+}: WalletSummaryProps) {
+  return (
+    <section dir={direction}>
+      <p className="balance-label">Available balance</p>
+      <p className="balance-value">{amount} XLM</p>
+      <p className="address" dir="ltr">
+        {address}
+      </p>
+    </section>
+  );
+}
+```
+
+```css
+.balance-label {
+  margin-inline-start: 0;
+  text-align: start;
+}
+
+.address {
+  overflow-wrap: anywhere;
+  text-align: start;
+}
+```
+
+## Verification Checklist
+
+- Check layouts in both `ltr` and `rtl` with long translated labels and narrow viewports.
+- Confirm amount, asset, fee, memo, address, and transaction-hash values remain readable and correctly ordered.
+- Test tab order, focus indicators, screen-reader output, and directional icon behavior in both directions.

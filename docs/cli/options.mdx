@@ -8,6 +8,20 @@ date: 2026-06-02
 
 Detailed reference for all command-line options available in Nextellar CLI.
 
+The following index mirrors the current CLI registrations. Options are grouped by the command that accepts them; `doctor`, `add`, `upgrade`, and `deploy` options are not scaffold flags.
+
+| Command                        | Options                                                                                                                                                                                                                                                                                                                                      |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `nextellar <project-name>`     | `--typescript` (`-t`), `--javascript` (`-j`), `--template <name>`, `--horizon-url <url>`, `--soroban-url <url>`, `--wallets <list>` (`-w`), `--defaults` (`-d`), `--yes` (`-y`), `--skip-install`, `--package-manager <manager>`, `--with-contracts` (`-c`), `--force`, `--no-git`, `--git-init`, `--install-timeout <ms>`, `--no-telemetry` |
+| `nextellar doctor`             | `--json`, `--fix`, `--horizon-url <url>`, `--soroban-url <url>`                                                                                                                                                                                                                                                                              |
+| `nextellar add [feature]`      | `--list` (`-l`), `--force` (`-f`), `--skip-install`, `--package-manager <manager>`                                                                                                                                                                                                                                                           |
+| `nextellar upgrade`            | `--dry-run`, `--check`, `--yes`                                                                                                                                                                                                                                                                                                              |
+| `nextellar deploy`             | `--dry-run`, `--size-threshold <bytes>`                                                                                                                                                                                                                                                                                                      |
+| `nextellar clean`              | No command-specific options                                                                                                                                                                                                                                                                                                                  |
+| `nextellar telemetry <action>` | Positional action: `status`, `enable`, or `disable`; no flags                                                                                                                                                                                                                                                                                |
+
+The global `--help` (`-h`) and `--version` (`-v`) options are also available.
+
 ## Language Options
 
 ### --typescript, -t
@@ -36,9 +50,7 @@ nextellar my-app -j
 
 **Default:** `false`
 **Type:** Boolean
-**Status:** Coming Soon
-
-> **Note:** JavaScript support is planned for a future release. Currently, only TypeScript projects are supported.
+**Status:** Supported with `default`, `minimal`, and `defi` templates
 
 ## Network Configuration
 
@@ -50,9 +62,9 @@ Override the default Horizon endpoint.
 nextellar my-app --horizon-url https://horizon.stellar.org
 ```css
 
-**Default:** `https://horizon-testnet.stellar.org`
+**Default:** Flag unset; scaffold fallback is `https://horizon-testnet.stellar.org`
 **Type:** String (URL)
-**Validation:** Must be a valid HTTP/HTTPS URL
+**Validation:** Must be a valid HTTP/HTTPS URL when provided.
 
 **Common Values:**
 
@@ -68,9 +80,9 @@ Override the default Soroban RPC endpoint.
 nextellar my-app --soroban-url https://soroban-rpc.stellar.org
 ```css
 
-**Default:** `https://soroban-testnet.stellar.org`
+**Default:** Flag unset; scaffold fallback is `https://soroban-testnet.stellar.org`
 **Type:** String (URL)
-**Validation:** Must be a valid HTTP/HTTPS URL
+**Validation:** Must be a valid HTTP/HTTPS URL when provided.
 
 **Common Values:**
 
@@ -92,7 +104,7 @@ nextellar my-app -w freighter,albedo
 **Default:** `freighter,albedo,lobstr`
 **Type:** Comma-separated string
 
-For a complete list of supported wallets, examples, and detailed information about defaults and unknown adapter behavior, see [Wallet Configuration](/docs/cli/flags#wallet-configuration-wallets) in the Flags & Options reference.
+For a complete list of supported wallets, examples, and detailed information about defaults and unknown adapter behavior, see [Wallet Configuration](/docs/cli/flags#wallet-configuration---wallets) in the Flags & Options reference.
 
 **Quick Reference:**
 
@@ -152,7 +164,7 @@ nextellar my-app --package-manager pnpm
 
 1. Explicit `--package-manager` flag
 2. `npm_config_user_agent` environment variable
-3. Lockfile presence (bun.lockb, pnpm-lock.yaml, yarn.lock, package-lock.json)
+3. Lockfile presence (`bun.lockb`, `bun.lock`, `pnpm-lock.yaml`, `yarn.lock`, `package-lock.json`)
 4. Fallback to `npm`
 
 ### --install-timeout
@@ -165,7 +177,7 @@ nextellar my-app --install-timeout 3600000
 
 **Default:** `1200000` (20 minutes)
 **Type:** Number (milliseconds)
-**Range:** `60000` - `7200000` (1 min - 2 hours)
+**Range:** `5000` - `3600000` milliseconds (5 seconds - 1 hour)
 
 **Use Cases:**
 
@@ -183,21 +195,21 @@ nextellar my-app --install-timeout 3600000
 
 ## Scaffold Options
 
-The following options control git initialization behavior during `nextellar` scaffolding.
+These options control Git initialization during scaffolding.
 
 ### --git-init
 
-Initialize a git repository in the scaffolded project. This is the default behavior.
+This flag is registered by the CLI, but Git initialization is already enabled by default. Pass `--no-git` to disable it.
 
 ```bash
 npx nextellar my-app --git-init
 ```
 
-**Default:** `true`
+**Default:** `false` (the flag is unset)
 **Type:** Boolean
 **Status:** Supported
 
-Git init runs automatically unless `--no-git` is passed. This flag is useful when you want to be explicit in scripts.
+The current scaffold action does not need this flag to initialize Git; it is redundant with the default behavior.
 
 ---
 
@@ -227,6 +239,47 @@ git remote add origin git@github.com:you/my-app.git
 ```
 
 ---
+
+## Other Scaffold Options
+
+### --template <name>
+
+Choose one of the three template families. The default is `default`; `--javascript` selects the JavaScript variant of the chosen family.
+
+```bash
+npx nextellar my-app --template minimal
+npx nextellar my-js-app --template defi --javascript
+```
+
+**Accepted values:** `default`, `minimal`, `defi`
+
+### --with-contracts, -c
+
+Add the Soroban contract overlay to the scaffold. The CLI also enables the overlay automatically for `--template defi`.
+
+```bash
+npx nextellar my-app --template minimal --with-contracts
+```
+
+**Default:** `false` for non-DeFi templates; enabled for `defi`
+
+### --force
+
+Overwrite an existing target directory. In an interactive terminal the CLI asks for confirmation unless `--defaults` is set; in non-interactive use the directory is removed without a prompt.
+
+```bash
+npx nextellar my-app --force
+```
+
+**Default:** `false`
+
+### --no-telemetry
+
+Disable telemetry for this scaffold invocation. Without the flag, telemetry behavior follows the saved preference; `NEXTELLAR_TELEMETRY_DISABLED` can force it off for the environment.
+
+```bash
+npx nextellar my-app --no-telemetry
+```
 
 ## Behavior Options
 
@@ -320,18 +373,17 @@ Choose which package manager to use for the post-add install step.
 
 ```bash
 nextellar add freighter --package-manager pnpm
-nextellar add freighter --package-manager bun
 ```
 
 **Default:** Auto-detected
 **Type:** String
-**Options:** `npm`, `yarn`, `pnpm`, `bun`
+**Options:** `npm`, `yarn`, `pnpm`
 **Status:** Supported
 
 Combine with `--force` to overwrite files and install with a specific package manager:
 
 ```bash
-nextellar add freighter --force --package-manager bun
+nextellar add freighter --force --package-manager pnpm
 ```
 
 ---
@@ -339,6 +391,28 @@ nextellar add freighter --force --package-manager bun
 ## Doctor Options
 
 The following options apply to the `nextellar doctor` command:
+
+### --json
+
+Print diagnostic results as JSON for CI and other automation.
+
+```bash
+nextellar doctor --json
+```
+
+**Default:** `false`
+**Type:** Boolean
+
+### --fix
+
+Offer to automatically fix safe or optional diagnostic failures.
+
+```bash
+nextellar doctor --fix
+```
+
+**Default:** `false`
+**Type:** Boolean
 
 ### --horizon-url (doctor)
 
@@ -525,7 +599,7 @@ nextellar stellar-mainnet-app \
   --wallets freighter,xbull \
   --package-manager pnpm
 ## Note: freighter,xbull is a custom wallet selection.
-## See [Wallet Configuration](/docs/cli/flags#wallet-configuration-wallets) for defaults and all supported adapters.
+## See [Wallet Configuration](/docs/cli/flags#wallet-configuration---wallets) for defaults and all supported adapters.
 ```
 
 ## Development Setup
@@ -567,54 +641,26 @@ Used for package manager detection.
 npm_config_user_agent="npm/10.2.0 node/v20.10.0"
 ```
 
-## NODE_ENV
-
-Environment mode (development/production).
-
-```bash
-NODE_ENV=production npx nextellar my-app
-```
-
 ## Validation Rules
 
 ### Project Name
 
-- **Required:** Yes
-- **Pattern:** `^[a-zA-Z0-9-_]+$`
-- **Max Length:** 214 characters
-- **Invalid:** Spaces, special characters (except `-` and `_`)
-
-**Valid:**
-
-```bash
-nextellar my-app
-nextellar stellar_payment_app
-nextellar my-dapp-2024
-```
-
-**Invalid:**
-
-````bash
-nextellar "my app"        # Spaces not allowed
-nextellar my@app          # Special characters not allowed
-nextellar ../my-app       # Path traversal not allowed
-```bash
+The scaffold requires a project name and validates it with `validate-npm-package-name`. The CLI does not use a custom regular expression; the validator may also suggest a slug when it can derive one.
 
 ### URLs
 
-- **Protocol:** Must be `http://` or `https://`
-- **Format:** Valid URL format
-- **Reachable:** Not validated (assumed reachable)
+`--horizon-url` and `--soroban-url` must parse as valid `http://` or `https://` URLs when supplied. The CLI does not check endpoint reachability while scaffolding.
 
 ### Wallet Names
 
-- **Format:** Comma-separated, no spaces
-- **Valid:** `freighter`, `albedo`, `lobstr`, `xbull`, `hana`
-- **Case:** Case-insensitive
+`--wallets` is split on commas and surrounding whitespace is trimmed. The scaffold CLI does not validate adapter names or normalize their case; use supported lowercase IDs such as `freighter`, `albedo`, `lobstr`, `xbull`, and `hana`.
 
 ## Related Documentation
 
 - [CLI Commands](/docs/cli/commands) - Command reference
 - [Configuration](/docs/cli/configuration) - Project configuration
 - [Troubleshooting](/docs/troubleshooting/common-error-messages) - Common issues
-````
+
+```
+
+```

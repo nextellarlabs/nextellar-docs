@@ -5,6 +5,7 @@ const path = require('path');
 // Configuration
 const DOCS_DIR = path.join(__dirname, '../docs');
 const DOCS_BASE = '/docs';
+const anchorsOnly = process.argv.includes('--anchors-only');
 
 // Color codes for terminal output
 const colors = {
@@ -49,12 +50,12 @@ function filePathToRoute(filePath) {
   const relative = path.relative(DOCS_DIR, filePath);
   const withoutExt = relative.replace(/\.(mdx|md)$/, '');
   const normalized = withoutExt.split(path.sep).join('/');
-  
+
   // Handle index files -> they resolve to the directory
   if (normalized.endsWith('/index')) {
     return DOCS_BASE + '/' + normalized.replace(/\/index$/, '');
   }
-  
+
   return DOCS_BASE + '/' + normalized;
 }
 
@@ -64,30 +65,51 @@ function filePathToRoute(filePath) {
  */
 function extractAnchors(content) {
   const anchors = new Set();
-  
-  // Match Markdown headings: # Heading, ## Subheading, etc.
-  const headingRegex = /^#+\s+(.+?)(?:\s*\{.*?\})?$/gm;
-  // Match HTML id attributes
-  const slugRegex = /id=['"]([\w-]+)['"]/g;
+  const occurrences = new Map();
 
-  let match;
+  let fenceCharacter = null;
+  let fenceLength = 0;
+  for (const line of content.split('\n')) {
+    const fence = line.match(/^\s*(`{3,}|~{3,})/);
+    if (fenceCharacter) {
+      const closingFence = new RegExp(
+        `^\\s*${fenceCharacter}{${fenceLength},}\\s*$`
+      );
+      if (closingFence.test(line)) fenceCharacter = null;
+      continue;
+    }
 
-  // Extract from Markdown headings
-  while ((match = headingRegex.exec(content)) !== null) {
-    const heading = match[1].trim();
-    // Convert heading to URL slug (lowercase, spaces to hyphens, remove special chars)
-    const slug = heading
-      .toLowerCase()
-      .replace(/[^\w\s-]/g, '')
+    if (fence) {
+      fenceCharacter = fence[1][0];
+      fenceLength = fence[1].length;
+      continue;
+    }
+
+    const headingMatch = line.match(/^#{1,6}\s+(.+?)(?:\s*\{.*?\})?\s*$/);
+    if (!headingMatch) continue;
+
+    const originalSlug = headingMatch[1]
       .trim()
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-');
+      .toLowerCase()
+      .replace(/[\p{P}\p{S}\p{C}]/gu, (character) =>
+        character === '-' || character === '_' ? character : ''
+      )
+      .replace(/ /g, '-');
+    let slug = originalSlug;
+    while (occurrences.has(slug)) {
+      const nextOccurrence = (occurrences.get(originalSlug) || 0) + 1;
+      occurrences.set(originalSlug, nextOccurrence);
+      slug = `${originalSlug}-${nextOccurrence}`;
+    }
+    occurrences.set(slug, 0);
     if (slug) {
       anchors.add(slug);
     }
   }
 
   // Extract from HTML id attributes
+  const slugRegex = /id=['"]([\w-]+)['"]/g;
+  let match;
   while ((match = slugRegex.exec(content)) !== null) {
     anchors.add(match[1]);
   }
@@ -110,8 +132,17 @@ function extractLinks(content) {
     while ((mdMatch = mdLinkRegex.exec(line)) !== null) {
       const href = mdMatch[2];
       // Only track internal links (starting with / or relative, but not external URLs)
-      if (!href.startsWith('http') && !href.startsWith('mailto:') && !href.startsWith('tel:')) {
-        links.push({ href, type: 'markdown', lineNum: lineNum + 1, text: mdMatch[1] });
+      if (
+        !href.startsWith('http') &&
+        !href.startsWith('mailto:') &&
+        !href.startsWith('tel:')
+      ) {
+        links.push({
+          href,
+          type: 'markdown',
+          lineNum: lineNum + 1,
+          text: mdMatch[1],
+        });
       }
     }
 
@@ -121,7 +152,11 @@ function extractLinks(content) {
     while ((htmlMatch = htmlHrefRegex.exec(line)) !== null) {
       const href = htmlMatch[1];
       // Only track internal links (starting with / or relative, but not external URLs)
-      if (!href.startsWith('http') && !href.startsWith('mailto:') && !href.startsWith('tel:')) {
+      if (
+        !href.startsWith('http') &&
+        !href.startsWith('mailto:') &&
+        !href.startsWith('tel:')
+      ) {
         links.push({ href, type: 'html', lineNum: lineNum + 1 });
       }
     }
@@ -137,18 +172,18 @@ function extractLinks(content) {
 function normalizeHref(href) {
   // Remove trailing slashes and query params/fragments
   let normalized = href.split('#')[0].split('?')[0].replace(/\/$/, '');
-  
+
   // If it doesn't start with /, treat as relative (we'll resolve elsewhere)
   if (!normalized.startsWith('/')) {
     return normalized;
   }
-  
+
   // Ensure it has the /docs prefix for comparison
   if (!normalized.startsWith('/docs/')) {
     // Add /docs prefix if missing
     normalized = '/docs' + normalized;
   }
-  
+
   return normalized;
 }
 
@@ -157,31 +192,38 @@ function normalizeHref(href) {
  * Returns {valid, reason}
  */
 function resolveLink(href, fromRoute, knownRoutes, anchors) {
-  // Handle anchor-only links (within same page)
-  if (href.startsWith('#')) {
-    const anchor = href.slice(1);
-    const pageAnchors = anchors.get(fromRoute);
-    if (pageAnchors && pageAnchors.has(anchor)) {
-      return { valid: true, reason: 'anchor exists' };
+  const hashIndex = href.indexOf('#');
+  let anchor = null;
+  if (hashIndex !== -1 && hashIndex < href.length - 1) {
+    try {
+      anchor = decodeURIComponent(href.slice(hashIndex + 1));
+    } catch {
+      return { valid: false, reason: 'anchor contains invalid URL encoding' };
     }
-    return { valid: false, reason: `anchor '#${anchor}' not found on this page` };
   }
 
-  // Normalize the href
-  let targetRoute = normalizeHref(href);
+  const pageHref = hashIndex === -1 ? href : href.slice(0, hashIndex);
+  let targetRoute = pageHref ? normalizeHref(pageHref) : fromRoute;
 
-  // Check if this route exists (exact match)
-  if (knownRoutes.has(targetRoute)) {
-    return { valid: true, reason: 'page exists' };
+  if (!knownRoutes.has(targetRoute)) {
+    const withoutDocs = targetRoute.replace(/^\/docs/, '');
+    if (withoutDocs !== targetRoute && knownRoutes.has(withoutDocs)) {
+      targetRoute = withoutDocs;
+    } else {
+      return { valid: false, reason: 'page not found' };
+    }
   }
 
-  // Check if it matches the without /docs variant (for backward compat check)
-  const withoutDocs = targetRoute.replace(/^\/docs/, '');
-  if (withoutDocs !== targetRoute && knownRoutes.has(withoutDocs)) {
-    return { valid: true, reason: 'page exists' };
+  if (anchor !== null && !anchors.get(targetRoute)?.has(anchor)) {
+    return {
+      valid: false,
+      reason: `anchor '#${anchor}' not found on target page`,
+    };
   }
-
-  return { valid: false, reason: 'page not found' };
+  return {
+    valid: true,
+    reason: anchor === null ? 'page exists' : 'anchor exists',
+  };
 }
 
 /**
@@ -193,7 +235,9 @@ function checkLinks() {
 
   // Step 1: Collect all doc files
   const docFiles = walkDocs();
-  console.log(`${colors.blue}Found ${docFiles.length} documentation files${colors.reset}\n`);
+  console.log(
+    `${colors.blue}Found ${docFiles.length} documentation files${colors.reset}\n`
+  );
 
   // Step 2: Build map of known routes and their anchors
   const knownRoutes = new Set();
@@ -220,8 +264,12 @@ function checkLinks() {
     const links = extractLinks(content);
 
     links.forEach((link) => {
-      // Skip anchor-only and external links for now
-      if (link.href.startsWith('#') || link.href.startsWith('http')) {
+      if (anchorsOnly && !/#.+$/.test(link.href)) {
+        return;
+      }
+
+      // Skip external links; local and cross-page fragments are checked below.
+      if (link.href.startsWith('http')) {
         return;
       }
 
@@ -249,7 +297,9 @@ function checkLinks() {
   console.log(`✅ Valid links: ${validLinks}/${totalLinks}`);
 
   if (brokenLinks.length > 0) {
-    console.log(`${colors.red}❌ Broken links: ${brokenLinks.length}${colors.reset}\n`);
+    console.log(
+      `${colors.red}❌ Broken links: ${brokenLinks.length}${colors.reset}\n`
+    );
     console.log(`${colors.yellow}Broken Links Report:${colors.reset}\n`);
 
     // Group broken links by file for easier reading
@@ -265,7 +315,9 @@ function checkLinks() {
     Object.keys(linksByFile).forEach((route) => {
       console.log(`${colors.cyan}${route}${colors.reset}`);
       linksByFile[route].forEach((link) => {
-        console.log(`  ${colors.red}[${idx}]${colors.reset} Line ${link.lineNum}`);
+        console.log(
+          `  ${colors.red}[${idx}]${colors.reset} Line ${link.lineNum}`
+        );
         console.log(`       ${colors.yellow}Link: ${link.href}${colors.reset}`);
         console.log(`       ${colors.red}Error: ${link.reason}${colors.reset}`);
         if (link.text) {
@@ -276,7 +328,9 @@ function checkLinks() {
       console.log();
     });
 
-    console.log(`${colors.red}❌ VALIDATION FAILED - ${brokenLinks.length} broken link(s) found${colors.reset}`);
+    console.log(
+      `${colors.red}❌ VALIDATION FAILED - ${brokenLinks.length} broken link(s) found${colors.reset}`
+    );
     process.exit(1);
   } else {
     console.log(`${colors.green}🎉 ALL LINKS VALID!${colors.reset}`);

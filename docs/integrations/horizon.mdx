@@ -73,13 +73,17 @@ through a server-side proxy rather than exposing credentials in a
 | `useTrustlines`         | `POST /transactions` - ChangeTrust ops |
 | `useOfferBook`          | `GET /order_book` - DEX queries        |
 
+## Account Data Entries
+
+An account can store up to 100 data entries, each with a value of up to 64 bytes. Each entry counts as a subentry and increases the account's minimum balance by one base reserve. The base reserve is set by the network.
+
 ## Using Horizon in Hooks
 
 ### With WalletProvider (Recommended)
 
 Configure once at the provider level:
 
-````tsx
+```tsx
 <WalletProvider horizonUrl="https://horizon.stellar.org">
   <App /> {/* All hooks use mainnet Horizon */}
 </WalletProvider>
@@ -129,6 +133,8 @@ const transactions = await server
 const sourceAccount = await server.loadAccount(publicKey);
 ```
 
+Horizon may still return the account's `inflation_destination` field. It is a historical, deprecated field that once nominated an account to receive inflation payouts; inflation operations have not been supported since Protocol 12, so the field has no effect.
+
 ## Transaction Building
 
 Nextellar hooks build transactions using the Stellar SDK:
@@ -158,6 +164,10 @@ const transaction = new TransactionBuilder(sourceAccount, {
   .build();
 ```
 
+### Payment operation basics
+
+A payment operation requires a destination account, an asset, and a positive amount. The operation source defaults to the transaction source, which must authorize the transaction. Common failures include `op_underfunded` (not enough balance), `op_no_destination` (the destination account does not exist), and `op_no_trust` or `op_line_full` when the recipient cannot receive an issued asset.
+
 ## Environment Variables
 
 Configure Horizon endpoints via environment variables:
@@ -181,6 +191,7 @@ Horizon returns specific error codes. Hooks handle common ones:
 | -------------- | -------------------- | ----------------------------- |
 | 404            | Account not found    | Empty balances, `error` state |
 | 400            | Bad request          | Validation error              |
+| 429            | Rate limit exceeded  | Wait before retrying          |
 | 504            | Timeout              | Network error                 |
 | tx_bad_seq     | Sequence mismatch    | Retry needed                  |
 | op_underfunded | Insufficient balance | Payment failed                |
@@ -192,6 +203,12 @@ if (error?.message.includes('404')) {
   return <p>Account not funded yet</p>;
 }
 ```
+
+Horizon commonly returns `429` after bursts of requests, frequent polling, or concurrent clients sharing an IP. Honor `Retry-After` when present; otherwise use exponential backoff with jitter and reduce request volume. Do not retry immediately. See [Rate Limiting Horizon Requests](/docs/guides/rate-limiting-horizon-requests) for more.
+
+## Horizon Ingest Lag
+
+Ingest lag is the gap between the latest ledger closed by Stellar Core and the latest ledger indexed by Horizon. Check the Horizon root endpoint (`GET /`) and compare `core_latest_ledger` with `history_latest_ledger`; their difference is the lag in ledgers.
 
 ## Rate Limiting
 
@@ -214,4 +231,3 @@ const { balances } = useStellarBalances(publicKey, {
 - [useStellarBalances](/docs/hooks/use-stellar-balances) - Balance fetching hook
 - [useStellarPayment](/docs/hooks/use-stellar-payment) - Payment transactions
 - [useTransactionHistory](/docs/hooks/use-transaction-history) - Transaction queries
-````

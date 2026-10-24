@@ -73,27 +73,34 @@ function extractHeadings(content) {
  */
 function loadDocs() {
   try {
-    // Contentlayer generates .contentlayer/generated/index.js with allDocs export
-    const indexPath = path.join(CONTENTLAYER_DIR, 'index.js');
-    if (!fs.existsSync(indexPath)) {
+    const docsPath = path.join(CONTENTLAYER_DIR, 'Docs/_index.json');
+    const versionedDocsPath = path.join(CONTENTLAYER_DIR, 'VersionedDocs/_index.json');
+
+    let docs = [];
+    if (fs.existsSync(docsPath)) {
+      docs = docs.concat(JSON.parse(fs.readFileSync(docsPath, 'utf8')));
+    }
+    if (fs.existsSync(versionedDocsPath)) {
+      docs = docs.concat(JSON.parse(fs.readFileSync(versionedDocsPath, 'utf8')));
+    }
+
+    if (docs.length === 0) {
+      const indexPath = path.join(CONTENTLAYER_DIR, 'index.js');
+      if (fs.existsSync(indexPath)) {
+        const content = fs.readFileSync(indexPath, 'utf8');
+        const match = content.match(/export const allDocs = (\[[\s\S]*?\])\s*(?:;|export)/);
+        if (match) {
+          docs = eval('(' + match[1] + ')');
+        }
+      }
+    }
+
+    if (docs.length === 0) {
       throw new Error(
-        `Contentlayer index not found at ${indexPath}. Did you run 'pnpm build:content'?`
+        `Contentlayer docs not found in ${CONTENTLAYER_DIR}. Did you run 'pnpm build:content'?`
       );
     }
 
-    // Read the generated index file
-    const content = fs.readFileSync(indexPath, 'utf8');
-
-    // Extract the allDocs export using regex
-    // The file exports: export const allDocs = [...]
-    const match = content.match(/export const allDocs = (\[[\s\S]*?\])\s*(?:;|export)/);
-    if (!match) {
-      throw new Error('Could not parse allDocs from contentlayer index');
-    }
-
-    const docsJson = match[1];
-    // Safely evaluate the JSON array
-    const docs = eval('(' + docsJson + ')');
     return docs;
   } catch (error) {
     console.error('❌ Error loading docs from contentlayer:', error.message);

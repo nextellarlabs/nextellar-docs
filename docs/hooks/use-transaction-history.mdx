@@ -8,15 +8,10 @@ date: 2026-06-02
 
 The `useTransactionHistory` hook fetches and paginates a Stellar account's operation or payment history from Horizon, using cursor-based pagination.
 
-<Note type="info">
-  This hook ships in the `default` and `js` templates. It is not currently
-  included in the `minimal` or `defi` templates.
-</Note>
-
 <Note>
-  **Ships in:** default, js
+  **Ships in:** every template (default, js, minimal, defi)
   <br />
-  Not in your scaffold? Run `nextellar add history`
+  Removed it from your scaffold? Restore it with `nextellar add history`
 </Note>
 
 ## Features
@@ -101,9 +96,11 @@ interface TransactionHistoryState {
 
 `OperationItem` is `Horizon.ServerApi.OperationRecord` from `@stellar/stellar-sdk` — each item is an operation (or payment) record with fields like `id`, `type`, `created_at`, `paging_token`, and, for payments, `amount`, `asset_type`, `from`, and `to`.
 
-- `fetchNextPage()` requests the next page after the current cursor and appends the results to `items`.
-- `refresh()` restarts pagination from the beginning and replaces `items` with the first page.
+- `fetchNextPage()` requests the next page after the current cursor and appends the results to `items`. Records already present are de-duplicated (matched by `paging_token`, falling back to `id`), so a record on a page boundary never renders twice. It returns immediately without fetching when `hasMore` is `false` or no cursor is available.
+- `refresh()` resets the cursor and replaces `items` with the first page. Previous items are kept in place if the request fails.
 - `hasMore` is `true` only when the most recent page returned a full `pageSize` of records **and** Horizon returned a next cursor; it becomes `false` once a shorter (final) page is reached.
+- Changing `publicKey` (or any option: `type`, `pageSize`, `horizonUrl`) resets the cursor and reloads from the first page.
+- At most 1000 records are kept in memory; once exceeded, the oldest entries are trimmed first.
 - Records are always returned newest first; there is no configurable sort order.
 
 ## Examples

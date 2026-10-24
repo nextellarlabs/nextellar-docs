@@ -1,0 +1,366 @@
+---
+title: Building a Send Form for Wallet UI
+description: A practical guide to building a payment send form with address validation, asset selection, and error handling for Stellar wallet UIs.
+date: 2026-10-20
+---
+
+# Building a Send Form for Wallet UI
+
+A send form is the core user interaction in any Stellar wallet, allowing users to specify a recipient, select an asset, and enter an amount for payment. This guide covers best practices for address validation, asset selection, and error handling.
+
+---
+
+## Key Requirements
+
+### 1. Address Validation
+
+A robust send form must validate recipient addresses to prevent common errors:
+
+- **Stellar Public Key (G...)**: Validate that the address is a valid 56-character Stellar public key starting with 'G'.
+- **Federated Address (name@domain.tld)**: Optionally support federated addresses for user-friendly naming.
+- **Memoization**: Require a memo for certain destination addresses (e.g. exchange addresses).
+- **Self-Prevention**: Warn if the recipient is the same as the sender.
+- **Funded Account Warning**: Optionally check if the destination account is funded on-chain.
+
+### 2. Asset Selection
+
+Users must be able to select which asset to send:
+
+- **Trustlines**: Only show assets the sender has trustlines for.
+- **Balance Display**: Display the sender's available balance for each asset.
+- **Native XLM**: Always include native XLM in the asset list.
+- **Asset Filtering**: Allow users to search/filter by asset code or issuer.
+- **Disable Zero-Balance**: Optionally disable assets with zero balance.
+
+### 3. Amount Validation
+
+Validate the payment amount before submission:
+
+- **Positive Value**: Ensure the amount is greater than zero.
+- **Decimal Precision**: Validate decimal places match the asset precision (typically 7 for Stellar).
+- **Sufficient Balance**: Ensure the sender has enough balance including transaction fees.
+- **Maximum Value**: Prevent sending more than the available balance.
+
+### 4. Error Handling & User Feedback
+
+Provide clear feedback for invalid inputs:
+
+- **Real-time Validation**: Validate and show errors as the user types (debounced).
+- **Clear Messages**: Use plain language (e.g. "Invalid address format" instead of technical jargon).
+- **Field Highlighting**: Highlight invalid fields with red borders or icons.
+- **Fee Display**: Show estimated transaction fees upfront so users understand the total cost.
+
+---
+
+## Minimal React Component Example
+
+Below is a complete React + TypeScript send form component with validation:
+
+```tsx
+import React, { useState, useEffect, useMemo } from 'react';
+import { StrKey, Keypair } from '@stellar/js-sdk';
+
+interface Asset {
+  code: string;
+  issuer?: string;
+  balance: string;
+}
+
+interface SendFormProps {
+  senderPublicKey: string;
+  availableAssets: Asset[];
+  onSubmit: (recipient: string, asset: Asset, amount: string) => void;
+  estimatedFeeXlm?: string;
+}
+
+interface FormErrors {
+  recipient?: string;
+  asset?: string;
+  amount?: string;
+}
+
+export const SendForm: React.FC<SendFormProps> = ({
+  senderPublicKey,
+  availableAssets,
+  onSubmit,
+  estimatedFeeXlm = '0.00001',
+}) => {
+  const [recipient, setRecipient] = useState('');
+  const [selectedAsset, setSelectedAsset] = useState<Asset | null>(
+    availableAssets[0] || null
+  );
+  const [amount, setAmount] = useState('');
+  const [errors, setErrors] = useState<FormErrors>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Validate recipient address
+  const validateRecipient = (value: string): string | undefined => {
+    if (!value) return 'Recipient address is required';
+    if (value === senderPublicKey) return 'Cannot send to yourself';
+
+    // Check for valid Stellar public key (G...)
+    if (value.startsWith('G')) {
+      if (!StrKey.isValidEd25519PublicKey(value)) {
+        return 'Invalid Stellar address format';
+      }
+      return undefined;
+    }
+
+    // Check for federated address (name@domain.tld)
+    if (value.includes('@')) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(value)) {
+        return 'Invalid federated address format';
+      }
+      return undefined;
+    }
+
+    return 'Address must be a Stellar public key (G...) or federated address (name@domain)';
+  };
+
+  // Validate amount
+  const validateAmount = (value: string, asset: Asset | null): string | undefined => {
+    if (!value) return 'Amount is required';
+    if (!asset) return 'Please select an asset';
+
+    const numAmount = parseFloat(value);
+    if (isNaN(numAmount)) return 'Amount must be a number';
+    if (numAmount <= 0) return 'Amount must be greater than zero';
+
+    const balance = parseFloat(asset.balance);
+    const feeAmount = parseFloat(estimatedFeeXlm);
+    const totalNeeded = numAmount + feeAmount;
+
+    if (totalNeeded > balance) {
+      return `Insufficient balance (need ${totalNeeded.toFixed(7)}, have ${balance.toFixed(7)})`;
+    }
+
+    // Validate decimal precision (7 decimals for Stellar)
+    const decimals = (value.split('.')[1] || '').length;
+    if (decimals > 7) {
+      return 'Maximum 7 decimal places allowed';
+    }
+
+    return undefined;
+  };
+
+  // Real-time validation on input change
+  useEffect(() => {
+    const newErrors: FormErrors = {};
+
+    if (recipient) {
+      const recipientError = validateRecipient(recipient);
+      if (recipientError) newErrors.recipient = recipientError;
+    }
+
+    if (amount) {
+      const amountError = validateAmount(amount, selectedAsset);
+      if (amountError) newErrors.amount = amountError;
+    }
+
+    setErrors(newErrors);
+  }, [recipient, amount, selectedAsset, senderPublicKey, estimatedFeeXlm]);
+
+  // Check if form is valid
+  const isFormValid = useMemo(() => {
+    return (
+      recipient.length > 0 &&
+      selectedAsset !== null &&
+      amount.length > 0 &&
+      Object.keys(errors).length === 0
+    );
+  }, [recipient, selectedAsset, amount, errors]);
+
+  // Handle form submission
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!isFormValid || !selectedAsset) return;
+
+    setIsSubmitting(true);
+    try {
+      await onSubmit(recipient, selectedAsset, amount);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="w-full max-w-md mx-auto p-6 bg-slate-900 rounded-lg border border-slate-800">
+      <h1 className="text-2xl font-bold text-white mb-6">Send Payment</h1>
+
+      {/* Recipient Address Field */}
+      <div className="mb-6">
+        <label className="block text-sm font-medium text-slate-300 mb-2">
+          Recipient Address
+        </label>
+        <input
+          type="text"
+          value={recipient}
+          onChange={(e) => setRecipient(e.target.value)}
+          placeholder="G... or name@domain.tld"
+          className={`w-full px-4 py-2 rounded-lg bg-slate-800 text-white placeholder-slate-500 border transition ${
+            errors.recipient
+              ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
+              : 'border-slate-700 focus:border-blue-500 focus:ring-blue-500'
+          } focus:outline-none focus:ring-2`}
+        />
+        {errors.recipient && (
+          <p className="mt-1 text-sm text-red-400">{errors.recipient}</p>
+        )}
+      </div>
+
+      {/* Asset Selection */}
+      <div className="mb-6">
+        <label className="block text-sm font-medium text-slate-300 mb-2">
+          Asset
+        </label>
+        <select
+          value={selectedAsset?.code || ''}
+          onChange={(e) => {
+            const selected = availableAssets.find((a) => a.code === e.target.value);
+            setSelectedAsset(selected || null);
+          }}
+          className="w-full px-4 py-2 rounded-lg bg-slate-800 text-white border border-slate-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none transition"
+        >
+          <option value="">Select an asset</option>
+          {availableAssets.map((asset) => (
+            <option key={asset.code} value={asset.code}>
+              {asset.code} (Balance: {parseFloat(asset.balance).toFixed(7)})
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Amount Field */}
+      <div className="mb-6">
+        <label className="block text-sm font-medium text-slate-300 mb-2">
+          Amount
+        </label>
+        <div className="relative">
+          <input
+            type="number"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="0.00"
+            step="0.0000001"
+            min="0"
+            className={`w-full px-4 py-2 rounded-lg bg-slate-800 text-white placeholder-slate-500 border transition ${
+              errors.amount
+                ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
+                : 'border-slate-700 focus:border-blue-500 focus:ring-blue-500'
+            } focus:outline-none focus:ring-2`}
+          />
+          {selectedAsset && (
+            <span className="absolute right-3 top-2.5 text-sm text-slate-400">
+              {selectedAsset.code}
+            </span>
+          )}
+        </div>
+        {errors.amount && (
+          <p className="mt-1 text-sm text-red-400">{errors.amount}</p>
+        )}
+      </div>
+
+      {/* Fee Display */}
+      {selectedAsset && amount && !errors.amount && (
+        <div className="mb-6 p-3 rounded-lg bg-slate-800 border border-slate-700">
+          <div className="flex justify-between text-sm mb-2">
+            <span className="text-slate-400">Subtotal:</span>
+            <span className="text-white">{parseFloat(amount).toFixed(7)} {selectedAsset.code}</span>
+          </div>
+          <div className="flex justify-between text-sm border-t border-slate-700 pt-2">
+            <span className="text-slate-400">Network Fee:</span>
+            <span className="text-white">{estimatedFeeXlm} XLM</span>
+          </div>
+        </div>
+      )}
+
+      {/* Submit Button */}
+      <button
+        type="submit"
+        disabled={!isFormValid || isSubmitting}
+        className={`w-full py-2 rounded-lg font-medium transition ${
+          isFormValid && !isSubmitting
+            ? 'bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer'
+            : 'bg-slate-700 text-slate-400 cursor-not-allowed'
+        }`}
+      >
+        {isSubmitting ? 'Processing...' : 'Review & Send'}
+      </button>
+    </form>
+  );
+};
+```
+
+---
+
+## Integration Example
+
+To use the `SendForm` component in your wallet application:
+
+```tsx
+import { SendForm } from './SendForm';
+import { Server, Networks, TransactionBuilder, Operation, BASE_FEE } from '@stellar/js-sdk';
+
+function MyWallet() {
+  const senderPublicKey = 'G...'; // User's public key
+  const [availableAssets, setAvailableAssets] = useState<Asset[]>([]);
+
+  // Load available assets on mount
+  useEffect(() => {
+    const loadAssets = async () => {
+      const server = new Server('https://horizon.stellar.org');
+      const account = await server.accounts().accountId(senderPublicKey).call();
+
+      const assets: Asset[] = [
+        {
+          code: 'XLM',
+          balance: account.native_balance || '0',
+        },
+        ...account.balances
+          .filter((b) => 'asset_code' in b)
+          .map((b) => ({
+            code: b.asset_code || '',
+            issuer: b.asset_issuer,
+            balance: b.balance || '0',
+          })),
+      ];
+
+      setAvailableAssets(assets);
+    };
+
+    loadAssets();
+  }, [senderPublicKey]);
+
+  const handleSubmit = async (recipient: string, asset: Asset, amount: string) => {
+    console.log(`Sending ${amount} ${asset.code} to ${recipient}`);
+    // Implement transaction building and signing logic
+  };
+
+  return (
+    <SendForm
+      senderPublicKey={senderPublicKey}
+      availableAssets={availableAssets}
+      onSubmit={handleSubmit}
+      estimatedFeeXlm="0.00001"
+    />
+  );
+}
+
+export default MyWallet;
+```
+
+---
+
+## Implementation Checklist
+
+- [x] Validate Stellar public keys (G...) and federated addresses.
+- [x] Prevent sending to the sender's own address.
+- [x] Display available balance for each asset.
+- [x] Validate amount is positive, within balance, and has correct decimal precision.
+- [x] Show estimated network fee upfront.
+- [x] Real-time validation with clear error messages.
+- [x] Disable submit button until all fields are valid.
+- [x] Support loading assets from account balances.
+

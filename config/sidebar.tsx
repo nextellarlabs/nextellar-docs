@@ -360,6 +360,78 @@ export const sidebarNav: SidebarSection[] = [
         title: 'MDX Custom Components',
         href: '/docs/guides/mdx-custom-components',
       },
+      { title: 'Link Validation', href: '/docs/guides/link-validation' },
+      {
+        title: 'Testing Docs Changes',
+        href: '/docs/guides/testing-docs-changes',
+      },
+      { title: 'Editor Setup', href: '/docs/guides/editor-setup' },
+      {
+        title: 'Diagram & Image Style',
+        href: '/docs/guides/diagram-image-style',
+      },
+      {
+        title: 'Screenshot Workflow',
+        href: '/docs/guides/screenshot-workflow',
+      },
+      {
+        title: 'Docs Build Performance',
+        href: '/docs/guides/docs-build-performance-tips',
+      },
+      {
+        title: 'Performance Budget',
+        href: '/docs/guides/performance-budget-guide',
+      },
+      {
+        title: 'Release Notes Workflow',
+        href: '/docs/guides/release-notes-workflow',
+      },
+      {
+        title: 'Versioned Docs Strategy',
+        href: '/docs/guides/versioned-docs-strategy',
+      },
+      { title: 'Redirects Map', href: '/docs/guides/redirects-map' },
+      { title: 'Search Experience', href: '/docs/guides/search' },
+      {
+        title: 'Offline Reading Export',
+        href: '/docs/guides/offline-reading',
+      },
+      {
+        title: 'Streaming Payments from Horizon',
+        href: '/docs/guides/streaming-payments-horizon',
+      },
+      { title: 'Claimable Balances', href: '/docs/guides/claimable-balances' },
+      {
+        title: 'Time Locked Transactions',
+        href: '/docs/guides/time-locked-transactions',
+      },
+      {
+        title: 'Horizon vs Soroban RPC',
+        href: '/docs/guides/horizon-vs-soroban-rpc',
+      },
+      {
+        title: 'Accessibility Guide',
+        href: '/docs/guides/accessibility-guide',
+      },
+      {
+        title: 'Internationalization Guide',
+        href: '/docs/guides/internationalization-guide',
+      },
+    ],
+  },
+
+  // -------------------------------------------------------------------------
+  // Components
+  // -------------------------------------------------------------------------
+  {
+    title: 'Components',
+    icon: <Paintbrush className="h-5 w-5" />,
+    defaultOpen: false,
+    pages: [
+      {
+        title: 'WalletConnectButton',
+        href: '/docs/components/connect-wallet-button',
+      },
     ],
   },
 ];

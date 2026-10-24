@@ -1,0 +1,6 @@
+---
+title: Payment operation basics
+description: Working draft for issue #816
+---
+
+A payment operation requires a destination account, an asset, and a positive amount. The operation source defaults to the transaction source, which must authorize the transaction. Common failures include `op_underfunded` (not enough balance), `op_no_destination` (the destination account does not exist), and `op_no_trust` or `op_line_full` when the recipient cannot receive an issued asset.
