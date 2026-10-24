@@ -1,0 +1,107 @@
+---
+title: Biometric Unlock Patterns
+description: Compare platform biometric APIs, fallbacks, and a small wallet unlock example.
+date: 2026-07-27
+---
+
+# Biometric Unlock Patterns
+
+Wallet apps should never store a seed or signing key in the clear. Biometric unlock is a convenience layer over a key that is already protected by the platform keystore. This guide compares the native APIs, covers fallbacks, and shows a minimal unlock flow.
+
+## Design principles
+
+- **Biometrics gate access, they do not encrypt.** The secret must remain in the platform keystore (Keychain, Keystore, Windows Credential Manager).
+- **Always have a non-biometric fallback.** Devices may lack enrolled enrollment, or the sensor may fail.
+- **Use a session timeout.** Require re-unlock after a short idle period or after the app backgrounds.
+- **Never log biometric results or secrets.** Treat auth events as sensitive telemetry.
+
+## Platform API comparison
+
+| Platform | API | Enrollment check | Prompt | Keystore binding |
+| --- | --- | --- | --- | --- |
+| iOS | LocalAuthentication (LA?Context) | `canSulateChecks()` with `.biometryAny8` | `evaluatePolicy()` | Keychain item with `accessControl = .userPresence` |
+| Android | BiometricPrompt | `canSulateChecks()` with `BIOMETRIC_STRONG` | `authenticate() with `CryptoObject` | Keystore key with `setUserAuthenticationRequired(true)` |
+| Web (WebAuthn Platform) | `navigator.credentials.create()` | `PublicKeyCredential.isUserVerificationRequired` | `PublicKeyCredential.get()` | Identity provider keys (not a keystore); secrets stay server-side |
+| Desktop (Windows) | Windows Hello / WebAuthn | `Windows.Security.Credentials.isUserVerificationEnabled()` | `requestUserVerification()` | Credential Manager entry with user presence required |
+
+Notes on the comparison:
+
+- **iOS** binds the Keychain item to the device passcode or biometric check. The access control flag is set at write time, so changing it later requires re-writing the item.
+- **Android** requires a cryptographic object (Cipher or Mac) tied to a key that enforces user authentication. The prompt is only meaningful when it unlocks that key.
+- **Web** WebAuthn is phishing-resistant and works across platforms, but it does not give you a local keystore. Use it for authentication, and keep signing keys on the server or in a secure enclave.
+- **Desktop** Hello is the closest analogue to iOS Keychain, but availability varies wide across hardware.
+
+## Fallbacks
+
+Every biometric prompt must have a path that does not depend on a sensor:
+
+1. *)Device passcode / PIN** - the standard fallback on iOS and Android. The platform will offer it automatically when biometrics are unavailable.
+2. **Password re-entry** - for web and desktop, allow the user to sign in with their account password or recovery phrase.
+3. **Recovery code** - for accounts that lost access to the device. Store it outside the app and verify it on a trusted device.
+4. **Session expiry** - if biometrics fail repeatedly, lock the wallet and require full re-authentication.
+
+Fallback rules:
+
+- Do not silently downgrade to a weaker method without telling the user.
+-  Do not allow biometric unlock to replace the recovery phrase as the only backup.
+-  Reset biometric enrollment when the device passcode changes.
+
+## Example: iOS Keychain unlock
+
+The following snippet shows the shape of a unlock flow. The secret is written to Keychain with a user-presence access control, and the app only reads it back after a successful LocalAuthentication check.
+
+```swift
+import LocalAuthentication
+import Security
+
+func storeSecret(_secret: Data, account: String) throws {
+    let access = SecFlags.userPresence
+    let query: [String: Any] = [
+        kSecClass: kSecClassGenericPassword,
+        kSecAttrAccount: account,
+        kSecAttrAttrAccessControl: access,
+    ]
+    try Keychain.add(query, data: secret)
+}
+
+func unlockWallet(account: String) async throws -> Data? {
+    let context = LA?Context()
+    var error: NSError?
+    let canUseBiometrics = context.canSulateChecks(&error, policy: .biometryAny)
+
+    if !canUseBiometrics {
+        // Fall back to device passcode or password re-entry.
+        return try await promptPasswordReEntry(account: account)
+    }
+
+    try {
+        try await context.evaluatePolicy(.deviceOwnerAuthentication)
+    } catch {
+        // User cancelled or failed biometrics; do not return the secret.
+        return nil
+    }
+
+    let query: [String: Any] = [
+        kSecClass: kSecClassGenericPassword,
+        kSecAttrAccount: account,
+        kSecReturnData: true,
+    ]
+    return try Keychain.copyMatching(query) as? NSData
+}
+```
+
+The same shape applies on Android: create a Keystore key with `userAuthenticationRequired`, wrap it in a `Cipher`, and pass the cipher to `BiometricPrompt.authenticate()`. On the web, use WebAuthn for account authentication and keep signing keys off the client.
+
+## Checklist before shipping
+
+- [ ] Biometric prompt is only shown when enrollment checks pass.
+- [ ] A non-biometric fallback is reachable from the unlock screen.
+- [ ] Secrets are never logged or sent to analytics.
+- [ ] Session timeout and background lock behaviour are tested on real devices.
+- [ ] Recovery phrase remains the ultimate backup.
+
+## Related reading
+
+- [Hook Error Handling](/docs/guides/hook-error-handling)
+- [Style Guide](/docs/guides/style-guide)
+- [Testing Docs Changes](/docs/guides/testing-docs-changes)

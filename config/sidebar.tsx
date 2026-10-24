@@ -189,6 +189,10 @@ export const sidebarNav: SidebarSection[] = [
         href: '/docs/guides/wallet-ux-patterns',
       },
       {
+        title: 'Biometric Unlock Patterns',
+        href: '/docs/guides/biometric-unlock-patterns',
+      },
+      {
         title: 'Wallet Integration Deep-Dive',
         href: '/docs/guides/wallet-integration-deep-dive',
       },
