@@ -224,6 +224,10 @@ export const sidebarNav: SidebarSection[] = [
         title: 'Streaming Payments from Horizon',
         href: '/docs/guides/streaming-payments-horizon',
       },
+      {
+        title: 'Load Testing Horizon Consumers',
+        href: '/docs/guides/load-testing-horizon-consumers',
+      },
       { title: 'Claimable Balances', href: '/docs/guides/claimable-balances' },
       {
         title: 'Time Locked Transactions',
