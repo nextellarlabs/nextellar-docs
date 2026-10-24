@@ -246,6 +246,10 @@ export const sidebarNav: SidebarSection[] = [
         title: 'Security Hardening',
         href: '/docs/guides/security-hardening',
       },
+      {
+        title: 'Preventing XSS in Transaction Display',
+        href: '/docs/guides/preventing-xss-transaction-display',
+      },
       { title: 'Security Policy', href: '/docs/guides/security-policy' },
       { title: 'Glossary', href: '/docs/guides/glossary' },
     ],
