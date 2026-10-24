@@ -274,8 +274,7 @@ npx nextellar my-app --force
 **Default:** `false`
 
 ### --no-telemetry
-
-Disable telemetry for this scaffold invocation. Without the flag, telemetry behavior follows the saved preference; `NEXTELLAR_TELEMETRY_DISABLED` can force it off for the environment.
+Disable telemetry for this scaffold invocation only. The flag does not change your saved preference: it is not persisted, so the next run without the flag follows the saved preference again. This differs from `nextellar telemetry disable`, which persists the opt-out to your saved configuration for all future invocations. `NEXTELLAR_TELEMETRY_DISABLED` can force telemetry off for the whole environment.
 
 ```bash
 npx nextellar my-app --no-telemetry
