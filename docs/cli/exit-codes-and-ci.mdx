@@ -21,25 +21,24 @@ This guide documents all **Nextellar CLI exit codes** and provides **CI/CD recip
 
 ### Error Codes
 
-| Code | Command             | Meaning                  | Description                                                                          |
-| ---- | ------------------- | ------------------------ | ------------------------------------------------------------------------------------ |
-| `1`  | All                 | General error            | Unspecified error or exception occurred                                              |
-| `2`  | All                 | Invalid arguments        | Command invoked with invalid flags, missing required arguments, or malformed options |
-| `3`  | `nextellar`         | Directory exists         | Target directory already exists and `--force` was not provided                       |
-| `4`  | `nextellar`         | Installation failed      | Dependency installation (npm/yarn/pnpm) exited with non-zero status                  |
-| `5`  | `nextellar add`     | Feature not found        | Requested feature does not exist or is not available                                 |
-| `6`  | `nextellar doctor`  | Environment check failed | System does not meet minimum requirements (Node.js version, missing tools)           |
-| `7`  | `nextellar deploy`  | Validation failed        | Pre-deployment validation detected issues (build errors, missing env vars)           |
-| `8`  | `nextellar upgrade` | No upgrades available    | Project is already on the latest template version                                    |
-| `9`  | `nextellar clean`   | Cleanup error            | Failed to remove generated build artifacts                                           |
+| Code | Command             | Meaning               | Description                                                                          |
+| ---- | ------------------- | --------------------- | ------------------------------------------------------------------------------------ |
+| `1`  | All                 | General error         | Unspecified error or exception occurred                                              |
+| `2`  | All                 | Invalid arguments     | Command invoked with invalid flags, missing required arguments, or malformed options |
+| `3`  | `nextellar`         | Directory exists      | Target directory already exists and `--force` was not provided                       |
+| `4`  | `nextellar`         | Installation failed   | Dependency installation (npm/yarn/pnpm) exited with non-zero status                  |
+| `5`  | `nextellar add`     | Feature not found     | Requested feature does not exist or is not available                                 |
+| `7`  | `nextellar deploy`  | Validation failed     | Pre-deployment validation detected issues (build errors, missing env vars)           |
+| `8`  | `nextellar upgrade` | No upgrades available | Project is already on the latest template version                                    |
+| `9`  | `nextellar clean`   | Cleanup error         | Failed to remove generated build artifacts                                           |
 
 ### Network-Related Codes
 
-| Code | Command            | Meaning             | Description                                                 |
-| ---- | ------------------ | ------------------- | ----------------------------------------------------------- |
-| `10` | `nextellar doctor` | Network unreachable | Cannot connect to Stellar network (Horizon or Soroban RPC)  |
-| `11` | `nextellar deploy` | RPC timeout         | Stellar network request timed out during deployment checks  |
-| `12` | `nextellar doctor` | Invalid endpoint    | Provided Horizon or Soroban URL is malformed or unreachable |
+| Code | Command            | Meaning     | Description                                                |
+| ---- | ------------------ | ----------- | ---------------------------------------------------------- |
+| `11` | `nextellar deploy` | RPC timeout | Stellar network request timed out during deployment checks |
+
+> **Note:** `nextellar doctor` only exits with `0` (all required checks passed) or `1` (one or more required checks failed). Codes `6`, `10`, and `12` are not emitted by `doctor`.
 
 ### User Interruption Codes
 
@@ -90,18 +89,20 @@ nextellar add soroban --invalid-flag
 ## Doctor Command
 
 ```bash
-## Success: All checks pass
+## Success: All required checks pass (optional failures do not affect the exit code)
 nextellar doctor
 ## Exit code: 0
 
-## Error: Node.js version too old
+## Error: A required check fails (for example, Node.js is too old)
 nextellar doctor
-## Exit code: 6 (environment check failed)
+## Exit code: 1
 
-## Error: Cannot reach Stellar network
-nextellar doctor --with-network-check
-## Exit code: 10 (network unreachable)
+## Error: A required check fails, machine-readable output
+nextellar doctor --json
+## Exit code: 1 (requiredFailures > 0 in the JSON)
 ```
+
+`nextellar doctor` exits `0` when all required checks pass and `1` when one or more required checks fail. It does not use a separate exit code per failure type. See [CLI Commands](/docs/cli/commands#nextellar-doctor) for the list of required and optional checks.
 
 ## Deploy Command
 
@@ -483,21 +484,18 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
   if [ $EXIT_CODE -eq 0 ]; then
     echo "SUCCESS: Doctor checks passed"
     break
-  elif [ $EXIT_CODE -eq 10 ]; then
-    # Network timeout - retry
-    echo "Network timeout (exit code 10), retrying..."
+  else
+    # A required check failed (exit code 1) - may be transient (for example, a
+    # Horizon connectivity check), so retry
+    echo "Doctor checks failed (exit code $EXIT_CODE), retrying..."
     RETRY_COUNT=$((RETRY_COUNT + 1))
     sleep 5
-  else
-    # Other errors - don't retry
-    echo "ERROR: Non-retryable error (exit code $EXIT_CODE)"
-    exit $EXIT_CODE
   fi
 done
 
 if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
   echo "ERROR: Max retries exceeded"
-  exit 10
+  exit 1
 fi
 ```
 
@@ -563,8 +561,8 @@ jobs:
 1. **Use `set -e` in bash scripts** — Exit immediately on first error
 2. **Capture and check exit codes** explicitly when needed for branching logic
 3. **Document expected exit codes** in CI/CD pipeline comments
-4. **Implement retry logic** for transient failures (network timeouts, exit code 10–11)
-5. **Never ignore critical exit codes** — Always fail if validation (exit code 6–7) fails
+4. **Implement retry logic** for transient failures (for example, a failed `doctor` connectivity check or a `deploy` RPC timeout, exit code 11)
+5. **Never ignore critical exit codes** — Always fail if `doctor` (exit code 1) or `deploy` validation (exit code 7) fails
 6. **Log the exit code** in error messages for easier debugging
 
 ### For Nextellar Developers
