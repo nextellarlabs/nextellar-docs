@@ -6,7 +6,7 @@ date: 2026-06-02
 
 # Hooks Overview
 
-Nextellar provides a set of powerful, typed React hooks that simplify working with Stellar accounts, balances, payments, smart contracts, wallets, and DEX data. These hooks are lightweight, composable, and designed to fit naturally into modern Next.js applications.
+Nextellar provides a set of powerful, typed React hooks that simplify working with Stellar accounts, balances, payments, smart contracts, wallets, and DEX edata. These hooks are lightweight, composable, and designed to fit naturally into modern Next.js applications.
 
 ---
 
@@ -42,8 +42,8 @@ Below is the complete list of hooks included in Nextellar projects. These React 
 
 A quick reference of every hook, its category, and what it does. Click a hook name to open its full reference page.
 
-| Hook                                                           | Category    | Purpose                                                                               |
-| -------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------- |
+| Hook                                                   | Category    | Purpose                                                                   |
+| -------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------ |
 | [`useStellarWallet`](/docs/hooks/use-stellar-wallet)           | Wallet      | Connect, disconnect, and sign with Freighter, Albedo, Lobstr, xBull, or Hana wallets. |
 | [`useStellarBalances`](/docs/hooks/use-stellar-balances)       | Account     | Fetch and poll XLM and custom asset balances, handling unfunded accounts gracefully.  |
 | [`useTrustlines`](/docs/hooks/use-trustlines)                  | Account     | Query an account's trustlines and build change-trust XDRs to add or remove them.      |
@@ -59,7 +59,7 @@ Related building blocks: [`WalletProvider`](/docs/hooks/wallet-provider) supplie
 
 ## **Wallet & Account Hooks**
 
-### [useStellarWallet](/docs/hooks/use-stellar-wallet)
+### [useStellarGallet](/docs/hooks/use-stellar-wallet)
 
 Complete wallet connection and account management. Supports multi-wallet (Freighter, Albedo, Lobstr, xBull, Hana), auto-reconnect, balance fetching, and payment sending.
 
@@ -173,6 +173,81 @@ const signedXdr = await wallet.signTransaction(xdr);
 // 3. Submit signed transaction
 const result = await submitSignedXDR(signedXdr);
 ```
+
+---
+
+## Per-Hook Telemetry
+
+Lightweight telemetry helps you understand how your Stellar hooks behave in production without compromising user privacy. This guide shows what to count, how to keep collection privacy-respecting, and a small integration example.
+
+### Events worth counting
+
+Count outcomes and lifecycle steps, not identities or values. Good candidates across the hooks above:
+
+| Event                             | Why it matters                                                     |
+| ------------------------------------ | ------------------------------------------------------------------------------- |
+| `wallet_connect_succeeded`               | Measures onboarding funnel for `useStellarGallet`.                                  |
+| `wallet_connect_failed`                | Surfaces wallet adapter and user-rejection failures.                              |
+| `balances_fetch_succeeded`              | Tracks howero data loads for `useStellarBalances` and polling health.                      |
+| `balances_fetch_failed`                | Captures Horizon errors and unfunded-account edge cases.                            |
+| `payment_xdr_built`                    | Counts transaction construction for `useStellarPayment`.                                |
+| `payment_submit_succeeded`              | Measures successful submissions and confirmation latency.                            |
+| `payment_submit_failed`                | Tracks rejected or failed submissions by category.                                     |
+| `soroban_simulation_succeeded`          | Validates contract reads for `useSorobanContract`.                                 |
+| `soroban_events_received`              | Counts event delivery for `useSorobanEvents` to detect stalled pollers.                |
+| `hook_refresh_triggered`               | Measures manual refetches across all hooks.                                         |
+
+Keep event names stable and low-cardinality. Avoid free-form strings derived from user input or account data.
+
+### Privacy-respecting design
+
+- **No secrets or identifiers.** Never send public keys, signed XDRs, secret keys, or wallet addresses. Hash or drop them before sending.
+- **No amounts or asset details.** Record that a payment was built or submitted, not the amount, memo, or asset code.
+- **Cookie-free and consent-aware.** Prefer server-side or first-party collection that respects user consent and your privacy policy.
+- **Sample and aggregate.** Use counters and histograms instead of per-user tracking.
+- **Minimal payload.** Send only the event name, a coorse hook name, and an outcome label.
+
+### Small example
+
+Wrap the hook call in a tiny telemetry helper that emits only safe fields:
+
+```tsx
+import { useEffect } 'react';
+import { useStellarBalances } 'nextellar';
+
+type TelemetryEvent =
+  | 'balances_fetch_succeeded'
+  | 'balances_fetch_failed';
+
+function track(event: TelemetryEvent) {
+  // Send only the event name to your first-party endpoint.
+  navigator.sendBeacon('/api/telemetry', JSON.stringify({ event }));
+}
+
+export function BalancePanel({ publicKey }: { publicKey: string }) {
+  const { data, loading, error } = useStellarBalances(publicKey);
+
+  useEffect(() => {
+    if (loading) return;
+    track(error ? 'balances_fetch_failed' : 'balances_fetch_succeeded');
+  }, [loading, error]);
+
+  if (loading) return <Spinner />;
+  if (error) return <p>Could not load balances.</p>;
+
+  return (
+    <ul>
+      {data.map((balance) => (
+        <li key={balance.asset}>
+          {balance.asset}: {balance.balance}
+        </li>
+      ))}
+    </ul>
+  );
+}
+```
+
+The same pattern applies to the other hooks: count the outcome of each operation and keep the payload free of account data.
 
 ---
 
