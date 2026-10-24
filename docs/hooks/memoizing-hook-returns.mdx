@@ -1,0 +1,74 @@
+---
+title: Memoizing hook returns
+description: Learn when and how to memoize values returned by Stellar hooks to avoid unnecessary re-renders and effect re-times.
+---
+
+# Memoizing hook returns
+
+Stellar hooks often return freshly created objects, arrays, or functions on every render. Because these values are new references each time, consumers that depend on reference equality can run into unnecessary work. Memoizing hook returns is the pattern of stabilizing those values so they only change when their underlying data actually changes.
+
+## When memoization matters
+
+Memoization matters when a value returned by a hook is used in a position that compares references:
+
+- as a dependency of `React.useEffect`, `React.useLayoutEffect`, or `React.useMemo`
+- as a prop passed to a memoized child component (`React.memo`)
+- inside a computation that is expensive and should only re-run when the data changes
+
+If you only read individual primitive fields (for example `result.data` or `status`), memoization is often unnecessary. It becomes important once you pass the whole result object around or derive new values from it.
+
+## Example
+
+The following example fetches a list of accounts and derives a stable array of addresses. The derived array is memoized so the effect down stream only re-runs when the accounts actually change.
+
+```tsx import { useEffect, useMemo } from "react";
+import { useAccounts } from "@stellar/hooks";
+
+export function AddressList() {
+  const { accounts, status } = useAccounts();
+
+  // Memoize the derived array so its reference is stable across renders.
+  const addresses = useMemo(() => accounts.map((account) => account.address), [
+    accounts,
+  ]);
+
+  useEffect(() => {
+    // Runs only when the addresses actually change.
+    console.log("addresses updated", addresses);
+  }, [addresses]);
+
+  if (status === "loading") {
+    return <p>Loading accounts...</p>;
+  }
+
+  return (
+    <ul>
+      {addresses.map((address) => (
+        <li key={address}>{address}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+If you need to stabilize a callback that is passed to a child component, use `React.useCallback` instead:
+
+```tsx import { useCallback } from "react";
+
+export function AccountButton({ address, onSelect }) {
+  const handleClick = useCallback(() => {
+    onSelect(address);
+  }, [onSelect, address]);
+
+  return <button onClick={handleClick}>{address}</button>;
+}
+```
+
+## Guardrails
+
+- Memoize only when you have a measured or reasoned about a problem. Adding `useMemo` everywhere adds complexity without a measurable benefit.
+- Keep dependency arrays complete. A memoized value that stales on a missing dependency is worse than a freshly created one.
+- Prefer deriving values during render over storing them in state. Memoization is a performance tool, not a state management tool.
+- Do not memoize primitive values such as strings, numbers, or booleans; they are compared by value already.
+- When passing a hook result into a memoized child, pass the smallest stable slice of the result that the child needs rather than the entire object.
+- Remember that memoization is not a guarantee. React may discard cached values in future renders, and memoized values should always be pure and free of side effects.
