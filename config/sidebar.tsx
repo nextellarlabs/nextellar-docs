@@ -124,6 +124,10 @@ export const sidebarNav: SidebarSection[] = [
         href: '/docs/guides/production-deployment-vercel-nextellar-cloud',
       },
       {
+        title: 'Netlify Deployment Tips',
+        href: '/docs/guides/netlify-deployment-tips',
+      },
+      {
         title: 'Observability & Analytics Pipeline',
         href: '/docs/guides/observability-analytics-guide',
       },
