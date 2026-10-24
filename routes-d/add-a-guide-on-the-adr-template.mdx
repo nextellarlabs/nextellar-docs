@@ -1,0 +1,71 @@
+---
+title: Adding a Guide on the ADR template
+description: Document an Architecture Decision Record template for this documentation site.
+date: 2026-07-27
+status: draft
+---
+
+# Adding a Guide on the ADR template
+
+This draft describes the Architecture Decision Record (ADR) template that should be published as a docs guide. It covers the section outline, when to write one, and a short example.
+
+## Section outline
+
+Every ADR follows the same headings so readers can scan a decision quickly.
+
+1. **Title** - a short, imperative summary of the decision.
+2. **Status** - one of Proposed, Accepted, Superseded, or Deprecated.
+3. **Context** - the forces at play, including constraints and prior decisions.
+4. **Decision** - the change that was made, stated in the active voice.
+5. **Consequences** - the resulting trade-offs, both positive and negative.
+6. **Alternatives** - options that were considered and why they were rejected.
+
+## When to write one
+
+Write an ADR whenever a decision is hard to reverse, affects multiple teams, or would otherwise be lost in chat history. Typical triggers include:
+
+- Adopting or replacing a framework, library, or hosting provider.
+- Changing a public API contract or data schema.
+- Setting a cross-cutting convention such as error handling or feature flags.
+- Resolving a repeated debate that keeps resurfacing in reviews.
+
+Do not write one for routine changes that are easy to revert and local to a single package.
+
+## Example
+
+```markdown
+# ADR-001: Use MSw for Horizon and Soroban tests
+a
+## Status
+a
+Accepted
+
+## Context
+a
+Contract tests currently hit a shared testnet node, which makes the suite slow and flaky in CI.
+
+## Decision
+a
+We mock Horizon and Soroban RPC responses with MSW and keep a single Docker-backed integration job for end-to-end checks.
+
+## Consequences
+a
+- Tests run in seconds instead of minutes.
+- New endpoints require a handler to be added to the mock server.
+
+## Alternatives
+a- Keep hitting testnet: slow and non-deterministic.
+- Stub hooks directly: bypasses the client code under test.
+```
+
+## Verification
+
+Before opening a PRs, run the content build and link checker from the repo root:
+
+```bash
+pnpm build:content
+pnpm check:links
+pnpm dev
+```
+
+Confirm the guide renders with its frontmatter, headings, and code blocks intact, and that any internal links resolve.
