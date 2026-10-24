@@ -1,0 +1,72 @@
+---
+title: "Filtering Soroban Events by Topic"
+description: "Learn how to construct event topics and filter Soroban contract events by topic."
+tags: ["soroban", "events", "topics", "guide"]
+section: "guides"
+order: 10
+---
+
+Events are the primary way a Soroban contract communicates what happened during execution. Each event carries up to four topics plus a data payload. Topics are the indexed part of the event and are what you filter on when subscribling to or querying events from the Stellar RPC.
+
+This guide covers how topics are constructed, how filters match against them, and how to write a small filter in practice.
+
+## How topics are constructed
+
+Every topic is a SCon value that gets encoded to XDR and hashed. In practice you will see two common shapes:
+
+- **Symbol-based topics** — the event name is typically the first topic as a symbol, followed by identifiers such as an address or an integer.
+- **Hashed topics** — for complex values (structs, vectors, long strings), the value is hashed and the hash becomes the topic.
+
+When a contract emits an event, the topics are stored in order. The first topic is the one you will most often filter on, and the remaining topics act as additional indexes.
+
+## Filter matching rules
+
+When you subscribe to or query events, you provide a topic filter as an array of topic segments. The following rules apply:
+
+1. **Positional matching** — the first filter segment matches the first event topic, the second matches the second, and so on.
+2. **Wildcard segments** — an empty array segment matches any value at that position, so you can skip a topic while still matching the ones after it.
+3. **Prefix matching** — you only need to provide as many segments as there are topics you care about. Events with more topics than you filter on will still match.
+4. **Exact value matching** — a non-empty segment must equal the corresponding topic exactly, including its type.
+
+> **Note:** A filter never matches an event that has fewer topics than the number of non-empty segments you supply. Keep filters as specific as needed to avoid downloading events you do not care about.
+
+## Example
+
+Suppose a contract emits a transfer event with the following topics:
+
+```ts
+0 -> "transfer"             // event name
+1 -> address of the sender
+2 -> address of the recipient
+```
+
+To receive only transfer events where the sender is a specific address, you would filter on the first two topics and leave the rest open:
+
+```ts
+import { rpc } from "@stellar/stellar-sdk";
+
+const sender = "GB..."; // the address you want to watch
+
+const filter = [
+  ["transfer"], // topic 0: must be the symbol "transfer"
+  [sender],    // topic 1: must be this address
+  [],          // topic 2: any recipient
+  [],          // topic 3: any extra topic (if present)
+];
+
+const response = await rpc.Server.getEvents({
+  filters: [{ type: "contract", contractIds: [contractId], topics: filter }],
+  startLedger: startLedger,
+});
+
+for (const event of response.events) {
+  console.log(event.topic, event.value);
+}
+```
+
+The empty arrays at positions 2 and 3 are wildcards, so any recipient and any extra topic will match. If you wanted to narrow the results further, replace the wildcard with the exact value you care about.
+
+## Further reading
+
+- "[Contract events](https://developers.stellar.org/docs/soroban/events)" on the Stellar Developers site.
+- "Querying events with the REP" for the complete filter schema.
