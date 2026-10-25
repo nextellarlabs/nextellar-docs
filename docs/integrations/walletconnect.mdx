@@ -21,7 +21,7 @@ The wallet connection system in Nextellar:
 
 ### 1. Wrap Your App with WalletProvider
 
-````tsx
+```tsx
 // app/layout.tsx
 import { WalletProvider } from '@/contexts';
 
@@ -116,7 +116,10 @@ Pre-built button component with loading states and theme support:
 Context provider for global wallet state:
 
 ```tsx
-<WalletProvider horizonUrl="https://horizon.stellar.org" network="PUBLIC">
+<WalletProvider
+  horizonUrl="https://horizon.stellar.org"
+  network="Public Global Stellar Network ; September 2015"
+>
   <App />
 </WalletProvider>
 ```
@@ -133,10 +136,17 @@ interface WalletState {
   publicKey?: string; // Stellar G-address
   walletName?: string; // "Freighter", "Albedo", etc.
   balances: Balance[]; // Account balances
+  accounts: WalletAccount[]; // Accounts exposed by the wallet
+  currentAccountIndex: number;
   connect: () => Promise<void>;
   disconnect: () => void;
   refreshBalances: () => Promise<void>;
-  sendPayment?: (opts) => Promise<TransactionResponse>;
+  switchAccount: (address: string) => Promise<void>;
+  sendPayment?: (
+    opts: PaymentOptions
+  ) => Promise<SubmitTransactionResponse | UnsignedFeeBumpResult>;
+  walletNetworkPassphrase?: string; // Network reported by the wallet
+  networkMismatch: boolean; // Wallet network differs from the app's
 }
 ```
 
@@ -150,20 +160,16 @@ interface WalletState {
 
 ## Adding More Wallets
 
-Edit `src/lib/stellar-wallet-kit.ts` to add additional wallets:
+Pass `--wallets` when scaffolding to enable more wallets:
 
-```typescript
-import { xBullModule } from '@creit.tech/stellar-wallets-kit';
-
-const kit = new StellarWalletsKit({
-  modules: [
-    new FreighterModule(),
-    new AlbedoModule(),
-    new LobstrModule(),
-    new xBullModule(), // Add new wallet
-  ],
-});
+```bash
+npx nextellar my-app --wallets freighter,albedo,lobstr,xbull,walletconnect
 ```
+
+In an existing project, add the wallet id to the `INJECTED_WALLETS` array in
+`src/lib/stellar-wallet-kit.ts`. The `walletconnect` option only appears once
+`NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` is set (optional:
+`NEXT_PUBLIC_WALLETCONNECT_APP_URL` and `NEXT_PUBLIC_WALLETCONNECT_ICON`).
 
 ## Error Handling
 
@@ -186,15 +192,15 @@ const handleConnect = async () => {
 If the wallet selection modal opens but the wallet does not pair, use the
 symptom below to identify the next step:
 
-| Symptom                                | Cause                                           | Resolution                                                                                                                                             |
-| -------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| No approval prompt appears             | The extension is locked, disabled, or blocked   | Unlock the wallet, confirm the extension is enabled for the current site, allow the popup, and select the wallet again.                                 |
-| QR code or pairing link has expired    | Pairing requests are temporary and single-use   | Close the modal, start a new connection to generate a fresh pairing request, and scan or open it only once. Keep both devices online until it completes. |
-| The wallet reports an existing pairing | A stale session already exists                  | Disconnect the site in both the app and wallet, reload the page, and start a new pairing.                                                               |
-| Pairing succeeds but balances fail     | The wallet and app use different Stellar networks | Switch both to the same network, disconnect, and pair again.                                                                                          |
-| The app reconnects to the wrong account | Persisted session data points to another account | Disconnect, select the intended active account in the wallet, then reconnect. Clear the site's stored wallet session only if disconnecting is not enough. |
-| The request is rejected or times out   | Approval was declined or not completed in time  | Start the connection again and approve the request in the wallet before it expires.                                                                    |
-| A wallet is missing from the modal     | Its module is not configured or it is unavailable | Add the wallet module in `stellar-wallet-kit.ts`, install or open that wallet, and retry.                                                              |
+| Symptom                                 | Cause                                             | Resolution                                                                                                                                                |
+| --------------------------------------- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| No approval prompt appears              | The extension is locked, disabled, or blocked     | Unlock the wallet, confirm the extension is enabled for the current site, allow the popup, and select the wallet again.                                   |
+| QR code or pairing link has expired     | Pairing requests are temporary and single-use     | Close the modal, start a new connection to generate a fresh pairing request, and scan or open it only once. Keep both devices online until it completes.  |
+| The wallet reports an existing pairing  | A stale session already exists                    | Disconnect the site in both the app and wallet, reload the page, and start a new pairing.                                                                 |
+| Pairing succeeds but balances fail      | The wallet and app use different Stellar networks | Switch both to the same network, disconnect, and pair again.                                                                                              |
+| The app reconnects to the wrong account | Persisted session data points to another account  | Disconnect, select the intended active account in the wallet, then reconnect. Clear the site's stored wallet session only if disconnecting is not enough. |
+| The request is rejected or times out    | Approval was declined or not completed in time    | Start the connection again and approve the request in the wallet before it expires.                                                                       |
+| A wallet is missing from the modal      | Its module is not configured or it is unavailable | Add the wallet id to `INJECTED_WALLETS` in `stellar-wallet-kit.ts`, install or open that wallet, and retry.                                               |
 
 After recovery, verify the connected public key and network before requesting a
 signature. Never ask users to paste a secret key or recovery phrase to repair a
@@ -208,4 +214,4 @@ pairing.
 - [WalletProvider](/docs/hooks/wallet-provider) - Context provider
 - [Wallets Integration](/docs/integrations/wallets) - Multi-wallet deep dive
 - [useStellarWallet](/docs/hooks/use-stellar-wallet) - Standalone hook
-````
+

@@ -117,7 +117,9 @@ export const server = setupServer(...handlers);
 
 ### 4. Configure Jest
 
-Update `jest.setup.ts`:
+Generated projects ship neither Jest nor Vitest, so there is no `jest.setup.ts` to
+update. Add a test runner first (see [Testing (Vitest) Setup](/docs/guides/testing)),
+then create `jest.setup.ts` with:
 
 ```typescript
 import { server } from './src/mocks/server';
@@ -137,12 +139,17 @@ import { http, HttpResponse } from 'msw';
 
 describe('useStellarBalances', () => {
   it('fetches balances successfully', async () => {
-    const { result } = renderHook(() => useStellarBalances('GABC123...'));
+    const { result } = renderHook(() =>
+      useStellarBalances(
+        'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
+      )
+    );
 
     await waitFor(() => {
       expect(result.current.loading).toBe(false);
     });
 
+    // Public keys must be 56 characters and start with 'G'
     expect(result.current.balances).toHaveLength(1);
     expect(result.current.balances[0].balance).toBe('100.0000000');
   });
@@ -155,7 +162,11 @@ describe('useStellarBalances', () => {
       })
     );
 
-    const { result } = renderHook(() => useStellarBalances('GUNFUNDED...'));
+    const { result } = renderHook(() =>
+      useStellarBalances(
+        'GBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB'
+      )
+    );
 
     await waitFor(() => {
       expect(result.current.loading).toBe(false);
@@ -171,27 +182,42 @@ describe('useStellarBalances', () => {
 ```typescript
 // Add to handlers.ts
 http.post('https://soroban-testnet.stellar.org', async ({ request }) => {
-  const body = await request.json();
+  const body = (await request.json()) as {
+    id?: string | number;
+    method?: string;
+  };
+  const id = body.id ?? 1;
 
   if (body.method === 'simulateTransaction') {
     return HttpResponse.json({
+      jsonrpc: '2.0',
+      id,
       result: {
-        results: [{ xdr: 'AAAA...' }],
-        cost: { cpuInsns: '1000', memBytes: '2000' },
+        latestLedger: 12345,
+        minResourceFee: '100',
+        transactionData: 'AAAAAQAAAAA=',
+        results: [],
+        result: { auth: [], retval: RETVAL_XDR }, // base64 ScVal your test expects
       },
     });
   }
 
   if (body.method === 'sendTransaction') {
     return HttpResponse.json({
-      result: {
-        status: 'PENDING',
-        hash: 'xyz789...',
-      },
+      jsonrpc: '2.0',
+      id,
+      result: { status: 'PENDING', hash: 'xyz789...' },
     });
   }
 
-  return HttpResponse.json({ error: 'Unknown method' });
+  return HttpResponse.json(
+    {
+      jsonrpc: '2.0',
+      id,
+      error: { code: -32601, message: 'Method not found' },
+    },
+    { status: 400 }
+  );
 });
 ```
 
@@ -200,8 +226,8 @@ http.post('https://soroban-testnet.stellar.org', async ({ request }) => {
 For wallet signing, mock the stellar-wallets-kit:
 
 ```typescript
-// __mocks__/stellar-wallet-kit.ts
-export const kit = {
+// src/lib/__mocks__/stellar-wallet-kit.ts
+export const mockKit = {
   signTransaction: jest.fn().mockResolvedValue({
     signedTxXdr: 'signed-xdr-string',
   }),
@@ -211,18 +237,20 @@ export const kit = {
   }),
 };
 
-export const getKit = () => kit;
+// The real module exports `kit` and `getKit` as functions that return the kit
+export const getKit = () => mockKit;
+export const kit = () => mockKit;
 ```
 
 ```typescript
 // In your test
 jest.mock('@/lib/stellar-wallet-kit');
 
-import { kit } from '@/lib/stellar-wallet-kit';
+import { mockKit } from '@/lib/__mocks__/stellar-wallet-kit';
 
 it('signs transaction with wallet', async () => {
   // Your test code
-  expect(kit.signTransaction).toHaveBeenCalledWith(
+  expect(mockKit.signTransaction).toHaveBeenCalledWith(
     expect.any(String),
     expect.objectContaining({ address: expect.any(String) })
   );
