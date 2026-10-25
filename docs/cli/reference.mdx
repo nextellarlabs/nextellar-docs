@@ -123,7 +123,7 @@ nextellar clean --all --force
 
 ## 3. `nextellar doctor`
 
-Runs an automated system diagnostic check to verify that all prerequisites, CLI tools, package managers, and Stellar network endpoints are operational.
+Runs environment diagnostics to verify that required tooling, optional tooling, and Stellar network endpoints are available.
 
 ```bash
 nextellar doctor [options]
@@ -131,33 +131,41 @@ nextellar doctor [options]
 
 #### Options & Flags
 
-| Flag        | Type    | Default | Description                                                 |
-| ----------- | ------- | ------- | ----------------------------------------------------------- |
-| `--json`    | boolean | `false` | Outputs machine-readable JSON payload for CI integration.   |
-| `--verbose` | boolean | `false` | Displays full path resolutions and network request latency. |
+| Flag                  | Type    | Default                            | Description                                                         |
+| --------------------- | ------- | ---------------------------------- | ------------------------------------------------------------------- |
+| `--json`              | boolean | `false`                            | Outputs machine-readable JSON for CI integration.                   |
+| `--fix`               | boolean | `false`                            | Offers to auto-fix safe or optional check failures.                 |
+| `--horizon-url <url>` | string  | Project config or testnet fallback | Overrides the Horizon endpoint used for the connectivity check.     |
+| `--soroban-url <url>` | string  | Project config or testnet fallback | Overrides the Soroban RPC endpoint used for the connectivity check. |
 
 #### Diagnostic Checks Performed
 
-1. **Node.js Runtime**: Verifies Node.js version satisfies `>=18.17.0`.
-2. **Package Managers**: Detects availability of `pnpm`, `npm`, `yarn`, and `bun`.
-3. **Rust & Soroban Tooling**: Checks for `cargo` and `stellar-cli` (if developing smart contracts).
-4. **Git Installation**: Ensures `git` is available for version control.
-5. **Network Reachability**: Pings Horizon Testnet (`https://horizon-testnet.stellar.org`) and Soroban RPC.
+| Check         | Required | Description                                         |
+| ------------- | -------- | --------------------------------------------------- |
+| Node.js       | Yes      | Version 20 or later                                 |
+| npm           | Yes      | Package manager bundled with Node.js                |
+| yarn          | No       | Optional package manager                            |
+| pnpm          | No       | Optional package manager                            |
+| Git           | Yes      | Version control for project scaffolding             |
+| Rust          | No       | Needed for Soroban contract development             |
+| Stellar CLI   | No       | Needed for contract deployment and testing          |
+| wasm32 target | No       | Rust target for compiling Soroban contracts         |
+| Horizon API   | Yes      | Reachability of the configured Horizon endpoint     |
+| Soroban RPC   | No       | Reachability of the configured Soroban RPC endpoint |
+| Free memory   | Yes      | At least 1 GB of available RAM                      |
 
-#### Sample JSON Output (`--json`)
+#### Exit Codes
 
-```json
-{
-  "status": "ok",
-  "checks": {
-    "node": { "status": "pass", "version": "v20.12.0" },
-    "packageManager": { "status": "pass", "name": "pnpm", "version": "9.1.0" },
-    "git": { "status": "pass", "version": "2.43.0" },
-    "stellarRpc": { "status": "pass", "latencyMs": 85 }
-  },
-  "timestamp": "2026-09-24T12:00:00Z"
-}
-```
+| Exit code | Meaning                            |
+| --------- | ---------------------------------- |
+| `0`       | All required checks passed         |
+| `1`       | One or more required checks failed |
+
+Optional check failures are reported but do not affect the exit code.
+
+#### JSON Output (`--json`)
+
+See [CLI Commands](/docs/cli/commands#nextellar-doctor) for the full `--json` output schema and a complete sample.
 
 ---
 
