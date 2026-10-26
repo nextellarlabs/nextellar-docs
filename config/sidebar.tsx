@@ -79,6 +79,7 @@ export const sidebarNav: SidebarSection[] = [
       { title: 'Scaffolding Templates', href: '/docs/cli/templates' },
       { title: 'Template Comparison', href: '/docs/cli/template-comparison' },
       { title: 'JavaScript Default Template', href: '/docs/cli/js-template' },
+      { title: 'JavaScript Minimal Template', href: '/docs/cli/js-minimal' },
       {
         title: 'Verified Template Matrix',
         href: '/docs/cli/verified-template-matrix',
