@@ -9,6 +9,105 @@ date: 2026-05-29
 This guide covers every breaking change introduced in each major release of
 Nextellar and gives you the exact steps and code examples needed to upgrade.
 
+## Migrating a CLI 1.0.4 scaffold to 1.1.x
+
+The published `nextellar@1.0.4` CLI predates the project marker and the `add` and
+`upgrade` commands. A project created with 1.0.4 can still be upgraded, but you
+must create `.nextellar/config.json` yourself before running the newer CLI.
+
+> [!NOTE]
+> This section describes the transition to the upcoming 1.1.x release. Finalize
+> the release-specific command, template, and hook details after the package is
+> published; the exact version and compatibility notes may change before then.
+
+### Identify your scaffold vintage
+
+Check the project root for `.nextellar/config.json`. A project created by
+`nextellar@1.0.4` has no such file. A fresh 1.1.x scaffold writes it and records
+the CLI version and scaffold options there.
+
+You can also inspect `package.json` and `src/hooks/`. The 1.0.4 default
+TypeScript scaffold has the older single-template layout and includes
+`useOfferBook`, `useSorobanContract`, `useSorobanEvents`, `useStellarBalances`,
+`useStellarPayment`, `useStellarWallet`, `useTransactionHistory`, and
+`useTrustlines`. Those files do not record the CLI version, so their presence
+alone is not conclusive if the project has since been changed.
+
+The 1.0.4 layout was verified by creating a disposable project with
+`npx nextellar@1.0.4 migration-probe`: it contained those eight hooks and no
+`.nextellar/` directory.
+
+### Add the project marker
+
+From the project root, create `.nextellar/config.json`. Make the parent folder
+if it does not exist. Use this schema, replacing the example values with the
+settings that match your project:
+
+```json
+{
+  "appName": "my-stellar-app",
+  "horizonUrl": "https://horizon-testnet.stellar.org",
+  "sorobanUrl": "https://soroban-testnet.stellar.org",
+  "network": "TESTNET",
+  "wallets": ["freighter", "albedo", "lobstr"],
+  "nextellarVersion": "1.0.4",
+  "templateName": "default",
+  "timestamp": "2026-10-20T12:00:00.000Z"
+}
+```
+
+`appName` is your project name; `horizonUrl` and `sorobanUrl` are the endpoints
+your app uses; `network` is `TESTNET` or `PUBLIC`; `wallets` is the array of
+wallet adapter IDs in your app; `nextellarVersion` is the CLI version that
+created the project; `templateName` is `default` for the 1.0.4 scaffold; and
+`timestamp` is an ISO 8601 date-time. If you do not know the original scaffold
+time, use the time you create this marker. Keep the marker’s settings aligned
+with your actual project configuration because the upgrade command uses them
+to identify the template and its options.
+
+### Preview and apply the upgrade
+
+Commit or stash your work first, then run the upgrade from the project root.
+Review the dry-run output before applying anything:
+
+```bash
+nextellar upgrade --dry-run
+```
+
+Inspect every proposed file change, paying particular attention to generated
+hooks and configuration that you have customized. Resolve conflicts or save
+local changes separately. When the preview is acceptable, apply the upgrade:
+
+```bash
+nextellar upgrade
+```
+
+Review the resulting diff and run your project’s checks before committing. The
+upgrade refreshes generated template files; it does not replace reviewing
+application code for API changes.
+
+### What changes in 1.1.x
+
+The published 1.0.4 CLI provides the older single-template scaffold. The 1.1.x
+transition adds a broader CLI and template surface:
+
+- **Commands:** 1.0.4 scaffolds projects but has no `add` or `upgrade`
+  workflow. The newer CLI adds `nextellar add` for features and
+  `nextellar upgrade` for template updates. Confirm the rest of the command
+  list and exact availability against the published release.
+- **Templates:** 1.0.4 provides one default TypeScript starter. The newer
+  templates offer `default`, `minimal`, and `defi` families, TypeScript and
+  JavaScript variants, and optional Soroban contract scaffolding.
+- **Hooks:** The verified 1.0.4 default scaffold contains the eight hooks
+  listed above. The newer templates divide hooks across template families, and
+  `nextellar add` can add hook features. Review the release diff for exact
+  implementation, dependency, and API changes.
+
+The new CLI’s feature catalog includes wallet, balances, payments, history,
+trustlines, DeFi, and contract hooks. Do not assume an existing hook has an
+unchanged API just because its filename remains the same. Confirm the final
+hook-level changes and compatibility guidance when 1.1.x ships.
+
 ---
 
 ## v1 → v2
