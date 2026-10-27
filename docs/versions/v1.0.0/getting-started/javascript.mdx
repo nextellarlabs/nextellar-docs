@@ -14,27 +14,23 @@ npx nextellar my-app --javascript
 
 ## Template support
 
-`--javascript` currently works with the `default` and `defi` templates. `minimal` does not have a JavaScript variant yet:
+`--javascript` works with the `default`, `minimal`, and `defi` templates:
 
 ```bash
 npx nextellar my-app --javascript --template minimal
-# Template "minimal" is not available for JavaScript yet.
-# Please use the default or defi template with --javascript.
+npx nextellar my-app --javascript --template defi
 ```
 
-Tracked as [nextellarlabs/nextellar#654](https://github.com/nextellarlabs/nextellar/issues/654). See [Scaffolding Templates](/docs/cli/templates) for what each template contains.
+See [Scaffolding Templates](/docs/cli/templates) for what each template contains.
 
 ## What's different from the TypeScript scaffold
 
 - **File extensions** — components and pages are `.jsx`, everything else is `.js` (the TypeScript scaffold uses `.tsx`/`.ts`).
 - **No type exports** — hooks like `useSorobanEvents` no longer export `Options`, `SorobanEvent`, or other type/interface declarations. Function signatures and shapes are documented with JSDoc comments instead.
 - **`jsconfig.json` instead of `tsconfig.json`** — same path aliases (`@/*`) and `strict` checking of `.js`/`.jsx` files via `allowJs`, but no type-checked build step.
-- **No `NetworkSwitcher` component** — the default template's testnet/mainnet switcher hasn't been ported to the JS scaffold yet. Tracked as [nextellarlabs/nextellar#651](https://github.com/nextellarlabs/nextellar/issues/651).
-- **No `lib/storage.ts` wrapper** — the JS `WalletProvider` reads/writes `localStorage` directly instead of going through the shared storage helper. Tracked as [nextellarlabs/nextellar#652](https://github.com/nextellarlabs/nextellar/issues/652).
+- **JavaScript configuration**: generated projects use `next.config.js`, JavaScript network configuration, and a JavaScript storage helper.
 
 Everything else — hooks, wallet connection, payments, Soroban contract calls — is functionally identical to the TypeScript scaffold; only the syntax and type information differ.
-
-> **Note:** In an interactive terminal, the CLI prints its welcome banner before checking whether `--javascript` is compatible with the chosen `--template`, so the `minimal` error above appears after the banner rather than before it. Tracked as [nextellarlabs/nextellar#672](https://github.com/nextellarlabs/nextellar/issues/672).
 
 ## Quick-start payment snippet in JavaScript
 
