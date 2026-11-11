@@ -95,6 +95,7 @@ type Asset = 'XLM' | { code: string; issuer: string };
 | `limit`          | `number`         | `20`                                                        | Number of offers per side                                                                                            |
 | `pollIntervalMs` | `number \| null` | `null`                                                      | When set, the hook refetches the book on this interval (in milliseconds)                                             |
 
+```typescript
 type Asset = 'XLM' | { code: string; issuer: string };
 
 interface OfferBookState {
