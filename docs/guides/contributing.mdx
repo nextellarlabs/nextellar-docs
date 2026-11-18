@@ -8,6 +8,40 @@ date: 2026-06-01
 
 This guide explains how to contribute to Nextellar documentation, with a focus on understanding the content build pipeline and development workflow.
 
+## Finding an Issue to Work On
+
+New contributor? Start with a [`good first issue`](https://github.com/nextellarlabs/nextellar-docs/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22). These are self-contained fixes, such as a broken code fence or an accuracy pass on a single page, with acceptance criteria a reviewer can verify.
+
+### How the Issue Tracker Is Organized
+
+The tracker has two kinds of issues, and they are treated differently.
+
+**Docs-accuracy backlog (current priority)**
+
+These issues came from an audit that cross-checked every documentation claim against the actual CLI source. They are marked with the [`area:docs-accuracy`](https://github.com/nextellarlabs/nextellar-docs/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Adocs-accuracy) label: pages that contradict or omit real CLI behavior. Fixing them protects existing readers.
+
+Combine it with a section label to narrow the list:
+
+| Label             | Scope                                                     |
+| ----------------- | --------------------------------------------------------- |
+| `cli`             | CLI reference pages (`docs/cli/`)                         |
+| `hooks`           | Hook API pages (`docs/hooks/`)                            |
+| `getting-started` | Onboarding funnel                                         |
+| `integrations`    | Horizon, Soroban, and wallet pages                        |
+| `templates`       | Template documentation                                    |
+| `components`      | Component pages                                           |
+| `area:ci`         | Docs-site validation tooling (fence linter, link checker) |
+
+Every issue also carries a difficulty label: `difficulty:easy`, `difficulty:medium`, or `difficulty:hard`.
+
+**Content-program issues (older backlog)**
+
+Issues titled `[easy]`, `[medium]`, or `[hard]` come from bulk content-contribution programs and propose new general Stellar guides. They are separate from the accuracy backlog. If you are here to make the docs correct, use the labeled searches above.
+
+### Ground Rule for Accuracy Fixes
+
+Every accuracy fix must be verified against the CLI source or a real `npx nextellar` scaffold. The issues cite the files and lines to check. Do not document behavior you have not observed.
+
 ## Content Build Process
 
 Nextellar documentation uses **Contentlayer** to process MDX files into structured, type-safe content objects. Understanding this build step is essential for contributors.
