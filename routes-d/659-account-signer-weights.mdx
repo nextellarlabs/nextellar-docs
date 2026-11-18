@@ -1,0 +1,56 @@
+---
+title: Account Signer Weights
+description: What signer weights represent on a Stellar account, the valid weight range, and how weights add up against operation thresholds.
+date: 2026-11-18
+---
+
+# Account Signer Weights
+
+Every signer on a Stellar account has a **weight**. A weight is a number from `0` to `255` that says how much that signer contributes toward authorizing a transaction. The master key is a signer too, and it counts the same way as any other signer.
+
+## Weight range
+
+- Valid weights are whole numbers from `0` to `255`.
+- Setting a signer's weight to `0` removes that signer from the account.
+- A signer with a non-zero weight is stored on the account until you remove it.
+
+## How weights add to thresholds
+
+Each account also has three **thresholds**: `low`, `med`, and `high`. Every operation falls into one of these categories, and the matching threshold is the weight a transaction must reach.
+
+When a transaction is submitted, the network adds up the weights of the distinct signers who signed it. The transaction is authorized for an operation when that total is **greater than or equal to** the operation's threshold.
+
+- Weights are added, not averaged, so several small signers can combine to meet a threshold.
+- Each signer is counted once, no matter how many times its signature appears.
+- Signatures from keys that are not signers on the account add nothing.
+
+## Example
+
+An account has a master key and two co-signers:
+
+| Signer    | Weight |
+| --------- | ------ |
+| Master    | `1`    |
+| Co-signer | `1`    |
+| Co-signer | `1`    |
+
+The account sets `low = 1`, `med = 2`, and `high = 3`.
+
+```ts
+import { Operation } from '@stellar/stellar-sdk';
+
+const setOptions = Operation.setOptions({
+  signer: { ed25519PublicKey: COSIGNER_PUBLIC_KEY, weight: 1 },
+  lowThreshold: 1,
+  medThreshold: 2,
+  highThreshold: 3,
+});
+```
+
+With these values:
+
+- One signature (weight `1`) is enough for a low-threshold operation such as `allowTrust`.
+- A payment is a medium-threshold operation, so it needs two signatures (weight `2`).
+- Changing signers or thresholds is a high-threshold operation, so it needs all three signatures (weight `3`).
+
+If you set a threshold higher than the total weight of all signers, no transaction can ever meet it, and the operations in that category are locked out. Check that the combined signer weight can reach each threshold before you change one.
