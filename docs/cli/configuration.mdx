@@ -170,6 +170,35 @@ const sorobanUrl = process.env.NEXT_PUBLIC_SOROBAN_URL;
 
 ## Network switching
 
+### Selecting testnet vs. mainnet with the CLI
+
+By default, `npx nextellar` scaffolds projects against **Stellar Testnet**. Pass `--horizon-url` and `--soroban-url` together to target **Mainnet** instead:
+
+```bash
+## Testnet (default)
+npx nextellar my-testnet-app --defaults
+
+## Mainnet
+npx nextellar my-mainnet-app \
+  --horizon-url https://horizon.stellar.org \
+  --soroban-url https://soroban-rpc.stellar.org
+```
+
+**Required environment variables** (written to `.env.example` and configured in `.env.local`):
+
+- `NEXT_PUBLIC_HORIZON_URL` — `https://horizon-testnet.stellar.org` (testnet) or `https://horizon.stellar.org` (mainnet)
+- `NEXT_PUBLIC_SOROBAN_URL` — `https://soroban-testnet.stellar.org` (testnet) or `https://soroban-rpc.stellar.org` (mainnet)
+- `NEXT_PUBLIC_NETWORK` — `TESTNET` (default) or `PUBLIC` (mainnet passphrase)
+
+<Note type="warning">
+  Scaffolded projects default to `TESTNET` to protect against accidental
+  real-asset transfers. Before deploying to Mainnet, verify that
+  `NEXT_PUBLIC_HORIZON_URL`, `NEXT_PUBLIC_SOROBAN_URL`, and
+  `NEXT_PUBLIC_NETWORK=PUBLIC` all point to Mainnet—leaving
+  `NEXT_PUBLIC_NETWORK` at its `TESTNET` default causes wallet and passphrase
+  mismatches, and Mainnet transactions are irreversible and spend real XLM.
+</Note>
+
 ### Testnet to mainnet
 
 1. **Update Horizon URL** in `src/lib/stellar-wallet-kit.ts`:
