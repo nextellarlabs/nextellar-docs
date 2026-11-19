@@ -1,0 +1,23 @@
+---
+title: Streaming vs. Polling Events (Issue #377 Draft)
+description: Working draft for comparing streaming and polling Stellar events
+date: 2026-11-19
+---
+
+# Draft: Streaming vs. Polling Events
+
+This file is a working draft for issue #377. The final text is placed in `docs/guides/streaming-payments-horizon.mdx`.
+
+---
+
+## Streaming vs. polling
+
+Horizon supports real-time server-sent event (SSE) streaming, while Soroban RPC and standard REST queries rely on polling on an interval.
+
+- **Use streaming** when you need low-latency updates for live feeds, incoming payment notifications, or orderbook changes on Horizon.
+- **Use polling** when consuming Soroban RPC events (which do not support SSE), running in short-lived serverless environments, or when infrequent updates (every 10–30 seconds) are sufficient.
+
+| Approach      | Pros                                                      | Tradeoffs                                                                 |
+| ------------- | --------------------------------------------------------- | ------------------------------------------------------------------------- |
+| **Streaming** | Near-instant delivery; avoids redundant empty requests    | Holds open connections; requires manual cursor persistence and reconnects |
+| **Polling**   | Simple request/response flow; works across all APIs/hosts | Higher latency; excessive polling risks `429` rate-limit errors           |

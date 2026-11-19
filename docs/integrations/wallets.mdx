@@ -54,7 +54,7 @@ If a new Testnet account has no balance, fund it with the steps in
 
 The wallet kit is configured in `src/lib/stellar-wallet-kit.ts`:
 
-````typescript
+```typescript
 import {
   StellarWalletsKit,
   FREIGHTER_ID,
@@ -301,11 +301,28 @@ interface WalletState {
 
 ## Freighter-Specific Notes
 
-Freighter is the most popular Stellar wallet. Some specific notes:
+Freighter is the most popular Stellar wallet.
+
+### Installing Freighter
+
+1. Download the extension from the [official Freighter website](https://www.freighter.app/).
+2. Create a new wallet or import an existing recovery phrase, and store the phrase securely offline.
+3. Open Freighter settings and switch the network to **Testnet** (matching Nextellar's default) or **Mainnet** to align with your app.
+
+**Browser support:** Freighter is officially supported as a browser extension on **Chrome**, **Firefox**, and Chromium-based browsers such as **Brave** and **Microsoft Edge**.
+
+### Usage Notes
 
 - **Network**: Ensure Freighter is set to the same network (testnet/mainnet) as your app
 - **Permissions**: Users may need to allow your site in Freighter settings
 - **Multiple Accounts**: Freighter supports multiple accounts - the active one is used
+
+## LOBSTR Mobile Wallet
+
+For mobile users, [LOBSTR](https://lobstr.co/) provides a dedicated Stellar mobile wallet alongside its web and browser extension experience.
+
+- **Platform availability:** Available on **iOS** ([Apple App Store](https://apps.apple.com/app/id1404357892)) and **Android** ([Google Play Store](https://play.google.com/store/apps/details?id=com.lobstr.client)), as well as via the web app at [lobstr.co](https://lobstr.co/).
+- **Connecting to Nextellar dApps:** Mobile users can connect their LOBSTR wallet to a Nextellar app using [WalletConnect](/docs/integrations/walletconnect) or the LOBSTR browser extension on desktop.
 
 ## Related
 
@@ -315,4 +332,3 @@ Freighter is the most popular Stellar wallet. Some specific notes:
 - [WalletProvider](/docs/hooks/wallet-provider) - Context provider docs
 - [useStellarWallet](/docs/hooks/use-stellar-wallet) - Standalone hook docs
 - [Wallet Integration Guide](/docs/sdk/wallet-integration) - Advanced setup
-````
