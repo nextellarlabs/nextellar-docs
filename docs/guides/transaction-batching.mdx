@@ -55,14 +55,14 @@ Chain a `pathPaymentStrictSend` or `pathPaymentStrictReceive` with a `payment` t
 
 ## Limits
 
-| Limit                      | Value                   | Notes                                                    |
-| -------------------------- | ----------------------- | -------------------------------------------------------- |
-| Operations per transaction | 100                     | Hard limit enforced by validators                        |
-| Base fee per operation     | 100 stroops             | Total fee = 100 × operation count (minimum)              |
-| XDR envelope size          | ~71 KB                  | Keep well under this; most real batches are a few KB     |
-| Signatures                 | One per required signer | Each adds ~64 bytes; minimize co-signers                 |
-| Sequence number            | 1 per transaction       | Parallel batch submissions need separate source accounts |
-| Timeout                    | Configurable (seconds)  | Set `setTimeout` to avoid stuck pending transactions     |
+| Limit                      | Value                   | Notes                                                          |
+| -------------------------- | ----------------------- | -------------------------------------------------------------- |
+| Operations per transaction | 100                     | Hard limit enforced by validators                              |
+| Base fee per operation     | 100 stroops             | Total fee = 100 × operation count (minimum)                    |
+| XDR envelope size          | 132,096 bytes (~129 KB) | Network `txMaxSizeBytes` limit; most real batches are a few KB |
+| Signatures                 | One per required signer | Each adds ~64 bytes; minimize co-signers                       |
+| Sequence number            | 1 per transaction       | Parallel batch submissions need separate source accounts       |
+| Timeout                    | Configurable (seconds)  | Set `setTimeout` to avoid stuck pending transactions           |
 
 > If any single operation in the batch fails validation or execution, **the entire transaction is rejected**. Validate all inputs before building the envelope.
 

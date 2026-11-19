@@ -52,11 +52,32 @@ function filePathToRoute(filePath) {
   const normalized = withoutExt.split(path.sep).join('/');
 
   // Handle index files -> they resolve to the directory
+  if (normalized === 'index') {
+    return DOCS_BASE;
+  }
+
   if (normalized.endsWith('/index')) {
     return DOCS_BASE + '/' + normalized.replace(/\/index$/, '');
   }
 
   return DOCS_BASE + '/' + normalized;
+}
+
+function isAssetLink(href) {
+  const pathOnly = href.split('#')[0].split('?')[0];
+  return /\.(png|jpe?g|gif|svg|webp|ico|avif)$/i.test(pathOnly);
+}
+
+function isInsideInlineCode(line, index) {
+  let open = false;
+  for (let i = 0; i < index; i++) {
+    if (line[i] === '\\') {
+      i++;
+      continue;
+    }
+    if (line[i] === '`') open = !open;
+  }
+  return open;
 }
 
 /**
@@ -124,41 +145,67 @@ function extractAnchors(content) {
 function extractLinks(content) {
   const links = [];
   const lines = content.split('\n');
+  let fenceCharacter = null;
+  let fenceLength = 0;
 
   lines.forEach((line, lineNum) => {
-    // Extract Markdown links: [text](url)
+    const fence = line.match(/^\s*(`{3,}|~{3,})/);
+    if (fenceCharacter) {
+      const closingFence = new RegExp(
+        `^\\s*${fenceCharacter}{${fenceLength},}\\s*$`
+      );
+      if (closingFence.test(line)) fenceCharacter = null;
+      return;
+    }
+
+    if (fence) {
+      fenceCharacter = fence[1][0];
+      fenceLength = fence[1].length;
+      return;
+    }
+
+    // Extract Markdown links: [text](url). Skip images and inline-code samples.
     const mdLinkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
     let mdMatch;
     while ((mdMatch = mdLinkRegex.exec(line)) !== null) {
+      if (line[mdMatch.index - 1] === '!') continue;
+      if (isInsideInlineCode(line, mdMatch.index)) continue;
+
       const href = mdMatch[2];
-      // Only track internal links (starting with / or relative, but not external URLs)
       if (
-        !href.startsWith('http') &&
-        !href.startsWith('mailto:') &&
-        !href.startsWith('tel:')
+        href.startsWith('http') ||
+        href.startsWith('mailto:') ||
+        href.startsWith('tel:') ||
+        isAssetLink(href)
       ) {
-        links.push({
-          href,
-          type: 'markdown',
-          lineNum: lineNum + 1,
-          text: mdMatch[1],
-        });
+        continue;
       }
+
+      links.push({
+        href,
+        type: 'markdown',
+        lineNum: lineNum + 1,
+        text: mdMatch[1],
+      });
     }
 
     // Extract HTML href attributes: href="url"
     const htmlHrefRegex = /href=['"](([^'"]+))['"]/g;
     let htmlMatch;
     while ((htmlMatch = htmlHrefRegex.exec(line)) !== null) {
+      if (isInsideInlineCode(line, htmlMatch.index)) continue;
+
       const href = htmlMatch[1];
-      // Only track internal links (starting with / or relative, but not external URLs)
       if (
-        !href.startsWith('http') &&
-        !href.startsWith('mailto:') &&
-        !href.startsWith('tel:')
+        href.startsWith('http') ||
+        href.startsWith('mailto:') ||
+        href.startsWith('tel:') ||
+        isAssetLink(href)
       ) {
-        links.push({ href, type: 'html', lineNum: lineNum + 1 });
+        continue;
       }
+
+      links.push({ href, type: 'html', lineNum: lineNum + 1 });
     }
   });
 
