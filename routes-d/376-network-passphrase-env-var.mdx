@@ -1,0 +1,26 @@
+---
+title: Network Passphrase Environment Variable (Issue #376 Draft)
+description: Working draft for documenting how the network passphrase is set
+date: 2026-11-18
+---
+
+# Draft: Network Passphrase Environment Variable
+
+This file is a working draft for issue #376. The final text is placed in `docs/cli/environment-options.mdx`.
+
+---
+
+There is no separate passphrase variable. `NEXT_PUBLIC_NETWORK` selects the network passphrase that transactions are signed against:
+
+| `NEXT_PUBLIC_NETWORK` | Network passphrase                               | SDK constant       |
+| --------------------- | ------------------------------------------------ | ------------------ |
+| `TESTNET` (default)   | `Test SDF Network ; September 2015`              | `Networks.TESTNET` |
+| `PUBLIC`              | `Public Global Stellar Network ; September 2015` | `Networks.PUBLIC`  |
+
+Set it in `.env.local`:
+
+```bash
+NEXT_PUBLIC_NETWORK=PUBLIC
+```
+
+Scaffolded projects set it to `TESTNET` by default. Keep it in step with your Horizon and Soroban URLs; a transaction signed for one network is rejected by the other.

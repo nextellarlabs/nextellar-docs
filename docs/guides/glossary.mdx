@@ -56,6 +56,10 @@ The live Stellar network where real assets and production transactions are used.
 
 A short note attached to a Stellar transaction, often used to identify a payment.
 
+### Muxed Account
+
+An address that starts with `M` and combines a regular `G...` account with a 64-bit ID, so many virtual accounts can share one Stellar account. Muxed accounts do not exist on the ledger; payments settle to the underlying `G...` account. Exchanges and custodial services use them to credit deposits to individual customers, as an alternative to memos. Not every wallet, exchange, or anchor supports them yet. See [Pooled accounts, muxed accounts, and memos](https://developers.stellar.org/docs/build/guides/transactions/pooled-accounts-muxed-accounts-memos) in the Stellar docs.
+
 ### Network Passphrase
 
 A value that identifies which Stellar network a transaction belongs to.
