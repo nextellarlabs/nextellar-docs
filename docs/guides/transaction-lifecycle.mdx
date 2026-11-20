@@ -80,6 +80,10 @@ A transaction holds one or more operations. These are the ones you will use most
 
 `Allow Trust` is deprecated; use `Operation.setTrustLineFlags` to authorize trustlines. See the [full list of operations](https://developers.stellar.org/docs/learn/fundamentals/transactions/list-of-operations) in the Stellar docs.
 
+### Operation count limits
+
+A classic Stellar transaction can contain up to 100 operations. A batch of exactly 100 operations is valid if it meets the other transaction requirements. A 101st operation cannot fit in the same envelope. Split larger batches into separate transactions, each with its own sequence number. A Soroban transaction can contain only one operation.
+
 ### Sequence number rules
 
 The sequence number on the source account increments by one for each submitted transaction, regardless of whether it succeeded. If you build two transactions from the same loaded account object and submit them both, the second will fail with `tx_bad_seq` because the first already consumed the sequence slot.

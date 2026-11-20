@@ -1,0 +1,13 @@
+---
+title: Operation Count Limits per Transaction (Issue #369 Draft)
+description: Learn how many operations fit in a Stellar transaction and when to split a batch.
+date: 2026-11-20
+---
+
+# Operation Count Limits per Transaction
+
+This draft for issue #369 accompanies the note in `docs/guides/transaction-lifecycle.mdx`.
+
+### Operation count limits
+
+A classic Stellar transaction can contain up to 100 operations. A batch of exactly 100 operations is valid if it meets the other transaction requirements. A 101st operation cannot fit in the same envelope. Split larger batches into separate transactions, each with its own sequence number. A Soroban transaction can contain only one operation.
