@@ -1,0 +1,8 @@
+---
+title: Maximum transaction size limits
+description: Working draft for issue #658
+---
+
+The current practical maximum for a Stellar transaction envelope is **132,096 bytes** (about 129 KB, or 132.1 KB). This is the network's `txMaxSizeBytes` resource limit, and it matters most for Soroban and other smart-contract transactions.
+
+Envelopes usually exceed it because of too many operations, a large contract footprint (many ledger keys), large contract call arguments or constructor parameters, multiple signatures (multisig), or a large memo.

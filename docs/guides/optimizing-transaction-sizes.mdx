@@ -12,12 +12,26 @@ Stellar transactions are compact by design, but it is still easy to hit size lim
 
 ## Size constraints
 
+### Maximum envelope size
+
+The current practical maximum for a transaction envelope is **132,096 bytes** (about 129 KB, or 132.1 KB). This is the network's `txMaxSizeBytes` resource limit. It covers the whole encoded envelope and matters most for Soroban and other smart-contract transactions. Validators reject anything larger.
+
+Envelopes usually exceed that limit for one of these reasons:
+
+- Too many operations
+- A large contract footprint (many ledger keys)
+- Large contract call arguments or constructor parameters
+- Multiple signatures (multisig)
+- A large memo
+
+Classic payments stay far below this. Soroban invocations are the ones that approach it. Simulate before you submit, and split the work if the envelope is close to the cap.
+
 ### Classic Stellar transactions
 
 | Limit                              | Value                                   | Notes                                                                            |
 | ---------------------------------- | --------------------------------------- | -------------------------------------------------------------------------------- |
 | Maximum operations per transaction | 100                                     | Each operation adds ~100–300 bytes to the XDR envelope                           |
-| Maximum transaction XDR size       | ~64 KB                                  | Enforced by validators; in practice keep envelopes well under 10 KB              |
+| Maximum transaction XDR size       | 132,096 bytes (~129 KB)                 | Network `txMaxSizeBytes` limit; in practice keep envelopes well under 10 KB      |
 | Memo field                         | 28 bytes (text), 32 bytes (hash/return) | Longer memos must use hash or return memo types                                  |
 | Base fee per operation             | 100 stroops (0.0001 XLM)                | Fee scales linearly with operation count; use fee bumps for priority             |
 | Sequence number                    | 64-bit integer                          | One transaction per sequence slot; parallel submissions require managed accounts |
@@ -28,14 +42,14 @@ The encoded XDR grows with every operation, signer, and data field you include. 
 
 Soroban transactions carry a **resource footprint** that is metered separately from the XDR size:
 
-| Resource                  | Testnet default limit | What it covers                           |
-| ------------------------- | --------------------- | ---------------------------------------- |
-| Instructions              | 100 million / tx      | WASM CPU instructions executed           |
-| Read bytes                | 200 KB / tx           | Ledger entries read during simulation    |
-| Write bytes               | 66 KB / tx            | Ledger entries written during simulation |
-| Read-only ledger entries  | 40 / tx               | Unique keys accessed as read-only        |
-| Read-write ledger entries | 25 / tx               | Unique keys written                      |
-| Transaction size (XDR)    | 71 KB / tx            | Entire envelope including WASM arguments |
+| Resource                  | Testnet default limit | What it covers                                               |
+| ------------------------- | --------------------- | ------------------------------------------------------------ |
+| Instructions              | 100 million / tx      | WASM CPU instructions executed                               |
+| Read bytes                | 200 KB / tx           | Ledger entries read during simulation                        |
+| Write bytes               | 66 KB / tx            | Ledger entries written during simulation                     |
+| Read-only ledger entries  | 40 / tx               | Unique keys accessed as read-only                            |
+| Read-write ledger entries | 25 / tx               | Unique keys written                                          |
+| Transaction size (XDR)    | 132,096 bytes         | Entire envelope, including call arguments (`txMaxSizeBytes`) |
 
 These limits are network-configured and can change between protocol versions. Always simulate first and inspect the returned `SorobanTransactionData` to confirm your transaction stays within the current fee and footprint budget before submitting.
 
