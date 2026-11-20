@@ -1,0 +1,48 @@
+---
+title: Horizon Metrics Endpoint
+description: Accessing Stellar Horizon's metrics endpoint for monitoring server health and performance.
+date: 2026-11-20
+---
+
+# Horizon Metrics Endpoint
+
+Stellar Horizon exposes a metrics endpoint for monitoring server health, performance, and request statistics.
+
+## Endpoint Path
+
+The metrics endpoint is available at:
+
+```
+GET /metrics
+```
+
+For example, with the default testnet Horizon server:
+
+```
+https://horizon-testnet.stellar.org/metrics
+```
+
+Or with mainnet:
+
+```
+https://horizon.stellar.org/metrics
+```
+
+## Privacy Considerations
+
+The metrics endpoint returns aggregated, non-identifying server statistics and does not expose:
+
+- Individual transaction data or account information
+- User IP addresses or personally identifiable information
+- Private ledger entries or confidential operations
+
+The metrics are intended for infrastructure monitoring and are safe to expose or consume publicly. However, consider these best practices:
+
+- **Don't expose internal metrics in production UIs** — Metrics are for ops/monitoring dashboards, not user-facing applications
+- **Respect rate limits** — Polling metrics heavily may trigger rate limiting if you query `/metrics` too frequently
+- **Use locally or behind auth** — If self-hosting Horizon, consider restricting `/metrics` access to internal monitoring systems
+
+## Related
+
+- [Stellar Horizon Integration](/docs/integrations/horizon) — Horizon configuration and usage
+- [Horizon API Documentation](https://developers.stellar.org/api/introduction/authentication/) — Official Stellar documentation
