@@ -1,12 +1,12 @@
 ---
 title: Transaction Batching
-description: Patterns for grouping multiple operations into a single Stellar transaction to reduce fees, guarantee atomicity, and improve throughput.
+description: Patterns for grouping multiple operations into a single Stellar transaction for atomic execution and fewer submissions.
 date: 2026-06-24
 ---
 
 # Transaction Batching
 
-A single Stellar transaction can carry up to 100 operations. Batching groups logically related operations into one envelope so they succeed or fail together, cost one base fee, and consume one sequence number. This guide covers when to batch, how to construct and sign a batched transaction, Soroban-specific patterns, and a minimal working example.
+A single Stellar transaction can carry up to 100 operations. Batching groups logically related operations into one envelope so they succeed or fail together and consume one sequence number. This guide covers when to batch, how to construct and sign a batched transaction, Soroban-specific patterns, and a minimal working example.
 
 ---
 
@@ -15,7 +15,6 @@ A single Stellar transaction can carry up to 100 operations. Batching groups log
 | Benefit         | Detail                                                                                                       |
 | --------------- | ------------------------------------------------------------------------------------------------------------ |
 | **Atomicity**   | All operations in an envelope are applied together. If any one fails, the entire transaction is rolled back. |
-| **Fee savings** | One base fee (100 stroops) covers all operations instead of paying a separate fee per transaction.           |
 | **Throughput**  | One sequence number covers the whole batch. Fewer round-trips to Horizon means faster end-to-end execution.  |
 | **Consistency** | State changes visible on-chain reflect the complete operation set, never a partial update.                   |
 

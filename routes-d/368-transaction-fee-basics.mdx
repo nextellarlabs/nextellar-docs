@@ -1,0 +1,15 @@
+---
+title: Transaction Fee Basics (Issue #368 Draft)
+description: Learn how Stellar calculates the inclusion fee per operation and where to check recent fee statistics.
+date: 2026-11-20
+---
+
+# Transaction Fee Basics
+
+This draft for issue #368 accompanies the note in `docs/guides/transaction-lifecycle.mdx`.
+
+### Transaction fee basics
+
+Stellar charges an inclusion fee for each operation. Multiply the fee per operation by the number of operations to get the total inclusion fee. The network minimum is 100 stroops per operation, and congestion can raise the price of getting into a ledger. For example, a transaction with three payment operations costs 300 stroops (0.00003 XLM) at the minimum. Soroban transactions also pay a resource fee.
+
+Check recent fees on your network with [Horizon `GET /fee_stats`](https://developers.stellar.org/docs/data/apis/horizon/api-reference/retrieve-fee-stats) or the [Stellar RPC `getFeeStats` method](https://developers.stellar.org/docs/data/apis/rpc/api-reference/methods/getFeeStats).
