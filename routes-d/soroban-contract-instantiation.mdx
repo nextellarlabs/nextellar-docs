@@ -1,0 +1,355 @@
+---
+title: Soroban Contract Instantiation
+description: Guide on instantiating a Soroban contract via the CLI or SDK, including constructor patterns, storage effects, and implementation examples.
+date: 2026-11-20
+---
+
+# Soroban Contract Instantiation
+
+Soroban contract instantiation deploys a contract WASM binary to the network and initializes its state. Understanding the constructor pattern and storage effects is essential for proper contract deployment and integration.
+
+## Instantiation vs. Deployment
+
+In Soroban terminology, **instantiation** and **deployment** are often used interchangeably, but they describe the same process:
+
+- **Upload the WASM binary** to the network as a contract.
+- **Execute the contract's constructor** (if defined) to initialize state.
+- **Return the contract ID** for future invocations.
+
+## Constructor Pattern
+
+Soroban contracts define constructors using the `contractimpl` macro with the `constructor` attribute:
+
+```rust
+#[contractimpl]
+impl MyContract {
+  #[constructor]
+  pub fn init(env: Env, admin: Address, initial_supply: i128) -> Result<(), ContractError> {
+    // Store initial state
+    let key = DataKey::Admin;
+    env.storage().instance().set(&key, &admin);
+
+    env.storage().instance().set(&DataKey::TotalSupply, &initial_supply);
+
+    Ok(())
+  }
+
+  pub fn balance_of(env: Env, account: Address) -> i128 {
+    // Read from storage
+    env.storage()
+      .instance()
+      .get::<_, i128>(&DataKey::Balance(account))
+      .unwrap_or(0)
+  }
+}
+```
+
+The constructor:
+
+- Runs **once** when the contract is instantiated.
+- Receives parameters for initialization (admin address, initial supply, etc.).
+- Returns `Result<(), Error>` — returning an error aborts instantiation.
+- Cannot be called again after instantiation completes.
+
+## Storage Effects
+
+### Instance Storage
+
+When the constructor executes, it writes to **instance storage**, which persists for the contract's lifetime:
+
+```rust
+env.storage().instance().set(&DataKey::Admin, &admin);
+```
+
+This data is:
+
+- **Immutable after instantiation** — only the contract code can modify it.
+- **Live-forever** — persists until the contract is no longer needed.
+- **Subject to rent** — storage footprint affects transaction fees.
+
+### Ledger Entry Lifecycle
+
+During instantiation, the network creates a `ContractData` ledger entry for the contract:
+
+1. Contract WASM is uploaded or referenced.
+2. Constructor function is invoked with provided arguments.
+3. All `instance().set()` calls during constructor persist to the ledger.
+4. Contract ID is returned to the submitter.
+
+Example ledger entry after instantiation:
+
+```
+ContractData {
+  contract_id: CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQAHHXK3AWCM,
+  key: DataKey::Admin,
+  val: Address(GBRPYHIL2CI3WHZDTOOQFC6EB4LGVXR5LPJLAN4EOUMVSYBAFDUUAMC)
+}
+```
+
+## CLI Instantiation
+
+### Via Stellar CLI
+
+Use `stellar contract deploy` to instantiate a contract:
+
+```bash
+stellar contract deploy \
+  --network testnet \
+  --wasm path/to/contract.wasm \
+  --source alice \
+  -- init admin GBRPYHIL2CI3WHZDTOOQFC6EB4LGVXR5LPJLAN4EOUMVSYBAFDUUAMC 1000000
+```
+
+Breakdown:
+
+- `--wasm`: Path to the compiled WASM binary.
+- `--source`: Account paying for the deployment (must be funded).
+- `--`: Separator between deployment options and constructor arguments.
+- `init`: Constructor function name.
+- `admin GBRPYHIL2CI3WHZDTOOQFC6EB4LGVXR5LPJLAN4EOUMVSYBAFDUUAMC 1000000`: Constructor parameters.
+
+### Output
+
+```text
+Contract deployed successfully!
+Contract ID: CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQAHHXK3AWCM
+Tx Hash: 3389e9f0e1e4326df3d2bdc7cec16c0e87d8b96f8c12ca60a5a3c1e8f0b2a3c4
+```
+
+## SDK Instantiation
+
+### Via JavaScript / TypeScript
+
+Use the `@stellar/stellar-sdk` to instantiate a contract programmatically:
+
+```typescript
+import {
+  Keypair,
+  SorobanDataBuilder,
+  TransactionBuilder,
+  Networks,
+  StrKey,
+} from '@stellar/stellar-sdk';
+import { rpc } from '@stellar/stellar-sdk';
+
+const server = new rpc.Server('https://soroban-testnet.stellar.org');
+const networkPassphrase = Networks.TESTNET_NETWORK_PASSPHRASE;
+
+// Contract WASM binary (usually read from a file)
+const contractWasm = Buffer.from(wasmBinary, 'base64');
+
+// Admin account for instantiation
+const sourceKeypair = Keypair.fromSecret('SABC123...');
+
+// Build instantiation transaction
+async function instantiateContract() {
+  const source = await server.getAccount(sourceKeypair.publicKey());
+
+  const builder = new TransactionBuilder(source, {
+    fee: '100',
+    networkPassphrase,
+  })
+    .setTimeout(300)
+    .addOperation(
+      // Operation to install the contract WASM (if not already installed)
+      Operation.invokeHostFunction({
+        func: xdr.HostFunction.hostFunctionTypeInvokeHostFunction(
+          new xdr.InvokeHostFunctionOp({
+            hostFunction: xdr.HostFunction.hostFunctionTypeCreateContract(
+              new xdr.CreateContractArgs({
+                contractIdPreimage:
+                  xdr.ContractIdPreimage.contractIdPreimageFromSourceAccount(
+                    new xdr.ContractIdPreimageFromSourceAccount({
+                      networkId: xdr.Hash.fromXDR(
+                        Buffer.from(
+                          Networks.TESTNET_NETWORK_PASSPHRASE
+                        ).toString('hex')
+                      ),
+                      sourceAccount: xdr.MuxedAccount.keyTypeEd25519(
+                        xdr.Uint256.fromXDR(
+                          StrKey.decodeEd25519PublicKey(
+                            sourceKeypair.publicKey()
+                          )
+                        )
+                      ),
+                      salt: xdr.Uint256.random(),
+                    })
+                  ),
+                executable: xdr.ContractExecutable.contractExecutableWasmRef(
+                  xdr.Uint256.fromXDR(wasmHashBuffer)
+                ),
+              })
+            ),
+            args: [
+              // Constructor arguments encoded as XDR SCVal
+              xdr.SorobanAuthorizedFunction.sorobanAuthorizedFunctionTypeInvokeHostFunction(
+                xdr.InvokeHostFunctionOp({
+                  hostFunction:
+                    xdr.HostFunction.hostFunctionTypeInvokeHostFunction(
+                      new xdr.InvokeHostFunctionOp({
+                        hostFunction:
+                          xdr.HostFunction.hostFunctionTypeInvokeContract(
+                            new xdr.InvokeContractArgs({
+                              contractAddress: contractAddress,
+                              functionName: 'init',
+                              args: [
+                                nativeToScVal(
+                                  'GBRPYHIL2CI3WHZDTOOQFC6EB4LGVXR5LPJLAN4EOUMVSYBAFDUUAMC'
+                                ),
+                                nativeToScVal(1000000n),
+                              ],
+                            })
+                          ),
+                        footprint: footprint,
+                      })
+                    ),
+                  footprint: footprint,
+                })
+              ),
+            ],
+            footprint: footprint,
+          })
+        ),
+      })
+    );
+
+  const transaction = builder.build();
+  const signedTx = transaction.sign(sourceKeypair);
+
+  const result = await server.sendTransaction(signedTx);
+
+  if (result.status === 'SUCCESS') {
+    console.log('Contract instantiated:', result.id);
+  }
+}
+```
+
+### Simpler Pattern with SDK Helpers
+
+For most cases, use the contract client helpers:
+
+```typescript
+import { nativeToScVal } from '@stellar/stellar-sdk';
+
+const admin = 'GBRPYHIL2CI3WHZDTOOQFC6EB4LGVXR5LPJLAN4EOUMVSYBAFDUUAMC';
+const initialSupply = 1000000n;
+
+const args = [nativeToScVal(admin), nativeToScVal(initialSupply)];
+
+// Call the constructor
+const result = await contract.methods.init(admin, initialSupply).simulate();
+```
+
+## Handling Constructor Parameters
+
+Constructor parameters must be properly encoded as Soroban types:
+
+```rust
+// Contract definition
+#[contract]
+pub struct MyContract;
+
+#[contractimpl]
+impl MyContract {
+  #[constructor]
+  pub fn init(
+    env: Env,
+    admin: Address,
+    supply: i128,
+    name: String,
+  ) -> Result<(), Error> {
+    // Parameters are automatically decoded from XDR
+    env.storage().instance().set(&DataKey::Admin, &admin);
+    env.storage().instance().set(&DataKey::Supply, &supply);
+    env.storage().instance().set(&DataKey::Name, &name);
+    Ok(())
+  }
+}
+```
+
+When instantiating via CLI:
+
+```bash
+stellar contract deploy \
+  --wasm contract.wasm \
+  --source alice \
+  -- init admin GBRPYHIL2CI3WHZDTOOQFC6EB4LGVXR5LPJLAN4EOUMVSYBAFDUUAMC 1000000 "MyToken"
+```
+
+Type conversions:
+
+- `Address` → Stellar account or contract ID (`G...` or `C...`)
+- `i128` → Integer (e.g., `1000000`)
+- `String` → Quoted string (e.g., `"MyToken"`)
+- `Vec<T>` → Comma-separated values in brackets (e.g., `[1,2,3]`)
+
+## Common Patterns
+
+### Token Contract
+
+```rust
+#[contractimpl]
+impl MyToken {
+  #[constructor]
+  pub fn init(env: Env, admin: Address, supply: i128) -> Result<(), Error> {
+    env.storage().instance().set(&DataKey::Admin, &admin);
+    env.storage().instance().set(&DataKey::TotalSupply, &supply);
+    env.storage().instance().set(&DataKey::Decimals, &7i32);
+    Ok(())
+  }
+}
+```
+
+### Multi-Sig Contract
+
+```rust
+#[contractimpl]
+impl MultiSig {
+  #[constructor]
+  pub fn init(env: Env, signers: Vec<Address>, threshold: u32) -> Result<(), Error> {
+    if signers.is_empty() || threshold > signers.len() as u32 {
+      return Err(Error::InvalidConfig);
+    }
+
+    env.storage().instance().set(&DataKey::Signers, &signers);
+    env.storage().instance().set(&DataKey::Threshold, &threshold);
+    Ok(())
+  }
+}
+```
+
+### No-Op Constructor
+
+Not all contracts need a constructor:
+
+```rust
+#[contractimpl]
+impl StatelessContract {
+  // No constructor — contract is ready to use immediately after deployment
+  pub fn compute(x: i128, y: i128) -> i128 {
+    x + y
+  }
+}
+```
+
+## Verification Steps
+
+After instantiation:
+
+1. **Confirm the contract ID** was returned and saved.
+2. **Test constructor effects** by reading initial state:
+   ```bash
+   stellar contract invoke \
+     --contract-id CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQAHHXK3AWCM \
+     --source alice \
+     -- balance_of admin
+   ```
+3. **Verify storage** via [Stellar Expert](https://stellar.expert/explorer/testnet) contract viewer.
+
+## Related
+
+- [Soroban Contract ID Formats](/docs/guides/soroban-contract-id-formats)
+- [Contract Storage Migration Strategy](/docs/guides/contract-storage-migration)
+- [Complete dApp Example — Payments, Trustlines, and Soroban Invocation](/docs/examples/complete-dapp-tutorial)
+- [Contracts Quick Start](/docs/getting-started/contracts-quick-start)
+- [useSorobanContract Hook](/docs/hooks/use-soroban-contract)

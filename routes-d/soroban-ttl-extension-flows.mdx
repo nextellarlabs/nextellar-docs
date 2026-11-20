@@ -1,0 +1,360 @@
+---
+title: Soroban TTL Extension Flows
+description: Guide on extending Time-To-Live (TTL) for contract entries in Soroban — extension mechanics, cost implications, and practical patterns.
+date: 2026-11-20
+---
+
+# Soroban TTL Extension Flows
+
+Persistent storage entries in Soroban contracts have a configurable Time-To-Live (TTL). When an entry's TTL expires, it moves to archive storage. Understanding how to extend TTL efficiently is critical for maintaining live contract state and managing fees.
+
+## TTL Basics
+
+### Lifecycle
+
+Every persistent storage entry follows this lifecycle:
+
+1. **Created** — Entry is written with a default TTL (typically ~1 year on testnet).
+2. **Active** — The entry is live and accessible on the ledger.
+3. **Archived** — TTL expired; entry moved to archive storage. Can still be restored, but at higher cost.
+4. **Restored** — After restoration, TTL clock resets. Cost to restore is significant.
+
+### Ledger Sequence
+
+TTL is measured in **ledger sequence numbers**, not wall-clock time. Each ledger closes roughly every 5 seconds on Stellar:
+
+- 1 ledger sequence ≈ 5 seconds
+- 10,080 ledger sequences ≈ 1 day
+- 3,650,880 ledger sequences ≈ 190 days (the maximum TTL)
+
+## Extension Mechanics
+
+### The extend_ttl Call
+
+To extend an entry's TTL, call `extend_ttl()` on the storage type:
+
+```rust
+env.storage().persistent().extend_ttl(
+    &key,
+    100_000,  // ledgers_to_live: entry expires in this many ledgers
+    300_000   // ledgers_to_live_extended: after expiry, restorable for this many ledgers
+);
+```
+
+### Two-Phase Expiry
+
+`extend_ttl()` takes two parameters:
+
+| Parameter                  | Meaning                     | After This                                    | Next Phase                              |
+| -------------------------- | --------------------------- | --------------------------------------------- | --------------------------------------- |
+| `ledgers_to_live`          | ~100,000 ledgers (~5 days)  | Entry expires, moves to archive               | `ledgers_to_live_extended` phase begins |
+| `ledgers_to_live_extended` | ~300,000 ledgers (~15 days) | Entry deleted permanently; cannot be restored | Entry removed                           |
+
+Combined, an entry is protected for `100_000 + 300_000 = 400_000` ledgers (~20 days from now).
+
+### Instance Storage
+
+Instance storage has automatic TTL management and does not require manual extension:
+
+```rust
+// No extend_ttl call needed for instance storage
+env.storage().instance().set(&DataKey::Admin, &admin);
+
+// Instance storage lives as long as the contract exists
+```
+
+### Temporary Storage
+
+Temporary storage is automatically managed and expires after a short TTL:
+
+```rust
+// No extend_ttl call needed for temporary storage
+env.storage().temporary().set(&DataKey::Nonce(user), &1u64);
+
+// Auto-expires in a few hours (~5 hours on testnet)
+```
+
+## When to Extend TTL
+
+### Extend on Every User Interaction
+
+For balance sheets and per-user data, extend TTL **every time a user updates their entry**:
+
+```rust
+pub fn deposit(env: Env, user: Address, amount: i128) {
+    user.require_auth();
+
+    let key = DataKey::Balance(user.clone());
+
+    // Read current balance
+    let current: i128 = env.storage()
+        .persistent()
+        .get(&key)
+        .unwrap_or(0);
+
+    // Write new balance
+    env.storage()
+        .persistent()
+        .set(&key, &(current + amount));
+
+    // Extend TTL to prevent archival
+    env.storage()
+        .persistent()
+        .extend_ttl(&key, 100_000, 300_000);
+}
+```
+
+### Extend on Read
+
+For data accessed frequently but not modified, extend TTL on read to keep it alive:
+
+```rust
+pub fn get_balance(env: Env, user: Address) -> i128 {
+    let key = DataKey::Balance(user.clone());
+
+    // Extend TTL even though we're only reading
+    env.storage()
+        .persistent()
+        .extend_ttl(&key, 100_000, 300_000);
+
+    env.storage()
+        .persistent()
+        .get(&key)
+        .unwrap_or(0)
+}
+```
+
+### Lazy Migration with TTL Extension
+
+When migrating data between storage versions, extend TTL on the new key:
+
+```rust
+pub fn get_user(env: Env, user: Address) -> UserV2 {
+    let v2_key = DataKey::UserV2(user.clone());
+
+    // Try V2 first
+    if let Some(u) = env.storage().persistent().get::<_, UserV2>(&v2_key) {
+        // Extend V2 TTL
+        env.storage()
+            .persistent()
+            .extend_ttl(&v2_key, 100_000, 300_000);
+        return u;
+    }
+
+    // Fall back to V1 and migrate
+    let v1_key = DataKey::UserV1(user.clone());
+    let v1 = env.storage()
+        .persistent()
+        .get::<_, UserV1>(&v1_key)
+        .unwrap();
+
+    // Upgrade to V2
+    let v2 = UserV2 {
+        balance: v1.balance,
+        created_at: env.ledger().timestamp(),
+        tier: 0,
+    };
+
+    // Write and extend V2
+    env.storage().persistent().set(&v2_key, &v2);
+    env.storage()
+        .persistent()
+        .extend_ttl(&v2_key, 100_000, 300_000);
+
+    // Clean up old V1
+    env.storage().persistent().remove(&v1_key);
+
+    v2
+}
+```
+
+## Cost Implications
+
+### Fee Structure
+
+Extending TTL costs fees proportional to:
+
+1. **Entry size** — Larger entries cost more.
+2. **TTL duration** — Longer TTLs cost more (reserving more ledger space).
+3. **Network load** — Fees fluctuate with demand.
+
+### Cost Example
+
+On testnet (low fees):
+
+- Extending a small balance entry (20 bytes) by 100,000 ledgers (~$0.01 USD worth of lumens)
+- Extending a large data structure (500 bytes) by 100,000 ledgers (~$0.25 USD worth of lumens)
+
+On mainnet (variable fees):
+
+- Costs are roughly **50-500x higher** depending on network congestion.
+
+### Cost Optimization
+
+**Strategy 1: Extend on Write Only**
+
+Only call `extend_ttl()` when you write, not on every read:
+
+```rust
+pub fn deposit(env: Env, user: Address, amount: i128) {
+    // ... write logic ...
+    env.storage().persistent().extend_ttl(&key, 100_000, 300_000);
+}
+
+pub fn get_balance(env: Env, user: Address) -> i128 {
+    // Don't extend on read — save fees
+    env.storage().persistent().get(&key).unwrap_or(0)
+}
+```
+
+**Strategy 2: Batch Extensions**
+
+Extend multiple entries in a single transaction to amortize fees:
+
+```rust
+pub fn batch_extend(env: Env, users: Vec<Address>) {
+    for user in users {
+        let key = DataKey::Balance(user);
+        env.storage()
+            .persistent()
+            .extend_ttl(&key, 100_000, 300_000);
+    }
+}
+```
+
+**Strategy 3: Off-Chain Keeper**
+
+For dormant accounts, run an off-chain keeper that periodically bumps TTLs without charging users:
+
+```rust
+// Called by off-chain bot
+pub fn ping(env: Env, user: Address) {
+    let key = DataKey::Balance(user);
+    env.storage()
+        .persistent()
+        .extend_ttl(&key, 100_000, 300_000);
+}
+```
+
+## Handling Archival
+
+### Detecting Expiry
+
+When an entry expires and moves to archive, contract invocations that try to access it will panic:
+
+```rust
+// If `user_data_key` has expired and is archived:
+let data = env.storage()
+    .persistent()
+    .get::<_, UserData>(&user_data_key)
+    .unwrap(); // Panics if entry is archived
+```
+
+### Restoring from Archive
+
+To restore an archived entry, call `restore_ttl()`:
+
+```rust
+pub fn restore_user(env: Env, user: Address) {
+    let key = DataKey::Balance(user);
+
+    // Restore from archive (costs more than extend_ttl)
+    env.storage()
+        .persistent()
+        .restore_ttl(&key, 100_000, 300_000);
+
+    // Now safe to read
+    let balance = env.storage()
+        .persistent()
+        .get::<_, i128>(&key)
+        .unwrap();
+}
+```
+
+### Cost of Restoration
+
+Restoration is **2-3x more expensive** than normal `extend_ttl()` because the network must:
+
+1. Locate the archived entry.
+2. Restore it to active storage.
+3. Set a new TTL.
+
+**Prevention is cheaper:** Keep TTLs extended proactively rather than letting entries expire and restoring them.
+
+## Example: Token Contract
+
+```rust
+#[contract]
+pub struct Token;
+
+#[contracttype]
+pub enum DataKey {
+    Balance(Address),
+    Admin,
+    TotalSupply,
+}
+
+#[contractimpl]
+impl Token {
+    pub fn transfer(env: Env, from: Address, to: Address, amount: i128) {
+        from.require_auth();
+
+        // Read and extend sender balance
+        let from_key = DataKey::Balance(from.clone());
+        let from_balance: i128 = env.storage()
+            .persistent()
+            .get(&from_key)
+            .unwrap_or(0);
+        assert!(from_balance >= amount, "insufficient balance");
+
+        // Write sender balance and extend TTL
+        env.storage()
+            .persistent()
+            .set(&from_key, &(from_balance - amount));
+        env.storage()
+            .persistent()
+            .extend_ttl(&from_key, 100_000, 300_000);
+
+        // Read and extend receiver balance
+        let to_key = DataKey::Balance(to.clone());
+        let to_balance: i128 = env.storage()
+            .persistent()
+            .get(&to_key)
+            .unwrap_or(0);
+
+        // Write receiver balance and extend TTL
+        env.storage()
+            .persistent()
+            .set(&to_key, &(to_balance + amount));
+        env.storage()
+            .persistent()
+            .extend_ttl(&to_key, 100_000, 300_000);
+    }
+
+    pub fn balance_of(env: Env, user: Address) -> i128 {
+        let key = DataKey::Balance(user);
+        env.storage()
+            .persistent()
+            .get(&key)
+            .unwrap_or(0)
+    }
+}
+```
+
+## Verification Checklist
+
+Before deploying:
+
+- [ ] All persistent storage writes include `extend_ttl()` calls
+- [ ] TTL values are consistent (typically `100_000` and `300_000`)
+- [ ] Instance storage does **not** have `extend_ttl()` calls (auto-managed)
+- [ ] Temporary storage does **not** have `extend_ttl()` calls (auto-managed)
+- [ ] Off-chain keepers or restore handlers exist for long-lived entries
+- [ ] Transaction footprint includes the cost of `extend_ttl()` operations
+- [ ] Tests verify that archived entries can be restored if needed
+
+## Related
+
+- [Soroban Contract Data Key Types](/docs/guides/soroban-contract-data-key-types) — Storage types and their TTL requirements
+- [Soroban Resources Consolidated Guide](/docs/guides/soroban-resources-consolidated-guide) — Footprint, fees, and optimization
+- [Soroban Contract Authoring](/docs/guides/soroban-contract-authoring) — Common pitfalls including TTL archival
