@@ -14,6 +14,12 @@ The `useTrustlines` hook manages asset trustlines, allowing accounts to hold cus
   Not in your scaffold? Run `nextellar add trustlines`
 </Note>
 
+## Lumen reserves for trustlines
+
+An unsponsored account starts with a minimum balance of two base reserves (1 XLM). Each ordinary asset trustline adds one subentry and raises the minimum by one base reserve (0.5 XLM). Other subentries, such as offers, extra signers, and account data entries, also count toward the minimum. A liquidity pool share trustline counts as two subentries. See Stellar’s [base reserve note](https://developers.stellar.org/docs/learn/fundamentals/stellar-data-structures/accounts#base-reserves).
+
+For example, an account with two ordinary asset trustlines and no other subentries or sponsorship must keep 2 XLM (1 XLM for the account plus 0.5 XLM per trustline).
+
 ## Features
 
 - **Query Trustlines**: Fetch and list all active trustlines for an account

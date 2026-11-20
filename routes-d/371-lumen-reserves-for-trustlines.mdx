@@ -1,0 +1,15 @@
+---
+title: Lumen Reserves for Trustlines (Issue #371 Draft)
+description: See how trustlines and other account subentries affect the minimum XLM balance.
+date: 2026-11-20
+---
+
+# Lumen Reserves for Trustlines
+
+This draft for issue #371 accompanies the note in `docs/hooks/use-trustlines.mdx`.
+
+## Lumen reserves for trustlines
+
+An unsponsored account starts with a minimum balance of two base reserves (1 XLM). Each ordinary asset trustline adds one subentry and raises the minimum by one base reserve (0.5 XLM). Other subentries, such as offers, extra signers, and account data entries, also count toward the minimum. A liquidity pool share trustline counts as two subentries. See Stellar’s [base reserve note](https://developers.stellar.org/docs/learn/fundamentals/stellar-data-structures/accounts#base-reserves).
+
+For example, an account with two ordinary asset trustlines and no other subentries or sponsorship must keep 2 XLM (1 XLM for the account plus 0.5 XLM per trustline).
