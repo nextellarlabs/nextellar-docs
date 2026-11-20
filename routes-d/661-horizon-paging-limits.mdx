@@ -1,0 +1,47 @@
+---
+title: Horizon Paging Limits
+description: The default and maximum page sizes for Horizon collection endpoints, with an example of setting the limit.
+date: 2026-11-18
+---
+
+# Horizon Paging Limits
+
+Horizon collection endpoints such as `/accounts/{id}/payments`, `/transactions`, and `/ledgers` return results one page at a time. The `limit` query parameter controls how many records come back in a page.
+
+## Default limit
+
+If you leave out `limit`, Horizon returns **10** records per page.
+
+## Maximum limit
+
+The most you can ask for is **200** records per page. Horizon rejects a request with a `limit` above `200` and returns a `400` error.
+
+## Example
+
+Request the maximum page size in newest-first order:
+
+```ts
+const url =
+  `https://horizon-testnet.stellar.org/accounts/${accountId}/payments` +
+  `?order=desc&limit=200`;
+
+const res = await fetch(url);
+const page = await res.json();
+
+console.log(page._embedded.records.length); // up to 200
+```
+
+To read the next page, pass the `paging_token` of the last record as the `cursor`:
+
+```ts
+const records = page._embedded.records;
+const next = records[records.length - 1].paging_token;
+
+await fetch(`${url}&cursor=${next}`);
+```
+
+An empty `records` array means you have reached the end of the results.
+
+## Choosing a limit
+
+Fewer, larger pages mean fewer requests. See [Rate limiting Horizon requests](/docs/guides/rate-limiting-horizon-requests) for why `limit=200` is usually the right choice.
