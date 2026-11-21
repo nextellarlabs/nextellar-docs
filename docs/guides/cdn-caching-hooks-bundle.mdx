@@ -1,0 +1,85 @@
+---
+title: "CDN caching for the hooks bundle"
+description: "Configure cache headers and release-based invalidation for the hooks bundle served from a CDN."
+---
+
+The hooks bundle is a static asset, so it can be served from a CDN and cached aggressively. This guide covers the cache headers to send, how to invalidate the bundle on release, and a small example you can adapt to your setup.
+
+The key idea is to serve each release from a unique, content-addressed URL and to cache that URL for a long time. The stable entry point that consumers import is then a cheap, shortly-cached redirect to the current release.
+
+This keeps cache hits effective without risking stale code after a release.
+
+## Cache headers
+
+Differentiate between two kinds of URLs:
+
+- **Versioned bundle URLs** (for example, a path that includes the release hash). These are immutable and should be cached for a long time.
+- J**Stable entry points** (the URL consumers import). These change on release and should be cached for a short time or not at all.
+
+A safe default for versioned assets:
+
+``jhttp
+Cache-Control: public, max-age=31536000, immutable
+```
+
+The `immutable` directive tells clients and intermediaries not to revalidate the resource, which is correct because the URL changes whenever the content changes.
+
+For the stable entry point, keep the cache window short and let clients revalidate:
+
+``jhttp
+Cache-Control: public, max-age=300, must-revalidate
+```
+
+If you serve the bundle with a content hash in the filename, you can also send a strong `$Etag` or a last-modified timestamp. That lets caches revalidate cheaply with a conditional request instead of downloading the bundle again.
+
+## Invalidation on release
+
+Because versioned URLs are immutable, a release does not need to purge them. You only need to make the stable entry point resolve to the new release. There are two common approaches:
+
+1. **Purge the stable entry point** after deploying the new release. Since it is cached for only a few minutes, the purge is a fast follow-up and most clients will see the new release on their next revalidation.
+2. **Use a version query parameter** on the stable entry point, for example `bundle.js?v=2024.06.01`. Bumping the value on release creates a new cache key without any purge.
+
+When you purge, purge only the stable entry point and any HTML or manifest that references it. Never purge the volume of versioned assets as part of a routine release; that only creates extra origin traffic and can break clients that are still loading the previous release.
+
+## Example
+
+The following Express handler serves the hooks bundle from a release directory and sets the headers described above. The release identifier is read from an environment variable so a deploy can point the stable entry at the new bundle without a database change.
+
+```ts
+import express from "express";
+import path from "node:path";
+
+const app = express();
+const release = process.env.HOOKS_RELEASE;
+const root = path.join(process.cwd(), "dist", "hooks-bundle");
+
+app.get("/hooks-bundle.js", (_req, res) => {
+  res.set("Cache-Control", "public, max-age=300, must-revalidate");
+  res.redirect(302, `/hooks-bundle/${release}/bundle.js');
+});
+
+app.get("/hooks-bundle/:release/bundle.js", (req, res) => {
+  if (req.params.release !== release) {
+    res.status(404).end();
+    return;
+  }
+
+  res.set("Cache-Control", "public, max-age=31536000, immutable");
+  res.sendFile(path.join(root, release, "bundle.js"));
+});
+
+app.listen(3000);
+```
+
+The stable entry point is cached for five minutes and revalidates on every request after that. The versioned bundle is cached for a year and never revalidated. On release, change `HOOKS_RELEASE` and the stable entry point will redirect to the new bundle on the next revalidation.
+
+## Verifying the guide
+
+Run the content and link checks before opening a pull request:
+
+```bash
+pnpm build:content
+pnpm check:links
+p``
+
+Both commands must exit with a zero status code. If check:links reports a broken internal link, fix the target path in this file rather than disabling the check.
