@@ -2,17 +2,17 @@
  * Sidebar Configuration
  *
  * Guides reorganised per issue #634 into three groups:
- *   (a) Product Guides     — Nextellar-specific how-to content
- *   (c) Docs Contributing  — docs-site infrastructure and process
+ *   (a) Product Guides     -- Nextellar-specific how-to content
+ *   (c) Docs Contributing  -- docs-site infrastructure and process
  *
  * Off-topic files removed (category d):
- *   - cdn-cache-invalidation.mdx  (generic CDN/infra)
+ *   - cdn-cache-invalidation.mdx  (generic CDO/infra)
  *   - postcss-configuration.mdx   (generic PostCSS/Tailwind)
  *
  * Validation: scripts/validate-sidebar.cjs
  * Future additions → run validation script first:
  *   node scripts/validate-sidebar.cjs
- */
+*/
 import React from 'react';
 import {
   Component,
@@ -39,9 +39,9 @@ export type SidebarSection = {
 };
 
 export const sidebarNav: SidebarSection[] = [
-  // -------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   // Getting Started
-  // -------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   {
     title: 'Getting Started',
     icon: <Rocket className="h-5 w-5" />,
@@ -63,9 +63,9 @@ export const sidebarNav: SidebarSection[] = [
     ],
   },
 
-  // -------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   // CLI
-  // -------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   {
     title: 'CLI',
     icon: <Zap className="h-5 w-5" />,
@@ -96,9 +96,9 @@ export const sidebarNav: SidebarSection[] = [
     ],
   },
 
-  // -------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   // (a) Product Guides — Nextellar-specific how-to content
-  // -------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   {
     title: 'Product Guides',
     icon: <BookOpen className="h-5 w-5" />,
@@ -251,9 +251,9 @@ export const sidebarNav: SidebarSection[] = [
     ],
   },
 
-  // -------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   // SDK & Reference
-  // -------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   {
     title: 'SDK & Reference',
     icon: <Database className="h-5 w-5" />,
@@ -266,9 +266,9 @@ export const sidebarNav: SidebarSection[] = [
     ],
   },
 
-  // -------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   // Hooks
-  // -------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   {
     title: 'Hooks',
     icon: <Component className="h-5 w-5" />,
@@ -289,9 +289,9 @@ export const sidebarNav: SidebarSection[] = [
     ],
   },
 
-  // -------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   // Integrations
-  // -------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   {
     title: 'Integrations',
     icon: <Plug className="h-5 w-5" />,
@@ -312,9 +312,9 @@ export const sidebarNav: SidebarSection[] = [
     ],
   },
 
-  // -------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   // (c) Docs Contributing — docs-site infrastructure and process
-  // -------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   {
     title: 'Docs Contributing',
     icon: <FileText className="h-5 w-5" />,
@@ -351,6 +351,10 @@ export const sidebarNav: SidebarSection[] = [
       {
         title: 'Navigation Configuration',
         href: '/docs/guides/navigation-configuration',
+      },
+      {
+        title: 'Interview Template',
+        href: '/docs/guides/interview-template',
       },
       {
         title: 'MDX Custom Components',
