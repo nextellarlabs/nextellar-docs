@@ -1,0 +1,112 @@
+---
+title: Using Effect Streams
+description: Subscribe to a live stream of effects for one account with Horizon, handle the common effect types, and keep the stream running reliably.
+date: 2026-11-21
+---
+
+# Using Effect Streams
+
+An **effect** records a change an operation made to the ledger, such as an account being credited or a trustline being created. Horizon can stream an account's effects to you as they happen, so you can update a balance or show a notification without polling.
+
+## Setting up a subscription
+
+Horizon streams over Server-Sent Events. With the SDK, call `stream()` instead of `call()`. Start from `cursor('now')` so you receive only new effects, not the account's whole history.
+
+```javascript
+import { Horizon } from '@stellar/stellar-sdk';
+
+const server = new Horizon.Server('https://horizon-testnet.stellar.org');
+
+export function watchEffects(accountId, onEffect) {
+  const close = server
+    .effects()
+    .forAccount(accountId)
+    .cursor('now')
+    .stream({
+      onmessage: (effect) => onEffect(effect),
+      onerror: (error) => console.error('Effect stream error', error),
+    });
+
+  // Call this to stop listening.
+  return close;
+}
+```
+
+`stream()` returns a function that closes the connection. Always call it when you no longer need the stream, otherwise it stays open.
+
+## Common effect types
+
+Each effect has a `type`. Read it before using other fields, because the fields depend on the type.
+
+| `type` | Meaning |
+| --- | --- |
+| `account_created` | The account was created and funded. |
+| `account_credited` | The account received an amount of an asset. |
+| `account_debited` | The account sent an amount of an asset. |
+| `trustline_created` | The account opted in to hold an asset. |
+| `trustline_removed` | The account removed a trustline. |
+| `signer_created` | A signer was added to the account. |
+| `trade` | One of the account's offers was matched on the exchange. |
+
+Ignore types you do not handle. Horizon may add new effect types, so do not treat an unknown type as an error.
+
+```javascript
+export function describeEffect(effect) {
+  const asset = effect.asset_type === 'native' ? 'XLM' : effect.asset_code;
+
+  switch (effect.type) {
+    case 'account_credited':
+      return `Received ${effect.amount} ${asset}`;
+    case 'account_debited':
+      return `Sent ${effect.amount} ${asset}`;
+    case 'trustline_created':
+      return `Added trustline for ${effect.asset_code}`;
+    default:
+      return null; // not displayed
+  }
+}
+```
+
+## In a React component
+
+```tsx
+import { useEffect, useState } from 'react';
+import { watchEffects, describeEffect } from './effects';
+
+export function ActivityFeed({ accountId }: { accountId: string }) {
+  const [lines, setLines] = useState<string[]>([]);
+
+  useEffect(() => {
+    const close = watchEffects(accountId, (effect) => {
+      const line = describeEffect(effect);
+      if (line) setLines((current) => [line, ...current].slice(0, 20));
+    });
+    return close; // closes the stream when the account changes or the component unmounts
+  }, [accountId]);
+
+  return (
+    <ul>
+      {lines.map((line, index) => (
+        <li key={index}>{line}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+Returning `close` from the effect is what stops the stream on unmount.
+
+## Keeping the stream reliable
+
+A stream is a long-lived connection and it can drop, for example when the network changes or a proxy closes an idle connection. To avoid missing effects:
+
+- Store the `paging_token` of the last effect you handled.
+- If you have to open a new stream, pass that token to `cursor()` instead of `'now'` so Horizon resumes after it. Effects that arrived while you were disconnected are delivered first.
+- Handle the same effect more than once safely, for example by keying on the effect `id`.
+- Back off before reconnecting. See [Rate Limiting Horizon Requests](/docs/guides/rate-limiting-horizon-requests).
+
+## Related
+
+- [Stellar Horizon](/docs/integrations/horizon) — Horizon basics
+- [Rate Limiting Horizon Requests](/docs/guides/rate-limiting-horizon-requests) — Reconnecting without hammering Horizon
+- [Glossary](/docs/guides/glossary) — Stellar network terminology
