@@ -1,0 +1,41 @@
+---
+title: The Fee Stats Window
+description: The time window Horizon's fee_stats endpoint aggregates over, and the fields it returns.
+date: 2026-11-21
+---
+
+# The Fee Stats Window
+
+Horizon's `GET /fee_stats` endpoint summarises the fees recently paid on the network. It describes the **most recent ledgers, not a long history**: the aggregates cover roughly the last **5 ledgers**, which is about **25 seconds** at the usual ~5 second ledger close time. It is not an hourly or daily figure.
+
+This makes the numbers a good picture of the current fee market, and a poor one for trends. If you want a longer view, sample the endpoint on a schedule and store the results yourself.
+
+## Fields
+
+| Field | Meaning |
+| --- | --- |
+| `last_ledger` | Sequence of the most recent ledger included in the stats |
+| `last_ledger_base_fee` | Base fee of that ledger, in stroops |
+| `ledger_capacity_usage` | How full recent ledgers are, from `0` (empty) to `1` (full) |
+| `fee_charged` | Distribution of fees actually paid per operation |
+| `max_fee` | Distribution of the maximum fees transaction submitters offered |
+
+`fee_charged` and `max_fee` each contain `min`, `max`, `mode` and percentile values such as `p10`, `p50`, `p90` and `p99`. Compare the two: `max_fee` is what submitters were willing to pay, `fee_charged` is what they paid.
+
+```javascript
+import { Horizon } from '@stellar/stellar-sdk';
+
+const server = new Horizon.Server('https://horizon-testnet.stellar.org');
+const stats = await server.feeStats();
+
+console.log('Capacity usage:', stats.ledger_capacity_usage);
+console.log('p90 fee charged:', stats.fee_charged.p90);
+```
+
+All values are strings, in stroops (1 XLM = 10,000,000 stroops).
+
+## Related
+
+- [Fee Market Awareness](/docs/guides/fee-market-awareness) — Choosing a fee from these stats
+- [Stellar Horizon](/docs/integrations/horizon) — Horizon basics
+- [Glossary](/docs/guides/glossary) — Stellar network terminology
