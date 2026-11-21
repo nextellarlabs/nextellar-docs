@@ -1,0 +1,94 @@
+---
+title: Safe Integer Handling for Lumens
+description: Why lumen amounts should be handled as integer stroops, how to convert with BigInt, and when to reach for a big number library.
+date: 2026-11-21
+---
+
+# Safe Integer Handling for Lumens
+
+Money maths with floating-point numbers drifts. This guide shows how to handle lumen amounts exactly by working in the smallest unit, the stroop, with integers.
+
+## The stroop is the base unit
+
+Stellar stores amounts as 64-bit integers. For lumens (XLM) the smallest unit is the **stroop**:
+
+```
+1 XLM = 10,000,000 stroops   (7 decimal places)
+```
+
+Horizon and the SDK give you amounts as decimal strings with up to seven decimal places, such as `"12.5000000"`. The largest amount an account can hold is the largest signed 64-bit integer in stroops, `9,223,372,036,854,775,807`, which is `922,337,203,685.4775807` XLM.
+
+## Why not use `Number`
+
+JavaScript numbers are 64-bit floats. They cannot represent every decimal, and they can only count integers exactly up to `Number.MAX_SAFE_INTEGER` (`9007199254740991`, which is about 900,719,925 XLM in stroops).
+
+```javascript
+0.1 + 0.2;          // 0.30000000000000004
+9007199254740993;   // 9007199254740992  (the last digit is silently lost)
+```
+
+A balance in stroops can be larger than that, and fractions of a lumen are not exact in a float. Avoid `parseFloat` and `Number` for amounts that are added, compared or sent.
+
+## Converting with `BigInt`
+
+`BigInt` holds arbitrarily large integers exactly. Convert the decimal string to stroops once, do your arithmetic on integers, and convert back only to display or to send.
+
+```typescript
+const STROOPS_PER_LUMEN = 10_000_000n;
+const MAX_STROOPS = 9_223_372_036_854_775_807n;
+
+export function lumensToStroops(amount: string): bigint {
+  const match = /^(\d+)(?:\.(\d{1,7}))?$/.exec(amount.trim());
+  if (!match) throw new Error(`Invalid lumen amount: ${amount}`);
+
+  const whole = BigInt(match[1]);
+  const fraction = BigInt((match[2] ?? '').padEnd(7, '0'));
+  const stroops = whole * STROOPS_PER_LUMEN + fraction;
+
+  if (stroops > MAX_STROOPS) throw new Error('Amount exceeds the 64-bit limit');
+  return stroops;
+}
+
+export function stroopsToLumens(stroops: bigint): string {
+  const negative = stroops < 0n;
+  const absolute = negative ? -stroops : stroops;
+  const whole = absolute / STROOPS_PER_LUMEN;
+  const fraction = (absolute % STROOPS_PER_LUMEN).toString().padStart(7, '0');
+  return `${negative ? '-' : ''}${whole}.${fraction}`;
+}
+```
+
+Usage:
+
+```typescript
+const balance = lumensToStroops('100.5');   // 1005000000n
+const fee = lumensToStroops('0.00001');     // 100n
+const remaining = balance - fee;            // 1004999900n
+
+stroopsToLumens(remaining);                 // "100.4999900"
+```
+
+The parser rejects more than seven decimal places and non-numeric input, so a value the network would refuse is caught before you build a transaction. `BigInt` literals (`10n`) and numeric separators need a target of ES2020 or later.
+
+## When to use a big number library
+
+`BigInt` is exact but only handles whole numbers. If you need fractional rates, such as applying a percentage fee or a price to an amount, use a decimal library such as [`bignumber.js`](https://github.com/MikeMcl/bignumber.js), `big.js` or `decimal.js`:
+
+- Pass amounts to the library as **strings**, never as numbers.
+- Choose the rounding mode on purpose, and round once at the end rather than after each step.
+- Convert the final result back to stroops (an integer) before sending it.
+
+The Stellar SDK already uses `bignumber.js` internally for amounts, so it is a natural fit if you want one dependency for both.
+
+## Checklist
+
+- Keep amounts as strings at the edges and as `bigint` stroops in the middle.
+- Never accumulate amounts in `Number`.
+- Validate: non-negative, at most seven decimal places, within the 64-bit limit.
+- Format for display only at the last step, for example with `Intl.NumberFormat` on the decimal string's parts.
+
+## Related
+
+- [Fee Market Awareness](/docs/guides/fee-market-awareness) — Fees are expressed in stroops
+- [Optimizing Transaction Sizes](/docs/guides/optimizing-transaction-sizes) — Stroops in practice
+- [Glossary](/docs/guides/glossary) — Stellar network terminology
