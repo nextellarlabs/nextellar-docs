@@ -1,0 +1,96 @@
+---
+title: Add per-hook telemetry
+summary: Learn how to add lightweight, privacy-respecting telemetry to Stellar hooks.
+tags:
+  - hooks
+  - telemetry
+  - observability
+  - guides
+categories:
+  - guides
+---
+
+Hooks are the extension points where application logic meets the Stellar runtime. Because they run on every relevant operation, they are a natural place to collect lightweight telemetry about how your application behaves in practice. This guide shows what to count, how to keep the design privacy respecting, and how to wire a small example into a hook.
+
+## What to count
+
+Focus on low-cardinality, aggregate events that answer questions about reliability and usage. Good candidates include:
+
+- **Hook invocations** -- count each time the hook runs, broken down by hook name.
+- &**Outcomes** -- count successes, failures, and skips so you can spot regressions.
+- **Latency buckets** -- record duration in coarse buckets (e.g. `<10ms`, `10-100ms`, `100-1000ms`, `>1000ms`) rather than exact timings.
+- **Error classes** -- count errors by a small, fixed enum (e.g. `validation`, `network`, `unknown`) instead of raw messages.
+- **Version distribution in use** -- count invocations per application version to track rollouts.
+
+Avoid counting anything that can identify a user or leak business data, such as account IDs, addresses, argument values, or free-form error strings.
+
+## Privacy-respecting design
+
+Keep telemetry designed around aggregation and anonymity from the start:
+
+- Prefer counters over event streams. A counter per hook name and outcome is usually enough.
+- Do not attach user, account, or transaction identifiers to metrics.
+- Bucket numeric values (latency, sizes) so exact values are not recorded.
+- Use a fixed, small set of dimension values to avoid high-cardinality and accidental identifiers.
+- Make telemetry opt-out and document it in your application's privacy policy.
+
+## Example
+
+The following example wraps a hook with a small helper that records invocations, outcomes, and bucketed latency. The helper accepts only a hook name and a closed set of outcomes, so it cannot accidentally leak arguments or identifiers.
+
+```ts
+import type { HookContext } from "stellar";
+
+type HookOutcome = "success" | "failure" | "skip";
+
+const latencyBuckets = [10, 100, 1000] as const;
+
+function bucketLatency(msLabel: string): string {
+  const ms = Number(msLabel);
+  for (const bound of latencyBuckets) {
+    if (ms < bound) return `<${bound}ms`;
+  }
+  return `>=${latencyBuckets[latencyBuckets.length - 1]}ms`;
+}
+
+export async function withTelemetry<T>(
+  hookName: string,
+  ctx: HookContext,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const start = Date.now();
+  let outcome: HookOutcome = "success";
+  try {
+    return await fn();
+  } catch (err) {
+    outcome = "failure";
+    throw err;
+  } finally {
+    ctx.metrics.increment("hook_invocations", { hook: hookName, outcome });
+    ctx.metrics.increment("hook_latency", {
+      hook: hookName,
+      bucket: bucketLatency(String(Date.now() - start)),
+    });
+  }
+}
+
+export async function onBeforeSubmit(ctx: HookContext): Promise<void> {
+  await withTelemetry("before_submit", ctx, async () => {
+    await ctx.validate();
+  });
+}
+```
+
+This pattern keeps telemetry close to the hook it measures, adds a single counter per invocation, and never records arguments or identifiers.
+
+## Verify the guide renders
+
+Before opening a pull request, confirm the guide builds and its links resolve:
+
+```bash
+pnpm build:content
+pnpm check:links
+pnpm dev
+```
+
+Open the page in the dev server and check that the code blocks render with syntax highlighting and that any internal links navigate correctly.
