@@ -1,0 +1,41 @@
+---
+title: Stellar CLI Keychain Integration
+description: How the Stellar CLI can keep signing keys in the operating system keychain instead of on disk, and what to watch out for.
+date: 2026-11-21
+---
+
+# Stellar CLI Keychain Integration
+
+By default, `stellar keys generate` saves an identity's secret key in a file under your Stellar config directory. The CLI can instead store the key in your operating system's credential store, so the secret is never written to disk in plain text.
+
+## Approach
+
+Pass `--secure-store` when you create the identity:
+
+```bash
+stellar keys generate alice --secure-store --network testnet --fund
+```
+
+The CLI hands the secret to the operating system and keeps only a reference to it in the identity file. When you sign (for example with `--source alice`), the CLI asks the system store for the key, and the operating system may prompt you to unlock it. The exact flags can differ between CLI versions, so check `stellar keys generate --help` for yours.
+
+## Supported platforms
+
+| Platform | Backing store |
+| --- | --- |
+| macOS | Keychain |
+| Windows | The system secure credential store |
+| Linux | The kernel keyring and the Secret Service API (for example GNOME Keyring or KWallet over D-Bus) |
+
+On Linux, a desktop session with a running Secret Service provider is usually required, so headless servers and CI runners often cannot use it.
+
+## Handling keys safely
+
+- **Don't mix methods.** The older `--secret-key` and `--seed-phrase` options keep the secret in the identity file or your shell history. Prefer `--secure-store` for any key that holds real value.
+- **Never commit identity files or paste secrets.** An identity created without `--secure-store` contains the secret key; keep your Stellar config directory out of version control.
+- **Back up your recovery phrase.** A key that lives only in one machine's keychain is lost if the machine is reset or the keychain is wiped.
+- **Use testnet identities for testing.** Don't reuse a mainnet key in scripts that anyone else can run.
+
+## Related
+
+- [Contracts Quick Start](/docs/getting-started/contracts-quick-start) — Creating and funding an identity
+- [Security Hardening](/docs/guides/security-hardening) — Broader guidance for protecting secrets

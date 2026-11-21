@@ -1,0 +1,111 @@
+---
+title: Building a Claim History Feed
+description: Build a small feed of an account's claimed claimable balances from Horizon effects, with pagination and a rendering example.
+date: 2026-11-21
+---
+
+# Building a Claim History Feed
+
+A claim history feed lists the [claimable balances](/docs/guides/claimable-balances) an account has claimed, newest first. This guide builds one from Horizon data.
+
+## Data source
+
+When an account claims a balance, Horizon records a `claimable_balance_claimed` **effect** on that account, alongside the `claim_claimable_balance` operation. Read the effect rather than the operation: the effect describes the outcome (which balance, which asset and how much), while the operation only names the balance and the claimant.
+
+Horizon's effects endpoint for an account has no filter for the effect type, so request the account's effects and keep the claims:
+
+```javascript
+import { Horizon } from '@stellar/stellar-sdk';
+
+const server = new Horizon.Server('https://horizon-testnet.stellar.org');
+
+export async function fetchClaims(accountId, page) {
+  const result = page
+    ? await page.next()
+    : await server.effects().forAccount(accountId).order('desc').limit(100).call();
+
+  const claims = result.records
+    .filter((effect) => effect.type === 'claimable_balance_claimed')
+    .map((effect) => ({
+      id: effect.id,
+      balanceId: effect.balance_id,
+      asset: effect.asset_type === 'native' ? 'XLM' : effect.asset_code,
+      amount: effect.amount,
+      claimedAt: effect.created_at,
+    }));
+
+  return { claims, page: result, done: result.records.length === 0 };
+}
+```
+
+Check a live response from the network you target for the exact effect fields before relying on them.
+
+## Rendering
+
+A minimal React list with a "Load more" button:
+
+```tsx
+import { useEffect, useState } from 'react';
+import { fetchClaims } from './fetchClaims';
+
+export function ClaimHistory({ accountId }: { accountId: string }) {
+  const [claims, setClaims] = useState<any[]>([]);
+  const [page, setPage] = useState<any>(null);
+  const [done, setDone] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  async function loadMore() {
+    setLoading(true);
+    const next = await fetchClaims(accountId, page);
+    setClaims((current) => [...current, ...next.claims]);
+    setPage(next.page);
+    setDone(next.done);
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    setClaims([]);
+    setPage(null);
+    setDone(false);
+    loadMore();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountId]);
+
+  if (!loading && claims.length === 0 && done) return <p>No claims yet.</p>;
+
+  return (
+    <>
+      <ul>
+        {claims.map((claim) => (
+          <li key={claim.id}>
+            {claim.amount} {claim.asset} claimed on{' '}
+            {new Date(claim.claimedAt).toLocaleDateString()}
+          </li>
+        ))}
+      </ul>
+      {!done && (
+        <button onClick={loadMore} disabled={loading}>
+          {loading ? 'Loading…' : 'Load more'}
+        </button>
+      )}
+    </>
+  );
+}
+```
+
+## Pagination
+
+Horizon returns a bounded page of records at a time:
+
+- **`limit`** sets the page size (Horizon caps it, so don't assume you can request everything).
+- **`order=desc`** returns the newest effects first.
+- **`cursor`** is the `paging_token` of the last record you received. The SDK handles this for you: call `page.next()` for the following page.
+- An empty `records` array means you have reached the end.
+
+Because the claims are filtered out of all of an account's effects, a page can contain few claims or none even though more exist. Keep fetching until you have enough claims to fill the screen, or until the pages run out, and avoid stopping at the first page that has no claims.
+
+## Related
+
+- [Claimable Balances](/docs/guides/claimable-balances) — Creating and claiming balances
+- [Stellar Horizon](/docs/integrations/horizon) — Horizon basics
+- [Rate Limiting Horizon Requests](/docs/guides/rate-limiting-horizon-requests) — Keep paging within request limits

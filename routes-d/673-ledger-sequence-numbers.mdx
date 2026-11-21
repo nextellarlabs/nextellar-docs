@@ -1,0 +1,42 @@
+---
+title: Ledger Sequence Numbers
+description: What a ledger sequence number is, how it advances, and how it differs from an account sequence number.
+date: 2026-11-21
+---
+
+# Ledger Sequence Numbers
+
+A **ledger sequence number** is the position of a ledger in the Stellar network's history. It is stored in the ledger header as `ledgerSeq`, an unsigned 32-bit integer, and every ledger is identified by it. Horizon exposes it as `sequence` on ledger records and as `ledger` on transactions, operations and effects.
+
+## How it advances
+
+- The first ledger (the genesis ledger) is sequence `1`.
+- Each ledger closes with a sequence exactly one higher than the one before, so sequence numbers never skip or repeat.
+- Validators close a ledger roughly every **5 seconds**, so the sequence grows by about 12 per minute.
+
+Because the sequence only ever increases by one, you can use it as a stable clock: to measure how far apart two events are, subtract their ledger numbers and multiply by the average close time.
+
+```javascript
+import { Horizon } from '@stellar/stellar-sdk';
+
+const server = new Horizon.Server('https://horizon-testnet.stellar.org');
+const latest = await server.ledgers().order('desc').limit(1).call();
+
+console.log('Latest ledger sequence:', latest.records[0].sequence);
+```
+
+## Not the same as an account sequence number
+
+The two are easy to confuse:
+
+| | Ledger sequence | Account sequence |
+| --- | --- | --- |
+| Belongs to | The whole network | One account |
+| Advances | Once per ledger close | Once per transaction the account submits |
+| Used for | Ordering ledgers, ledger bounds, event queries | Ordering and replay protection for an account's transactions |
+
+## Related
+
+- [Transaction Lifecycle](/docs/guides/transaction-lifecycle) — How a transaction reaches a ledger
+- [Stellar Horizon](/docs/integrations/horizon) — Querying ledgers through Horizon
+- [Glossary](/docs/guides/glossary) — Stellar network terminology
