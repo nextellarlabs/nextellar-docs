@@ -1,0 +1,57 @@
+---
+title: Inspect Trustlines from Horizon
+description: Read an account's trustlines from the balances field returned by Horizon, with the shape of each entry.
+date: 2026-11-21
+---
+
+# Inspect Trustlines from Horizon
+
+An account's trustlines are listed in the `balances` array of its Horizon account record. Each entry is one asset the account holds or has opted in to hold, including XLM.
+
+```javascript
+import { Horizon } from '@stellar/stellar-sdk';
+
+const server = new Horizon.Server('https://horizon-testnet.stellar.org');
+const account = await server.accounts().accountId(publicKey).call();
+
+const trustlines = account.balances.filter((b) => b.asset_type !== 'native');
+
+for (const line of trustlines) {
+  console.log(`${line.asset_code}:${line.asset_issuer}`, line.balance, 'limit', line.limit);
+}
+```
+
+## Shape of a trustline
+
+```json
+{
+  "asset_type": "credit_alphanum4",
+  "asset_code": "USDC",
+  "asset_issuer": "GA5Z...",
+  "balance": "250.0000000",
+  "limit": "922337203685.4775807",
+  "buying_liabilities": "0.0000000",
+  "selling_liabilities": "0.0000000",
+  "is_authorized": true,
+  "is_authorized_to_maintain_liabilities": true,
+  "last_modified_ledger": 54321098
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `asset_type` | `native` (XLM), `credit_alphanum4`, `credit_alphanum12`, or `liquidity_pool_shares` |
+| `asset_code`, `asset_issuer` | Which asset the trustline is for (absent for `native` and pool shares) |
+| `balance` | Amount held, as a string with 7 decimals |
+| `limit` | Most the account has agreed to hold (absent for `native`) |
+| `buying_liabilities`, `selling_liabilities` | Amounts reserved by open offers |
+| `is_authorized` | Whether the issuer currently allows the account to hold the asset |
+
+- The `native` entry has no `asset_code`, `asset_issuer` or `limit`, so filter it out or handle it separately as above.
+- Pool-share entries carry a `liquidity_pool_id` instead of a code and issuer.
+- Amounts are strings. Keep them as strings or use a decimal library; don't convert to `Number` for arithmetic.
+
+## Related
+
+- [Stellar Horizon](/docs/integrations/horizon) — Querying accounts through Horizon
+- [Glossary](/docs/guides/glossary) — Stellar network terminology
