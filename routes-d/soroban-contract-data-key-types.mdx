@@ -1,0 +1,307 @@
+---
+title: Soroban Contract Data Key Types
+description: Compare and contrast temporary, persistent, and instance storage types in Soroban contracts — usage patterns, tradeoffs, and examples.
+date: 2026-11-20
+---
+
+# Soroban Contract Data Key Types
+
+Soroban contracts offer three storage types, each with different lifetimes, costs, and use cases. Choosing the right type is essential for efficient contract design.
+
+## Overview
+
+| Type           | Lifetime               | Use Case                           | Cost   | TTL Management            |
+| -------------- | ---------------------- | ---------------------------------- | ------ | ------------------------- |
+| **Instance**   | Until contract removed | Immutable config, contract state   | Low    | Managed by contract       |
+| **Persistent** | Configurable TTL       | User balances, metadata, history   | Medium | Manual extend_ttl() calls |
+| **Temporary**  | Shorter TTL            | Caches, intermediate state, nonces | Low    | Automatic expiry          |
+
+## Instance Storage
+
+### Characteristics
+
+- **Lifetime**: Lives as long as the contract exists.
+- **Immutability**: Data set at instantiation cannot be changed by future contract code.
+- **Cost**: Cheapest to store — included in the contract's footprint.
+- **TTL**: Managed automatically; no manual extension needed.
+
+### Use Cases
+
+- Contract configuration (admin, fees, token addresses).
+- Immutable state that needs to persist across all invocations.
+- Global counters or aggregates that never expire.
+
+### Example
+
+```rust
+#[contract]
+pub struct SwapContract;
+
+#[contracttype]
+pub enum DataKey {
+    TokenA,
+    TokenB,
+    ReserveA,
+    ReserveB,
+}
+
+#[contractimpl]
+impl SwapContract {
+    pub fn initialize(env: Env, token_a: Address, token_b: Address) {
+        if env.storage().instance().has(&DataKey::TokenA) {
+            panic!("already initialized");
+        }
+
+        // Set immutable config at initialization
+        env.storage().instance().set(&DataKey::TokenA, &token_a);
+        env.storage().instance().set(&DataKey::TokenB, &token_b);
+        env.storage().instance().set(&DataKey::ReserveA, &0i128);
+        env.storage().instance().set(&DataKey::ReserveB, &0i128);
+    }
+
+    pub fn swap(env: Env, from: Address, amount_a: i128) {
+        from.require_auth();
+
+        // Read immutable config
+        let token_a: Address = env.storage().instance().get(&DataKey::TokenA).unwrap();
+        let reserve_a: i128 = env.storage().instance().get(&DataKey::ReserveA).unwrap();
+
+        // Update reserve
+        env.storage().instance().set(&DataKey::ReserveA, &(reserve_a + amount_a));
+    }
+}
+```
+
+### Tradeoffs
+
+**Pros:**
+
+- No TTL management.
+- Lowest transaction cost.
+- Guaranteed to persist.
+
+**Cons:**
+
+- Data is set once at instantiation.
+- Updates still cost, but they're expected to be rare.
+
+---
+
+## Persistent Storage
+
+### Characteristics
+
+- **Lifetime**: Configurable Time-To-Live (TTL) — defaults to ~1 year on testnet.
+- **Mutability**: Can be read, written, and removed at any time.
+- **Cost**: Higher per-entry than instance; affected by data size and TTL.
+- **TTL Management**: Requires manual `extend_ttl()` calls to keep data alive.
+
+### Use Cases
+
+- User balances and account state.
+- Metadata tied to specific addresses or assets.
+- Contract history and audit logs that may expire.
+- Any data that changes frequently and has a natural end-of-life.
+
+### Example
+
+```rust
+#[contracttype]
+pub enum DataKey {
+    Staked(Address),
+    Rewards(Address),
+    UserRewardPerTokenPaid(Address),
+}
+
+pub fn read_staked(env: &Env, addr: &Address) -> i128 {
+    env.storage()
+        .persistent()
+        .get(&DataKey::Staked(addr.clone()))
+        .unwrap_or(0)
+}
+
+pub fn write_staked(env: &Env, addr: &Address, amount: i128) {
+    let key = DataKey::Staked(addr.clone());
+    env.storage().persistent().set(&key, &amount);
+
+    // Extend TTL so this user's stake doesn't expire for 100K ledgers (~5 days)
+    env.storage().persistent().extend_ttl(&key, 100_000, 100_000);
+}
+
+pub fn stake(env: Env, staker: Address, amount: i128) {
+    staker.require_auth();
+
+    // Fetch and update user balance (persistent storage)
+    let current = read_staked(&env, &staker);
+    write_staked(&env, &staker, current + amount);
+
+    // Update global total (instance storage)
+    let total = env.storage().instance().get(&DataKey::TotalStaked).unwrap_or(0i128);
+    env.storage().instance().set(&DataKey::TotalStaked, &(total + amount));
+}
+```
+
+### TTL Extension Strategy
+
+Call `extend_ttl()` whenever a user interacts with their data:
+
+```rust
+env.storage().persistent().extend_ttl(&key, 100_000, 100_000);
+// First 100_000: how many ledgers until the entry is archived
+// Second 100_000: how many ledgers until archival is final (cannot be revived)
+```
+
+### Tradeoffs
+
+**Pros:**
+
+- Flexible per-entry TTL.
+- Can be updated or deleted.
+- Scales with user count.
+
+**Cons:**
+
+- Requires TTL management — data expires if not extended.
+- Higher per-byte cost than instance storage.
+- Expired entries are archived, not deleted (can still be restored for a fee).
+
+---
+
+## Temporary Storage
+
+### Characteristics
+
+- **Lifetime**: Short TTL (typically a few ledgers to minutes).
+- **Mutability**: Can be read, written, and removed.
+- **Cost**: Low — designed for scratch space.
+- **TTL Management**: Automatically expires; rarely needs manual extension.
+
+### Use Cases
+
+- Caches of expensive computations.
+- Nonce tracking to prevent replay attacks.
+- Intermediate state during contract execution.
+- Transient contract-to-contract communication.
+
+### Example
+
+```rust
+#[contracttype]
+pub enum DataKey {
+    Nonce(Address),
+    RecentSwaps(Address),
+}
+
+pub fn check_and_increment_nonce(env: Env, user: Address, expected_nonce: u64) {
+    // Read temporary nonce (defaults to 0 if not present)
+    let current_nonce: u64 = env.storage()
+        .temporary()
+        .get(&DataKey::Nonce(user.clone()))
+        .unwrap_or(0);
+
+    assert_eq!(current_nonce, expected_nonce, "nonce mismatch");
+
+    // Increment for next call
+    env.storage().temporary().set(
+        &DataKey::Nonce(user),
+        &(expected_nonce + 1)
+    );
+    // TTL is managed automatically for temporary storage (~1 hour)
+}
+
+pub fn cache_recent_swap(env: Env, user: Address, swap_hash: String) {
+    // Cache the recent swap (will expire automatically)
+    env.storage().temporary().set(
+        &DataKey::RecentSwaps(user),
+        &swap_hash
+    );
+}
+
+pub fn get_cached_swap(env: Env, user: Address) -> Option<String> {
+    env.storage().temporary().get(&DataKey::RecentSwaps(user))
+}
+```
+
+### Tradeoffs
+
+**Pros:**
+
+- Automatic expiry — no manual TTL management.
+- Lowest cost of all three types.
+- Good for immutable intermediate state.
+
+**Cons:**
+
+- Data will expire; cannot rely on indefinite persistence.
+- Short TTL makes it unsuitable for long-lived user state.
+- Expiry timing is environment-dependent.
+
+---
+
+## Comparison by Use Case
+
+### Configuration
+
+```rust
+// ✓ Use Instance
+env.storage().instance().set(&DataKey::AdminAddress, &admin);
+env.storage().instance().set(&DataKey::FeePercentage, &250); // 2.5%
+```
+
+### User Balances
+
+```rust
+// ✓ Use Persistent (must extend TTL on updates)
+env.storage().persistent().set(&DataKey::Balance(user.clone()), &amount);
+env.storage().persistent().extend_ttl(&key, 365_000, 365_000); // ~1 year
+```
+
+### Replay Attack Prevention
+
+```rust
+// ✓ Use Temporary (auto-expires)
+env.storage().temporary().set(&DataKey::Nonce(user), &next_nonce);
+```
+
+### Historical Data (audit log)
+
+```rust
+// ✓ Use Persistent with shorter TTL (expires after 90 days)
+env.storage().persistent().set(&DataKey::HistoricalTx(tx_id), &tx_record);
+env.storage().persistent().extend_ttl(&key, 131_000, 131_000); // ~90 days
+```
+
+### Schema Versioning
+
+```rust
+// ✓ Use Instance for schema version (never changes after instantiation)
+env.storage().instance().set(&DataKey::SchemaVersion, &2);
+
+// ✓ Use Persistent for versioned user data (migrated lazily)
+let v2_user = env.storage().persistent().get::<_, UserV2>(&DataKey::UserV2(addr.clone()))?;
+if v2_user.is_none() {
+    // Fall back to V1 and migrate on read
+    let v1_user = env.storage().persistent().get::<_, UserV1>(&DataKey::UserV1(addr.clone()))?;
+}
+```
+
+## Cost Implications
+
+On mainnet, storage costs depend on:
+
+1. **Entry size** — larger entries cost more.
+2. **TTL duration** — longer TTLs cost more (you're reserving ledger space).
+3. **Storage type** — temporary is cheapest, then instance, then persistent.
+
+**Strategy:**
+
+- Use instance for configuration that never changes.
+- Use persistent only for data that users need.
+- Use temporary for caches and transient state.
+- Extend persistent TTL only when necessary to avoid accumulating fees.
+
+## Related
+
+- [Contract Storage Migration Strategy](/docs/guides/contract-storage-migration) — Handling data schema upgrades
+- [Soroban Contract Instantiation](/docs/guides/soroban-contract-instantiation) — Setting up instance storage
+- [Soroban Resources Consolidated Guide](/docs/guides/soroban-resources-consolidated-guide) — Footprint, fees, and optimization

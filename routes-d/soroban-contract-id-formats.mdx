@@ -1,0 +1,168 @@
+---
+title: Soroban Contract ID Formats
+description: Documentation of contract ID formats used by Soroban, including StrKey encoding, examples, and conversion helpers.
+date: 2026-11-20
+---
+
+# Soroban Contract ID Formats
+
+Soroban contract IDs use Stellar's StrKey encoding scheme. Understanding the format helps when working with contract addresses, building queries, and validating input.
+
+## StrKey Encoding
+
+Soroban contract addresses are encoded using **StrKey**, Stellar's standardized key encoding format. Contract IDs always begin with the prefix `C` followed by a base32-encoded value.
+
+The StrKey format ensures:
+
+- **Checksum protection**: Each address includes a 2-byte checksum to catch typos.
+- **Type safety**: The `C` prefix explicitly identifies the address as a contract.
+- **Readability**: Base32 encoding uses only uppercase letters and numbers 2-7.
+
+### Address Structure
+
+A contract ID is a 56-character string in this format:
+
+```text
+C + 55 base32 characters
+```
+
+Example:
+
+```text
+CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQAHHXK3AWCM
+│
+└─ Prefix: C (identifies as contract)
+   └─ Remaining 55 chars: base32-encoded contract hash + checksum
+```
+
+## Common Contract ID Examples
+
+### Stellar Testnet
+
+- **USDC (Testnet)**: `CBBD47AB2EB00A8F509B6A60C2F1E8C1CB159F50E5A200BBDFB4D31A0FB7BC46`
+- **Native Token Contract**: `CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4`
+- **Example DEX Contract**: `CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQAHHXK3AWCM`
+
+## Validation
+
+### JavaScript / TypeScript
+
+Use the `@stellar/stellar-sdk` library to validate contract IDs:
+
+```typescript
+import { StrKey } from '@stellar/stellar-sdk';
+
+// Validate a contract ID
+const contractId = 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQAHHXK3AWCM';
+
+if (StrKey.isValidContractId(contractId)) {
+  console.log('Valid contract ID');
+} else {
+  console.log('Invalid contract ID');
+}
+```
+
+## Conversion Helpers
+
+### Decode Contract ID to Buffer
+
+Extract the raw contract hash (32 bytes) from a contract ID:
+
+```typescript
+import { StrKey } from '@stellar/stellar-sdk';
+
+const contractId = 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQAHHXK3AWCM';
+const buffer = StrKey.decodeContractId(contractId);
+
+console.log(buffer); // Buffer (32 bytes)
+console.log(buffer.toString('hex')); // Hex representation
+```
+
+### Encode Buffer to Contract ID
+
+Convert a 32-byte buffer back to a contract ID:
+
+```typescript
+import { StrKey } from '@stellar/stellar-sdk';
+import { Buffer } from 'buffer';
+
+// Create or obtain a 32-byte buffer
+const hash = Buffer.from(
+  '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+  'hex'
+);
+
+const contractId = StrKey.encodeContractId(hash);
+console.log(contractId); // C... format
+```
+
+## Comparison with Other Address Types
+
+Stellar uses StrKey encoding for multiple address types. The prefix identifies the type:
+
+| Prefix | Type                 | Length   | Example                                                     |
+| ------ | -------------------- | -------- | ----------------------------------------------------------- |
+| `G`    | Account (public key) | 56 chars | `GBRPYHIL2CI3WHZDTOOQFC6EB4LGVXR5LPJLAN4EOUMVSYBAFDUUAMC`   |
+| `C`    | Contract ID          | 56 chars | `CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQAHHXK3AWCM`  |
+| `T`    | Muxed account        | 56 chars | `TAAAAAAAAAAAAAAAAB4V4YWPILBCL33QPEAFYJAHESVUZIXC5G5TFLTJQ` |
+| `S`    | Secret key           | 56 chars | `SBZVMB74Z76QZ3ZM2QZ7ZLBNLVBNPVZD3C4D45XNMBTAE2M5QGTV2XEP`  |
+
+## Working with Contract IDs in Nextellar
+
+### In useSorobanContract
+
+Pass the contract ID directly to the hook:
+
+```typescript
+import { useSorobanContract } from '@/hooks/useSorobanContract';
+
+function MyComponent() {
+  const { callFunction } = useSorobanContract({
+    contractId: 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQAHHXK3AWCM',
+    network: 'TESTNET',
+  });
+
+  // Use callFunction to invoke contract methods
+}
+```
+
+### Via Environment Variables
+
+Store contract IDs in environment variables and load them:
+
+```bash
+# .env.local
+NEXT_PUBLIC_CONTRACT_ID=CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQAHHXK3AWCM
+```
+
+Then access in your code:
+
+```typescript
+const contractId = process.env.NEXT_PUBLIC_CONTRACT_ID;
+```
+
+## Viewing Contracts
+
+Use Stellar Expert to explore contract details:
+
+```text
+https://stellar.expert/explorer/{network}/contract/{contract-id}
+```
+
+Replace:
+
+- `{network}` with `testnet` or `public`
+- `{contract-id}` with the full contract ID
+
+Example:
+
+```text
+https://stellar.expert/explorer/testnet/contract/CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQAHHXK3AWCM
+```
+
+## Related
+
+- [Soroban Integration](/docs/integrations/soroban)
+- [useSorobanContract Hook](/docs/hooks/use-soroban-contract)
+- [useSorobanEvents Hook](/docs/hooks/use-soroban-events)
+- [@stellar/stellar-sdk StrKey Documentation](https://developers.stellar.org/reference/js-stellar-sdk/StrKey)
