@@ -1,0 +1,101 @@
+---
+title: Parsing Operation Dates
+description: Read Horizon operation timestamps safely, parse the ISO 8601 UTC string, format it for a chosen timezone, and order records with paging tokens instead of dates.
+date: 2026-11-22
+---
+
+# Parsing Operation Dates
+
+Every Horizon operation record carries the time of the ledger in which it was applied. This guide shows the exact format Horizon uses, how to parse it without surprises, and how to display it in a user's timezone.
+
+## The timestamp format
+
+`created_at` is an ISO 8601 string in UTC with second precision, for example `2026-11-22T12:34:56Z`. It is a string, not a Unix timestamp, so do not pass it to `Number()`.
+
+A trimmed operation record looks like this:
+
+```json
+{
+  "id": "1234567890123456789",
+  "paging_token": "1234567890123456789",
+  "transaction_hash": "4a5b...",
+  "type": "payment",
+  "created_at": "2026-11-22T12:34:56Z"
+}
+```
+
+The same field name is used on transactions, and ledgers use `closed_at` with the same format. The value has no fractional seconds, so several operations in one transaction share an identical timestamp.
+
+## Parsing the value
+
+`Date.parse` returns milliseconds since the Unix epoch, or `NaN` for an invalid string. Handle that case explicitly before you render a date.
+
+```javascript
+export function parseOperationDate(createdAt) {
+  if (typeof createdAt !== 'string') return null;
+  const millis = Date.parse(createdAt);
+  return Number.isNaN(millis) ? null : new Date(millis);
+}
+
+const op = { created_at: '2026-11-22T12:34:56Z' };
+const parsed = parseOperationDate(op.created_at);
+console.log(parsed?.toISOString()); // 2026-11-22T12:34:56.000Z
+```
+
+`new Date(created_at)` parses the same string, but produces an invalid `Date` object rather than `NaN`, so validate with `Number.isNaN(date.getTime())` if you use that form.
+
+## Timezone considerations
+
+The stored value is UTC. Keep it that way in your data layer and only choose a timezone when you display it:
+
+```javascript
+const formatter = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'UTC',
+  dateStyle: 'medium',
+  timeStyle: 'short',
+});
+
+formatter.format(parsed); // 22 Nov 2026, 12:34
+```
+
+Use the viewer's zone by omitting `timeZone` or passing their IANA name, for example `Africa/Lagos`. Avoid bare `toLocaleString()` because its output changes with the runtime's locale and zone, which makes server and browser renders disagree. If you show two timestamps to users in different zones, label the zone explicitly.
+
+Clients can be ahead of or behind the network clock, so never treat a future `created_at` as corrupt data. Horizon timestamps are second precision and are set by the ledger close, not by the client.
+
+## Ordering and pagination
+
+Do not sort or page by `created_at`. Operations in the same ledger have the same value, and a second-precision timestamp cannot order two operations from the same transaction. Use `paging_token` for page cursors and `ledger_attr` or `ledger` for a stable ledger sequence.
+
+```javascript
+import { Horizon } from '@stellar/stellar-sdk';
+
+const server = new Horizon.Server('https://horizon-testnet.stellar.org');
+
+const page = await server
+  .operations()
+  .forAccount(accountId)
+  .order('desc')
+  .limit(50)
+  .call();
+
+const rows = page.records.map((op) => ({
+  hash: op.transaction_hash,
+  cursor: op.paging_token,
+  when: parseOperationDate(op.created_at),
+}));
+```
+
+The SDK follows `page.next()` using the last record's `paging_token`, so mixed timestamps cannot skip or repeat records.
+
+## Checklist
+
+- Treat `created_at` as an ISO 8601 UTC string, not a number.
+- Validate the parsed value before formatting it.
+- Format at the UI edge with an explicit timezone.
+- Page and sort with `paging_token`, never with the date.
+
+## Related
+
+- [Streaming Payments with Horizon](/docs/guides/streaming-payments-horizon) : consuming operation records in real time
+- [Stellar Horizon](/docs/integrations/horizon) : Horizon setup and request basics
+- [Transaction Lifecycle](/docs/guides/transaction-lifecycle) : how an operation reaches a ledger
