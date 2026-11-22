@@ -1,0 +1,98 @@
+---
+title: Running a Local Horizon
+description: Run a local Horizon instance for Stellar development, connect the SDK, and verify the service with simple health and account checks.
+date: 2026-11-22
+---
+
+# Running a Local Horizon
+
+A local Horizon instance gives you a fast, isolated development environment for account queries, transaction submission, and integration testing. The easiest way to run Horizon locally is the [Stellar Quickstart](https://github.com/stellar/quickstart) Docker image, which can run Horizon alongside Stellar Core and optional Soroban RPC.
+
+## Prerequisites
+
+- Docker Desktop or Docker Engine installed and running.
+- A local port available for Horizon (this guide uses `8000`).
+- `curl` for verification commands.
+
+## Setup steps
+
+Start a local standalone network with Horizon and Soroban RPC enabled:
+
+```bash
+docker run --rm -it \
+  --name stellar-local \
+  -p 8000:8000 \
+  stellar/quickstart:latest \
+  --local \
+  --enable-soroban-rpc
+```
+
+Useful endpoints after startup:
+
+| Service     | URL                                                 |
+| ----------- | --------------------------------------------------- |
+| Horizon     | `http://localhost:8000`                             |
+| Friendbot   | `http://localhost:8000/friendbot?addr=<PUBLIC_KEY>` |
+| Soroban RPC | `http://localhost:8000/soroban/rpc`                 |
+
+> `--local` creates a private local network. For futurenet-specific development, use the futurenet setup guide instead of `--local`.
+
+## Point the SDK at local Horizon
+
+```ts
+import { Horizon } from '@stellar/stellar-sdk';
+
+const server = new Horizon.Server('http://localhost:8000', {
+  allowHttp: true,
+});
+```
+
+For Nextellar apps, use local endpoints in your environment configuration:
+
+```bash
+NEXT_PUBLIC_HORIZON_URL=http://localhost:8000
+NEXT_PUBLIC_SOROBAN_RPC=http://localhost:8000/soroban/rpc
+NEXT_PUBLIC_NETWORK=STANDALONE
+```
+
+If your app expects Testnet/Mainnet passphrases, confirm the network passphrase used by your local Quickstart mode before submitting signed transactions.
+
+## Small verification step
+
+Check Horizon is responding:
+
+```bash
+curl http://localhost:8000/
+```
+
+Create and fund a local account with Friendbot, then query it:
+
+```bash
+PUBLIC_KEY="G..."
+
+curl "http://localhost:8000/friendbot?addr=${PUBLIC_KEY}"
+curl "http://localhost:8000/accounts/${PUBLIC_KEY}"
+```
+
+A successful account response includes balances and a sequence number.
+
+## Helpful tooling
+
+- [Stellar Quickstart](https://github.com/stellar/quickstart) - official Docker image for local Stellar services.
+- [Stellar Lab](https://laboratory.stellar.org/) - inspect endpoints and build transactions.
+- [Stellar CLI](https://developers.stellar.org/docs/tools/cli/stellar-cli) - useful for local network workflows and Soroban development.
+
+## Reset behavior and edge cases
+
+- **Ephemeral by default.** With `--rm`, stopping the container removes it. Local ledger state is lost unless you persist volumes.
+- **Named container conflicts.** If `stellar-local` already exists, remove it with `docker rm -f stellar-local` before starting again.
+- **Port conflicts.** If `8000` is in use, map another port (`-p 8001:8000`) and update your Horizon URL.
+- **HTTP locally.** Use `allowHttp: true` in the SDK for `http://localhost`.
+- **Standalone vs public networks.** Local standalone state is not Testnet/Mainnet/Futurenet; do not mix network passphrases or endpoints.
+
+## Related docs
+
+- [Stellar Horizon Integration](/docs/integrations/horizon)
+- [Docker Compose for Local Stellar Development](/docs/guides/docker-compose-stellar-local)
+- [Local Futurenet Setup](/docs/guides/local-futurenet-setup)
+- [Testing Horizon and Soroban Interactions](/docs/guides/testing-horizon-soroban)
