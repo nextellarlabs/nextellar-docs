@@ -1,0 +1,99 @@
+---
+title: Local Futurenet Setup
+description: Set up a local Futurenet-compatible Stellar development environment with Quickstart, verify connectivity, and understand reset behavior.
+date: 2026-11-22
+---
+
+# Local Futurenet Setup
+
+Futurenet is Stellar's public network for testing upcoming protocol and Soroban features before they reach Testnet or Mainnet. For local development, the Stellar Quickstart image can run a Futurenet-connected node so you can test against Futurenet behavior without relying on shared public Horizon availability for every request.
+
+## Requirements
+
+- Docker installed and running.
+- At least several GB of free disk space for ledger/state data.
+- `curl` for verification.
+
+## Endpoints and images
+
+| Item                                         | Value                                               |
+| -------------------------------------------- | --------------------------------------------------- |
+| Quickstart image                             | `stellar/quickstart:latest`                         |
+| Local Horizon endpoint                       | `http://localhost:8000`                             |
+| Local Friendbot (Quickstart, when available) | `http://localhost:8000/friendbot?addr=<PUBLIC_KEY>` |
+| Public Futurenet Horizon                     | `https://horizon-futurenet.stellar.org`             |
+| Public Futurenet Soroban RPC                 | `https://rpc-futurenet.stellar.org`                 |
+| Futurenet network passphrase                 | `Test SDF Future Network ; October 2022`            |
+
+## Small setup script
+
+Create `scripts/start-local-futurenet.sh`:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+CONTAINER_NAME="${CONTAINER_NAME:-stellar-futurenet}"
+IMAGE="${IMAGE:-stellar/quickstart:latest}"
+
+docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
+
+docker run -d \
+  --name "$CONTAINER_NAME" \
+  -p 8000:8000 \
+  "$IMAGE" \
+  --futurenet \
+  --enable-soroban-rpc
+
+echo "Futurenet Quickstart starting..."
+echo "Horizon: http://localhost:8000"
+echo "Soroban RPC: http://localhost:8000/soroban/rpc"
+```
+
+Run it:
+
+```bash
+chmod +x scripts/start-local-futurenet.sh
+./scripts/start-local-futurenet.sh
+```
+
+## Verify the local node
+
+Wait for startup, then check Horizon:
+
+```bash
+curl http://localhost:8000/
+```
+
+You can also query the root endpoint for network information and confirm your SDK is pointed at the local URL:
+
+```ts
+import { Horizon, Networks } from '@stellar/stellar-sdk';
+
+const server = new Horizon.Server('http://localhost:8000', {
+  allowHttp: true,
+});
+
+const networkPassphrase = Networks.FUTURENET;
+// Use networkPassphrase when building/signing Futurenet transactions.
+```
+
+## Reset behavior
+
+- **Container removal resets ephemeral state.** The setup script removes any existing `stellar-futurenet` container before starting a new one.
+- **No persistent volume by default.** If you do not mount volumes, ledger data is discarded when the container is removed.
+- **Intentional clean reset:** `docker rm -f stellar-futurenet`.
+- **Persistent setup caution:** if you add `-v` mounts for ledger data, deleting volumes is destructive and should be explicit (`docker volume rm ...`).
+
+## Edge cases and cautions
+
+- **Futurenet resets periodically.** Public Futurenet can be reset; accounts and contract state may disappear. Local node state also depends on how you run/reset Quickstart.
+- **Startup time varies.** The container may need time to catch up before Horizon is fully useful.
+- **Passphrase mismatch causes failures.** Use `Test SDF Future Network ; October 2022` for Futurenet transactions.
+- **Feature instability.** Futurenet is for upcoming features and may behave differently from Testnet/Mainnet.
+
+## Related docs
+
+- [Running a Local Horizon](/docs/guides/running-local-horizon)
+- [Docker Compose for Local Stellar Development](/docs/guides/docker-compose-stellar-local)
+- [Horizon vs Soroban RPC](/docs/guides/horizon-vs-soroban-rpc)

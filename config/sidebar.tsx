@@ -149,6 +149,22 @@ export const sidebarNav: SidebarSection[] = [
         href: '/docs/guides/testing-horizon-soroban',
       },
       {
+        title: 'Mocking Horizon in Tests',
+        href: '/docs/guides/mocking-horizon-in-tests',
+      },
+      {
+        title: 'Running a Local Horizon',
+        href: '/docs/guides/running-local-horizon',
+      },
+      {
+        title: 'Docker Compose for Local Stellar Development',
+        href: '/docs/guides/docker-compose-stellar-local',
+      },
+      {
+        title: 'Local Futurenet Setup',
+        href: '/docs/guides/local-futurenet-setup',
+      },
+      {
         title: 'Testing Transactions on Testnet',
         href: '/docs/guides/testing-transactions-testnet',
       },
