@@ -12,19 +12,17 @@ The image is for development. Do not use it as a production node or production d
 
 ## Useful flags
 
-| Flag                                  | Purpose                                    | Notes                                                                                                                               |
-| ------------------------------------- | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `--local`                             | Run an isolated local network              | Fast ledgers and ephemeral state by default. Passphrase: `Standalone Network ; February 2017`.                                      |
-| `--testnet`                           | Join the public Stellar test network       | Local Friendbot requests are proxied to testnet Friendbot.                                                                          |
-| `--futurenet`                         | Join Futurenet for upcoming features       | Public Futurenet can reset periodically.                                                                                            |
-| `--pubnet`                            | Join public Mainnet                        | Uses more disk, memory, and CPU. Prefer a production setup for real workloads.                                                      |
-| `--enable core,horizon,rpc`           | Choose which services run                  | All services are enabled by default. In local mode Core always runs, and RPC requests also start Horizon so Friendbot is available. |
-| `--protocol-version <version>`        | Pin the local protocol version             | Local mode only. Defaults to the latest version.                                                                                    |
-| `--limits <name>`                     | Set Soroban resource limits in local mode  | Use `default`, `testnet`, or `unlimited`.                                                                                           |
-| `--enable-soroban-diagnostic-events`  | Include contract diagnostic events         | Useful when debugging a trapped contract call.                                                                                      |
-| `--disable-soroban-diagnostic-events` | Disable diagnostic events in local mode    | Local mode enables them by default.                                                                                                 |
-| `--enable-stellar-rpc-admin-endpoint` | Expose RPC metrics and profiling on `6061` | Bind this port only to a trusted interface.                                                                                         |
-| `--logs`                              | Stream service logs to container output    | Helpful when starting the container interactively.                                                                                  |
+- `--local`: run an isolated local network. Fast ledgers and ephemeral state are the defaults. The passphrase is `Standalone Network ; February 2017`.
+- `--testnet`: join the public Stellar test network. Local Friendbot requests are proxied to testnet Friendbot.
+- `--futurenet`: join Futurenet for upcoming features. Public Futurenet can reset periodically.
+- `--pubnet`: join public Mainnet. This mode uses more disk, memory, and CPU. Prefer a production setup for real workloads.
+- `--enable core,horizon,rpc`: choose which services run. All services are enabled by default. In local mode Core always runs, and RPC requests also start Horizon so Friendbot is available.
+- `--protocol-version <version>`: pin the local protocol version. This flag is local mode only and defaults to the latest version.
+- `--limits <name>`: set Soroban resource limits in local mode. Use `default`, `testnet`, or `unlimited`.
+- `--enable-soroban-diagnostic-events`: include contract diagnostic events, which are useful when debugging a trapped contract call.
+- `--disable-soroban-diagnostic-events`: disable diagnostic events in local mode, where they are enabled by default.
+- `--enable-stellar-rpc-admin-endpoint`: expose RPC metrics and profiling on port `6061`. Bind this port only to a trusted interface.
+- `--logs`: stream service logs to container output, which is helpful when starting the container interactively.
 
 Older examples may show `--enable-soroban-rpc`. Current Quickstart documentation uses the service selector `--enable rpc`. Check the tag you are running before copying flags from an older guide.
 
@@ -47,22 +45,11 @@ Pin a specific image tag instead of `latest` when a team needs reproducible beha
 
 Check that the services are responding:
 
-```bash
-docker logs stellar-quickstart
-curl http://localhost:8000/
-curl http://localhost:8000/rpc \
-  -H 'Content-Type: application/json' \
-  -d '{"jsonrpc":"2.0","id":1,"method":"getHealth"}'
-```
+- Request `http://localhost:8000/` for the Horizon root response.
+- Send a JSON-RPC POST request to `http://localhost:8000/rpc` with method `getHealth`.
+- Review `docker logs stellar-quickstart` if a service is not ready.
 
-Fund and query a local account with Friendbot:
-
-```bash
-PUBLIC_KEY="G..."
-
-curl "http://localhost:8000/friendbot?addr=${PUBLIC_KEY}"
-curl "http://localhost:8000/accounts/${PUBLIC_KEY}"
-```
+To fund a local account, send a GET request to `http://localhost:8000/friendbot?addr=<PUBLIC_KEY>`, then query `http://localhost:8000/accounts/<PUBLIC_KEY>`.
 
 ## Networking notes
 
@@ -77,7 +64,7 @@ curl "http://localhost:8000/accounts/${PUBLIC_KEY}"
 
 ## Common issues
 
-- **Horizon is not ready yet.** Quickstart may need time to initialize. Check `docker logs` and retry the root endpoint.
+- **Horizon is not ready yet.** Quickstart may need time to initialize. Check the container logs and retry the root endpoint.
 - **Port conflict.** Docker fails to start when the host port is taken. Change the host side of the mapping.
 - **Bad authentication error.** The SDK is using the wrong network passphrase for the selected mode.
 - **RPC 404 response.** The app is using an older RPC path than the image provides. Check `/rpc` for current images.
