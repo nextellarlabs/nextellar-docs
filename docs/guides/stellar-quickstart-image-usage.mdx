@@ -1,0 +1,91 @@
+---
+title: Stellar Quickstart Image Usage
+description: Run the Stellar Quickstart Docker image for local development, choose common flags, and configure ports and service URLs.
+date: 2026-11-22
+---
+
+# Stellar Quickstart Image Usage
+
+The [Stellar Quickstart image](https://github.com/stellar/quickstart) runs Stellar Core, Horizon, Friendbot, and RPC in one Docker container for development and testing. This guide covers common flags, a small run command, and the networking details that affect local apps.
+
+The image is for development. Do not use it as a production node or production database.
+
+## Useful flags
+
+| Flag                                  | Purpose                                    | Notes                                                                                                                               |
+| ------------------------------------- | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `--local`                             | Run an isolated local network              | Fast ledgers and ephemeral state by default. Passphrase: `Standalone Network ; February 2017`.                                      |
+| `--testnet`                           | Join the public Stellar test network       | Local Friendbot requests are proxied to testnet Friendbot.                                                                          |
+| `--futurenet`                         | Join Futurenet for upcoming features       | Public Futurenet can reset periodically.                                                                                            |
+| `--pubnet`                            | Join public Mainnet                        | Uses more disk, memory, and CPU. Prefer a production setup for real workloads.                                                      |
+| `--enable core,horizon,rpc`           | Choose which services run                  | All services are enabled by default. In local mode Core always runs, and RPC requests also start Horizon so Friendbot is available. |
+| `--protocol-version <version>`        | Pin the local protocol version             | Local mode only. Defaults to the latest version.                                                                                    |
+| `--limits <name>`                     | Set Soroban resource limits in local mode  | Use `default`, `testnet`, or `unlimited`.                                                                                           |
+| `--enable-soroban-diagnostic-events`  | Include contract diagnostic events         | Useful when debugging a trapped contract call.                                                                                      |
+| `--disable-soroban-diagnostic-events` | Disable diagnostic events in local mode    | Local mode enables them by default.                                                                                                 |
+| `--enable-stellar-rpc-admin-endpoint` | Expose RPC metrics and profiling on `6061` | Bind this port only to a trusted interface.                                                                                         |
+| `--logs`                              | Stream service logs to container output    | Helpful when starting the container interactively.                                                                                  |
+
+Older examples may show `--enable-soroban-rpc`. Current Quickstart documentation uses the service selector `--enable rpc`. Check the tag you are running before copying flags from an older guide.
+
+## Small run example
+
+Start a local network with Horizon and RPC enabled:
+
+```bash
+docker run --rm -d \
+  --name stellar-quickstart \
+  -p 8000:8000 \
+  stellar/quickstart:latest \
+  --local \
+  --enable core,horizon,rpc \
+  --limits testnet \
+  --enable-soroban-diagnostic-events
+```
+
+Pin a specific image tag instead of `latest` when a team needs reproducible behavior.
+
+Check that the services are responding:
+
+```bash
+docker logs stellar-quickstart
+curl http://localhost:8000/
+curl http://localhost:8000/rpc \
+  -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"getHealth"}'
+```
+
+Fund and query a local account with Friendbot:
+
+```bash
+PUBLIC_KEY="G..."
+
+curl "http://localhost:8000/friendbot?addr=${PUBLIC_KEY}"
+curl "http://localhost:8000/accounts/${PUBLIC_KEY}"
+```
+
+## Networking notes
+
+- **Port 8000 is shared.** Horizon, RPC, and Friendbot all use the container's main HTTP port. Map one host port, for example `-p 8000:8000`, and use paths to select the service.
+- **RPC paths vary by image version.** Current Quickstart docs use `http://localhost:8000/rpc`. Some older local setup guides use `/soroban/rpc`. Confirm the path against your image version before changing app configuration.
+- **HTTP needs explicit SDK opt-in.** Use `allowHttp: true` when connecting from JavaScript to `http://localhost`.
+- **Change the host port on conflicts.** If `8000` is already used, map `8001:8000` and update every app URL to `http://localhost:8001`.
+- **Container to host access differs by platform.** On Docker Desktop, use `host.docker.internal`. On Linux, add `--add-host=host.docker.internal:host-gateway` to the `docker run` command.
+- **Keep admin ports private.** PostgreSQL uses `5432`, and RPC admin endpoints use `6061`. Do not publish them to a public interface. If you need local metrics, bind to `127.0.0.1:6061:6061`.
+- **Do not mix networks.** A local standalone node uses its own passphrase. Do not sign local transactions with Testnet or Mainnet passphrases, or point the SDK at mixed endpoints.
+- **Ephemeral means clean on removal.** Without a volume mount, `--rm` removes ledger state when the container stops. Mount `/opt/stellar` only when you intend to keep persistent state.
+
+## Common issues
+
+- **Horizon is not ready yet.** Quickstart may need time to initialize. Check `docker logs` and retry the root endpoint.
+- **Port conflict.** Docker fails to start when the host port is taken. Change the host side of the mapping.
+- **Bad authentication error.** The SDK is using the wrong network passphrase for the selected mode.
+- **RPC 404 response.** The app is using an older RPC path than the image provides. Check `/rpc` for current images.
+- **High resource use in pubnet mode.** Public network ledgers are large. Use `--local` or `--testnet` for routine development.
+
+## Related docs
+
+- [Running a Local Horizon](/docs/guides/running-local-horizon)
+- [Docker Compose for Local Stellar Development](/docs/guides/docker-compose-stellar-local)
+- [Local Futurenet Setup](/docs/guides/local-futurenet-setup)
+- [Horizon vs Soroban RPC](/docs/guides/horizon-vs-soroban-rpc)

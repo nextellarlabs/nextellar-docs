@@ -177,6 +177,10 @@ export const sidebarNav: SidebarSection[] = [
         href: '/docs/guides/local-futurenet-setup',
       },
       {
+        title: 'Stellar Quickstart Image Usage',
+        href: '/docs/guides/stellar-quickstart-image-usage',
+      },
+      {
         title: 'Testing Transactions on Testnet',
         href: '/docs/guides/testing-transactions-testnet',
       },
@@ -268,6 +272,10 @@ export const sidebarNav: SidebarSection[] = [
       {
         title: 'Asset Authorization Flags',
         href: '/docs/guides/asset-auth-flags',
+      },
+      {
+        title: 'Formatting Asset Amounts',
+        href: '/docs/guides/formatting-asset-amounts',
       },
       {
         title: 'Creating and Managing DEX Offers',

@@ -1,0 +1,132 @@
+---
+title: Formatting Asset Amounts
+description: Display Stellar asset amounts safely with asset-specific precision, explicit trailing-zero rules, and integer-only formatting.
+date: 2026-11-22
+---
+
+# Formatting Asset Amounts
+
+Format Stellar amounts from integer base units, not JavaScript `number` values. This guide covers precision rules, a small formatter, and the edge cases that matter for balances, payments, and history tables.
+
+## Precision rules
+
+Stellar ledgers store classic asset amounts as fixed-point integers with seven decimal places. One stroop is one ten-millionth of a unit, so `10,000,000` stroops equal `1` XLM or one whole unit of a classic issued asset.
+
+| Asset kind                   | Ledger precision                       | Value to pass to the formatter                              |
+| ---------------------------- | -------------------------------------- | ----------------------------------------------------------- |
+| Native XLM                   | 7 decimals, 1 XLM = 10,000,000 stroops | XLM amount in stroops                                       |
+| Classic issued asset         | 7 decimals, same stroop scale          | Asset amount in stroops                                     |
+| Stellar Asset Contract token | 7 decimals                             | Token amount in stroops                                     |
+| Custom Soroban token         | Contract-defined                       | Token base units, with `decimals()` from the token contract |
+
+Use the asset's own precision as `decimals`. For a custom Soroban token, read `decimals()` from the [SEP-41 token interface](https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0041.md) instead of assuming seven decimals.
+
+Display precision is a separate choice. Keep it less than or equal to the asset precision:
+
+- `decimals`: the precision of the base units you received.
+- `maxDisplayDecimals`: the most fractional digits to show.
+- `minDisplayDecimals`: the fewest fractional digits to show when you need aligned columns.
+- `trimTrailingZeros`: removes unused fractional digits when the display does not need a fixed width.
+
+For spendable balances, truncate to `maxDisplayDecimals` rather than rounding. Rounding can show more available funds than the account actually holds.
+
+## Small formatter
+
+The formatter below accepts an integer string or `bigint`. It never converts the amount to a floating-point `number`.
+
+```typescript
+type FormatAssetAmountOptions = {
+  decimals: number;
+  maxDisplayDecimals?: number;
+  minDisplayDecimals?: number;
+  trimTrailingZeros?: boolean;
+};
+
+const MAX_ASSET_DECIMALS = 18;
+
+export function formatAssetAmount(
+  baseUnits: string | bigint,
+  {
+    decimals,
+    maxDisplayDecimals = decimals,
+    minDisplayDecimals = 0,
+    trimTrailingZeros = true,
+  }: FormatAssetAmountOptions
+): string {
+  if (
+    !Number.isInteger(decimals) ||
+    decimals < 0 ||
+    decimals > MAX_ASSET_DECIMALS
+  ) {
+    throw new Error('decimals must be an integer from 0 to 18');
+  }
+  if (
+    !Number.isInteger(maxDisplayDecimals) ||
+    maxDisplayDecimals < 0 ||
+    maxDisplayDecimals > decimals
+  ) {
+    throw new Error('maxDisplayDecimals must be from 0 to decimals');
+  }
+  if (
+    !Number.isInteger(minDisplayDecimals) ||
+    minDisplayDecimals < 0 ||
+    minDisplayDecimals > maxDisplayDecimals
+  ) {
+    throw new Error('minDisplayDecimals must be from 0 to maxDisplayDecimals');
+  }
+
+  const raw = String(baseUnits).trim();
+  if (!/^-?\d+$/.test(raw)) {
+    throw new Error('baseUnits must be an integer string or bigint');
+  }
+
+  const isNegative = raw.startsWith('-');
+  const digits = isNegative ? raw.slice(1) : raw;
+  const padded = digits.padStart(decimals + 1, '0');
+  const splitAt = padded.length - decimals;
+
+  const whole = padded.slice(0, splitAt);
+  let fraction = padded.slice(splitAt).slice(0, maxDisplayDecimals);
+
+  if (trimTrailingZeros) {
+    fraction = fraction.replace(/0+$/, '');
+  }
+  while (fraction.length < minDisplayDecimals) {
+    fraction += '0';
+  }
+
+  const sign = isNegative && /[1-9]/.test(digits) ? '-' : '';
+  const groupedWhole = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return fraction
+    ? `${sign}${groupedWhole}.${fraction}`
+    : `${sign}${groupedWhole}`;
+}
+```
+
+## Examples
+
+| Call                                                                                              | Result      | Use case                     |
+| ------------------------------------------------------------------------------------------------- | ----------- | ---------------------------- |
+| `formatAssetAmount('12345678', { decimals: 7, maxDisplayDecimals: 2 })`                           | `1.23`      | Compact XLM balance          |
+| `formatAssetAmount('12345678', { decimals: 7 })`                                                  | `1.2345678` | Full stroop precision        |
+| `formatAssetAmount('10000000', { decimals: 7, maxDisplayDecimals: 4 })`                           | `1`         | Whole units with trimming    |
+| `formatAssetAmount('10000000', { decimals: 7, maxDisplayDecimals: 4, trimTrailingZeros: false })` | `1.0000`    | Aligned table column         |
+| `formatAssetAmount('10000000', { decimals: 7, maxDisplayDecimals: 2, minDisplayDecimals: 2 })`    | `1.00`      | Fixed-width price display    |
+| `formatAssetAmount('5', { decimals: 7, maxDisplayDecimals: 2 })`                                  | `0`         | Sub-precision balance        |
+| `formatAssetAmount('1234567890', { decimals: 9, maxDisplayDecimals: 3 })`                         | `1.234`     | Custom token with 9 decimals |
+
+## Edge cases
+
+- **Zero and negative zero.** `-0` formats as `0`, so a sign never appears without a nonzero value.
+- **Sub-precision values.** One stroop with two display decimals becomes `0`. Show a "less than" label if your product needs to reveal tiny nonzero balances.
+- **Trailing zeros.** Trimming is best for balances. Fixed fractional widths are better for tables and prices. Set the policy explicitly instead of relying on defaults you have not documented.
+- **Invalid input.** Decimal strings such as `1.25`, values with spaces inside the number, and non-numeric values throw an error. Keep the caller responsible for converting SDK values to integer strings.
+- **Out-of-range precision.** `decimals`, `maxDisplayDecimals`, and `minDisplayDecimals` are checked. `maxDisplayDecimals` cannot exceed `decimals`, and `minDisplayDecimals` cannot exceed `maxDisplayDecimals`.
+- **Large values.** Integer strings and `bigint` keep values above `Number.MAX_SAFE_INTEGER` exact.
+- **Locale grouping.** This example uses comma grouping for readability. For multi-locale apps, replace only the grouping step with your i18n formatter and keep the integer-based decimal handling. See the internationalization guide for locale conventions.
+
+## Related
+
+- [Stellar SDK BigNumber Usage](/docs/sdk/bignumber-usage)
+- [Internationalization (i18n) Guide](/docs/guides/internationalization-guide)
+- [Asset Authorization Flags](/docs/guides/asset-auth-flags)
