@@ -1,0 +1,111 @@
+---
+title: Transaction Retry with Backoff
+description: Retry Stellar transaction submission with exponential backoff and jitter, respect Retry-After, and keep retries idempotent by resubmitting the same signed XDR.
+date: 2026-11-22
+---
+
+# Transaction Retry with Backoff
+
+An HTTP timeout after `submitTransaction` does not tell you whether the transaction reached the ledger. Retrying the wrong way can execute a payment twice or produce `tx_bad_seq`. This guide covers the base backoff strategy and the idempotency rules that make retry safe.
+
+## Which failures to retry
+
+Retry only transient failures:
+
+- Network errors and timeouts.
+- HTTP `429` from rate limiting.
+- HTTP `500`, `502`, `503`, and `504`.
+
+Do not retry definitive errors such as `tx_bad_auth`, `tx_insufficient_balance`, or `tx_bad_seq`. They will fail again with the same inputs, and retrying them wastes requests.
+
+## Base backoff strategy
+
+Use exponential delays with jitter, capped at a maximum, and honour the server's `Retry-After` header when present:
+
+```javascript
+async function retryWithBackoff(operation, { attempts = 4 } = {}) {
+  let lastError;
+
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      if (attempt === attempts - 1) break;
+
+      const retryAfter = Number(error.response?.headers?.['retry-after'] ?? 0);
+      const base = Math.max(retryAfter * 1000, 1000 * 2 ** attempt);
+      const delay = Math.min(base + Math.random() * base * 0.25, 30_000);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+
+  throw lastError;
+}
+```
+
+With the defaults, waits are roughly 1s, 2s, and 4s plus jitter. Jitter spreads clients out so they do not retry in lockstep. Keep the attempt count small, and surface a retry button in the UI after the last attempt. See [Rate Limiting Horizon Requests](/docs/guides/rate-limiting-horizon-requests) for request-budget context.
+
+## Idempotency
+
+A signed transaction's hash is derived from its contents and the network passphrase. Resubmitting the **same signed XDR** keeps the same hash. The network applies a transaction once and returns the existing result on a duplicate submission, so the retry is idempotent.
+
+```javascript
+import { Horizon, TransactionBuilder, Networks } from '@stellar/stellar-sdk';
+
+const server = new Horizon.Server('https://horizon-testnet.stellar.org');
+
+export async function submitWithRetry(signedXdr) {
+  const hash = TransactionBuilder.fromXDR(signedXdr, Networks.TESTNET).hash();
+
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      return await server.submitTransaction(signedXdr);
+    } catch (error) {
+      // Check the ledger before deciding that the submission failed.
+      const applied = await server
+        .transactions()
+        .hash(hash)
+        .call()
+        .catch(() => null);
+      if (applied) return applied;
+
+      const status = error.response?.status;
+      if (status && status < 500 && status !== 429) throw error;
+      if (attempt === 3) throw error;
+
+      const base = Math.max(
+        Number(error.response?.headers?.['retry-after'] ?? 0) * 1000,
+        1000 * 2 ** attempt
+      );
+      await new Promise((resolve) =>
+        setTimeout(
+          resolve,
+          Math.min(base + Math.random() * base * 0.25, 30_000)
+        )
+      );
+    }
+  }
+}
+```
+
+For Soroban transactions submitted through an RPC node, use `rpc.Server.getTransaction(hash)` for the status check instead of the Horizon transaction lookup.
+
+Two rules follow from this:
+
+1. Never rebuild a transaction with a bumped sequence number after an ambiguous timeout. If the first submission succeeded, the second transaction executes a second operation.
+2. If your application needs to deduplicate by business key, attach a stable `Memo` when the transaction is built. The network deduplicates by hash, not by memo, so check your own records before creating a new transaction with the same meaning.
+
+## Checklist
+
+- Retry only network errors, `429`, and `5xx` responses.
+- Wait with exponential backoff, jitter, and a maximum delay.
+- Resubmit the identical signed XDR, never a rebuilt transaction.
+- Look up the transaction by hash before treating a timeout as a failure.
+- Stop after a bounded number of attempts and expose a manual retry.
+
+## Related
+
+- [Error Handling Patterns](/docs/guides/error-handling-patterns) : classifying failures in client code
+- [Rate Limiting Horizon Requests](/docs/guides/rate-limiting-horizon-requests) : `Retry-After` and request budgets
+- [Transaction Lifecycle](/docs/guides/transaction-lifecycle) : how submissions reach a ledger

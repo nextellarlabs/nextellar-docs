@@ -1,0 +1,111 @@
+---
+title: Useful Horizon SDK Helpers
+description: A short tour of the helper builders in the Stellar SDK for Horizon, with one example each and the pitfalls that usually surprise new integrators.
+date: 2026-11-22
+---
+
+# Useful Horizon SDK Helpers
+
+The Stellar SDK wraps Horizon endpoints in fluent builders. They save you from writing URLs and query strings by hand. This guide lists the helpers used most often in applications, with a small example each.
+
+## Set up a server
+
+```javascript
+import { Horizon } from '@stellar/stellar-sdk';
+
+const server = new Horizon.Server('https://horizon-testnet.stellar.org');
+```
+
+Use a mainnet URL in production and pass your own Horizon instance when you run one.
+
+## Account helpers
+
+Read an account, including its balances, signers, and sequence number:
+
+```javascript
+const account = await server.accounts().accountId(publicKey).call();
+console.log(account.sequence);
+```
+
+`loadAccount()` is a convenience wrapper around this call when you need the SDK `Account` object for building a transaction.
+
+## History helpers
+
+Each history helper returns a page builder with `order`, `limit`, and cursor support:
+
+```javascript
+const transactions = await server
+  .transactions()
+  .forAccount(publicKey)
+  .order('desc')
+  .limit(20)
+  .includeFailed(true)
+  .call();
+
+const operations = await server.operations().transaction(hash).call();
+const effects = await server.effects().forAccount(publicKey).call();
+const payments = await server.payments().forAccount(publicKey).call();
+const offers = await server.offers().forAccount(publicKey).call();
+```
+
+Pick the narrowest helper for the question you are answering. `payments()` only returns payment-shaped operations, while `operations()` covers every operation type. Effects describe what an operation changed, so they are the right choice for balance updates.
+
+## Ledger, fee, and asset helpers
+
+```javascript
+const latest = await server.ledgers().order('desc').limit(1).call();
+const fees = await server.feeStats();
+const asset = await server
+  .assets()
+  .forCode('USDC')
+  .forIssuer(issuerPublicKey)
+  .call();
+```
+
+`feeStats()` reports recent fee percentiles. It is different from `fetchBaseFee()`, which returns only the current base fee.
+
+## Submission and lookup
+
+Build and sign a transaction, then submit the signed envelope XDR:
+
+```javascript
+const response = await server.submitTransaction(signedXdr);
+
+const existing = await server.transactions().hash(response.hash).call();
+```
+
+A lookup by hash is also how you check whether a timed-out submission actually reached the ledger. See [Error Handling Patterns](/docs/guides/error-handling-patterns) for the surrounding patterns.
+
+## Streams
+
+History builders can stream new records instead of polling:
+
+```javascript
+const close = server
+  .payments()
+  .forAccount(publicKey)
+  .stream({
+    onmessage: (payment) => console.log(payment.id),
+    onerror: (error) => console.error(error),
+  });
+
+// Later, when you no longer need updates:
+close();
+```
+
+Always keep the close function and call it on unmount or shutdown, otherwise the connection is leaked.
+
+## Common pitfalls
+
+- A builder does not fetch anything until you call `.call()` or `.stream()`.
+- `limit` is capped by Horizon, currently 200. Page with `cursor` using the last record's `paging_token` instead of raising the limit.
+- Failed transactions are omitted by default. Add `.includeFailed(true)` when you need them.
+- Helpers on `Horizon.Server` are for the indexed HTTP API. Soroban calls such as `simulateTransaction` and `getLatestLedger` belong to `rpc.Server`.
+- Public endpoints return `429` under load. Read `Retry-After` and back off instead of retrying immediately. See [Rate Limiting Horizon Requests](/docs/guides/rate-limiting-horizon-requests).
+- Operation timestamps are ISO 8601 strings. Parse them with `Date.parse` and format them with an explicit timezone.
+
+## Related
+
+- [Stellar Horizon](/docs/integrations/horizon) : Horizon configuration and endpoints
+- [SDK API Reference](/docs/sdk/api-reference) : the full SDK surface
+- [Rate Limiting Horizon Requests](/docs/guides/rate-limiting-horizon-requests) : stay within request limits
