@@ -1,0 +1,85 @@
+---
+title: Generating TypeScript Bindings from Soroban WASM
+description: How to generate a typed TypeScript client from a compiled Soroban contract, what the output directory contains, and a small usage example.
+date: 2026-11-22
+---
+
+# Generating TypeScript Bindings from Soroban WASM
+
+A Soroban contract publishes its interface in the WASM binary itself. The Stellar CLI can read that interface and generate TypeScript client code, so your application calls typed methods instead of hand building argument vectors.
+
+## Generate the bindings
+
+Compile the contract first, then point the binding generator at the WASM file:
+
+```bash
+stellar contract build
+stellar contract bindings typescript \
+  --wasm target/wasm32-unknown-unknown/release/hello_world.wasm \
+  --output-dir bindings \
+  --contract-name hello_world
+```
+
+`--wasm` accepts either a local file or a contract ID, which means you can generate bindings for a contract you did not build. `--output-dir` is the parent directory for the generated package. `--contract-name` controls the package and client names, so choose something stable that your application can import.
+
+If you rerun the command after changing the contract, pass `--overwrite` to replace the previous output.
+
+## Output layout
+
+The generator creates a package directory under the output directory:
+
+```text
+bindings/
+└── hello_world/
+    ├── package.json
+    ├── tsconfig.json
+    ├── index.ts
+    └── src/
+        ├── index.ts
+        ├── hello_world.ts
+        └── types.ts
+```
+
+The exact file names can vary between CLI versions, but the shape is consistent:
+
+- `index.ts` is the entry point that re exports the client and generated types.
+- `src/types.ts` holds the TypeScript types translated from the contract spec.
+- `src/` contains the client class with one method per contract function.
+- `package.json` and `tsconfig.json` let you consume the output as a local package.
+
+Treat the generated files as build output. Regenerate them when the contract interface changes rather than editing them by hand, and commit them only if your application consumes them directly from the repository.
+
+## A small example
+
+Install and build the generated package, then import its client:
+
+```bash
+cd bindings/hello_world
+npm install
+npm run build
+```
+
+```typescript
+import { Client } from './bindings/hello_world';
+
+const client = new Client({
+  contractId: 'CCONTRACTID',
+  networkPassphrase: 'Test SDF Network ; September 2015',
+  rpcUrl: 'https://soroban-testnet.stellar.org',
+});
+
+const { result } = await client.hello({ to: 'World' });
+console.log(result);
+```
+
+Passing the contract ID at runtime, instead of baking it into the generated package, lets the same bindings work on testnet and mainnet. Each method returns a simulation or transaction result depending on whether the contract function reads or writes state.
+
+## Common issues
+
+**The generated method is missing.** Rebuild the contract and regenerate the bindings. The generator only sees functions that are present in the WASM spec.
+
+**Types do not match the deployed contract.** You generated from a different WASM than the one deployed. Regenerate from the deployed contract ID with `stellar contract bindings typescript --contract-id CCONTRACTID`, or from the exact WASM file that was deployed.
+
+**The client cannot find the network.** Check that `rpcUrl` points to a Soroban RPC endpoint, not a Horizon endpoint, and that the passphrase matches the network the contract is deployed on.
+
+For how to version these generated packages across contract upgrades, see [Versioning Generated Stellar Contract Bindings](/routes-d/945-stellar-contract-binding-versioning-guide). For the CLI command itself, see the [Soroban CLI command reference](/routes-d/690-stellar-cli-soroban-commands).

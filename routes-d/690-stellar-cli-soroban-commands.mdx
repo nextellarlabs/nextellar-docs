@@ -1,0 +1,139 @@
+---
+title: Stellar CLI Commands for Soroban Workflows
+description: A short reference for the stellar-cli commands used to build, deploy, inspect, and invoke Soroban contracts.
+date: 2026-11-22
+---
+
+# Stellar CLI Commands for Soroban Workflows
+
+This guide collects the `stellar` commands you reach for most often during a Soroban workflow, from a clean checkout to a deployed contract you can call. Each command is shown with a small, testnet safe example.
+
+## Environment setup
+
+Install the CLI and confirm it is on your path:
+
+```bash
+stellar --version
+```
+
+Add a network once, then refer to it by name. For testnet, the RPC endpoint and passphrase are:
+
+```bash
+stellar network add testnet \
+  --rpc-url https://soroban-testnet.stellar.org \
+  --network-passphrase "Test SDF Network ; September 2015"
+```
+
+Create a local identity for signing. The `--fund` flag asks the testnet friendbot to fund the account:
+
+```bash
+stellar keys generate alice --network testnet --fund
+```
+
+Check the address the identity resolves to before you use it:
+
+```bash
+stellar keys address alice
+```
+
+If you prefer to keep the secret out of plain text on disk, generate the identity with the secure store option described in the [keychain integration guide](/routes-d/675-stellar-cli-keychain-integration).
+
+## Frequently used commands
+
+### Build a contract
+
+```bash
+stellar contract build
+```
+
+Run this in a contract crate, or in a workspace root that contains a `contracts/` directory. The WASM output is written under `target/wasm32-unknown-unknown/release/`.
+
+### Inspect a WASM file
+
+```bash
+stellar contract inspect --wasm target/wasm32-unknown-unknown/release/hello_world.wasm
+```
+
+This prints the contract spec, including function names and argument types, without deploying anything. It is the quickest way to confirm the interface you think you built is the interface you actually have.
+
+### Deploy
+
+```bash
+stellar contract deploy \
+  --wasm target/wasm32-unknown-unknown/release/hello_world.wasm \
+  --source alice \
+  --network testnet
+```
+
+The command prints the contract ID. Save it somewhere stable, for example an environment variable, because the following commands need it.
+
+### Invoke
+
+```bash
+stellar contract invoke \
+  --id CCONTRACTID \
+  --source alice \
+  --network testnet \
+  -- hello --to "World"
+```
+
+Arguments after `--` are passed to the contract function. The first one is the function name. Read-only calls are simulated locally, while calls that write ledger state produce a transaction that is signed and submitted.
+
+### Simulate without submitting
+
+```bash
+stellar contract invoke --id CCONTRACTID --network testnet -- hello --to "World"
+```
+
+Leaving out `--source` runs a simulation. This is useful for checking return values and for seeing the authorization entries a call will require before you commit to signing them.
+
+### Generate client bindings
+
+```bash
+stellar contract bindings typescript \
+  --wasm target/wasm32-unknown-unknown/release/hello_world.wasm \
+  --output-dir bindings \
+  --contract-name hello_world
+```
+
+This creates a typed client package you can import from your application. The generated output and its versioning are covered in the [bindings from WASM guide](/routes-d/691-typescript-bindings-from-wasm).
+
+### Check transaction status
+
+```bash
+stellar transaction status --id TXHASH --network testnet
+```
+
+Use the hash returned by an invocation when you need to confirm whether a submitted transaction succeeded or failed.
+
+### Extend a contract TTL
+
+```bash
+stellar contract extend \
+  --id CCONTRACTID \
+  --ledgers-to-extend 100000 \
+  --source alice \
+  --network testnet
+```
+
+Soroban state expires. Extending the TTL of a deployed contract and its important entries is part of routine maintenance, not an emergency step.
+
+## A minimal end to end session
+
+```bash
+stellar keys generate alice --network testnet --fund
+stellar contract build
+stellar contract deploy \
+  --wasm target/wasm32-unknown-unknown/release/hello_world.wasm \
+  --source alice \
+  --network testnet
+stellar contract invoke \
+  --id CCONTRACTID \
+  --source alice \
+  --network testnet \
+  -- hello --to "World"
+```
+
+Replace the WASM path and the contract ID with your own. Flags can change between CLI versions, so `stellar contract --help` and `stellar contract invoke --help` are the final authority for your install.
+
+For a fuller walkthrough of contract authoring, see the [contract quick start](/docs/getting-started/contracts-quick-start).
