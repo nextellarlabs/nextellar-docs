@@ -145,8 +145,20 @@ export const sidebarNav: SidebarSection[] = [
       { title: 'Feature Flags', href: '/docs/guides/feature-flags' },
       { title: 'Testing', href: '/docs/guides/testing' },
       {
+        title: 'Vitest Setup for Stellar dApps',
+        href: '/docs/guides/vitest-stellar-dapp-setup',
+      },
+      {
+        title: 'Unit Testing Stellar Hooks',
+        href: '/docs/guides/testing-stellar-hooks',
+      },
+      {
         title: 'Testing Horizon & Soroban',
         href: '/docs/guides/testing-horizon-soroban',
+      },
+      {
+        title: 'Local Horizon Integration Testing',
+        href: '/docs/guides/local-horizon-integration-testing',
       },
       {
         title: 'Mocking Horizon in Tests',
@@ -179,6 +191,10 @@ export const sidebarNav: SidebarSection[] = [
       {
         title: 'Cross-Contract Calls',
         href: '/docs/guides/cross-contract-calls',
+      },
+      {
+        title: 'Invoking a Soroban Contract from React',
+        href: '/docs/guides/invoke-soroban-contract-react',
       },
       {
         title: 'Soroban Guides Index',

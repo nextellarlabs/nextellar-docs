@@ -1,0 +1,126 @@
+---
+title: Invoking a Soroban Contract from React
+description: Invoke a Soroban smart contract method from a React component with a minimal flow, error handling, and example.
+date: 2026-11-22
+---
+
+# Invoking a Soroban Contract from React
+
+This guide shows a minimal React flow for invoking a Soroban contract method. It simulates the call first, builds an invocation XDR, signs with the connected wallet, and submits through Soroban RPC.
+
+## Minimal Call Flow
+
+1. **Connect wallet** - get the user's public key and signer.
+2. **Simulate/read** - validate the method and arguments before asking for a signature.
+3. **Build invocation XDR** - create an unsigned transaction.
+4. **Sign** - ask the wallet to sign the XDR.
+5. **Submit** - send the signed transaction to Soroban RPC and handle status.
+6. **Render result** - show success, pending, or error state.
+
+## Example Component
+
+```tsx
+'use client';
+
+import { useState } from 'react';
+import { rpc, TransactionBuilder } from '@stellar/stellar-sdk';
+import { useSorobanContract } from '@/hooks/useSorobanContract';
+import { useStellarWallet } from '@/hooks/useStellarWallet';
+
+const CONTRACT_ID = 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQAHHXK3AWCM';
+const SOROBAN_RPC = 'https://soroban-testnet.stellar.org';
+const NETWORK_PASSPHRASE = 'Test SDF Network ; September 2015';
+
+export function IncrementCounter() {
+  const [status, setStatus] = useState<string>('idle');
+  const [error, setError] = useState<string | null>(null);
+
+  const { connected, publicKey, signTransaction } = useStellarWallet(
+    'https://horizon-testnet.stellar.org',
+    NETWORK_PASSPHRASE
+  );
+  const { simulateContractCall, buildInvokeXDR, loading } = useSorobanContract({
+    contractId: CONTRACT_ID,
+    sorobanRpc: SOROBAN_RPC,
+    network: 'TESTNET',
+  });
+
+  async function handleInvoke() {
+    setError(null);
+
+    if (!connected || !publicKey) {
+      setError('Connect a wallet before invoking the contract.');
+      return;
+    }
+
+    try {
+      setStatus('simulating');
+      await simulateContractCall('increment', [
+        { value: publicKey, type: 'address' },
+      ]);
+
+      setStatus('building');
+      const unsignedXdr = await buildInvokeXDR('increment', [
+        { value: publicKey, type: 'address' },
+      ]);
+
+      setStatus('signing');
+      const signedXdr = await signTransaction(unsignedXdr);
+
+      setStatus('submitting');
+      const server = new rpc.Server(SOROBAN_RPC);
+      const tx = TransactionBuilder.fromXDR(signedXdr, NETWORK_PASSPHRASE);
+      const response = await server.sendTransaction(tx);
+
+      if (response.status === 'ERROR') {
+        throw new Error('Soroban RPC rejected the transaction.');
+      }
+
+      setStatus(`submitted:${response.hash}`);
+    } catch (err) {
+      setStatus('error');
+      setError(err instanceof Error ? err.message : 'Unknown contract error');
+    }
+  }
+
+  return (
+    <div>
+      <button onClick={handleInvoke} disabled={loading || status === 'signing'}>
+        {loading ? 'Working...' : 'Increment contract'}
+      </button>
+      <p>Status: {status}</p>
+      {error ? <p role="alert">{error}</p> : null}
+    </div>
+  );
+}
+```
+
+> **Note:** After `sendTransaction`, production flows should poll `server.getTransaction(...)` until the transaction reaches a terminal status.
+
+## Error Handling
+
+Handle errors at each stage with clear UI feedback:
+
+- **Wallet not connected**: Disable the action or show a connection prompt.
+- **Simulation failure**: Show contract/argument errors before requesting signature.
+- **User rejected signing**: Treat as a non-fatal cancellation and keep UI idle.
+- **RPC/network failure**: Show a retryable error; avoid logging secrets or signed payloads.
+- **Contract revert/bad status**: Surface a user-safe message and keep diagnostics in development logs.
+
+```ts
+try {
+  await invokeContract();
+} catch (err) {
+  if (err instanceof Error && /reject|cancel/i.test(err.message)) {
+    setError('Transaction signing was cancelled.');
+    return;
+  }
+  setError(err instanceof Error ? err.message : 'Contract invocation failed.');
+}
+```
+
+## Related
+
+- [useSorobanContract](/docs/hooks/use-soroban-contract)
+- [Soroban Integration](/docs/integrations/soroban)
+- [Testing Horizon and Soroban Interactions](/docs/guides/testing-horizon-soroban)

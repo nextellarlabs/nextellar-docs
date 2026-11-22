@@ -1,0 +1,121 @@
+---
+title: Local Horizon Integration Testing
+description: Run integration tests against a locally running Stellar Horizon instance with prerequisites, examples, and CI guidance.
+date: 2026-11-22
+---
+
+# Local Horizon Integration Testing
+
+Integration tests against a local Horizon instance give you realistic Stellar API behavior without depending on public testnet availability. This guide covers prerequisites, a small integration example, and CI considerations.
+
+## Prerequisites
+
+Before running local Horizon integration tests:
+
+- **Docker**: Install Docker Desktop or Docker Engine.
+- **Node.js 18+** and **pnpm**: Match the project toolchain.
+- **Stellar Quickstart image**: Use `stellar/quickstart` for a local standalone network.
+- **Test keypairs**: Generate disposable keypairs; never use production secrets.
+- **Ports available**: Default Quickstart exposes Horizon on `http://localhost:8000`.
+
+Start a local standalone network:
+
+```bash
+docker run --rm -it \
+  -p 8000:8000 \
+  --name stellar-local \
+  stellar/quickstart:latest \
+  --standalone
+```
+
+Useful endpoints:
+
+| Service     | URL                                                 |
+| ----------- | --------------------------------------------------- |
+| Horizon     | `http://localhost:8000`                             |
+| Friendbot   | `http://localhost:8000/friendbot?addr=<PUBLIC_KEY>` |
+| Ledger root | `http://localhost:8000/`                            |
+
+## Small Integration Example
+
+The example below funds a local account with Friendbot and verifies Horizon can load it. Keep this in `tests/integration/` and run it separately from unit tests.
+
+```ts
+// tests/integration/local-horizon.test.ts
+import { beforeAll, describe, expect, it } from 'vitest';
+import { Horizon, Keypair } from '@stellar/stellar-sdk';
+
+const HORIZON_URL = process.env.HORIZON_URL ?? 'http://localhost:8000';
+const server = new Horizon.Server(HORIZON_URL);
+
+async function fundWithFriendbot(publicKey: string): Promise<void> {
+  const response = await fetch(
+    `${HORIZON_URL}/friendbot?addr=${encodeURIComponent(publicKey)}`
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      `Friendbot failed: ${response.status} ${response.statusText}`
+    );
+  }
+}
+
+describe('local Horizon integration', () => {
+  const keypair = Keypair.random();
+
+  beforeAll(async () => {
+    await fundWithFriendbot(keypair.publicKey());
+  }, 30_000);
+
+  it('loads a funded account from local Horizon', async () => {
+    const account = await server.loadAccount(keypair.publicKey());
+    const nativeBalance = account.balances.find(
+      (balance) => balance.asset_type === 'native'
+    );
+
+    expect(account.accountId()).toBe(keypair.publicKey());
+    expect(nativeBalance).toBeDefined();
+    expect(Number(nativeBalance?.balance ?? '0')).toBeGreaterThan(0);
+  });
+});
+```
+
+Run the integration test only when local Horizon is available:
+
+```bash
+HORIZON_URL=http://localhost:8000 pnpm vitest run tests/integration/local-horizon.test.ts
+```
+
+## Suggested CI Considerations
+
+- **Separate job**: Run local Horizon integration tests in a dedicated CI job, not on every fast unit-test pass.
+- **Service container**: Use Docker services in CI to start `stellar/quickstart --standalone` before tests.
+- **Readiness check**: Wait for Horizon to respond before running tests; a simple `curl --retry` loop avoids flaky startup failures.
+- **Deterministic accounts**: Create fresh keypairs per test run and fund them through local Friendbot.
+- **Timeouts**: Increase test timeouts for startup and ledger-close waits.
+- **Artifacts/logs**: Capture Docker logs on failure for debugging.
+- **Network isolation**: Do not mix local Horizon URLs with public testnet passphrases or endpoints.
+
+Example CI step outline:
+
+```yaml
+- name: Start local Stellar
+  run: docker run -d -p 8000:8000 --name stellar stellar/quickstart:latest --standalone
+
+- name: Wait for Horizon
+  run: |
+    for i in {1..30}; do
+      curl -sf http://localhost:8000/ && exit 0
+      sleep 2
+    done
+    exit 1
+
+- name: Run Horizon integration tests
+  run: HORIZON_URL=http://localhost:8000 pnpm vitest run tests/integration
+```
+
+## Related
+
+- [Testing Horizon and Soroban Interactions](/docs/guides/testing-horizon-soroban)
+- [Testing Transactions on Testnet](/docs/guides/testing-transactions-testnet)
+- [Stellar Horizon Integration](/docs/integrations/horizon)

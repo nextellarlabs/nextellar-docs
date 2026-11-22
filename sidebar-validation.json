@@ -16,13 +16,12 @@
     "sidebar",
     "steps",
     "syntax-highlighter",
-    "tabs",
-    "use-window-size"
+    "tabs"
   ],
   "sidebar": {
     "broken": [],
-    "claimed": ["connect-wallet-button", "use-window-size"],
-    "total": 2
+    "claimed": ["connect-wallet-button"],
+    "total": 1
   },
   "toc": {
     "broken": [],
