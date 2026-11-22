@@ -1,0 +1,46 @@
+---
+title: Master Key Weight
+description: The default master key weight on a Stellar account, what changing it means, and what happens when it is set to zero.
+date: 2026-11-18
+---
+
+# Master Key Weight
+
+The **master key** is the keypair an account was created with. Its weight is stored separately from the other signers and is changed with the `masterWeight` field of `setOptions`.
+
+## Default value
+
+A new account's master key has a weight of `1`. The account's `low`, `med`, and `high` thresholds all start at `0`. In that state the master key alone can authorize any operation, because a weight of `1` is greater than or equal to every threshold.
+
+## What changing it means
+
+The master weight follows the same rules as any signer weight. It must be a whole number from `0` to `255`, and it counts toward the account's thresholds like every other signature. Raising or lowering it changes how much the master key can do on its own:
+
+- Raise the thresholds above the master weight and the master key alone can no longer authorize those operations. Other signers must co-sign.
+- Raise the master weight and it carries more of the threshold by itself.
+
+## Setting it to zero
+
+Setting the master weight to `0` means a signature from the master key adds nothing toward any threshold. The key still belongs to the account, but it can no longer authorize anything.
+
+- The account is controlled only by its other signers. You need at least one other signer whose combined weight meets the thresholds before you do this.
+- If there are no other signers, the account is permanently locked. Nobody can sign for it, and no one can change the master weight back.
+- Setting it to `0` is a high-threshold change, so it needs enough signature weight to meet the `high` threshold first.
+
+## Example
+
+Hand control of an account to a co-signer, then retire the master key:
+
+```ts
+import { Operation } from '@stellar/stellar-sdk';
+
+// Step 1: add the co-signer first.
+const addSigner = Operation.setOptions({
+  signer: { ed25519PublicKey: COSIGNER_PUBLIC_KEY, weight: 1 },
+});
+
+// Step 2: once the co-signer is in place, drop the master key weight to zero.
+const retireMaster = Operation.setOptions({ masterWeight: 0 });
+```
+
+Add the co-signer in an earlier transaction and confirm it on the account before you submit the second one. Reversing the order, or doing both with no working co-signer, can lock the account.
