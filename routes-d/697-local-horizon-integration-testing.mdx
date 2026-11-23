@@ -90,7 +90,7 @@ HORIZON_URL=http://localhost:8000 pnpm vitest run tests/integration/local-horizo
 
 - **Separate job**: Run local Horizon integration tests in a dedicated CI job, not on every fast unit-test pass.
 - **Service container**: Use Docker services in CI to start `stellar/quickstart --standalone` before tests.
-- **Readiness check**: Wait for Horizon to respond before running tests; a simple `curl --retry` loop avoids flaky startup failures.
+- **Readiness check**: Wait for Horizon to respond before running tests; a short polling loop that uses Node.js's built-in `fetch` avoids flaky startup failures.
 - **Deterministic accounts**: Create fresh keypairs per test run and fund them through local Friendbot.
 - **Timeouts**: Increase test timeouts for startup and ledger-close waits.
 - **Artifacts/logs**: Capture Docker logs on failure for debugging.
@@ -105,7 +105,7 @@ Example CI step outline:
 - name: Wait for Horizon
   run: |
     for i in {1..30}; do
-      curl -sf http://localhost:8000/ && exit 0
+      node -e "fetch('http://localhost:8000/').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))" && exit 0
       sleep 2
     done
     exit 1
