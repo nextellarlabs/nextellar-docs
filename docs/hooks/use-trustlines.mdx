@@ -390,7 +390,7 @@ The hook uses `WalletProvider`'s `horizonUrl` as a fallback. Pass `network` your
 <WalletProvider horizonUrl="https://horizon.stellar.org" network="PUBLIC">
   <App />
 </WalletProvider>;
-```tsx
+`````
 import { WalletProvider } from '@/contexts';
 import { useStellarWallet } from '@/hooks/useStellarWallet';
 import { useTrustlines } from '@/hooks/useTrustlines';
@@ -414,7 +414,7 @@ function TrustlineList() {
 
 Or override per-component:
 
-```tsx
+```
 const { trustlines } = useTrustlines(publicKey, {
   horizonUrl: 'https://horizon-testnet.stellar.org',
   network: 'TESTNET',
@@ -426,4 +426,4 @@ const { trustlines } = useTrustlines(publicKey, {
 - [`useStellarBalances`](/docs/hooks/use-stellar-balances) - View asset balances
 - [`useStellarPayment`](/docs/hooks/use-stellar-payment) - Send custom assets
 - [`useStellarWallet`](/docs/hooks/use-stellar-wallet) - Wallet connection and management
-`````
+```

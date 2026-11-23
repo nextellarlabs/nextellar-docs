@@ -6,6 +6,8 @@ date: 2026-06-02
 
 # Stellar Horizon Integration
 
+> **Source traceability:** Defaults and env placeholders are defined in Nextellar CLI scaffold templates (`.env.example`, `WalletProvider`, hooks) and `src/lib/scaffold.ts` (`{{HORIZON_URL}}`, `{{SOROBAN_URL}}`, network derivation). CLI flags `--horizon-url`/`--soroban-url` are validated by `src/lib/validate.ts`.
+
 Nextellar uses the official `@stellar/stellar-sdk` to interact with Stellar's Horizon API. This integration powers account queries, balance fetching, payment transactions, and transaction history.
 
 ## What is Horizon?
@@ -170,18 +172,21 @@ A payment operation requires a destination account, an asset, and a positive amo
 
 ## Environment Variables
 
-Configure Horizon endpoints via environment variables:
+Scaffolded projects include Horizon and Soroban URL placeholders in `.env.example`. Configure them via environment variables:
 
 ```bash
 ## .env.local
 NEXT_PUBLIC_HORIZON_URL=https://horizon.stellar.org
-NEXT_PUBLIC_NETWORK=PUBLIC
+NEXT_PUBLIC_SOROBAN_URL=https://soroban-rpc.stellar.org
 ```
 
 ```tsx
 // Access in your app
 const horizonUrl = process.env.NEXT_PUBLIC_HORIZON_URL;
+const sorobanUrl = process.env.NEXT_PUBLIC_SOROBAN_URL;
 ```
+
+> **Mainnet switching:** `NEXT_PUBLIC_HORIZON_URL`/`NEXT_PUBLIC_SOROBAN_URL` control endpoint selection in scaffolded code. When switching to mainnet, also update network/passphrase configuration used by your wallet/provider and transaction builders so endpoint and network passphrase match.
 
 ## Error Handling
 
