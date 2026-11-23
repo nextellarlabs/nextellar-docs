@@ -31,6 +31,8 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
+.contentlayer
+
 # env files (can opt-in for committing if needed)
 .env*
 
@@ -41,7 +43,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-.contentlayer
 .pnpm-store
 fix.md
 

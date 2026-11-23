@@ -1,156 +1,89 @@
 // scripts/build-search-index.cjs - Generates a client-side search index from docs
 const fs = require('fs');
 const path = require('path');
+const matter = require('gray-matter');
 
-/**
- * Recursively crawl the .contentlayer/generated directory and extract searchable content.
- * After `contentlayer2 build` runs, documents are serialized in the `allDocs.json` file.
- *
- * Each doc entry includes: title, description, body, _raw.flattenedPath, etc.
- * We extract title, headings, and body text to create a lightweight, queryable index.
- */
-
-const CONTENTLAYER_DIR = path.join(__dirname, '../.contentlayer/generated');
+const DOCS_DIR = path.join(__dirname, '../docs');
 const OUTPUT_DIR = path.join(__dirname, '../public');
 const INDEX_FILE = path.join(OUTPUT_DIR, 'search-index.json');
 
-// Ensure output directory exists
 if (!fs.existsSync(OUTPUT_DIR)) {
   fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 }
 
-/**
- * Strip markdown/MDX syntax from raw content for clean indexing
- */
-function stripMarkdown(text) {
-  if (!text || typeof text !== 'string') return '';
-  return (
-    text
-      // Remove code blocks
-      .replace(/```[\s\S]*?```/g, '')
-      // Remove inline code
-      .replace(/`[^`]+`/g, '')
-      // Remove HTML tags
-      .replace(/<[^>]+>/g, '')
-      // Remove markdown links, keep text
-      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-      // Remove markdown headers
-      .replace(/#{1,6}\s+/g, '')
-      // Remove bold/italic
-      .replace(/\*{1,2}([^*]+)\*{1,2}/g, '$1')
-      // Remove underscores
-      .replace(/_([^_]+)_/g, '$1')
-      // Remove horizontal rules
-      .replace(/---+/g, '')
-      // Remove frontmatter
-      .replace(/^---[\s\S]*?---/g, '')
-      // Clean up extra whitespace
-      .replace(/\s+/g, ' ')
-      .trim()
-  );
+function toPosix(p) {
+  return p.split(path.sep).join('/');
 }
 
-/**
- * Extract headings from markdown/MDX content.
- * Returns an array of { level, text } objects.
- */
+function walk(dir) {
+  if (!fs.existsSync(dir)) return [];
+  const out = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (entry.name.startsWith('.')) continue;
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) out.push(...walk(full));
+    else if (entry.isFile() && /\.(md|mdx)$/i.test(entry.name)) out.push(full);
+  }
+  return out;
+}
+
+function stripMarkdown(text) {
+  if (!text || typeof text !== 'string') return '';
+  return text
+    .replace(/```[\s\S]*?```/g, '')
+    .replace(/`[^`]+`/g, '')
+    .replace(/<[^>]+>/g, '')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/\*{1,2}([^*]+)\*{1,2}/g, '$1')
+    .replace(/_([^_]+)_/g, '$1')
+    .replace(/---+/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function extractHeadings(content) {
   if (!content || typeof content !== 'string') return [];
-  const headingRegex = /^#+\s+(.+)$/gm;
+  const headingRegex = /^#{1,6}\s+(.+)$/gm;
   const headings = [];
   let match;
   while ((match = headingRegex.exec(content)) !== null) {
-    const level = match[0].match(/^#+/)[0].length;
-    const text = match[1].trim();
-    headings.push({ level, text });
+    headings.push(match[1].trim());
   }
   return headings;
 }
 
-/**
- * Load all docs from contentlayer's generated output.
- * Returns an array of parsed document objects.
- */
 function loadDocs() {
-  try {
-    const docsPath = path.join(CONTENTLAYER_DIR, 'Docs/_index.json');
-    const versionedDocsPath = path.join(CONTENTLAYER_DIR, 'VersionedDocs/_index.json');
+  const files = walk(DOCS_DIR).sort();
+  const docs = [];
+  for (const file of files) {
+    const sourceFilePath = toPosix(path.relative(DOCS_DIR, file));
+    const rawFile = fs.readFileSync(file, 'utf8');
+    const { data, content } = matter(rawFile);
+    const title = typeof data.title === 'string' ? data.title.trim() : '';
+    if (!title) continue;
 
-    let docs = [];
-    if (fs.existsSync(docsPath)) {
-      docs = docs.concat(JSON.parse(fs.readFileSync(docsPath, 'utf8')));
-    }
-    if (fs.existsSync(versionedDocsPath)) {
-      docs = docs.concat(JSON.parse(fs.readFileSync(versionedDocsPath, 'utf8')));
-    }
-
-    if (docs.length === 0) {
-      const indexPath = path.join(CONTENTLAYER_DIR, 'index.js');
-      if (fs.existsSync(indexPath)) {
-        const content = fs.readFileSync(indexPath, 'utf8');
-        const match = content.match(/export const allDocs = (\[[\s\S]*?\])\s*(?:;|export)/);
-        if (match) {
-          docs = eval('(' + match[1] + ')');
-        }
-      }
-    }
-
-    if (docs.length === 0) {
-      throw new Error(
-        `Contentlayer docs not found in ${CONTENTLAYER_DIR}. Did you run 'pnpm build:content'?`
-      );
-    }
-
-    return docs;
-  } catch (error) {
-    console.error('❌ Error loading docs from contentlayer:', error.message);
-    process.exit(1);
-  }
-}
-
-/**
- * Build the search index from loaded docs.
- * Each entry contains: id, title, description, headings, body (stripped), path, version
- */
-function buildSearchIndex(docs) {
-  const index = [];
-
-  for (const doc of docs) {
-    if (!doc.title || !doc._raw) continue;
-
-    const rawBody = doc.body?.raw || '';
-    const strippedBody = stripMarkdown(rawBody);
-    const headings = extractHeadings(rawBody);
-
-    // Determine version from path (e.g., versions/v1.0.0/... -> 1.0.0)
-    const isVersioned = doc._raw.sourceFilePath?.includes('versions/');
+    const flattenedPath = sourceFilePath.replace(/\.mdx?$/i, '');
+    const isVersioned = /^versions\/v[\d.]+(?:-[\w.]+)?\//i.test(sourceFilePath);
     let version = 'latest';
     if (isVersioned) {
-      const versionMatch = doc._raw.sourceFilePath.match(/versions\/(v[\d.]+(?:-[\w.]+)?)\//);
-      if (versionMatch) {
-        version = versionMatch[1].slice(1); // Remove 'v' prefix
-      }
+      const m = sourceFilePath.match(/^versions\/(v[\d.]+(?:-[\w.]+)?)\//i);
+      if (m) version = m[1].slice(1);
     }
 
-    const entry = {
-      id: doc._raw.flattenedPath,
-      title: doc.title,
-      description: doc.description || '',
-      headings: headings.map((h) => h.text),
-      body: strippedBody.substring(0, 500), // Limit body to first 500 chars for size
-      path: `/docs/${doc._raw.flattenedPath}`,
+    docs.push({
+      id: flattenedPath,
+      title,
+      description: typeof data.description === 'string' ? data.description : '',
+      headings: extractHeadings(content),
+      body: stripMarkdown(content).substring(0, 500),
+      path: `/docs/${flattenedPath}`,
       version,
-    };
-
-    index.push(entry);
+    });
   }
-
-  return index;
+  return docs;
 }
 
-/**
- * Write the index to a JSON file in the public directory
- */
 function writeIndex(index) {
   const output = {
     version: '1.0.0',
@@ -158,26 +91,17 @@ function writeIndex(index) {
     documentCount: index.length,
     documents: index,
   };
-
   fs.writeFileSync(INDEX_FILE, JSON.stringify(output, null, 2));
   console.log(`✅ Search index generated: ${INDEX_FILE}`);
   console.log(`   Documents indexed: ${index.length}`);
   console.log(`   File size: ${(fs.statSync(INDEX_FILE).size / 1024).toFixed(2)} KB`);
 }
 
-/**
- * Main execution
- */
 function main() {
   console.log('🔍 Building search index...\n');
-
   const docs = loadDocs();
-  console.log(`📄 Loaded ${docs.length} documents from contentlayer\n`);
-
-  const index = buildSearchIndex(docs);
-  console.log(`✨ Built index with ${index.length} entries\n`);
-
-  writeIndex(index);
+  console.log(`📄 Loaded ${docs.length} documents from docs\n`);
+  writeIndex(docs);
   console.log('\n✅ Search index pipeline complete!');
 }
 

@@ -16,7 +16,7 @@ import Link from 'next/link';
 
 export interface DocType {
   title: string;
-  body: { raw?: string };
+  body: { raw: string };
   _raw: { flattenedPath: string };
 }
 
