@@ -1,0 +1,143 @@
+---
+title: Debugging Failed Transactions
+description: Inspect failed Stellar transactions by reading Horizon result codes, using debugging tools, and walking through a worked example.
+date: 2026-11-23
+---
+
+# Debugging Failed Transactions
+
+When a Stellar transaction fails, Horizon returns the transaction envelope, result XDR, and result codes that explain what went wrong. This guide shows how to read those codes, which tools help inspect failures, and how to debug a common `tx_bad_seq` error.
+
+## Read Result Codes
+
+A failed submission usually throws a Horizon error response. The most useful fields are in `response.data.extras.result_codes`:
+
+```ts
+import { Horizon, Networks, TransactionBuilder, Operation, Asset } from '@stellar/stellar-sdk';
+
+const server = new Horizon.Server('https://horizon-testnet.stellar.org');
+
+try {
+  await server.submitTransaction(transaction);
+} catch (error: any) {
+  const codes = error.response?.data?.extras?.result_codes;
+  console.error('Transaction code:', codes?.transaction);
+  console.error('Operation codes:', codes?.operations);
+  console.error('Result XDR:', error.response?.data?.extras?.result_xdr);
+}
+```
+
+Common result codes:
+
+| Code | Scope | Meaning | Typical fix |
+| --- | --- | --- | --- |
+| `tx_bad_seq` | Transaction | Sequence number is stale or already used. | Reload the source account and rebuild the transaction. |
+| `tx_bad_auth` | Transaction | Missing or invalid signatures. | Confirm signer keys, thresholds, and network passphrase. |
+| `tx_insufficient_fee` | Transaction | Fee is too low for current network conditions. | Increase fee and resubmit with a fresh transaction. |
+| `tx_too_late` | Transaction | Time bounds expired before submission. | Rebuild with a new timeout. |
+| `op_underfunded` | Operation | Source account lacks enough balance. | Check balance and asset reserves before building. |
+| `op_no_trust` | Operation | Destination has no trustline for the asset. | Add a trustline before sending non-native assets. |
+
+> **Tip:** `result_codes.transaction` describes envelope-level failures, while `result_codes.operations` is an array aligned with the operations you submitted.
+
+## Useful Tooling
+
+Use these tools to inspect the same failure from different angles:
+
+- **[Stellar Laboratory](https://laboratory.stellar.org/)**: Decode XDR, inspect transaction envelopes, and submit test transactions.
+- **[Stellar Expert](https://stellar.expert/)**: Look up transaction hashes, accounts, operations, and result details on public networks.
+- **[Horizon API](https://developers.stellar.org/docs/data/apis/horizon)**: Query `/transactions/{hash}`, `/operations`, and account endpoints directly.
+- **Stellar SDK error payloads**: Log `extras.result_codes`, `extras.envelope_xdr`, and `extras.result_xdr` in development for fast diagnosis.
+
+For local debugging, point your app at a local Horizon instance and reproduce the failure with deterministic inputs before trying on testnet.
+
+## Worked Example: Fixing `tx_bad_seq`
+
+This example fails because it reuses an account loaded before another transaction consumed the sequence number.
+
+```ts
+import {
+  Horizon,
+  Keypair,
+  Networks,
+  TransactionBuilder,
+  Operation,
+  Asset,
+} from '@stellar/stellar-sdk';
+
+const server = new Horizon.Server('https://horizon-testnet.stellar.org');
+const sender = Keypair.fromSecret(process.env.SENDER_SECRET!);
+const destination = 'GDESTINATION...';
+
+async function sendPayment() {
+  // Load the account once.
+  const account = await server.loadAccount(sender.publicKey());
+
+  const buildTx = () =>
+    new TransactionBuilder(account, {
+      fee: '200',
+      networkPassphrase: Networks.TESTNET,
+    })
+      .addOperation(
+        Operation.payment({
+          destination,
+          asset: Asset.native(),
+          amount: '10',
+        })
+      )
+      .setTimeout(30)
+      .build();
+
+  const first = buildTx();
+  first.sign(sender);
+  await server.submitTransaction(first); // consumes sequence number
+
+  const second = buildTx(); // stale sequence: built from old account object
+  second.sign(sender);
+
+  try {
+    await server.submitTransaction(second);
+  } catch (error: any) {
+    const txCode = error.response?.data?.extras?.result_codes?.transaction;
+    console.error(txCode); // tx_bad_seq
+
+    // Fix: reload account and rebuild before signing/submitting again.
+    const freshAccount = await server.loadAccount(sender.publicKey());
+    const fixedTx = new TransactionBuilder(freshAccount, {
+      fee: '200',
+      networkPassphrase: Networks.TESTNET,
+    })
+      .addOperation(
+        Operation.payment({
+          destination,
+          asset: Asset.native(),
+          amount: '10',
+        })
+      )
+      .setTimeout(30)
+      .build();
+
+    fixedTx.sign(sender);
+    await server.submitTransaction(fixedTx);
+  }
+}
+```
+
+The key fix is not retrying the same signed envelope. Sequence-number failures require a fresh account load and a rebuilt transaction.
+
+## Verification
+
+After adding or updating debugging docs, run:
+
+```bash
+pnpm build:content
+pnpm check:links
+```
+
+If you are running the full docs site locally, also verify the page renders in the docs route you added to the sidebar.
+
+## Related
+
+- [Transaction Lifecycle](/docs/guides/transaction-lifecycle)
+- [Error Handling Patterns](/docs/guides/error-handling-patterns)
+- [Horizon Integration](/docs/integrations/horizon)

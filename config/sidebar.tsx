@@ -141,6 +141,10 @@ export const sidebarNav: SidebarSection[] = [
         title: 'Transaction Lifecycle End-to-End',
         href: '/docs/guides/transaction-lifecycle-e2e',
       },
+      {
+        title: 'Debugging Failed Transactions',
+        href: '/docs/guides/debugging-failed-transactions',
+      },
       { title: 'Extending the CLI', href: '/docs/guides/extending-the-cli' },
       { title: 'Feature Flags', href: '/docs/guides/feature-flags' },
       { title: 'Testing', href: '/docs/guides/testing' },
@@ -223,6 +227,18 @@ export const sidebarNav: SidebarSection[] = [
       {
         title: 'Wallet UX Patterns',
         href: '/docs/guides/wallet-ux-patterns',
+      },
+      {
+        title: 'Empty State UX Patterns for Wallet Flows',
+        href: '/docs/guides/empty-state-ux-wallet-flows',
+      },
+      {
+        title: 'Optimistic UI for Payment Submissions',
+        href: '/docs/guides/optimistic-ui-payment-submissions',
+      },
+      {
+        title: 'Race Conditions in Wallet Driven Flows',
+        href: '/docs/guides/race-conditions-wallet-flows',
       },
       {
         title: 'Wallet Integration Deep-Dive',

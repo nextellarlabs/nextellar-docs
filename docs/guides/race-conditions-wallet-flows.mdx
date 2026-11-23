@@ -1,0 +1,114 @@
+---
+title: Race Conditions in Wallet Driven Flows
+description: Identify common race conditions in Stellar wallet flows and apply sequencing patterns to prevent stale or conflicting UI state.
+date: 2026-11-23
+---
+
+# Race Conditions in Wallet Driven Flows
+
+Wallet-driven flows are asynchronous: users can click twice, wallets respond late, network state changes, and React effects can overlap. Race conditions happen when an older async result overwrites newer intent.
+
+## Common Race Sources
+
+| Race source | What goes wrong | User impact |
+| --- | --- | --- |
+| Double submit | Two transactions built from same sequence number. | Second submit fails with `tx_bad_seq`. |
+| Stale account load | Balance/account data loaded before a payment settles. | UI shows old balance or allows impossible action. |
+| Late wallet response | User cancels or switches account while signing request is pending. | Old signature/result applied to new state. |
+| Out-of-order effect updates | Earlier fetch resolves after later fetch. | Stale data replaces fresh data. |
+| Concurrent connect/disconnect | Disconnect clears state after reconnect starts. | Connected wallet unexpectedly disappears. |
+
+## Sequencing Patterns
+
+### 1. Serialize Transaction Submission
+
+Keep a per-account submission queue or lock. Reload sequence data before building each transaction.
+
+```ts
+let inFlight = Promise.resolve();
+
+function enqueueTx<T>(work: () => Promise<T>): Promise<T> {
+  const next = inFlight.then(work, work);
+  inFlight = next.then(
+    () => undefined,
+    () => undefined
+  );
+  return next;
+}
+```
+
+### 2. Guard Async Results with Request IDs
+
+Only apply the latest request's result.
+
+```ts
+let latestRequestId = 0;
+
+async function refreshBalances(load: () => Promise<string[]>) {
+  const requestId = ++latestRequestId;
+  const balances = await load();
+  if (requestId !== latestRequestId) return; // stale response
+  setBalances(balances);
+}
+```
+
+### 3. Tie Results to Wallet Session
+
+Ignore responses from a previous public key or session.
+
+```ts
+async function signForSession(sessionId: string, sign: () => Promise<string>) {
+  const signedXdr = await sign();
+  if (sessionId !== currentSessionId) {
+    throw new Error('Stale signing result ignored');
+  }
+  return signedXdr;
+}
+```
+
+## Small Example: Preventing Double Payment Submit
+
+```tsx
+import { useRef, useState } from 'react';
+
+export function SendButton({ onSend }: { onSend: () => Promise<void> }) {
+  const sendingRef = useRef(false);
+  const [status, setStatus] = useState<'idle' | 'sending' | 'sent'>('idle');
+
+  async function handleClick() {
+    if (sendingRef.current) return; // sequence guard
+    sendingRef.current = true;
+    setStatus('sending');
+
+    try {
+      await onSend();
+      setStatus('sent');
+    } finally {
+      sendingRef.current = false;
+    }
+  }
+
+  return (
+    <button onClick={handleClick} disabled={status === 'sending'}>
+      {status === 'sending' ? 'Sending...' : 'Send payment'}
+    </button>
+  );
+}
+```
+
+This UI guard should be paired with server/Horizon-safe behavior: rebuild transactions from fresh account state and handle `tx_bad_seq` as a recoverable error.
+
+## Verification
+
+Run docs checks after adding the guide:
+
+```bash
+pnpm build:content
+pnpm check:links
+```
+
+## Related
+
+- [Transaction Lifecycle](/docs/guides/transaction-lifecycle)
+- [Debugging Failed Transactions](/docs/guides/debugging-failed-transactions)
+- [Wallet UX Patterns](/docs/guides/wallet-ux-patterns)
