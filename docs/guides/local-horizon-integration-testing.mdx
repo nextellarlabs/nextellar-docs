@@ -85,7 +85,7 @@ HORIZON_URL=http://localhost:8000 pnpm vitest run tests/integration/local-horizo
 ## CI Considerations
 
 - **Run separately** from fast unit tests; Docker startup is slower and more fragile.
-- **Wait for readiness** before tests start, for example with a `curl --retry` loop.
+- **Wait for readiness** before tests start, for example with a short polling loop that uses Node.js's built-in `fetch`.
 - **Use fresh keypairs** for every run and fund them with local Friendbot.
 - **Increase timeouts** for container startup and ledger-close timing.
 - **Capture Docker logs** on failures to debug startup or ledger issues.
@@ -100,7 +100,7 @@ Example CI outline:
 - name: Wait for Horizon
   run: |
     for i in {1..30}; do
-      curl -sf http://localhost:8000/ && exit 0
+      node -e "fetch('http://localhost:8000/').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))" && exit 0
       sleep 2
     done
     exit 1
