@@ -17,7 +17,7 @@ Complete reference for all Nextellar CLI commands and their usage.
 | `nextellar add [feature]`      | Add a feature to an existing project or list available features.      |
 | `nextellar telemetry <action>` | Read or change telemetry preferences (`status`, `enable`, `disable`). |
 | `nextellar upgrade`            | Upgrade an existing project.                                          |
-| `nextellar deploy`             | Validate and prepare a deployment bundle.                             |
+| `nextellar deploy`             | Validate and bundle locally (no upload yet).                          |
 | `nextellar clean`              | Remove `.nextellar/build` artifacts.                                  |
 
 ## Main Command
@@ -440,7 +440,9 @@ nextellar upgrade --yes
 
 ## nextellar deploy
 
-Validate and prepare your project for production deployment. This command checks that your Horizon and Soroban RPC endpoints are properly configured, and builds a optimized production bundle of your Stellar dApp.
+Validate the current project and create a local deployment bundle. This command does **not** upload or publish the app: it checks that `package.json` exists, that `next` is a dependency, and that a production build is present at `.next/`, then writes a tarball under `.nextellar/deploy/`. It prints a "Nextellar Cloud is coming soon — deploy with Vercel" message; server upload is not implemented.
+
+Run `npm run build` first — the command errors with `Missing production build (.next). Run 'npm run build' first.` when `.next/` is absent.
 
 ```bash
 nextellar deploy [options]
@@ -448,26 +450,28 @@ nextellar deploy [options]
 
 **Options:**
 
-| Option                     | Description                                                                                       |
-| -------------------------- | ------------------------------------------------------------------------------------------------- |
-| `--dry-run`                | Validate configuration and build process without producing a deploy bundle                        |
-| `--size-threshold <bytes>` | Fail the deploy if the production bundle exceeds this size in bytes (default: `52428800` — 50 MB) |
+| Option      | Description                                                                       |
+| ----------- | --------------------------------------------------------------------------------- |
+| `--dry-run` | Validate the project and print the planned bundle path without writing a bundle.   |
+
+**Bundle details:**
+
+- Location: `.nextellar/deploy/<project-name>-<timestamp>.tar.gz`
+- Excludes: `node_modules`, `.git`, `.next/cache`, and `.nextellar/deploy`
+- Metadata: `.nextellar/deploy/latest-bundle.json` records path, size, contract detection and creation time
 
 **Examples:**
 
 ```bash
-## Prepare project for deployment
+## Validate and create a local bundle after building
+npm run build
 nextellar deploy
 
-## Run a dry-run validation without actual deployment
+## Validate only; no bundle is written
 nextellar deploy --dry-run
-
-## Fail if bundle exceeds 20 MB
-nextellar deploy --size-threshold 20971520
-
-## Raise the threshold to 100 MB for large projects
-nextellar deploy --size-threshold 104857600
 ```
+
+See [Deployment](/docs/guides/deployment) for the supported Vercel and self-hosting paths.
 
 ## nextellar clean
 
