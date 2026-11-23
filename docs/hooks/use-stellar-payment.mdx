@@ -9,7 +9,9 @@ date: 2026-06-02
 The `useStellarPayment` hook provides advanced utilities for building, signing, and submitting Stellar payment transactions. It offers more control than `useStellarWallet.sendPayment()` with separate methods for each step of the payment flow.
 
 <Note>
-  **Ships in:** `default`, `js-template`, `defi`, and `js-defi`
+  **Ships in:** `default`, `defi`, and `js-template` (the JavaScript variant of `default`)
+  <br />
+  The `minimal` and `contracts-template` templates do not ship this hook. JavaScript is only available for `default` (`--javascript`); there is no `js-defi` template.
   <br />
   Not in your scaffold? Run `nextellar add payments`
 </Note>
@@ -68,7 +70,11 @@ export default function PaymentBuilder({
 function useStellarPayment(options?: {
   horizonUrl?: string;
   network?: 'TESTNET' | 'PUBLIC';
-}): PaymentHookReturn;
+}): {
+  buildPaymentXDR: (params: PaymentParams) => Promise<string>;
+  submitSignedXDR: (signedXdrBase64: string) => Promise<PaymentResult>;
+  signAndSubmitWithSecret: (params: PaymentParams & { secret: string }) => Promise<PaymentResult>;
+};
 ```
 
 | Parameter    | Type                    | Default                                 | Description        |
@@ -104,11 +110,10 @@ interface PaymentResult {
   txHash?: string;
   raw?: unknown;
   error?: string;
-  resultCodes?: { transaction?: string; operations?: string[] };
 }
 ```
 
-The Horizon URL falls back to `useWalletConfig()` and then `https://horizon-testnet.stellar.org`. The network defaults to `TESTNET` and determines the transaction passphrase.
+The Horizon URL falls back to the wallet provider's `horizonUrl` and then `https://horizon-testnet.stellar.org`. The network option defaults to `TESTNET` and determines the transaction passphrase; it does not fall back to the provider. `PaymentResult` has no dedicated result-code field — when Horizon returns `extras.result_codes`, the hook folds the transaction or operation codes into the `error` string and includes the raw Horizon response in `raw`.
 
 ## Methods
 
@@ -131,10 +136,11 @@ console.log(xdr); // "AAAAAgAAAAC..."
 
 **Validation:**
 
-- Validates sender and recipient addresses (56 chars, starts with 'G').
+- Validates sender and recipient addresses (56 chars, starts with 'G') and rejects identical sender/recipient addresses.
 - Validates amount (positive, within Stellar limits).
+- For non-native assets, validates the asset code (1–12 alphanumeric characters) and issuer address.
 - If supplied, validates the text memo length (maximum 28 characters).
-- Checks account exists on network.
+- Loads the sender account from Horizon, so an unfunded or unknown account fails here — usually as `Account <address> not found. Account may need funding.`
 
 The hook sets the transaction fee to the SDK `BASE_FEE`; `PaymentParams` has no fee override. It creates an optional memo with `Memo.text()` and sets a 30-second transaction timeout. Rebuild and re-sign if the transaction expires.
 
@@ -156,26 +162,16 @@ if (result.success) {
 
 - `success`: boolean indicating if submission succeeded
 - `txHash`: transaction hash if successful
-- `error`: error message if failed
-- `raw`: raw Horizon response
-- `resultCodes`: Horizon transaction/operation result codes when the failed response includes them
+- `error`: error message if failed, including Horizon `result_codes` when present
+- `raw`: raw Horizon response data when available
 
-Submission failures returned by Horizon are represented as `{ success: false, ... }`; invalid XDR or an uninitialized Horizon client can still throw.
+Submission failures returned by Horizon are represented as `{ success: false, ... }`. Invalid or corrupted XDR (empty, not base64, or too short), an invalid network passphrase, and an uninitialized Horizon client throw instead — callers need both a `try`/`catch` and a `success` check.
 
 ### signAndSubmitWithSecret()
 
-**DEV-ONLY**: Sign and submit using a secret key.
+**DEV-ONLY** — this method exists for local testing and is not part of a wallet-signed flow. It validates the secret key format, checks it matches `from`, builds the XDR, signs it locally, and submits it. Invalid secrets return `{ success: false, error: ... }`.
 
-```tsx
-const result = await signAndSubmitWithSecret({
-  from: 'GABC123...',
-  to: 'GDEF456...',
-  amount: '10',
-  secret: 'SABC123...', // Never use in production!
-});
-```
-
-> **Warning**: Never use this method in production. Secret keys should never be handled in client-side code. Use external wallet signing instead.
+> **Warning**: Never pass a secret key into client-side code or use this method in production. Production examples on this page deliberately use `buildPaymentXDR` with a wallet signer and `submitSignedXDR` — see [Basic Usage](#basic-usage) and [Fee and Memo Handling](#fee-and-memo-handling).
 
 ## Advanced Examples
 
@@ -377,7 +373,8 @@ For shared recovery patterns across hooks, see [Hook Error Handling](/docs/guide
 ```tsx
 const result = await submitSignedXDR(signedXDR);
 if (!result.success) {
-  console.error(result.error, result.resultCodes);
+  // `error` already includes any Horizon transaction/operation result codes.
+  console.error(result.error, result.raw);
 }
 ```
 
