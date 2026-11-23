@@ -221,6 +221,22 @@ export const sidebarNav: SidebarSection[] = [
         href: '/docs/guides/wallet-ux-patterns',
       },
       {
+        title: 'Wallet Balance Widget',
+        href: '/docs/guides/wallet-balance-widget',
+      },
+      {
+        title: 'Filter Balances by Asset Code',
+        href: '/docs/guides/filter-balances-by-asset-code',
+      },
+      {
+        title: 'Currency Localization',
+        href: '/docs/guides/currency-localization',
+      },
+      {
+        title: 'Loading State Patterns for Stellar Hooks',
+        href: '/docs/guides/loading-state-patterns-stellar-hooks',
+      },
+      {
         title: 'Wallet Integration Deep-Dive',
         href: '/docs/guides/wallet-integration-deep-dive',
       },

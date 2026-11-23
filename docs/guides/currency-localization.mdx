@@ -1,0 +1,101 @@
+---
+title: Currency Localization
+description: Format Stellar asset amounts for different locales using locale-aware APIs and clear currency display rules.
+date: 2026-11-23
+---
+
+# Currency Localization
+
+Currency display should respect user locale while avoiding misleading fiat symbols for crypto assets. Stellar amounts are often asset quantities (XLM, USDC), so format numbers with locale awareness and label the asset clearly.
+
+## Locale-Sensitive Formatting
+
+Locale affects:
+
+- **Decimal separator**: `1,234.56` vs `1.234,56`.
+- **Grouping separator**: thousands grouping varies by locale.
+- **Digit systems and spacing**: some locales use different spacing or numerals.
+- **Currency symbol placement**: symbol may appear before or after the amount.
+
+For crypto assets, prefer formatting the number and appending the asset code unless you are displaying a fiat currency with a known ISO code.
+
+## Formatting APIs
+
+Use built-in `Intl` APIs where possible:
+
+- **`Intl.NumberFormat`**: locale-aware decimal/grouping formatting.
+- **`Intl.NumberFormat` with `style: 'currency'`**: for ISO fiat currencies like USD/EUR.
+- **`formatUnits`/decimal libraries**: when working with token base units before display.
+
+```ts
+export function formatAssetAmount(
+  amount: string | number,
+  locale: string,
+  assetCode: string
+): string {
+  const value = typeof amount === 'string' ? Number(amount) : amount;
+  const number = new Intl.NumberFormat(locale, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 7,
+  }).format(value);
+
+  return `${number} ${assetCode}`;
+}
+
+export function formatFiatAmount(
+  amount: number,
+  locale: string,
+  currency: 'USD' | 'EUR'
+): string {
+  return new Intl.NumberFormat(locale, {
+    style: 'currency',
+    currency,
+  }).format(amount);
+}
+```
+
+## Small Example
+
+```tsx
+'use client';
+
+const balance = { amount: '12345.6789', assetCode: 'XLM' };
+
+export function LocalizedBalance({ locale }: { locale: string }) {
+  const number = new Intl.NumberFormat(locale, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 7,
+  }).format(Number(balance.amount));
+
+  return (
+    <p>
+      Balance: <span>{number}</span> {balance.assetCode}
+    </p>
+  );
+}
+
+// Example output:
+// en-US: 12,345.6789 XLM
+// de-DE: 12.345,6789 XLM
+```
+
+## Display Notes
+
+- Keep the original precision available for transaction submission; formatting is for display.
+- Avoid formatting very large on-chain integer strings as JavaScript numbers without a safe decimal library.
+- For fiat on-ramps, show both fiat and asset amount when helpful.
+
+## Verification
+
+Run docs checks after adding the guide:
+
+```bash
+pnpm build:content
+pnpm check:links
+```
+
+## Related
+
+- [Currency Handling](/docs/guides/currency-handling)
+- [Formatting and Display](/docs/guides/formatting-and-display)
+- [useStellarBalances](/docs/hooks/use-stellar-balances)

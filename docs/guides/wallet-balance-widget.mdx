@@ -1,0 +1,92 @@
+---
+title: Wallet Balance Widget
+description: Build a small wallet balance widget with data fetching, loading and empty states, and minimal UI code.
+date: 2026-11-23
+---
+
+# Wallet Balance Widget
+
+A wallet balance widget should fetch balances, show a loading state, and handle the empty case where an account has no displayable assets. Keep the widget small and let hooks own data fetching.
+
+## Data Fetching
+
+Use `useStellarBalances` to load account balances from Horizon. The hook handles network selection and refresh behavior.
+
+```tsx
+'use client';
+
+import { useStellarBalances } from '@/hooks/useStellarBalances';
+import { useStellarWallet } from '@/hooks/useStellarWallet';
+
+export function WalletBalanceWidget() {
+  const { connected, publicKey, connect } = useStellarWallet();
+  const { balances, isLoading, error, refresh } = useStellarBalances(publicKey, {
+    horizonUrl: 'https://horizon-testnet.stellar.org',
+  });
+
+  if (!connected) {
+    return (
+      <section>
+        <p>Connect a wallet to view balances.</p>
+        <button onClick={() => connect()}>Connect Wallet</button>
+      </section>
+    );
+  }
+
+  if (isLoading) {
+    return <p role="status">Loading balances...</p>;
+  }
+
+  if (error) {
+    return (
+      <section role="alert">
+        <p>Could not load balances: {error.message}</p>
+        <button onClick={() => void refresh()}>Retry</button>
+      </section>
+    );
+  }
+
+  if (balances.length === 0) {
+    return <p>No balances found for this account.</p>;
+  }
+
+  return (
+    <section aria-label="Wallet balances">
+      <h3>Balances</h3>
+      <ul>
+        {balances.map((balance) => (
+          <li key={balance.assetCode ?? 'XLM'}>
+            {balance.balance} {balance.assetCode ?? 'XLM'}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+```
+
+## Loading and Empty States
+
+- **Loading**: Render a skeleton or status text before the first response.
+- **Empty**: Distinguish "no connected wallet" from "connected but no balances".
+- **Error**: Keep the last known good balances visible when possible, or provide retry.
+- **Refreshing**: If you support manual refresh, keep old data visible while fetching.
+
+## Minimal UI Notes
+
+The example intentionally avoids styling dependencies. In a production Nextellar app, wrap it in your design system card, add asset icons, and format amounts with locale-aware formatting.
+
+## Verification
+
+Run docs checks after adding the guide:
+
+```bash
+pnpm build:content
+pnpm check:links
+```
+
+## Related
+
+- [useStellarBalances](/docs/hooks/use-stellar-balances)
+- [useStellarWallet](/docs/hooks/use-stellar-wallet)
+- [Empty State UX Patterns for Wallet Flows](/docs/guides/empty-state-ux-wallet-flows)
