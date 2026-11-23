@@ -1,0 +1,115 @@
+---
+title: Filter Balances by Asset Code
+description: Filter a Stellar account balance list by asset code, including native XLM handling and a small render example.
+date: 2026-11-23
+---
+
+# Filter Balances by Asset Code
+
+Stellar account balances include native XLM and issued assets. When users look for a specific asset, filter by asset code while treating native balances as `XLM`.
+
+## Filter Logic
+
+Horizon balance entries use `asset_type: "native"` for XLM. Issued assets have `asset_code` and `asset_issuer`.
+
+```ts
+type HorizonBalance = {
+  asset_type: 'native' | 'credit_alphanum4' | 'credit_alphanum12' | 'liquidity_pool_shares';
+  asset_code?: string;
+  asset_issuer?: string;
+  balance: string;
+};
+
+export function filterBalancesByAssetCode(
+  balances: HorizonBalance[],
+  assetCode: string
+): HorizonBalance[] {
+  const needle = assetCode.trim().toUpperCase();
+
+  return balances.filter((balance) => {
+    const code = balance.asset_type === 'native' ? 'XLM' : balance.asset_code;
+    return code?.toUpperCase() === needle;
+  });
+}
+```
+
+## Native Asset Handling
+
+- Treat `asset_type === 'native'` as `XLM`.
+- Do not expect `asset_code` or `asset_issuer` on native balances.
+- If your UI accepts `native`, normalize it to `XLM` before comparing.
+
+```ts
+function normalizeAssetCode(input: string): string {
+  const code = input.trim().toUpperCase();
+  return code === 'NATIVE' ? 'XLM' : code;
+}
+```
+
+## Small Example
+
+```tsx
+'use client';
+
+import { useMemo, useState } from 'react';
+
+type Balance = {
+  asset_type: 'native' | 'credit_alphanum4' | 'credit_alphanum12';
+  asset_code?: string;
+  balance: string;
+};
+
+export function FilteredBalances({ balances }: { balances: Balance[] }) {
+  const [query, setQuery] = useState('USDC');
+
+  const filtered = useMemo(() => {
+    const needle = query.trim().toUpperCase();
+    return balances.filter((b) => {
+      const code = b.asset_type === 'native' ? 'XLM' : b.asset_code;
+      return !needle || code?.toUpperCase() === needle;
+    });
+  }, [balances, query]);
+
+  return (
+    <section>
+      <label htmlFor="asset-code">Asset code</label>
+      <input
+        id="asset-code"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="XLM or USDC"
+      />
+
+      {filtered.length === 0 ? (
+        <p>No balances match {query || 'that asset'}.</p>
+      ) : (
+        <ul>
+          {filtered.map((b, index) => {
+            const code = b.asset_type === 'native' ? 'XLM' : b.asset_code;
+            return (
+              <li key={`${code}-${index}`}>
+                {b.balance} {code}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
+}
+```
+
+## Verification
+
+Run docs checks after adding the guide:
+
+```bash
+pnpm build:content
+pnpm check:links
+```
+
+## Related
+
+- [useStellarBalances](/docs/hooks/use-stellar-balances)
+- [Wallet Balance Widget](/docs/guides/wallet-balance-widget)
+- [Horizon Integration](/docs/integrations/horizon)
