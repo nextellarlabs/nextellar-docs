@@ -168,6 +168,10 @@ const transaction = new TransactionBuilder(sourceAccount, {
 
 A payment operation requires a destination account, an asset, and a positive amount. The operation source defaults to the transaction source, which must authorize the transaction. Common failures include `op_underfunded` (not enough balance), `op_no_destination` (the destination account does not exist), and `op_no_trust` or `op_line_full` when the recipient cannot receive an issued asset.
 
+### SEP-29 memo requirement
+
+SEP-29 applies when the destination account sets a `config.memo_required` data entry to `1`, as custodial accounts often do to credit deposits. Before submitting a `PAYMENT`, `PATH_PAYMENT_STRICT_SEND`, `PATH_PAYMENT_STRICT_RECEIVE`, or `MERGE_ACCOUNT` operation to that account, clients should load the destination and check the flag. If it is set, require a memo and prevent submission without one, checking each operation in a transaction with multiple operations. A missing memo is reported as `AccountRequiresMemoError`.
+
 ## Environment Variables
 
 Configure Horizon endpoints via environment variables:

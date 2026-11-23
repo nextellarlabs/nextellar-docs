@@ -1,0 +1,8 @@
+---
+title: SEP-29 memo required flag
+description: Working draft for issue #812
+---
+
+SEP-29 applies when the destination account sets a `config.memo_required` data entry to `1`, as custodial accounts often do to credit deposits. Before submitting a `PAYMENT`, `PATH_PAYMENT_STRICT_SEND`, `PATH_PAYMENT_STRICT_RECEIVE`, or `MERGE_ACCOUNT` operation to that account, clients should load the destination and check the flag. If it is set, require a memo and prevent submission without one, checking each operation in a transaction with multiple operations. A missing memo is reported as `AccountRequiresMemoError`.
+
+Final text is placed in `docs/integrations/horizon.mdx`.
