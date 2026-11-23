@@ -1,0 +1,142 @@
+---
+title: Optimistic UI for Payment Submissions
+description: Implement optimistic payment submission UI with confirm and rollback patterns, error handling, and reconciliation.
+date: 2026-11-23
+---
+
+# Optimistic UI for Payment Submissions
+
+Optimistic UI updates the interface before the network confirms a payment. This makes wallet flows feel fast, but it requires a clear rollback path when Horizon rejects the transaction or the user cancels signing.
+
+## Confirm and Rollback Pattern
+
+Use a three-step state model:
+
+1. **Optimistic apply** - add a pending payment row immediately after the user submits.
+2. **Confirm** - replace the pending row with confirmed transaction data when Horizon returns success.
+3. **Rollback** - remove or mark the pending row as failed if signing/submission fails.
+
+```tsx
+'use client';
+
+import { useState } from 'react';
+
+type PaymentRow = {
+  id: string;
+  amount: string;
+  destination: string;
+  status: 'pending' | 'confirmed' | 'failed';
+  hash?: string;
+  error?: string;
+};
+
+export function OptimisticPayments() {
+  const [rows, setRows] = useState<PaymentRow[]>([]);
+
+  async function submitPayment(amount: string, destination: string) {
+    const optimisticId = crypto.randomUUID();
+    const optimisticRow: PaymentRow = {
+      id: optimisticId,
+      amount,
+      destination,
+      status: 'pending',
+    };
+
+    // 1) Optimistic apply
+    setRows((current) => [optimisticRow, ...current]);
+
+    try {
+      const hash = await sendPaymentToWalletAndHorizon({ amount, destination });
+
+      // 2) Confirm
+      setRows((current) =>
+        current.map((row) =>
+          row.id === optimisticId ? { ...row, status: 'confirmed', hash } : row
+        )
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Payment failed';
+
+      // 3) Rollback: keep the row visible with failed state for user feedback.
+      setRows((current) =>
+        current.map((row) =>
+          row.id === optimisticId
+            ? { ...row, status: 'failed', error: message }
+            : row
+        )
+      );
+    }
+  }
+
+  return (
+    <ul>
+      {rows.map((row) => (
+        <li key={row.id}>
+          {row.amount} XLM to {row.destination} - {row.status}
+          {row.error ? ` (${row.error})` : null}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+async function sendPaymentToWalletAndHorizon(input: {
+  amount: string;
+  destination: string;
+}): Promise<string> {
+  // Build, sign, and submit the transaction. Return the transaction hash.
+  return 'tx-hash';
+}
+```
+
+## Error Handling
+
+Treat optimistic state as temporary until the network confirms it.
+
+- **User rejected signing**: Roll back immediately and keep the form editable.
+- **Horizon validation error**: Show the result code or a user-safe message; do not leave a pending row indefinitely.
+- **Network timeout/unknown state**: Mark the row as `pending` with "checking status" instead of blindly rolling back. Query Horizon by hash before deciding.
+- **Duplicate submits**: Disable the submit button while a request for the same payload is in flight.
+
+```ts
+function getPaymentErrorMessage(error: any): string {
+  const code = error?.response?.data?.extras?.result_codes?.transaction;
+  if (code === 'tx_bad_seq') return 'Account sequence changed. Please retry.';
+  if (code === 'op_underfunded') return 'Insufficient balance for this payment.';
+  if (code) return `Transaction failed: ${code}`;
+  return error instanceof Error ? error.message : 'Unexpected payment error.';
+}
+```
+
+## Small Example: Reconciliation
+
+If submission returns an unknown error after signing, reconcile before rollback:
+
+```ts
+async function reconcileByHash(server: any, hash: string) {
+  try {
+    const tx = await server.transactions().transaction(hash).call();
+    return tx.successful ? 'confirmed' : 'failed';
+  } catch {
+    return 'unknown';
+  }
+}
+```
+
+Reconciliation prevents false negatives when a transaction was accepted but the client lost the response.
+
+## Verification
+
+Run docs checks after adding the guide:
+
+```bash
+pnpm build:content
+pnpm check:links
+```
+
+## Related
+
+- [Transaction Lifecycle](/docs/guides/transaction-lifecycle)
+- [Error Handling Patterns](/docs/guides/error-handling-patterns)
+- [Wallet UX Patterns](/docs/guides/wallet-ux-patterns)
