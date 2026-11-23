@@ -1,0 +1,73 @@
+---
+title: Netlify Deployment Tips
+description: Deploy a Nextellar Stellar dApp to Netlify with correct build settings, redirects, and edge-case handling.
+date: 2026-07-27
+---
+
+# Netlify Deployment Tips
+
+Netlify is a good fit for Nextellar Stellar dApps that need global edge delivery, preview deploys per pull request, and simple redirect management. This guide covers the settings that matter for a Nextellar app and the edge cases that cause deployments to fail or behave inconsistently.
+
+If you have not chosen a host yet, start with the [Deployment](docs/guides/deployment) guide for a comparison of Vercel, Netlify, and self-hosted options.
+
+---
+
+## Build settings
+
+Netlify detects Next.js automatically, but Nextellar projects depend on the package manager and build command you use locally. Set them explicitly in **Site configuration &rquo; Build &amp; deploy settings**.
+
+| Setting          | Value                 |
+| ---------------- | -------------------- |
+| Build command    | `pnpm build`          |
+| Publish directory | `.next` (Next.js)      |
+| Node version     | 20 or later           |
+| Package manager  | `pnpm`                 |
+
+If you use `npm` or `yarn`, swap the build command and package manager accordingly. Commit the matching lockfile (`pnpm-lock.yaml`, `package-lock.json`, or `yarn.lock`) and keep it in sync with `package.json`.
+
+Provide the Stellar network and Horizon URL as environment variables in **Site configuration &rquo; Environment variables**. Nextellar reads these at build time for server components and at runtime for client components, so set them for every deploy context (Production, Deploy Previews, and Branch deploys).
+
+```
+NEXT_PUBLIC_STELLAR_NETWORK=testnet
+NEXT_PUBLIC_HORIZON_URL=https://horizon-testnet.stellar.org
+STELLAR_SECRET_KEY=<server-only-value>
+```
+
+Secrets must not be prefixed with `NEXT_PUBLIC_`. Only values safe to ship to the browser belong in public variables.
+
+## Redirects
+
+Netlify reads redirects from a file at the repository root or from the **Redirects &#039; Rewrites** section in the Netlify UI. For Nextellar apps, keep redirects declarative in a committed file so they are reviewed with the code.
+
+```
+# public/_redirects
+/docs/index     /docs/guides/index   301
+/docs/guides   /docs/guides/index  301
+/old-deploy     /docs/guides/deployment  301
+```
+
+Rules to keep in mind:
+- Place the file at `public/_redirects` if you want it served with the static assets, or at the repository root for Netlify to pick it up during build.
+- Use `301` for permanent moves and `302` for temporary ones.
+- Netlify applies redirects in order, and the first match wins. Put specific rules above catch-all rules.
+- Chain redirects through at most one hop; Netlify does not follow redirect chains beyond that.
+
+To keep old URLs reachable across moved pages, see the [Redirects Map](docs/guides/redirects-map) guide.
+
+## Edge cases
+
+- **Static exports.** If you run `Next.js` with `output: 'export'`, set the publish directory to `out` instead of `.next`, and move your redirects into `public/_redirects`. Server-side Stellar calls will not run in a fully static export.
+- **Server functions and Soroban RPC.** Netlify Functions have a default execution timeout. Long-running Soroban simulations or large batch submits should be moved off the request path or given a longer timeout in Netlify function configuration.
+- **Preview deploys and networks.** Deploy Previews should point at testnet or futurenet, never mainnet. Set the network environment variable per context so a preview build cannot submit mainnet transactions.
+- **Caching of Horizon responses.** Netlify caches static assets aggressively. Fetch Horizon data in client components or route handlers that opt out of caching, otherwise ledger data may stale.
+- **Environment variable drift.** Netlify does not rebuild on environment variable changes. After updating a Horizon URL or network passphrase, trigger a new deploy.
+- **Custom headers for wallet connections.** Some wallet extensions and passkey flows require specific CORS and Permissions-Policy headers. Define them in `public/_headers` and verify them on a preview deploy before promoting to production.
+
+## Verify the guide renders
+
+Before opening a PR:
+- Run `pnpm build:content` to confirm the MDX compiles without errors.
+- Run `pnpm check:links` to confirm internal links resolve.
+- Open the page in a local preview and confirm the code blocks, table, and lists render as expected.
+
+See [Testing Docs Changes](docs/guides/testing-docs-changes) for the full checklist.
