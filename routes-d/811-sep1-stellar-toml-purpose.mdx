@@ -1,0 +1,23 @@
+---
+title: SEP-1 stellar.toml purpose (Issue #811 Draft)
+description: Working draft for the SEP-1 stellar.toml discovery note
+date: 2026-11-23
+---
+
+# Draft: SEP-1 stellar.toml purpose
+
+This file is the working draft for issue #811. The published note is in `docs/guides/glossary.mdx` under **stellar.toml**.
+
+## Draft text
+
+`stellar.toml` is a public file published at `https://<domain>/.well-known/stellar.toml`. Under SEP-1 it is the discovery document that lets wallets and clients find an anchor: they read it to learn which accounts and assets the anchor supports, and which endpoints to use for deposits, withdrawals, and authentication.
+
+Common fields:
+
+- `VERSION` and `SIGNERS` — the SEP-1 version and the keys that sign statements from the anchor.
+- `ORG_NAME`, `ORG_URL` — identity of the organization operating the anchor.
+- `ACCOUNTS` — Stellar accounts used by the anchor.
+- `CURRENCIES` — supported asset codes and issuers.
+- `TRANSFER_SERVER`, `KYC_SERVER`, `WEB_AUTH_ENDPOINT` — service endpoints used by clients.
+
+The file is a discovery aid from a domain you are verifying, not proof that an asset is legitimate.

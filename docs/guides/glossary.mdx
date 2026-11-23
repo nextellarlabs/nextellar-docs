@@ -104,6 +104,10 @@ The blockchain network that Nextellar targets for payments, assets, and wallet-b
 
 The official JavaScript library used to build, sign, and submit Stellar transactions.
 
+### stellar.toml
+
+A public file an organization publishes at `https://<domain>/.well-known/stellar.toml`. Under SEP-1 it is the discovery document that lets wallets and clients find an anchor: they read its fields to learn which accounts and assets the anchor supports, and which endpoints to use for deposits, withdrawals, and authentication. Common fields include `VERSION`, `SIGNERS`, `ACCOUNTS`, `ORG_NAME`/`ORG_URL`, `CURRENCIES` (asset code and issuer), `TRANSFER_SERVER`, `KYC_SERVER`, and `WEB_AUTH_ENDPOINT`. Treat it as untrusted input from a domain you are verifying, not as proof of an asset's legitimacy.
+
 ### Testnet
 
 The Stellar testing network used for development, experiments, and pre-production verification.
