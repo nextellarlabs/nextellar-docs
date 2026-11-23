@@ -225,6 +225,10 @@ export const sidebarNav: SidebarSection[] = [
         href: '/docs/guides/hook-error-handling',
       },
       {
+        title: 'Per-Hook Telemetry',
+        href: '/docs/guides/per-hook-telemetry',
+      },
+      {
         title: 'Wallet UX Patterns',
         href: '/docs/guides/wallet-ux-patterns',
       },
