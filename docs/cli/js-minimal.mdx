@@ -1,0 +1,100 @@
+---
+title: Create a JavaScript minimal project
+description: Scaffold the Nextellar minimal template in JavaScript and see the components and hooks it includes.
+date: 2026-10-20
+---
+
+# Create a JavaScript minimal project
+
+The JavaScript minimal template is Nextellar's smallest starter without TypeScript. It gives you a Next.js project with wallet connection and balance lookup, and leaves everything else for you to add.
+
+The generator stores this variant internally as `js-minimal`, but `js-minimal` is not a value accepted by `--template`. Select the public `minimal` template and add the JavaScript flag instead.
+
+## Scaffold the project
+
+Run the scaffold command with `--template minimal` and `--javascript`:
+
+```bash
+npx nextellar my-stellar-app --template minimal --javascript
+cd my-stellar-app
+npm run dev
+```
+
+Use `-j` as the short form of `--javascript`. To select another package manager, pass it during scaffolding:
+
+```bash
+npx nextellar my-stellar-app --template minimal -j --package-manager pnpm
+```
+
+## Scope
+
+Choose this template when your application starts with connecting a wallet and showing balances, and you want to add other features yourself. The generated project uses `.js` and `.jsx` source files and provides `jsconfig.json` instead of `tsconfig.json`.
+
+The template does not include payments, trustlines, offer-book access, transaction history, or Soroban contract hooks. It also omits the network switcher and the `src/config` directory. To add features after scaffolding, see the [feature catalog](/docs/cli/add-feature-catalog).
+
+For a broader starter, see [Create a JavaScript project](/docs/cli/js-template) (`--template default --javascript`) or [Create a JavaScript DeFi project](/docs/cli/js-defi) (`--template defi --javascript`).
+
+## Included components
+
+| Component             | Location                                    |
+| --------------------- | ------------------------------------------- |
+| `WalletConnectButton` | `src/components/WalletConnectButton.jsx`    |
+| `CopyButton`          | `src/components/CopyButton.jsx`             |
+| `EmptyState`          | `src/components/EmptyState.jsx`             |
+| `ErrorBoundary`       | `src/components/ErrorBoundary.jsx`          |
+
+`WalletConnectButton` and `ErrorBoundary` also have Storybook stories. The wallet state is shared through `WalletProvider` in `src/contexts/WalletProvider.jsx`.
+
+## Included hooks
+
+| Hook                 | Location                          |
+| -------------------- | --------------------------------- |
+| `useStellarWallet`   | `src/hooks/useStellarWallet.js`   |
+| `useStellarBalances` | `src/hooks/useStellarBalances.js` |
+| `useClipboard`       | `src/hooks/useClipboard.js`       |
+
+See the [`useStellarWallet`](/docs/hooks/use-stellar-wallet) and [`useStellarBalances`](/docs/hooks/use-stellar-balances) references for usage.
+
+## Project structure
+
+```text
+my-stellar-app/
+|-- .nextellar/
+|   `-- config.json
+|-- .storybook/
+|-- public/
+|-- src/
+|   |-- app/
+|   |   |-- example/[id]/page.jsx
+|   |   |-- globals.css
+|   |   |-- layout.jsx
+|   |   `-- page.jsx
+|   |-- components/
+|   |   |-- CopyButton.jsx
+|   |   |-- EmptyState.jsx
+|   |   |-- ErrorBoundary.jsx
+|   |   `-- WalletConnectButton.jsx
+|   |-- contexts/
+|   |   |-- index.js
+|   |   `-- WalletProvider.jsx
+|   |-- hooks/
+|   |   |-- useClipboard.js
+|   |   |-- useStellarBalances.js
+|   |   `-- useStellarWallet.js
+|   `-- lib/
+|       |-- stellar-wallet-kit.js
+|       `-- storage.js
+|-- .env.example
+|-- jsconfig.json
+|-- next.config.js
+`-- package.json
+```
+
+The tree omits Storybook story files, configuration files such as the ESLint and PostCSS configs, and the static assets in `public/`.
+
+## Related pages
+
+- [Scaffolding templates](/docs/cli/templates)
+- [Template comparison](/docs/cli/template-comparison)
+- [Using JavaScript](/docs/getting-started/javascript)
+- [CLI flags and options](/docs/cli/flags)
