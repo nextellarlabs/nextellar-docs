@@ -1,0 +1,38 @@
+---
+title: Reading claimable balances by claimant
+description: Working draft for issue #677
+---
+
+Horizon returns every claimable balance that lists an account as a claimant:
+
+```text
+GET /claimable_balances?claimant={ACCOUNT_ID}
+```
+
+```text
+GET https://horizon-testnet.stellar.org/claimable_balances?claimant=GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN&limit=10&order=desc
+```
+
+The response is one page of records. Each record includes `id`, `asset`, `amount`, `sponsor`, `claimants`, and `last_modified_ledger`. Map the page down to those fields:
+
+```typescript
+const claimant = 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN';
+
+const url = new URL('https://horizon-testnet.stellar.org/claimable_balances');
+url.searchParams.set('claimant', claimant);
+url.searchParams.set('limit', '10');
+url.searchParams.set('order', 'desc');
+
+const page = await fetch(url).then((response) => response.json());
+
+const balances = page._embedded.records.map((record) => ({
+  id: record.id,
+  asset: record.asset,
+  amount: record.amount,
+  sponsor: record.sponsor,
+  claimants: record.claimants,
+  lastModifiedLedger: record.last_modified_ledger,
+}));
+```
+
+The result is paginated. `limit` accepts 1–200 and defaults to 10. `order` is `asc` or `desc`. `cursor` is an opaque paging token; you do not invent it. Each page has `_links.next` and `_links.prev`. Follow `next.href` to load the next page, and stop when `records` is empty. `prev.href` walks back toward the start of the same ordering. A hand-built query uses the same parameters: pass `cursor` from the last record's `paging_token` with the same `limit` and `order`.

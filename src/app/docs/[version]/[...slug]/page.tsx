@@ -1,4 +1,4 @@
-import { allDocs, allVersionedDocs } from 'contentlayer/generated';
+import { getAllDocs, getAllVersionedDocs } from '@/lib/content';
 import { notFound } from 'next/navigation';
 import { Mdx } from '@/components/mdx-components';
 import Breadcrumb from '@/components/bread-crumb';
@@ -10,6 +10,8 @@ import { getVersionFromPath } from '@/lib/versions';
 type tParams = Promise<{ version: string; slug: string[] }>;
 
 export const generateStaticParams = async () => {
+  const allDocs = await getAllDocs();
+  const allVersionedDocs = await getAllVersionedDocs();
   // Generate params for unversioned docs: /docs/...slug
   const unversionedParams = allDocs
     .filter((doc) => {
@@ -17,7 +19,7 @@ export const generateStaticParams = async () => {
       return path !== '' && path !== 'index' && path.length > 0;
     })
     .map((doc) => {
-      const slugArray = doc._raw.flattenedPath.split('/');
+      const slugArray = doc.slug.split('/').filter(Boolean);
       return { version: 'current', slug: slugArray };
     });
 
@@ -30,7 +32,10 @@ export const generateStaticParams = async () => {
     .map((doc) => {
       const slugArray = doc._raw.flattenedPath.split('/');
       const version = doc.version || 'current';
-      return { version: version === 'current' ? 'current' : `v${version}`, slug: slugArray };
+      return {
+        version: version === 'current' ? 'current' : `v${version}`,
+        slug: slugArray,
+      };
     });
 
   return [...unversionedParams, ...versionedParams];
@@ -40,8 +45,9 @@ export const generateMetadata = async ({ params }: { params: tParams }) => {
   const awaitedParams = await params;
   const { version, slug } = awaitedParams;
   const path = slug.join('/');
+  const allDocs = await getAllDocs();
+  const allVersionedDocs = await getAllVersionedDocs();
 
-  // Try to find in versioned docs first if version is specified
   let doc = null;
   if (version === 'current') {
     doc = allDocs.find((doc) => doc._raw.flattenedPath === path);
@@ -68,8 +74,9 @@ const DocsPage = async ({ params }: { params: tParams }) => {
   const awaitedParams = await params;
   const { version, slug } = awaitedParams;
   const path = slug.join('/');
+  const allDocs = await getAllDocs();
+  const allVersionedDocs = await getAllVersionedDocs();
 
-  // Try to find in versioned docs first if version is specified
   let doc = null;
   if (version === 'current') {
     doc = allDocs.find((doc) => doc._raw.flattenedPath === path);
@@ -88,7 +95,7 @@ const DocsPage = async ({ params }: { params: tParams }) => {
       <article className="overflow-auto">
         <div className="mb-8 text-center">
           <Breadcrumb path={doc.url} />
-          {doc.date && (
+          {doc.date && !Number.isNaN(Date.parse(doc.date)) && (
             <time
               dateTime={doc.date}
               className="mt-2 block text-sm text-muted-foreground"
