@@ -294,6 +294,10 @@ export const sidebarNav: SidebarSection[] = [
       },
       { title: 'Claimable Balances', href: '/docs/guides/claimable-balances' },
       {
+        title: 'Revoking Trust for an Asset',
+        href: '/docs/guides/revoking-trust-for-asset',
+      },
+      {
         title: 'Time Locked Transactions',
         href: '/docs/guides/time-locked-transactions',
       },
@@ -469,6 +473,10 @@ export const sidebarNav: SidebarSection[] = [
         href: '/docs/guides/streaming-payments-horizon',
       },
       { title: 'Claimable Balances', href: '/docs/guides/claimable-balances' },
+      {
+        title: 'Revoking Trust for an Asset',
+        href: '/docs/guides/revoking-trust-for-asset',
+      },
       {
         title: 'Time Locked Transactions',
         href: '/docs/guides/time-locked-transactions',
