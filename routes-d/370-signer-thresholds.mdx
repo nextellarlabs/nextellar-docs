@@ -1,0 +1,19 @@
+---
+title: Signer Thresholds (Issue #370 Draft)
+description: Learn which Stellar operations use the low, medium, and high signer thresholds.
+date: 2026-11-20
+---
+
+# Signer Thresholds
+
+This draft for issue #370 accompanies the note in `docs/guides/transaction-lifecycle.mdx`.
+
+### Signer thresholds
+
+Each account sets low, medium, and high thresholds. For each operation, the combined weight of the signers authorizing it must meet or exceed the operation source account's threshold.
+
+- **Low** applies to `Bump Sequence`. The transaction source also needs to meet its low threshold to authorize the envelope.
+- **Medium** applies to most operations, including `Payment` and `Change Trust`.
+- **High** applies to `Account Merge` and to `Set Options` when changing signer settings or thresholds.
+
+See the [Stellar operation reference](https://developers.stellar.org/docs/learn/fundamentals/transactions/list-of-operations) for the threshold of each operation.

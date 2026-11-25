@@ -96,6 +96,16 @@ The sequence number on the source account increments by one for each submitted t
 
 A transaction is not valid until it carries the required signatures. Each operation's source account must sign, plus the envelope source account.
 
+### Signer thresholds
+
+Each account sets low, medium, and high thresholds. For each operation, the combined weight of the signers authorizing it must meet or exceed the operation source account's threshold.
+
+- **Low** applies to `Bump Sequence`. The transaction source also needs to meet its low threshold to authorize the envelope.
+- **Medium** applies to most operations, including `Payment` and `Change Trust`.
+- **High** applies to `Account Merge` and to `Set Options` when changing signer settings or thresholds.
+
+See the [Stellar operation reference](https://developers.stellar.org/docs/learn/fundamentals/transactions/list-of-operations) for the threshold of each operation.
+
 ### Single signer
 
 ```typescript
