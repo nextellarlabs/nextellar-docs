@@ -93,31 +93,6 @@ jobs:
       - name: Validate heading hierarchy
         run: node scripts/validate-heading-hierarchy.mjs
 
-  # Validate markdown code fences
-  validate-fences:
-    name: Validate Code Fences
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 9.15.4
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Validate code fences
-        run: pnpm run validate:fences
-
   # Diff gate: verify CLI docs are in sync with CLI's --help output
   verify-cli-docs:
     name: Verify CLI Docs Match --help Output

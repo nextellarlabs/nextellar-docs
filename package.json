@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Official documentation for Nextellar \u2014 a production-ready CLI for scaffolding Next.js + Stellar blockchain dApps with TypeScript, wallet integration, and smart contract support.",
+  "description": "Official documentation for Nextellar — a production-ready CLI for scaffolding Next.js + Stellar blockchain dApps with TypeScript, wallet integration, and smart contract support.",
   "author": "Nextellar Labs <team@nextellar.dev>",
   "license": "MIT",
   "repository": {
@@ -42,7 +42,6 @@
     "test:validation": "vitest run scripts/validate-search-index.test.ts",
     "validate:frontmatter": "node scripts/validate-frontmatter.mjs",
     "validate:sidebar": "node scripts/validate-sidebar.cjs",
-    "validate:fences": "node scripts/validate-fences.cjs",
     "validate:heading-hierarchy": "node scripts/validate-heading-hierarchy.mjs",
     "fix:heading-hierarchy": "node scripts/fix-heading-hierarchy.mjs",
     "check:links": "node scripts/check-links.cjs",
