@@ -1,6 +1,7 @@
 'use client';
-import React from 'react';
-import { useMDXComponent } from 'next-contentlayer2/hooks';
+import * as React from 'react';
+import * as jsxRuntime from 'react/jsx-runtime';
+import { runSync } from '@mdx-js/mdx';
 import clsx from 'clsx';
 import SearchButton from '@/components/search-button';
 import Preview from '@/components/preview';
@@ -344,18 +345,29 @@ const components = {
   Mermaid,
 };
 
-interface Mdxchildren {
+interface MdxProps {
   code: string;
 }
 
-export function Mdx({ code }: Mdxchildren) {
-  const Component = useMDXComponent(code, {
-    style: 'default',
-  });
+type MdxModule = {
+  default: React.ComponentType<{ components?: Record<string, unknown> }>;
+};
+
+function getMdxComponent(code: string): MdxModule['default'] {
+  const mod = runSync(code, {
+    ...jsxRuntime,
+    baseUrl: import.meta.url,
+    Fragment: React.Fragment,
+  }) as MdxModule;
+  return mod.default;
+}
+
+export function Mdx({ code }: MdxProps) {
+  const Component = React.useMemo(() => getMdxComponent(code), [code]);
 
   return (
     <div className="mdx">
-      <Component components={components} />
+      <Component components={components as any} />
     </div>
   );
 }

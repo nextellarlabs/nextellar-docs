@@ -1,7 +1,6 @@
 'use client';
 
 import React from 'react';
-import { allDocs } from 'contentlayer/generated';
 import SearchDialog from '@/components/search-dialog';
 import { sidebarNav } from 'config/sidebar';
 import Image from 'next/image';
@@ -26,10 +25,18 @@ import { Button } from '@/components/button';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { VersionSwitcher } from '@/components/version-switcher';
 
+type SearchDoc = {
+  title: string;
+  body: { raw: string };
+  _raw: { flattenedPath: string };
+};
+
 export default function DocsLayoutClient({
   children,
+  searchData,
 }: {
   children: React.ReactNode;
+  searchData: SearchDoc[];
 }) {
   const router = useRouter();
   const isMobile = useIsMobile();
@@ -100,7 +107,7 @@ export default function DocsLayoutClient({
             </div>
             <div className="flex gap-1 md:gap-2 items-center shrink-0">
               <VersionSwitcher />
-              <SearchDialog searchData={allDocs} />
+              <SearchDialog searchData={searchData} />
               <ModeToggle />
               <Button
                 onClick={() =>

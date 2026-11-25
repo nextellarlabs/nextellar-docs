@@ -1,6 +1,4 @@
 // import createMDX from '@next/mdx';
-import { createContentlayerPlugin } from 'next-contentlayer2';
-
 const nextConfig = {
   // pageExtensions: ['js', 'jsx', 'ts', 'tsx', 'md', 'mdx'],
 
@@ -23,8 +21,4 @@ const nextConfig = {
   },
 };
 
-const withContentlayer = createContentlayerPlugin({
-  // Additional Contentlayer config options
-});
-
-export default withContentlayer(nextConfig);
+export default nextConfig;
