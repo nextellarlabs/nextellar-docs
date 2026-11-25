@@ -1,0 +1,84 @@
+---
+title: Stellar Expert Account and Asset Views
+description: Quick reference for Stellar Expert account and asset viewer URLs with testnet and mainnet options.
+date: 2026-10-17
+---
+
+# Stellar Expert Account and Asset Views
+
+Stellar Expert is a comprehensive block explorer and analytics tool for the Stellar network. It provides detailed views of accounts, assets, transactions, and network activity. The explorer is available for both mainnet and testnet, making it easy to inspect and verify on-chain data.
+
+## Account Viewer
+
+The account viewer displays detailed information about a specific Stellar account, including:
+
+- Account balance and trust lines
+- Signers and thresholds
+- Transaction history
+- Memoization and flags
+
+**Mainnet Account View**:
+```
+https://stellar.expert/explorer/public/account/<account-id>
+```
+
+**Testnet Account View**:
+```
+https://stellar.expert/explorer/testnet/account/<account-id>
+```
+
+Replace `<account-id>` with the full Stellar public key (beginning with `G`).
+
+### Example
+
+- Mainnet: `https://stellar.expert/explorer/public/account/GBUQWP3BOUZX34ULNQG23RQ6F4BWFIRESVVU4CCGE7BFOG5C6LFVYCCS`
+- Testnet: `https://stellar.expert/explorer/testnet/account/GBUQWP3BOUZX34ULNQG23RQ6F4BWFIRESVVU4CCGE7BFOG5C6LFVYCCS`
+
+## Asset Viewer
+
+The asset viewer shows information about a specific Stellar asset, including:
+
+- Asset code and issuer
+- Trust line holders
+- Transaction volume and history
+- Conversion rates and market data
+
+**Mainnet Asset View**:
+```
+https://stellar.expert/explorer/public/asset/<asset-code>-<issuer>
+```
+
+**Testnet Asset View**:
+```
+https://stellar.expert/explorer/testnet/asset/<asset-code>-<issuer>
+```
+
+Replace `<asset-code>` with the asset code (e.g., `USDC`) and `<issuer>` with the issuer's Stellar account ID (e.g., `GBDCG6QNPPVQQ4LXRMPMH5RGCNVFQHBQKYAMYPWYNQVQKQGQLGW46WQA`).
+
+### Example
+
+- Mainnet: `https://stellar.expert/explorer/public/asset/USDC-GBDCG6QNPPVQQ4LXRMPMH5RGCNVFQHBQKYAMYPWYNQVQKQGQLGW46WQA`
+- Testnet: `https://stellar.expert/explorer/testnet/asset/USDC-GA5ZSEJYB37JRC5AVCIA5MOP4SHABUQWOTE637ME3MDQV36Z6HAAO6V`
+
+## Mainnet vs. Testnet
+
+Stellar Expert automatically switches between mainnet and testnet based on your URL:
+
+- **Mainnet**: Use `public` in the URL path (e.g., `/explorer/public/account/...`)
+- **Testnet**: Use `testnet` in the URL path (e.g., `/explorer/testnet/account/...`)
+
+This means the same account or asset ID viewed on mainnet and testnet will show completely different data, as they are separate networks. When testing your application, use the testnet views to verify transactions and account state on the test network.
+
+## Using These Tools
+
+1. Open the appropriate URL for your network (mainnet or testnet)
+2. Paste the account ID or asset code-issuer pair
+3. Review the account balance, signers, or asset distribution
+4. Check transaction history to verify operations were successful
+5. Monitor changes in real-time as new transactions are submitted
+
+## Related
+
+- [Stellar Horizon Integration](/docs/integrations/horizon) — API-based network queries
+- [Stellar Expert Official Site](https://stellar.expert) — Full explorer documentation
+- [Glossary](/docs/guides/glossary) — Stellar network terminology

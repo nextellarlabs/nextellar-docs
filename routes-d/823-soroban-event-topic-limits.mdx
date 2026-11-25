@@ -1,0 +1,6 @@
+---
+title: Soroban event topic limits
+description: Working draft for issue #823
+---
+
+A contract event can have at most **4 topics**. Topic values of type `Vec`, `Map`, or `Bytes` cannot exceed **32 bytes**. Keep topics compact for event identification and filtering; put structured or larger payloads in the event's `data` value, which is also subject to transaction-size limits.

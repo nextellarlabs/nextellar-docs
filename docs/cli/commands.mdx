@@ -10,15 +10,15 @@ Complete reference for all Nextellar CLI commands and their usage.
 
 ## Command Overview
 
-| Command               | Purpose                                                    |
-| --------------------- | ---------------------------------------------------------- |
-| `nextellar`           | Create a new Stellar dApp project                          |
-| `nextellar add`       | Add features to an existing Nextellar project              |
-| `nextellar doctor`    | Run environment diagnostics and system checks              |
-| `nextellar upgrade`   | Upgrade a project to the latest template files             |
-| `nextellar deploy`    | Validate and prepare project for production deployment     |
-| `nextellar clean`     | Remove generated files from `.nextellar/build`             |
-| `nextellar telemetry` | Manage CLI telemetry preferences (status, enable, disable) |
+| Command                        | Purpose                                                               |
+| ------------------------------ | --------------------------------------------------------------------- |
+| `nextellar <project-name>`     | Scaffold a new project.                                               |
+| `nextellar doctor`             | Run environment diagnostics.                                          |
+| `nextellar add [feature]`      | Add a feature to an existing project or list available features.      |
+| `nextellar telemetry <action>` | Read or change telemetry preferences (`status`, `enable`, `disable`). |
+| `nextellar upgrade`            | Upgrade an existing project.                                          |
+| `nextellar deploy`             | Validate and bundle locally (no upload yet).                          |
+| `nextellar clean`              | Remove `.nextellar/build` artifacts.                                  |
 
 ## Main Command
 
@@ -35,6 +35,8 @@ nextellar <project-name> [options]
 | Argument       | Type   | Required | Description                    |
 | -------------- | ------ | -------- | ------------------------------ |
 | `project-name` | string | Yes      | Name of your project directory |
+
+**Options:** The scaffold options are documented with aliases and defaults in [CLI Flags & Options](/docs/cli/flags#scaffold-options). Global `--help` and `--version` are also available.
 
 **Examples:**
 
@@ -54,7 +56,7 @@ nextellar my-app \
   --horizon-url https://horizon.stellar.org \
   --wallets freighter,xbull \
   --skip-install
-## Note: freighter,xbull is a custom wallet selection. See [Wallet Configuration](/docs/cli/flags#wallet-configuration-wallets) for defaults and options.
+## Note: freighter,xbull is a custom wallet selection. See [Wallet Configuration](/docs/cli/flags#wallet-configuration---wallets) for defaults and options.
 ```
 
 ## Overwriting an existing directory
@@ -91,28 +93,7 @@ nextellar --help
 nextellar -h
 ```
 
-**Output:**
-
-```bash
-Usage: nextellar <project-name> [options]
-
-Options:
-  -t, --typescript         Generate a TypeScript project (default)
-  -j, --javascript         Generate a JavaScript project
-  --template <name>        Use a specific template (default, minimal, defi)
-  --with-contracts         Include Soroban smart contract support
-  --horizon-url <url>      Override default Horizon endpoint
-  --soroban-url <url>      Override default Soroban RPC endpoint
-  -w, --wallets <list>     Comma-separated list of wallet adapters
-  -d, --defaults           Skip prompts and use defaults
-  --skip-install           Skip dependency installation
-  --package-manager <pm>   Choose package manager (npm, yarn, pnpm)
-  --install-timeout <ms>   Installation timeout in milliseconds
-  --force                  Overwrite existing directory (use with caution)
-  --no-telemetry           Disable telemetry for this invocation
-  -v, --version            Show CLI version
-  -h, --help               Show help text
-```
+Use `nextellar --help` to see the scaffold options and available subcommands for the installed CLI version. The [CLI Flags & Options](/docs/cli/flags) page documents scaffold flags, aliases, and defaults.
 
 ## --version, -v
 
@@ -124,12 +105,7 @@ nextellar --version
 nextellar -v
 ```
 
-**Output:**
-
-```bash
-nextellar/1.0.4 (linux-x64)
-node/20.18.0
-```
+The command prints the installed Nextellar CLI version.
 
 ## Feature Commands
 
@@ -179,11 +155,12 @@ nextellar doctor [options]
 
 **Options:**
 
-| Option                | Description                                                       |
-| --------------------- | ----------------------------------------------------------------- |
-| `--json`              | Output results as JSON for CI integration                         |
-| `--horizon-url <url>` | Override the Horizon endpoint used for the connectivity check     |
-| `--soroban-url <url>` | Override the Soroban RPC endpoint used for the connectivity check |
+| Option                | Default                            | Description                                                        |
+| --------------------- | ---------------------------------- | ------------------------------------------------------------------ |
+| `--json`              | `false`                            | Output results as JSON for CI integration.                         |
+| `--fix`               | `false`                            | Offer to auto-fix safe or optional check failures.                 |
+| `--horizon-url <url>` | Project config or testnet fallback | Override the Horizon endpoint used for the connectivity check.     |
+| `--soroban-url <url>` | Project config or testnet fallback | Override the Soroban RPC endpoint used for the connectivity check. |
 
 By default `doctor` resolves endpoints from your project config, falling back to the testnet URLs (`https://horizon-testnet.stellar.org` and `https://soroban-testnet.stellar.org`). Pass `--horizon-url` or `--soroban-url` to check a custom or mainnet endpoint instead:
 
@@ -463,7 +440,9 @@ nextellar upgrade --yes
 
 ## nextellar deploy
 
-Validate and prepare your project for production deployment. This command checks that your Horizon and Soroban RPC endpoints are properly configured, and builds a optimized production bundle of your Stellar dApp.
+Validate the current project and create a local deployment bundle. This command does **not** upload or publish the app: it checks that `package.json` exists, that `next` is a dependency, and that a production build is present at `.next/`, then writes a tarball under `.nextellar/deploy/`. It prints a "Nextellar Cloud is coming soon — deploy with Vercel" message; server upload is not implemented.
+
+Run `npm run build` first — the command errors with `Missing production build (.next). Run 'npm run build' first.` when `.next/` is absent.
 
 ```bash
 nextellar deploy [options]
@@ -471,26 +450,28 @@ nextellar deploy [options]
 
 **Options:**
 
-| Option                     | Description                                                                                       |
-| -------------------------- | ------------------------------------------------------------------------------------------------- |
-| `--dry-run`                | Validate configuration and build process without producing a deploy bundle                        |
-| `--size-threshold <bytes>` | Fail the deploy if the production bundle exceeds this size in bytes (default: `52428800` — 50 MB) |
+| Option      | Description                                                                       |
+| ----------- | --------------------------------------------------------------------------------- |
+| `--dry-run` | Validate the project and print the planned bundle path without writing a bundle.   |
+
+**Bundle details:**
+
+- Location: `.nextellar/deploy/<project-name>-<timestamp>.tar.gz`
+- Excludes: `node_modules`, `.git`, `.next/cache`, and `.nextellar/deploy`
+- Metadata: `.nextellar/deploy/latest-bundle.json` records path, size, contract detection and creation time
 
 **Examples:**
 
 ```bash
-## Prepare project for deployment
+## Validate and create a local bundle after building
+npm run build
 nextellar deploy
 
-## Run a dry-run validation without actual deployment
+## Validate only; no bundle is written
 nextellar deploy --dry-run
-
-## Fail if bundle exceeds 20 MB
-nextellar deploy --size-threshold 20971520
-
-## Raise the threshold to 100 MB for large projects
-nextellar deploy --size-threshold 104857600
 ```
+
+See [Deployment](/docs/guides/deployment) for the supported Vercel and self-hosting paths.
 
 ## nextellar clean
 
@@ -501,6 +482,8 @@ nextellar clean
 ```
 
 The command deletes only `.nextellar/build`. It succeeds when the directory is already absent. See [Clean Nextellar build artifacts](/docs/cli/clean) for the preserved files and error behavior.
+
+`clean` has no command-specific options.
 
 **What it removes:**
 
@@ -558,6 +541,8 @@ Manage anonymous CLI telemetry preferences.
 ```bash
 nextellar telemetry <action>
 ```
+
+`telemetry` has no flags; `action` is a required positional argument.
 
 **Arguments:**
 

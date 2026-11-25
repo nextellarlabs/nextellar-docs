@@ -1,0 +1,115 @@
+---
+title: Mocking Horizon in Tests
+description: Compare practical strategies for mocking Stellar Horizon in tests, with a small MSW example, maintenance tips, and guidance on when to use each approach.
+date: 2026-11-22
+---
+
+# Mocking Horizon in Tests
+
+Tests for Stellar apps should be deterministic, fast, and isolated from public network state. Horizon is an HTTP API, so the most reliable tests mock at the network boundary and let the Stellar SDK build and parse requests normally. This guide compares common mocking strategies, shows a small example, and covers maintenance practices.
+
+## Strategy comparison
+
+| Strategy                                    | Best for                                               | Pros                                                                                                       | Tradeoffs                                                                              | Maintenance                                                                                    |
+| ------------------------------------------- | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| **MSW (Mock Service Worker)**               | Unit/component/integration tests in Vitest/Jest        | Intercepts real `fetch` requests; keeps SDK behavior realistic; easy per-test overrides; reusable handlers | Requires handler setup; SSE/streaming needs extra care                                 | Keep handlers close to the Horizon endpoints your app uses; assert on unhandled requests in CI |
+| **`jest.mock` / module mocks**              | Isolating a specific hook or service                   | Very fast; simple for narrow unit tests                                                                    | Can drift from real SDK/Horizon behavior; brittle when internal implementation changes | Prefer mocking your own wrapper module, not deep SDK internals                                 |
+| **Local mock Horizon server**               | Offline end-to-end flows or fixture-driven development | Reusable outside one test runner; useful for manual dev flows                                              | More moving parts; endpoint fidelity can lag real Horizon                              | Seed fixtures explicitly and reset state between tests                                         |
+| **Stellar Quickstart (real local Horizon)** | High-confidence integration smoke tests                | Real Horizon/Soroban behavior; catches protocol and XDR issues                                             | Slower; Docker dependency; not ideal for default PR unit test pass                     | Run in a separate integration job and keep test accounts deterministic                         |
+
+For most Nextellar hook and component tests, start with **MSW**. Use a real local network only for a small number of integration smoke tests.
+
+## Small example: MSW handler for Horizon
+
+This example intercepts account loading and transaction submission. It is intentionally small; expand it only for endpoints your code actually calls.
+
+```ts
+// tests/mocks/horizon-handlers.ts
+import { http, HttpResponse } from 'msw';
+
+const HORIZON = 'https://horizon-testnet.stellar.org';
+
+export const horizonHandlers = [
+  http.get(`${HORIZON}/accounts/:id`, ({ params }) =>
+    HttpResponse.json({
+      id: params.id,
+      account_id: params.id,
+      sequence: '123456789',
+      balances: [{ balance: '100.0000000', asset_type: 'native' }],
+      signers: [{ key: params.id, weight: 1 }],
+      thresholds: { low_threshold: 0, med_threshold: 0, high_threshold: 0 },
+    })
+  ),
+
+  http.post(`${HORIZON}/transactions`, () =>
+    HttpResponse.json({
+      hash: 'aabbcc0011223344aabbcc0011223344aabbcc0011223344aabbcc0011223344',
+      ledger: 50001,
+      successful: true,
+      result_xdr: 'AAAAAAAAAGQ=',
+    })
+  ),
+];
+```
+
+Wire it into a test server:
+
+```ts
+// tests/setup.ts
+import { setupServer } from 'msw/node';
+import { horizonHandlers } from './mocks/horizon-handlers';
+
+export const server = setupServer(...horizonHandlers);
+
+beforeAll(() => server.listen({ onUnhandledRequest: 'warn' }));
+afterEach(() => server.resetHandlers());
+afterAll(() => server.close());
+```
+
+Override behavior for a failure case:
+
+```ts
+import { http, HttpResponse } from 'msw';
+import { server } from '../setup';
+
+server.use(
+  http.post('https://horizon-testnet.stellar.org/transactions', () =>
+    HttpResponse.json(
+      { extras: { result_codes: { transaction: 'tx_bad_seq' } } },
+      { status: 400 }
+    )
+  )
+);
+```
+
+## Maintenance tips
+
+- **Mock the boundary, not SDK internals.** Let `@stellar/stellar-sdk` construct XDR and parse responses. This catches serialization and request-shape regressions.
+- **Keep fixtures minimal.** Only include fields the code under test reads. Large copied Horizon payloads are harder to maintain.
+- **Use deterministic values.** Fixed account IDs, hashes, ledgers, and balances make failures reproducible.
+- **Reset handlers after each test.** `server.resetHandlers()` prevents one test's failure mock from leaking into another.
+- **Fail on unhandled requests in CI.** Use `onUnhandledRequest: 'error'` once handlers are stable so unexpected network calls do not silently slip through.
+- **Separate unit and integration tests.** Keep MSW tests in the normal unit suite; put Docker/Quickstart tests behind an explicit integration command.
+- **Update mocks when behavior changes.** When hooks add new Horizon calls, update handlers in the same PR and add a regression test for the new path.
+
+## Verification
+
+A docs change for this page should render through the normal docs content build:
+
+```bash
+pnpm build:content
+pnpm check:links
+```
+
+If you run the MSW example in a project, verify with your unit test command:
+
+```bash
+pnpm test:unit
+```
+
+## Related docs
+
+- [Mock Horizon Reference Guide](/docs/guides/mock-horizon)
+- [Testing Horizon and Soroban Interactions](/docs/guides/testing-horizon-soroban)
+- [Testing (MSW)](/docs/integrations/testing)
+- [Stellar Horizon Integration](/docs/integrations/horizon)

@@ -1,0 +1,76 @@
+---
+title: Reading Offers by Account
+description: Read the active DEX offers an account has open, parse them into a display shape, and page through the results.
+date: 2026-11-21
+---
+
+# Reading Offers by Account
+
+An **offer** is a standing order on Stellar's built-in exchange. This guide reads the offers an account currently has open, so you can show them in a wallet or an "open orders" view. To create or cancel offers, see [Creating and Managing DEX Offers](/docs/guides/offer-creation-management).
+
+## The endpoint
+
+Horizon lists an account's offers at:
+
+```
+GET /accounts/{account_id}/offers
+```
+
+Only **active** offers are returned. An offer that was fully filled or cancelled is removed from the ledger and no longer appears.
+
+| Query parameter | Meaning |
+| --- | --- |
+| `limit` | Page size. Horizon caps it (200), so do not assume you can request everything. |
+| `order` | `asc` or `desc` by offer. |
+| `cursor` | The `paging_token` of the last record you received. |
+
+Each record includes the offer `id`, the `seller`, the `selling` and `buying` assets, the remaining `amount` of the selling asset, and the `price`. `amount` and `price` are decimal **strings**, not numbers. Keep them as strings until you need to do arithmetic, and convert to integer stroops rather than floating-point numbers when you do.
+
+## Parsing example
+
+```javascript
+import { Horizon } from '@stellar/stellar-sdk';
+
+const server = new Horizon.Server('https://horizon-testnet.stellar.org');
+
+function assetLabel(asset) {
+  return asset.asset_type === 'native' ? 'XLM' : asset.asset_code;
+}
+
+export function parseOffer(offer) {
+  return {
+    id: offer.id,
+    selling: assetLabel(offer.selling),
+    buying: assetLabel(offer.buying),
+    amount: offer.amount, // how much of `selling` is still on offer
+    price: offer.price, // `buying` units per 1 unit of `selling`
+    updatedAt: offer.last_modified_time,
+  };
+}
+
+export async function fetchOffers(accountId, page) {
+  const result = page
+    ? await page.next()
+    : await server.offers().forAccount(accountId).order('desc').limit(50).call();
+
+  return {
+    offers: result.records.map(parseOffer),
+    page: result,
+    done: result.records.length === 0,
+  };
+}
+```
+
+Displaying one offer: `Selling 100.0000000 XLM at 0.1200000 USDC each`. An offer's `price` is always quoted as units of the `buying` asset per one unit of the `selling` asset, so label it that way to avoid showing an inverted price.
+
+## Pagination
+
+- Request the first page with `limit`, then call `page.next()` for each following page. Behind the scenes this reuses the `paging_token` of the last record as the `cursor`.
+- An empty `records` array means you have reached the end.
+- Offers can change between page requests (filled, cancelled or updated), so a long walk may skip or repeat an offer. For a live view, refresh the first page rather than caching a deep walk.
+
+## Related
+
+- [Creating and Managing DEX Offers](/docs/guides/offer-creation-management) — Create, update and cancel offers
+- [Stellar Horizon](/docs/integrations/horizon) — Horizon basics
+- [Rate Limiting Horizon Requests](/docs/guides/rate-limiting-horizon-requests) — Keep paging within request limits

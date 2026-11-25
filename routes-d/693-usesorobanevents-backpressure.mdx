@@ -1,0 +1,100 @@
+---
+title: Handling Backpressure with useSorobanEvents
+description: Buffering strategies and flow control patterns for consuming Soroban event streams without losing data or overwhelming a React application.
+date: 2026-11-22
+---
+
+# Handling Backpressure with useSorobanEvents
+
+`useSorobanEvents` polls a contract event stream and exposes the collected events to your component. Polling is usually steady, but a burst of contract activity can produce events faster than your UI can render them. Backpressure handling is the set of decisions you make about what happens when that gap appears.
+
+## Where the pressure comes from
+
+Three things tend to cause it:
+
+- The RPC response returns more events than the UI needs to display at once.
+- A slow render or an expensive downstream task keeps the main thread busy while polls keep arriving.
+- A temporary RPC failure causes retries to pile up.
+
+The symptom is usually a growing array of events, increasing memory use, and a UI that falls further behind. The fix is to make the buffer size explicit and to decide what to do at the boundary.
+
+## Buffering strategies
+
+**Bounded queue with oldest drop.** Keep the most recent N events. This is right for live feeds and dashboards where recency matters more than completeness. It is the simplest strategy and the one to reach for by default.
+
+**Bounded queue with pause.** Stop polling when the buffer is full, process the batch, then resume. Use this when every event matters, such as feeding a reconciliation job. It trades latency for completeness, so make sure the consumer drains the buffer quickly.
+
+**Coalescing by key.** If events carry an entity ID, replace the previous event for that key instead of appending a new one. A wallet balance feed, for example, only needs the latest update per account. This keeps the buffer small without discarding the state your UI displays.
+
+**Checkpointed cursor.** Persist the `id` of the last processed event and restart from there. This protects against losing events across reloads, and pairs well with either of the strategies above.
+
+Avoid an unbounded array. Even a quiet contract can produce a large event history, and keeping all of it in component state will eventually slow the page down.
+
+## Flow control patterns
+
+The hook accepts a `limit`, so start with the smallest value your UI can render comfortably. A small limit keeps each poll cheap and makes backpressure visible early.
+
+Use the polling interval as a throttle. Increasing it during a burst reduces load on both the RPC endpoint and the browser, and gives the renderer time to catch up.
+
+Gate expensive work behind an effect that runs after render, not inside the event callback. If each event triggers a network request or a large computation, the callback becomes the bottleneck and the buffer grows no matter how it is bounded.
+
+Handle errors without retry storms. On a failed poll, back off before trying again, and show the failure in the UI rather than silently replaying the whole history.
+
+## Example
+
+This example wraps the hook with a bounded buffer and an explicit pause switch. It keeps the newest fifty events and lets the user resume deliberately after a burst.
+
+```tsx
+import { useEffect, useRef, useState } from 'react';
+import { useSorobanEvents } from '@/hooks/useSorobanEvents';
+
+const CONTRACT_ID = 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQAHHXK3AWCM';
+const MAX_EVENTS = 50;
+
+export function BoundedEventFeed() {
+  const [paused, setPaused] = useState(false);
+  const buffer = useRef([]);
+  const [, forceRender] = useState(0);
+
+  const { events, error } = useSorobanEvents(CONTRACT_ID, {
+    pollingInterval: paused ? 0 : 5000,
+    limit: MAX_EVENTS,
+  });
+
+  useEffect(() => {
+    if (paused || events.length === 0) return;
+
+    // Keep only the newest events, and never grow past the bound.
+    buffer.current = [...buffer.current, ...events].slice(-MAX_EVENTS);
+    forceRender((n) => n + 1);
+
+    // Pause after a large batch so the UI can catch up.
+    if (events.length >= MAX_EVENTS) setPaused(true);
+  }, [events, paused]);
+
+  return (
+    <section>
+      <button type="button" onClick={() => setPaused(false)}>
+        Resume feed
+      </button>
+      {error ? <p>Event stream unavailable</p> : null}
+      <ul>
+        {buffer.current.map((event) => (
+          <li key={event.id}>{event.value.toString()}</li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+```
+
+The details will vary with your event shape, but the rules stay the same: bound the buffer, decide which end to drop, and give the consumer a way to signal that it is behind.
+
+## Verification checklist
+
+- The buffer never exceeds its configured maximum during a sustained burst.
+- The UI shows a clear state when polling is paused or failing.
+- Reloading resumes from the last checkpoint instead of replaying all history.
+- Render time stays stable as the number of processed events grows.
+
+For the basics of the hook, see the [Soroban integration guide](/docs/integrations/soroban). For cursor based pagination of the underlying RPC response, see [Soroban Events Pagination](/routes-d/1003-soroban-events-pagination).

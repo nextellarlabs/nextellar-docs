@@ -1,0 +1,51 @@
+---
+title: X-Frame-Options for Wallet UIs
+description: Protect wallet interfaces from clickjacking with appropriate X-Frame-Options headers.
+date: 2026-10-19
+---
+
+# X-Frame-Options for Wallet UIs
+
+Wallet interfaces should not be embedded in unauthorized frames. The `X-Frame-Options` HTTP header prevents clickjacking attacks where a malicious site embeds a wallet in a hidden frame and tricks users into approving transactions they did not intend.
+
+## Set X-Frame-Options Header
+
+Configure the `X-Frame-Options` header on all wallet UI responses. This header instructs browsers to block embedding in frames unless explicitly allowed.
+
+**Recommend `DENY`** for wallet applications that do not need to be embedded:
+
+```
+X-Frame-Options: DENY
+```
+
+This prevents the interface from being loaded in any frame, including legitimate integrations.
+
+**Recommend `SAMEORIGIN`** if your wallet must be embedded by same-origin applications:
+
+```
+X-Frame-Options: SAMEORIGIN
+```
+
+This allows frames only when the embedding page is served from the same origin (scheme, host, and port).
+
+## Understand Clickjacking Risk
+
+A clickjacking attack layers a transparent or hidden frame over a legitimate wallet interface. When a user clicks what appears to be a button on the outer page, they actually approve a transaction in the embedded wallet.
+
+`X-Frame-Options: DENY` eliminates this risk entirely. `X-Frame-Options: SAMEORIGIN` protects against cross-origin attacks but allows embedding by your own services; ensure those services are themselves secure.
+
+## Consider Your Architecture
+
+- **Standalone wallet**: Use `DENY` unless you explicitly need embedding.
+- **Embedded in your own dashboard**: Use `SAMEORIGIN` if the dashboard and wallet share an origin, or use different subdomains with a stricter policy per subdomain.
+- **Third-party integration**: If a legitimate service must embed your wallet, negotiate the integration using `SAMEORIGIN` (shared origin) or by hosting a separate iframe policy on a dedicated subdomain.
+
+Do not use `ALLOWALL` (deprecated) or omit the header entirely.
+
+## Verification Checklist
+
+- Confirm the header is present on all wallet UI responses (check with browser DevTools or `curl -i`).
+- Test that embedded frames are blocked in browsers that support the header.
+- If using `SAMEORIGIN`, verify embedding works from same-origin pages and is blocked from cross-origin pages.
+- Ensure the header does not interfere with legitimate embedding (e.g., in your own dashboard or partner integrations).
+

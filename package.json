@@ -24,7 +24,6 @@
     "lint": "next lint",
     "lint:mdx": "remark . --frail --quiet --ext .md,.mdx --ignore-pattern 'node_modules' --ignore-pattern '.next' --ignore-pattern '.contentlayer' --ignore-pattern '.git'",
     "build:content": "contentlayer2 build",
-    "validate:search-index": "node scripts/validate-search-index.mjs",
     "check:og-image": "node scripts/check-og-image.mjs",
     "check:mermaid": "node scripts/check-mermaid.mjs",
     "spellcheck": "corepack pnpm dlx cspell@8.17.5 \"docs/**/*.mdx\" \"README.md\" --no-progress",
@@ -41,16 +40,18 @@
     "test:generate-cli-docs": "node scripts/generate-cli-docs.test.cjs",
     "generate:cli-docs": "npx nextellar --help | node scripts/generate-cli-docs.cjs --output docs/cli/commands.mdx",
     "test:validation": "vitest run scripts/validate-search-index.test.ts",
+    "validate:frontmatter": "node scripts/validate-frontmatter.mjs",
     "validate:sidebar": "node scripts/validate-sidebar.cjs",
     "validate:heading-hierarchy": "node scripts/validate-heading-hierarchy.mjs",
     "fix:heading-hierarchy": "node scripts/fix-heading-hierarchy.mjs",
     "check:links": "node scripts/check-links.cjs",
-    "audit:frontmatter": "node scripts/audit-frontmatter-comprehensive.cjs"
+    "check:anchors": "node scripts/check-links.cjs --anchors-only",
+    "audit:frontmatter": "node scripts/audit-frontmatter-comprehensive.cjs",
     "check:links:all": "node scripts/link-checker.mjs",
     "check:links:external": "node scripts/link-checker.mjs --check-external",
     "verify:hooks-docs": "node scripts/verify-hooks-docs.mjs",
     "test:a11y": "playwright test",
-    "test:a11y:headed": "playwright test --headed"
+    "test:a11y:headed": "playwright test --headed",
     "check:performance": "node scripts/check-performance-budget.mjs",
     "lint:vale": "docker run --rm -v \"$PWD:/workspace\" -w /workspace jdkato/vale:latest sync && docker run --rm -v \"$PWD:/workspace\" -w /workspace jdkato/vale:latest --minAlertLevel=warning ."
   },

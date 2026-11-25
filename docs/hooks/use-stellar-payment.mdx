@@ -9,7 +9,9 @@ date: 2026-06-02
 The `useStellarPayment` hook provides advanced utilities for building, signing, and submitting Stellar payment transactions. It offers more control than `useStellarWallet.sendPayment()` with separate methods for each step of the payment flow.
 
 <Note>
-  **Ships in:** default, js
+  **Ships in:** `default`, `defi`, and `js-template` (the JavaScript variant of `default`)
+  <br />
+  The `minimal` and `contracts-template` templates do not ship this hook. JavaScript is only available for `default` (`--javascript`); there is no `js-defi` template.
   <br />
   Not in your scaffold? Run `nextellar add payments`
 </Note>
@@ -27,11 +29,16 @@ The `useStellarPayment` hook provides advanced utilities for building, signing, 
 ```tsx
 import { useStellarPayment } from '@/hooks/useStellarPayment';
 
-export default function PaymentBuilder() {
+export default function PaymentBuilder({
+  signWithWallet,
+}: {
+  signWithWallet: (xdr: string) => Promise<string>;
+}) {
   const { buildPaymentXDR, submitSignedXDR } = useStellarPayment();
 
-  const handleBuildAndSign = async () => {
-    // Step 1: Build unsigned transaction
+  const handleBuildAndSign = async (
+    signWithWallet: (xdr: string) => Promise<string>
+  ) => {
     const unsignedXDR = await buildPaymentXDR({
       from: 'GABC123...',
       to: 'GDEF456...',
@@ -40,16 +47,18 @@ export default function PaymentBuilder() {
       memo: 'Payment for services',
     });
 
-    // Step 2: Sign with external wallet (e.g., Freighter)
-    const signedXDR = await window.freighter.signTransaction(unsignedXDR);
-
-    // Step 3: Submit to network
+    const signedXDR = await signWithWallet(unsignedXDR);
     const result = await submitSignedXDR(signedXDR);
 
-    console.log('Transaction hash:', result.txHash);
+    if (!result.success) throw new Error(result.error ?? 'Payment failed');
+    return result.txHash;
   };
 
-  return <button onClick={handleBuildAndSign}>Send Payment</button>;
+  return (
+    <button onClick={() => handleBuildAndSign(signWithWallet)}>
+      Send Payment
+    </button>
+  );
 }
 ```
 
@@ -58,10 +67,14 @@ export default function PaymentBuilder() {
 ### Parameters
 
 ```typescript
-useStellarPayment(options?: {
+function useStellarPayment(options?: {
   horizonUrl?: string;
   network?: 'TESTNET' | 'PUBLIC';
-}): PaymentHookReturn
+}): {
+  buildPaymentXDR: (params: PaymentParams) => Promise<string>;
+  submitSignedXDR: (signedXdrBase64: string) => Promise<PaymentResult>;
+  signAndSubmitWithSecret: (params: PaymentParams & { secret: string }) => Promise<PaymentResult>;
+};
 ```
 
 | Parameter    | Type                    | Default                                 | Description        |
@@ -74,7 +87,7 @@ useStellarPayment(options?: {
 ```typescript
 interface PaymentHookReturn {
   buildPaymentXDR: (params: PaymentParams) => Promise<string>;
-  submitSignedXDR: (xdr: string) => Promise<PaymentResult>;
+  submitSignedXDR: (signedXdrBase64: string) => Promise<PaymentResult>;
   signAndSubmitWithSecret: (
     params: PaymentParams & { secret: string }
   ) => Promise<PaymentResult>;
@@ -100,6 +113,8 @@ interface PaymentResult {
 }
 ```
 
+The Horizon URL falls back to the wallet provider's `horizonUrl` and then `https://horizon-testnet.stellar.org`. The network option defaults to `TESTNET` and determines the transaction passphrase; it does not fall back to the provider. `PaymentResult` has no dedicated result-code field — when Horizon returns `extras.result_codes`, the hook folds the transaction or operation codes into the `error` string and includes the raw Horizon response in `raw`.
+
 ## Methods
 
 ### buildPaymentXDR()
@@ -121,10 +136,13 @@ console.log(xdr); // "AAAAAgAAAAC..."
 
 **Validation:**
 
-- Validates sender and recipient addresses (56 chars, starts with 'G').
+- Validates sender and recipient addresses (56 chars, starts with 'G') and rejects identical sender/recipient addresses.
 - Validates amount (positive, within Stellar limits).
-- Validates memo length (max 28 characters).
-- Checks account exists on network.
+- For non-native assets, validates the asset code (1–12 alphanumeric characters) and issuer address.
+- If supplied, validates the text memo length (maximum 28 characters).
+- Loads the sender account from Horizon, so an unfunded or unknown account fails here — usually as `Account <address> not found. Account may need funding.`
+
+The hook sets the transaction fee to the SDK `BASE_FEE`; `PaymentParams` has no fee override. It creates an optional memo with `Memo.text()` and sets a 30-second transaction timeout. Rebuild and re-sign if the transaction expires.
 
 ### submitSignedXDR()
 
@@ -144,23 +162,16 @@ if (result.success) {
 
 - `success`: boolean indicating if submission succeeded
 - `txHash`: transaction hash if successful
-- `error`: error message if failed
-- `raw`: raw Horizon response
+- `error`: error message if failed, including Horizon `result_codes` when present
+- `raw`: raw Horizon response data when available
+
+Submission failures returned by Horizon are represented as `{ success: false, ... }`. Invalid or corrupted XDR (empty, not base64, or too short), an invalid network passphrase, and an uninitialized Horizon client throw instead — callers need both a `try`/`catch` and a `success` check.
 
 ### signAndSubmitWithSecret()
 
-**DEV-ONLY**: Sign and submit using a secret key.
+**DEV-ONLY** — this method exists for local testing and is not part of a wallet-signed flow. It validates the secret key format, checks it matches `from`, builds the XDR, signs it locally, and submits it. Invalid secrets return `{ success: false, error: ... }`.
 
-```tsx
-const result = await signAndSubmitWithSecret({
-  from: 'GABC123...',
-  to: 'GDEF456...',
-  amount: '10',
-  secret: 'SABC123...', // Never use in production!
-});
-```
-
-> **Warning**: Never use this method in production. Secret keys should never be handled in client-side code. Use external wallet signing instead.
+> **Warning**: Never pass a secret key into client-side code or use this method in production. Production examples on this page deliberately use `buildPaymentXDR` with a wallet signer and `submitSignedXDR` — see [Basic Usage](#basic-usage) and [Fee and Memo Handling](#fee-and-memo-handling).
 
 ## Advanced Examples
 
@@ -179,10 +190,111 @@ const xdr = await buildPaymentXDR({
 });
 ```
 
+### Fee and Memo Handling
+
+`useStellarPayment` sets the transaction fee to the SDK's `BASE_FEE`; it does not accept a custom fee. The optional `memo` is encoded as a Stellar text memo and must be at most 28 characters. This complete component builds the transaction, shows its fee in stroops, asks the supplied wallet signer to sign it, and submits the signed XDR:
+
+```tsx
+'use client';
+
+import { useState, type FormEvent } from 'react';
+import { Networks, TransactionBuilder } from '@stellar/stellar-sdk';
+import { useStellarPayment } from '@/hooks/useStellarPayment';
+
+export default function FeeAndMemoPayment({
+  sender,
+  signWithWallet,
+}: {
+  sender: string;
+  signWithWallet: (xdr: string) => Promise<string>;
+}) {
+  const { buildPaymentXDR, submitSignedXDR } = useStellarPayment({
+    network: 'TESTNET',
+  });
+  const [recipient, setRecipient] = useState('');
+  const [amount, setAmount] = useState('');
+  const [memo, setMemo] = useState('');
+  const [fee, setFee] = useState('');
+  const [message, setMessage] = useState('');
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setMessage('');
+
+    try {
+      const xdr = await buildPaymentXDR({
+        from: sender,
+        to: recipient,
+        amount,
+        asset: 'XLM',
+        memo: memo.trim() || undefined,
+      });
+      const transaction = TransactionBuilder.fromXDR(xdr, Networks.TESTNET);
+      setFee(transaction.fee);
+
+      const signedXdr = await signWithWallet(xdr);
+      const result = await submitSignedXDR(signedXdr);
+      if (!result.success) throw new Error(result.error ?? 'Payment failed');
+
+      setMessage(`Payment submitted: ${result.txHash}`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Payment failed');
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <label>
+        Recipient
+        <input
+          value={recipient}
+          onChange={(event) => setRecipient(event.target.value)}
+          required
+        />
+      </label>
+      <label>
+        Amount (XLM)
+        <input
+          type="number"
+          min="0.0000001"
+          step="0.0000001"
+          value={amount}
+          onChange={(event) => setAmount(event.target.value)}
+          required
+        />
+      </label>
+      <label>
+        Memo (up to 28 characters)
+        <input
+          value={memo}
+          maxLength={28}
+          onChange={(event) => setMemo(event.target.value)}
+        />
+      </label>
+      <button type="submit">Build, sign, and submit</button>
+      {fee && <p>Transaction fee: {fee} stroops (SDK BASE_FEE)</p>}
+      {message && <p role="status">{message}</p>}
+    </form>
+  );
+}
+```
+
+Pass `signWithWallet` from your wallet integration; it must return the signed XDR for the supplied unsigned XDR. For other network settings, use the same network for `useStellarPayment` and `TransactionBuilder.fromXDR`.
+
 ### Multi-Step Payment Flow
 
 ```tsx
-function MultiStepPayment() {
+function MultiStepPayment({
+  sender,
+  recipient,
+  amount,
+  signWithWallet,
+}: {
+  sender: string;
+  recipient: string;
+  amount: string;
+  signWithWallet: (xdr: string) => Promise<string>;
+}) {
   const { buildPaymentXDR, submitSignedXDR } = useStellarPayment();
   const [xdr, setXdr] = useState('');
   const [step, setStep] = useState(1);
@@ -199,7 +311,7 @@ function MultiStepPayment() {
   };
 
   const handleSign = async () => {
-    const signedXDR = await window.freighter.signTransaction(xdr);
+    const signedXDR = await signWithWallet(xdr);
     setXdr(signedXDR);
     setStep(3);
   };
@@ -225,10 +337,12 @@ function MultiStepPayment() {
 
 ```tsx
 async function sendBatchPayments(
-  recipients: Array<{ to: string; amount: string }>
+  recipients: Array<{ to: string; amount: string }>,
+  myAddress: string,
+  buildPaymentXDR: (params: PaymentParams) => Promise<string>,
+  submitSignedXDR: (signedXdrBase64: string) => Promise<PaymentResult>,
+  signWithWallet: (xdr: string) => Promise<string>
 ) {
-  const { buildPaymentXDR, submitSignedXDR } = useStellarPayment();
-
   for (const payment of recipients) {
     try {
       const xdr = await buildPaymentXDR({
@@ -238,9 +352,10 @@ async function sendBatchPayments(
         asset: 'XLM',
       });
 
-      const signedXDR = await wallet.signTransaction(xdr);
+      const signedXDR = await signWithWallet(xdr);
       const result = await submitSignedXDR(signedXDR);
 
+      if (!result.success) throw new Error(result.error ?? 'Payment failed');
       console.log(`Sent ${payment.amount} XLM to ${payment.to}`);
     } catch (error) {
       console.error(`Failed to send to ${payment.to}:`, error);
@@ -256,20 +371,14 @@ For shared recovery patterns across hooks, see [Hook Error Handling](/docs/guide
 ### Common Errors
 
 ```tsx
-try {
-  const result = await submitSignedXDR(signedXDR);
-} catch (error) {
-  if (error.message.includes('op_underfunded')) {
-    alert('Insufficient balance');
-  } else if (error.message.includes('tx_bad_seq')) {
-    alert('Transaction sequence error - retry');
-  } else if (error.message.includes('tx_too_late')) {
-    alert('Transaction expired - rebuild');
-  } else {
-    alert('Transaction failed: ' + error.message);
-  }
+const result = await submitSignedXDR(signedXDR);
+if (!result.success) {
+  // `error` already includes any Horizon transaction/operation result codes.
+  console.error(result.error, result.raw);
 }
 ```
+
+`submitSignedXDR` returns submission failures as `PaymentResult`; reserve `try`/`catch` for thrown input, XDR parsing, or setup errors.
 
 ### Validation Errors
 

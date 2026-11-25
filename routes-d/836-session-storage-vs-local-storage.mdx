@@ -1,0 +1,68 @@
+---
+title: Session Storage Versus Local Storage
+description: Compare session storage and local storage for wallet UIs, including lifecycle and security considerations.
+date: 2026-10-19
+---
+
+# Session Storage Versus Local Storage
+
+When building wallet UIs, you often need to store data in the browser. Both session storage and local storage offer persistent access, but they differ significantly in lifecycle and security implications. Understanding these differences is essential for implementing secure wallet applications.
+
+## Storage Lifecycle
+
+### Session Storage
+
+Session storage persists only for the duration of the browser tab or window. Data is automatically cleared when:
+
+- The tab is closed
+- The browser session ends
+- The user explicitly clears session storage
+
+This makes session storage suitable for temporary authentication tokens, pending transaction approvals, or data that should not survive a browser restart.
+
+### Local Storage
+
+Local storage persists indefinitely across browser sessions until explicitly cleared. Data remains available even after:
+
+- Closing and reopening the browser
+- Restarting the computer
+- Days or months of inactivity
+
+This makes local storage suitable for user preferences, cached blockchain data, or recovery hints—but unsuitable for sensitive credentials.
+
+## Security Caveats
+
+### XSS Vulnerability
+
+Both session storage and local storage are accessible via JavaScript `window.localStorage` and `window.sessionStorage`. An XSS vulnerability allows attackers to read or modify this data. **Never store private keys, secret seeds, or authentication credentials in either storage type.**
+
+### Sensitive Data Recommendation
+
+- **Never store**: Private keys, secret seeds, mnemonic phrases, signing credentials
+- **Session storage**: Temporary session tokens, pending transactions, UI state
+- **Local storage**: User preferences, public account addresses, cached public data
+
+### HTTPS Requirement
+
+Always serve wallet UIs over HTTPS. Without HTTPS, an attacker can perform a man-in-the-middle attack and inject malicious scripts that compromise storage contents.
+
+## Example: Token Storage Pattern
+
+```javascript
+// ✅ Secure: Store temporary session token in session storage
+sessionStorage.setItem('sessionToken', temporaryAuthToken);
+
+// Session token is cleared when the tab closes
+if (sessionStorage.getItem('sessionToken')) {
+  // Token still valid in this session
+}
+
+// ❌ Insecure: Never store private keys in either storage
+// localStoragegetItem('privateKey', userPrivateKey); // DO NOT DO THIS
+```
+
+## Related
+
+- [Content Security Policy Defaults](/docs/wallet-security/content-security-policy-defaults) — Protect against XSS and script injection
+- [Cookie Flags for Wallet UIs](/docs/wallet-security/cookie-flags-wallet-uis) — Secure cookie configuration
+- [Strict Transport Security](/docs/wallet-security/strict-transport-security) — Enforce HTTPS connections

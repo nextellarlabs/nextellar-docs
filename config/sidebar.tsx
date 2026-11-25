@@ -141,12 +141,48 @@ export const sidebarNav: SidebarSection[] = [
         title: 'Transaction Lifecycle End-to-End',
         href: '/docs/guides/transaction-lifecycle-e2e',
       },
+      {
+        title: 'Debugging Failed Transactions',
+        href: '/docs/guides/debugging-failed-transactions',
+      },
       { title: 'Extending the CLI', href: '/docs/guides/extending-the-cli' },
       { title: 'Feature Flags', href: '/docs/guides/feature-flags' },
       { title: 'Testing', href: '/docs/guides/testing' },
       {
+        title: 'Vitest Setup for Stellar dApps',
+        href: '/docs/guides/vitest-stellar-dapp-setup',
+      },
+      {
+        title: 'Unit Testing Stellar Hooks',
+        href: '/docs/guides/testing-stellar-hooks',
+      },
+      {
         title: 'Testing Horizon & Soroban',
         href: '/docs/guides/testing-horizon-soroban',
+      },
+      {
+        title: 'Local Horizon Integration Testing',
+        href: '/docs/guides/local-horizon-integration-testing',
+      },
+      {
+        title: 'Mocking Horizon in Tests',
+        href: '/docs/guides/mocking-horizon-in-tests',
+      },
+      {
+        title: 'Running a Local Horizon',
+        href: '/docs/guides/running-local-horizon',
+      },
+      {
+        title: 'Docker Compose for Local Stellar Development',
+        href: '/docs/guides/docker-compose-stellar-local',
+      },
+      {
+        title: 'Local Futurenet Setup',
+        href: '/docs/guides/local-futurenet-setup',
+      },
+      {
+        title: 'Stellar Quickstart Image Usage',
+        href: '/docs/guides/stellar-quickstart-image-usage',
       },
       {
         title: 'Testing Transactions on Testnet',
@@ -163,6 +199,10 @@ export const sidebarNav: SidebarSection[] = [
       {
         title: 'Cross-Contract Calls',
         href: '/docs/guides/cross-contract-calls',
+      },
+      {
+        title: 'Invoking a Soroban Contract from React',
+        href: '/docs/guides/invoke-soroban-contract-react',
       },
       {
         title: 'Soroban Guides Index',
@@ -187,6 +227,34 @@ export const sidebarNav: SidebarSection[] = [
       {
         title: 'Wallet UX Patterns',
         href: '/docs/guides/wallet-ux-patterns',
+      },
+      {
+        title: 'Wallet Balance Widget',
+        href: '/docs/guides/wallet-balance-widget',
+      },
+      {
+        title: 'Filter Balances by Asset Code',
+        href: '/docs/guides/filter-balances-by-asset-code',
+      },
+      {
+        title: 'Currency Localization',
+        href: '/docs/guides/currency-localization',
+      },
+      {
+        title: 'Loading State Patterns for Stellar Hooks',
+        href: '/docs/guides/loading-state-patterns-stellar-hooks',
+      },
+      {
+        title: 'Empty State UX Patterns for Wallet Flows',
+        href: '/docs/guides/empty-state-ux-wallet-flows',
+      },
+      {
+        title: 'Optimistic UI for Payment Submissions',
+        href: '/docs/guides/optimistic-ui-payment-submissions',
+      },
+      {
+        title: 'Race Conditions in Wallet Driven Flows',
+        href: '/docs/guides/race-conditions-wallet-flows',
       },
       {
         title: 'Wallet Integration Deep-Dive',
@@ -236,6 +304,10 @@ export const sidebarNav: SidebarSection[] = [
       {
         title: 'Asset Authorization Flags',
         href: '/docs/guides/asset-auth-flags',
+      },
+      {
+        title: 'Formatting Asset Amounts',
+        href: '/docs/guides/formatting-asset-amounts',
       },
       {
         title: 'Creating and Managing DEX Offers',
@@ -425,10 +497,9 @@ export const sidebarNav: SidebarSection[] = [
     defaultOpen: false,
     pages: [
       {
-        title: 'ConnectWalletButton',
+        title: 'WalletConnectButton',
         href: '/docs/components/connect-wallet-button',
       },
-      { title: 'useWindowSize', href: '/docs/components/use-window-size' },
     ],
   },
 ];

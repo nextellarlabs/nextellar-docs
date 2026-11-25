@@ -1,0 +1,170 @@
+---
+title: Vitest Setup for Stellar dApps
+description: Configure Vitest for testing Nextellar Stellar dApp code with mocks, setup files, and a small example test.
+date: 2026-11-22
+---
+
+# Vitest Setup for Stellar dApps
+
+This guide shows a recommended Vitest configuration for Stellar dApp code in a Nextellar project. It focuses on fast unit tests, deterministic mocks, and a setup that works well with React components and Stellar SDK helpers.
+
+## Prerequisites
+
+- Node.js 18+
+- A Nextellar/scaffolded Next.js project
+- `pnpm` installed
+
+## Recommended Config
+
+Install test dependencies:
+
+```bash
+pnpm add -D vitest @vitejs/plugin-react jsdom @testing-library/react @testing-library/jest-dom @testing-library/user-event
+```
+
+Create `vitest.config.ts` at the project root:
+
+```ts
+import { defineConfig } from 'vitest/config';
+import react from '@vitejs/plugin-react';
+import path from 'path';
+
+export default defineConfig({
+  plugins: [react()],
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    setupFiles: ['./tests/setup.ts'],
+    include: ['**/*.{test,spec}.{ts,tsx}'],
+    exclude: ['node_modules', '.next', 'dist'],
+    restoreMocks: true,
+    clearMocks: true,
+    mockReset: true,
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
+});
+```
+
+Add scripts to `package.json`:
+
+```json
+{
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  }
+}
+```
+
+## Mocking Helpers
+
+Create `tests/setup.ts` to register DOM matchers and cleanup between tests:
+
+```ts
+import '@testing-library/jest-dom/vitest';
+import { afterEach, vi } from 'vitest';
+import { cleanup } from '@testing-library/react';
+
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
+```
+
+### Wallet Kit Mock
+
+Keep reusable wallet mocks in `tests/mocks/`:
+
+```ts
+// tests/mocks/stellar-wallet-kit.ts
+import { vi } from 'vitest';
+
+export const walletKitMock = {
+  getAddress: vi.fn().mockResolvedValue({
+    address: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
+  }),
+  signTransaction: vi.fn().mockResolvedValue({
+    signedTxXdr: 'SIGNED_XDR',
+  }),
+  openModal: vi.fn(),
+};
+
+export const getKit = vi.fn(() => walletKitMock);
+```
+
+Use it in a test:
+
+```ts
+import { vi } from 'vitest';
+
+vi.mock('@/lib/stellar-wallet-kit', async () => {
+  const mocks = await import('../../tests/mocks/stellar-wallet-kit');
+  return { getKit: mocks.getKit };
+});
+```
+
+### Network Mocking
+
+- **Unit tests**: use `vi.spyOn(global, 'fetch')` or module mocks for deterministic behavior.
+- **Integration-style tests**: use MSW at the HTTP boundary. See [Testing Horizon and Soroban Interactions](/docs/guides/testing-horizon-soroban).
+
+## Small Example Test
+
+This example tests a small Stellar utility.
+
+```ts
+// src/lib/stellar-format.ts
+import { StrKey } from '@stellar/stellar-sdk';
+
+export function isPublicKey(value: string): boolean {
+  return StrKey.isValidEd25519PublicKey(value);
+}
+
+export function stroopsToXlm(stroops: string | number | bigint): string {
+  return (Number(stroops) / 10_000_000).toFixed(7);
+}
+```
+
+```ts
+// src/lib/stellar-format.test.ts
+import { describe, expect, it } from 'vitest';
+import { isPublicKey, stroopsToXlm } from './stellar-format';
+
+describe('stellar-format', () => {
+  it('accepts a valid Stellar public key', () => {
+    expect(
+      isPublicKey('GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5')
+    ).toBe(true);
+  });
+
+  it('rejects an invalid key', () => {
+    expect(isPublicKey('not-a-key')).toBe(false);
+  });
+
+  it('formats stroops as XLM', () => {
+    expect(stroopsToXlm(15_000_000)).toBe('1.5000000');
+  });
+});
+```
+
+Run the tests:
+
+```bash
+pnpm test
+```
+
+## CI Considerations
+
+- Run `pnpm test` on every pull request.
+- Keep wallet and network dependencies mocked in unit tests.
+- Avoid live Horizon/Soroban calls in default CI; put them in an opt-in integration job.
+- When using MSW, set `onUnhandledRequest: 'error'` in CI to catch missing handlers.
+
+## Related
+
+- [Testing Guide for Scaffolded dApps](/docs/guides/testing)
+- [Unit Testing Stellar Hooks](/docs/guides/testing-stellar-hooks)
+- [Testing Horizon and Soroban Interactions](/docs/guides/testing-horizon-soroban)

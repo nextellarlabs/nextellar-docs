@@ -1,0 +1,74 @@
+---
+title: Per-Account Transaction Filtering
+description: Query the transactions that involve a single account with Horizon, including failed transactions, ordering and pagination.
+date: 2026-11-21
+---
+
+# Per-Account Transaction Filtering
+
+Horizon can return only the transactions that involve a given account, which is what a transaction history screen needs. This guide covers the endpoint, a small example, and how to page through the results.
+
+## The endpoint
+
+```
+GET /accounts/{account_id}/transactions
+```
+
+This returns the transactions the account took part in, for example as the source account or as a participant in one of the operations, not only the ones it submitted itself.
+
+| Query parameter | Meaning |
+| --- | --- |
+| `limit` | Page size. Horizon caps it (200). |
+| `order` | `desc` for newest first, `asc` for oldest first. |
+| `cursor` | The `paging_token` of the last record you received. |
+| `include_failed` | Set to `true` to include failed transactions. They are left out by default. |
+
+Horizon has matching filters for other scopes, such as a single ledger or a claimable balance. Use the narrowest one that fits so you transfer less data.
+
+## Example
+
+```javascript
+import { Horizon } from '@stellar/stellar-sdk';
+
+const server = new Horizon.Server('https://horizon-testnet.stellar.org');
+
+export async function fetchTransactions(accountId, page) {
+  const result = page
+    ? await page.next()
+    : await server
+        .transactions()
+        .forAccount(accountId)
+        .order('desc')
+        .limit(20)
+        .includeFailed(true)
+        .call();
+
+  return {
+    transactions: result.records.map((tx) => ({
+      hash: tx.hash,
+      ledger: tx.ledger_attr,
+      createdAt: tx.created_at,
+      source: tx.source_account,
+      operations: tx.operation_count,
+      successful: tx.successful,
+    })),
+    page: result,
+    done: result.records.length === 0,
+  };
+}
+```
+
+Show `successful` in the UI when you include failed transactions. A failed transaction still pays its fee and is recorded, but none of its operations took effect.
+
+## Pagination
+
+- Fetch the first page, then call `page.next()` for the next one. The SDK uses the last record's `paging_token` as the `cursor`.
+- An empty `records` array means there is nothing further.
+- With `order=desc`, new transactions arrive at the front of the list. To pick up new activity, re-request the first page and stop when you reach a hash you have already shown.
+- Keep requests within Horizon's limits: see [Rate Limiting Horizon Requests](/docs/guides/rate-limiting-horizon-requests).
+
+## Related
+
+- [Transaction Lifecycle](/docs/guides/transaction-lifecycle) — How a transaction reaches a ledger
+- [Stellar Horizon](/docs/integrations/horizon) — Horizon basics
+- [Rate Limiting Horizon Requests](/docs/guides/rate-limiting-horizon-requests) — Keep paging within request limits

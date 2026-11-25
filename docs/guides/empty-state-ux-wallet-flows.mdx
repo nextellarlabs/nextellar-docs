@@ -1,0 +1,115 @@
+---
+title: Empty State UX Patterns for Wallet Flows
+description: Design clear empty states for wallet connection, balances, transaction history, and other Stellar wallet flows.
+date: 2026-11-23
+---
+
+# Empty State UX Patterns for Wallet Flows
+
+Empty states are normal in wallet flows: a user may not be connected, may have no balance, or may be on a new account with no history. Good empty states explain what is missing, why it matters, and what the user can do next.
+
+## Common Empty States
+
+| Flow | Empty state | User goal | Recommended action |
+| --- | --- | --- | --- |
+| Wallet connection | No wallet connected | Start using wallet features | Show a connect button and supported wallet options. |
+| Balances | No assets or unfunded account | Understand available funds | Explain the empty balance and link to funding/testnet Friendbot. |
+| Transaction history | No transactions yet | Confirm activity | Say no activity was found and suggest sending a first payment. |
+| Trustlines/assets | No trustlines for an asset | Receive or trade an asset | Offer "Add trustline" with asset details. |
+| Pending requests | No pending signatures/requests | Know nothing is blocked | Show a calm "You're all caught up" message. |
+
+## Copy Patterns
+
+Use short, specific copy. Avoid blaming the user.
+
+- **Title:** State what is empty. Example: "No transactions yet".
+- **Body:** Explain why it may be empty. Example: "Payments you send or receive will appear here."
+- **Action:** Give one primary next step. Example: "Send a payment".
+- **Secondary help:** Optional link for setup/funding docs.
+
+```text
+[Title] No wallet connected
+[Body] Connect a wallet to view balances and sign transactions.
+[Primary action] Connect Wallet
+[Secondary] Learn about supported wallets
+```
+
+## Small Examples
+
+### Empty Balance Panel
+
+```tsx
+type Balance = { asset: string; amount: string };
+
+export function BalancePanel({
+  connected,
+  balances,
+  onConnect,
+}: {
+  connected: boolean;
+  balances: Balance[];
+  onConnect: () => void;
+}) {
+  if (!connected) {
+    return (
+      <section aria-live="polite">
+        <h3>No wallet connected</h3>
+        <p>Connect your wallet to view balances and send payments.</p>
+        <button onClick={onConnect}>Connect Wallet</button>
+      </section>
+    );
+  }
+
+  if (balances.length === 0) {
+    return (
+      <section aria-live="polite">
+        <h3>No balances yet</h3>
+        <p>This account has no assets to display. Fund it on testnet to get started.</p>
+        <a href="/docs/guides/testing-transactions-testnet">Fund and test on testnet</a>
+      </section>
+    );
+  }
+
+  return (
+    <ul>
+      {balances.map((balance) => (
+        <li key={balance.asset}>
+          {balance.amount} {balance.asset}
+        </li>
+      ))}
+    </ul>
+  );
+}
+```
+
+### Empty Transaction History
+
+```tsx
+export function TransactionHistory({ items }: { items: Array<{ hash: string }> }) {
+  if (items.length === 0) {
+    return (
+      <div role="status">
+        <h3>No transactions yet</h3>
+        <p>When this account sends or receives payments, they will show up here.</p>
+      </div>
+    );
+  }
+
+  return <ul>{items.map((item) => <li key={item.hash}>{item.hash}</li>)}</ul>;
+}
+```
+
+## Verification
+
+Run docs checks after adding the guide:
+
+```bash
+pnpm build:content
+pnpm check:links
+```
+
+## Related
+
+- [Wallet UX Patterns](/docs/guides/wallet-ux-patterns)
+- [useStellarBalances](/docs/hooks/use-stellar-balances)
+- [useTransactionHistory](/docs/hooks/use-transaction-history)

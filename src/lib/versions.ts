@@ -31,11 +31,7 @@ export async function loadVersionsMetadata(): Promise<VersionMetadata[]> {
       const fs = await import('fs');
       const path = await import('path');
 
-      const versionsPath = path.join(
-        process.cwd(),
-        'docs',
-        'versions.json'
-      );
+      const versionsPath = path.join(process.cwd(), 'docs', 'versions.json');
 
       if (!fs.existsSync(versionsPath)) {
         return [];
@@ -43,7 +39,7 @@ export async function loadVersionsMetadata(): Promise<VersionMetadata[]> {
 
       const content = fs.readFileSync(versionsPath, 'utf8');
       versionsCache = JSON.parse(content);
-      return versionsCache;
+      return versionsCache ?? [];
     }
 
     // At runtime in browser, fetch from API
@@ -54,7 +50,7 @@ export async function loadVersionsMetadata(): Promise<VersionMetadata[]> {
     }
 
     versionsCache = await response.json();
-    return versionsCache;
+    return versionsCache ?? [];
   } catch (error) {
     console.error('Error loading versions metadata:', error);
     return [];

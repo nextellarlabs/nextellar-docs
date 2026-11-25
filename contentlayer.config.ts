@@ -17,18 +17,20 @@ const guideFrontmatterFields = {
   description: { type: 'string', required: false },
   date: { type: 'date', required: false },
   tags: { type: 'list', of: { type: 'string' }, required: false },
-} satisfies Record<keyof GuideFrontmatter, unknown>;
+} as const satisfies Record<keyof GuideFrontmatter, unknown>;
 // OPTIMIZATION: Simple cache to avoid re-parsing the same versioned paths
 // In a real scenario with repeated builds, this prevents redundant regex matching
 const versionedPathCache = new Map();
 
-function parseVersionedPath(sourceFilePath) {
+function parseVersionedPath(sourceFilePath: string) {
   // Check cache first
   if (versionedPathCache.has(sourceFilePath)) {
     return versionedPathCache.get(sourceFilePath);
   }
 
-  const versionMatch = sourceFilePath.match(/versions\/(v[\d.]+(?:-[\w.]+)?\/)(.+)/);
+  const versionMatch = sourceFilePath.match(
+    /versions\/(v[\d.]+(?:-[\w.]+)?\/)(.+)/
+  );
   const result = versionMatch
     ? {
         version: versionMatch[1].slice(0, -1), // Remove trailing slash
@@ -79,6 +81,8 @@ export const VersionedPost = defineDocumentType(() => ({
     title: { type: 'string', required: true },
     description: { type: 'string', required: false },
     date: { type: 'date', required: false },
+    tested_with_cli_version: { type: 'string', required: false },
+    tested_with_node_version: { type: 'string', required: false },
   },
   computedFields: {
     // OPTIMIZATION: Pre-parse versioned data to avoid redundant regex matching across computed fields

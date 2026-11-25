@@ -1,0 +1,72 @@
+---
+title: Account Signer Types
+description: Overview of the three signer types supported on a Stellar account and how signer weights interact.
+date: 2026-10-17
+---
+
+# Account Signer Types
+
+Stellar accounts can have multiple signers associated with them. Each signer is identified by a unique key and can authorize transactions on behalf of the account. Understanding the available signer types and how they interact with weights is essential for implementing multi-signature workflows and account security strategies.
+
+## Signer Types
+
+Stellar supports three types of signers on an account:
+
+### ed25519
+
+The standard keypair signer. This is the most common signer type and represents a public key from an ed25519 key pair. When you create a Stellar account, it begins with a single ed25519 signer (the master key). Additional ed25519 signers can be added to enable multi-signature authorization. Each ed25519 signer must sign a transaction to contribute its weight toward authorization.
+
+### preAuthTx
+
+A pre-authorized transaction signer. This signer type is a hash of a specific transaction that has been pre-authorized by the account owner. Once added to an account, this signer permits exactly one transaction—the one whose hash matches the preAuthTx value. This is useful for building workflows where an account can approve a specific action ahead of time without directly holding its secret key during the authorization moment.
+
+### sha256Hash
+
+A 32-byte SHA-256 hash signer. This signer type enables threshold signatures where the account owner authorizes a signer by revealing the preimage (the original value) whose SHA-256 hash matches the stored signer. When a transaction is signed, the preimage is provided on-chain, its hash is computed, and if it matches the stored signer, the signature is valid. This is particularly useful for contracts and off-chain coordination scenarios.
+
+## Signer Weight Interaction
+
+Each signer on an account has a weight (a value from 0 to 255). When a transaction is submitted, the Stellar network sums the weights of all signers whose signatures are present in the transaction. The transaction is authorized if this sum meets or exceeds the applicable threshold:
+
+- **Low threshold**: Minimum weight needed for standard operations (e.g., sending payments)
+- **Medium threshold**: Minimum weight for moderate-risk operations (e.g., managing offers)
+- **High threshold**: Minimum weight for critical operations (e.g., modifying account signers)
+
+Setting a signer's weight to 0 effectively disables that signer—it will no longer contribute to authorization, regardless of whether a signature is present. To remove a signer entirely, you delete it from the account's signers list rather than setting its weight to zero.
+
+## Example: Querying Signers
+
+Here's how to retrieve the signers for an account using the Stellar JavaScript SDK:
+
+```javascript
+const StellarSdk = require('stellar-sdk');
+
+const server = new StellarSdk.Horizon.Server('https://horizon.stellar.org');
+
+async function getSigners(accountId) {
+  try {
+    const account = await server.accounts().accountId(accountId).call();
+    
+    console.log(`Account: ${account.id}`);
+    console.log(`Master Key Weight: ${account.thresholds.master_key_weight}`);
+    console.log(`Low Threshold: ${account.thresholds.low_threshold}`);
+    console.log(`Med Threshold: ${account.thresholds.med_threshold}`);
+    console.log(`High Threshold: ${account.thresholds.high_threshold}`);
+    
+    console.log('\nSigners:');
+    account.signers.forEach(signer => {
+      console.log(`  Type: ${signer.type}, Key: ${signer.key}, Weight: ${signer.weight}`);
+    });
+  } catch (error) {
+    console.error('Error fetching account:', error);
+  }
+}
+
+getSigners('GBUQWP3BOUZX34ULNQG23RQ6F4BWFIRESVVU4CCGE7BFOG5C6LFVYCCS');
+```
+
+## Related
+
+- [Stellar Horizon Integration](/docs/integrations/horizon) — Comprehensive Horizon configuration
+- [Glossary](/docs/guides/glossary) — Stellar terminology including signer types
+- [Account Structure](/docs/guides/account-structure) — Understanding accounts and their properties

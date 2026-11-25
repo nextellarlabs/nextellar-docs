@@ -1,0 +1,15 @@
+---
+title: Glossary Entry – Muxed Account (Issue #378 Draft)
+description: Working draft for the Muxed Account glossary entry
+date: 2026-11-18
+---
+
+# Draft: Glossary Entry – Muxed Account
+
+This file is a working draft for issue #378. The final text is placed in `docs/guides/glossary.mdx`.
+
+---
+
+### Muxed Account
+
+An address that starts with `M` and combines a regular `G...` account with a 64-bit ID, so many virtual accounts can share one Stellar account. Muxed accounts do not exist on the ledger; payments settle to the underlying `G...` account. Exchanges and custodial services use them to credit deposits to individual customers, as an alternative to memos. Not every wallet, exchange, or anchor supports them yet. See [Pooled accounts, muxed accounts, and memos](https://developers.stellar.org/docs/build/guides/transactions/pooled-accounts-muxed-accounts-memos) in the Stellar docs.

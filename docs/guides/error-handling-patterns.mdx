@@ -15,11 +15,11 @@ This guide documents error types, handling strategies, and best practices for bu
 
 Nextellar hooks throw or return errors in three main categories:
 
-| Category | Source | Example | Handling |
-|----------|--------|---------|----------|
-| **Network Errors** | Horizon/Soroban RPC | Connection timeout, endpoint unreachable | Retry with exponential backoff |
-| **Validation Errors** | Application logic | Invalid destination, insufficient balance | Show user-friendly message |
-| **Transaction Errors** | Stellar network | Transaction failed, insufficient fee | Log and alert user |
+| Category               | Source              | Example                                   | Handling                       |
+| ---------------------- | ------------------- | ----------------------------------------- | ------------------------------ |
+| **Network Errors**     | Horizon/Soroban RPC | Connection timeout, endpoint unreachable  | Retry with exponential backoff |
+| **Validation Errors**  | Application logic   | Invalid destination, insufficient balance | Show user-friendly message     |
+| **Transaction Errors** | Stellar network     | Transaction failed, insufficient fee      | Log and alert user             |
 
 ---
 
@@ -74,12 +74,12 @@ export function MyComponent() {
 
 **Error Types:**
 
-| Error | Code | When | Solution |
-|-------|------|------|----------|
-| Wallet not installed | `WALLET_NOT_FOUND` | User doesn't have Freighter/other wallet | Prompt to install wallet with link |
-| User rejected | `USER_REJECTED` | User cancels connection prompt | Let user retry |
-| Network mismatch | `NETWORK_MISMATCH` | Wallet on different network (Testnet vs Mainnet) | Show network switch prompt |
-| Invalid signature | `INVALID_SIGNATURE` | XDR signature verification failed | Report to backend, retry signing |
+| Error                | Code                | When                                             | Solution                           |
+| -------------------- | ------------------- | ------------------------------------------------ | ---------------------------------- |
+| Wallet not installed | `WALLET_NOT_FOUND`  | User doesn't have Freighter/other wallet         | Prompt to install wallet with link |
+| User rejected        | `USER_REJECTED`     | User cancels connection prompt                   | Let user retry                     |
+| Network mismatch     | `NETWORK_MISMATCH`  | Wallet on different network (Testnet vs Mainnet) | Show network switch prompt         |
+| Invalid signature    | `INVALID_SIGNATURE` | XDR signature verification failed                | Report to backend, retry signing   |
 
 **Pattern:**
 
@@ -131,12 +131,12 @@ export function WalletConnector() {
 
 **Error Types:**
 
-| Error | Code | When | Solution |
-|-------|------|------|----------|
-| Insufficient balance | `INSUFFICIENT_BALANCE` | Account doesn't have enough XLM | Show current balance, prompt deposit |
-| Invalid destination | `INVALID_DESTINATION` | Destination account doesn't exist or invalid | Validate address format before submit |
-| No trustline | `TRUSTLINE_MISSING` | Recipient doesn't trust the asset | Create trustline first with ChangeTrust |
-| Timeout | `NETWORK_TIMEOUT` | Horizon unreachable after retries | Retry with backoff or show offline message |
+| Error                | Code                   | When                                         | Solution                                   |
+| -------------------- | ---------------------- | -------------------------------------------- | ------------------------------------------ |
+| Insufficient balance | `INSUFFICIENT_BALANCE` | Account doesn't have enough XLM              | Show current balance, prompt deposit       |
+| Invalid destination  | `INVALID_DESTINATION`  | Destination account doesn't exist or invalid | Validate address format before submit      |
+| No trustline         | `TRUSTLINE_MISSING`    | Recipient doesn't trust the asset            | Create trustline first with ChangeTrust    |
+| Timeout              | `NETWORK_TIMEOUT`      | Horizon unreachable after retries            | Retry with backoff or show offline message |
 
 **Pattern:**
 
@@ -145,7 +145,8 @@ import { useStellarPayment } from '@/hooks/useStellarPayment';
 import { useState } from 'react';
 
 export function PaymentForm() {
-  const { buildPaymentXDR, submitPayment, loading, error } = useStellarPayment();
+  const { buildPaymentXDR, submitPayment, loading, error } =
+    useStellarPayment();
   const [formError, setFormError] = useState('');
 
   const handlePayment = async (destination: string, amount: string) => {
@@ -178,7 +179,9 @@ export function PaymentForm() {
       } else if (err.code === 'TRUSTLINE_MISSING') {
         setFormError('Recipient must add trustline for custom assets first');
       } else if (err.code === 'NETWORK_TIMEOUT') {
-        setFormError('Network timeout. Please check your connection and retry.');
+        setFormError(
+          'Network timeout. Please check your connection and retry.'
+        );
       } else {
         setFormError(`Payment failed: ${err.message}`);
       }
@@ -193,7 +196,10 @@ export function PaymentForm() {
           ⚠️ {formError}
         </div>
       )}
-      <button onClick={() => handlePayment(destination, amount)} disabled={loading}>
+      <button
+        onClick={() => handlePayment(destination, amount)}
+        disabled={loading}
+      >
         {loading ? 'Processing...' : 'Send Payment'}
       </button>
     </div>
@@ -209,12 +215,12 @@ export function PaymentForm() {
 
 **Error Types:**
 
-| Error | Code | When | Solution |
-|-------|------|------|----------|
-| Account not found | `ACCOUNT_NOT_FOUND` | Account doesn't exist on network | Prompt user to fund account |
-| RPC unavailable | `RPC_UNAVAILABLE` | Horizon endpoint is down | Retry or switch endpoint |
-| Invalid account | `INVALID_ACCOUNT` | PublicKey param is null/malformed | Check wallet connection first |
-| Rate limit | `RATE_LIMITED` | Too many requests to Horizon | Implement request throttling |
+| Error             | Code                | When                              | Solution                      |
+| ----------------- | ------------------- | --------------------------------- | ----------------------------- |
+| Account not found | `ACCOUNT_NOT_FOUND` | Account doesn't exist on network  | Prompt user to fund account   |
+| RPC unavailable   | `RPC_UNAVAILABLE`   | Horizon endpoint is down          | Retry or switch endpoint      |
+| Invalid account   | `INVALID_ACCOUNT`   | PublicKey param is null/malformed | Check wallet connection first |
+| Rate limit        | `RATE_LIMITED`      | Too many requests to Horizon      | Implement request throttling  |
 
 **Pattern:**
 
@@ -229,11 +235,14 @@ export function BalanceDisplay({ publicKey }: { publicKey: string | null }) {
   // Auto-retry on rate limit or RPC errors
   useEffect(() => {
     if (error && retryCount < 3) {
-      const timer = setTimeout(() => {
-        console.log(`Retrying balance fetch (attempt ${retryCount + 1})...`);
-        refetch();
-        setRetryCount(retryCount + 1);
-      }, 2000 * (retryCount + 1)); // Exponential backoff
+      const timer = setTimeout(
+        () => {
+          console.log(`Retrying balance fetch (attempt ${retryCount + 1})...`);
+          refetch();
+          setRetryCount(retryCount + 1);
+        },
+        2000 * (retryCount + 1)
+      ); // Exponential backoff
 
       return () => clearTimeout(timer);
     }
@@ -295,13 +304,13 @@ export function BalanceDisplay({ publicKey }: { publicKey: string | null }) {
 
 **Error Types:**
 
-| Error | Code | When | Solution |
-|-------|------|------|----------|
-| Contract not found | `CONTRACT_NOT_FOUND` | Contract ID doesn't exist on network | Verify contract ID or deploy |
-| Function not found | `FUNCTION_NOT_FOUND` | Method doesn't exist in contract | Check contract ABI/schema |
-| Invalid arguments | `INVALID_ARGS` | Function parameters don't match signature | Validate arg types and structure |
-| Execution failed | `EXECUTION_FAILED` | Contract logic returned error | Check contract logs for details |
-| Timeout | `INVOCATION_TIMEOUT` | Soroban RPC request exceeded timeout | Retry or increase timeout |
+| Error              | Code                 | When                                      | Solution                         |
+| ------------------ | -------------------- | ----------------------------------------- | -------------------------------- |
+| Contract not found | `CONTRACT_NOT_FOUND` | Contract ID doesn't exist on network      | Verify contract ID or deploy     |
+| Function not found | `FUNCTION_NOT_FOUND` | Method doesn't exist in contract          | Check contract ABI/schema        |
+| Invalid arguments  | `INVALID_ARGS`       | Function parameters don't match signature | Validate arg types and structure |
+| Execution failed   | `EXECUTION_FAILED`   | Contract logic returned error             | Check contract logs for details  |
+| Timeout            | `INVOCATION_TIMEOUT` | Soroban RPC request exceeded timeout      | Retry or increase timeout        |
 
 **Pattern:**
 
@@ -352,11 +361,13 @@ export function ContractInteraction() {
         {loading ? 'Invoking...' : 'Deposit'}
       </button>
       {message && (
-        <div className={`p-3 rounded mt-2 ${
-          message.startsWith('Success')
-            ? 'bg-green-50 text-green-800'
-            : 'bg-red-50 text-red-800'
-        }`}>
+        <div
+          className={`p-3 rounded mt-2 ${
+            message.startsWith('Success')
+              ? 'bg-green-50 text-green-800'
+              : 'bg-red-50 text-red-800'
+          }`}
+        >
           {message}
         </div>
       )}
@@ -373,11 +384,11 @@ export function ContractInteraction() {
 
 **Error Types:**
 
-| Error | Code | When | Solution |
-|-------|------|------|----------|
+| Error            | Code                       | When                                        | Solution                  |
+| ---------------- | -------------------------- | ------------------------------------------- | ------------------------- |
 | Trustline exists | `TRUSTLINE_ALREADY_EXISTS` | Trying to add trustline that already exists | Check first before adding |
-| Invalid asset | `INVALID_ASSET` | Asset code or issuer is malformed | Validate asset details |
-| Limit exceeded | `LIMIT_EXCEEDED` | Account has too many trustlines | Remove unused trustlines |
+| Invalid asset    | `INVALID_ASSET`            | Asset code or issuer is malformed           | Validate asset details    |
+| Limit exceeded   | `LIMIT_EXCEEDED`           | Account has too many trustlines             | Remove unused trustlines  |
 
 **Pattern:**
 
@@ -386,9 +397,8 @@ import { useTrustlines } from '@/hooks/useTrustlines';
 import { useState } from 'react';
 
 export function TrustlineManager() {
-  const { hasTrustline, buildChangeTrustXDR, refresh, loading } = useTrustlines(
-    publicKey
-  );
+  const { hasTrustline, buildChangeTrustXDR, refresh, loading } =
+    useTrustlines(publicKey);
   const [status, setStatus] = useState('');
 
   const handleAddTrustline = async (assetCode: string, assetIssuer: string) => {
@@ -492,9 +502,7 @@ export function PaymentFlow() {
 
   return (
     <div>
-      {workflowError && (
-        <ErrorBanner message={workflowError} />
-      )}
+      {workflowError && <ErrorBanner message={workflowError} />}
       <button onClick={handleCompletePayment}>Execute Payment</button>
     </div>
   );
@@ -514,11 +522,7 @@ Wrap your dApp with a React Error Boundary to catch **unexpected errors**:
 import { ReactNode } from 'react';
 
 export default function ErrorBoundary({ children }: { children: ReactNode }) {
-  return (
-    <ErrorBoundaryWrapper>
-      {children}
-    </ErrorBoundaryWrapper>
-  );
+  return <ErrorBoundaryWrapper>{children}</ErrorBoundaryWrapper>;
 }
 
 class ErrorBoundaryWrapper extends React.Component<
@@ -572,9 +576,7 @@ import { PaymentForm } from './PaymentForm';
 
 vi.mock('@/hooks/useStellarPayment', () => ({
   useStellarPayment: () => ({
-    submitPayment: vi.fn().mockRejectedValue(
-      new Error('INSUFFICIENT_BALANCE')
-    ),
+    submitPayment: vi.fn().mockRejectedValue(new Error('INSUFFICIENT_BALANCE')),
     loading: false,
   }),
 }));
@@ -612,5 +614,4 @@ describe('PaymentForm Error Handling', () => {
 - [useStellarWallet Hook](/docs/hooks/use-stellar-wallet) — Wallet connection errors
 - [useSorobanContract Hook](/docs/hooks/use-soroban-contract) — Smart contract errors
 - [Testing Guide](/docs/guides/testing) — Test error scenarios
-- [Error Tracking](/docs/guides/error-tracking) — Monitor production errors
-
+- [Error Tracking](/docs/guides/observability-analytics-guide) — Monitor production errors

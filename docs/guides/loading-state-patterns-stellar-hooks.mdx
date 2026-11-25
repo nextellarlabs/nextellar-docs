@@ -1,0 +1,125 @@
+---
+title: Loading State Patterns for Stellar Hooks
+description: Compare boolean and enum loading patterns for Stellar hooks, with skeleton guidance and a small example.
+date: 2026-11-23
+---
+
+# Loading State Patterns for Stellar Hooks
+
+Stellar hooks often perform async work: loading balances, building transactions, waiting for wallet signatures, or polling Horizon. A clear loading model prevents confusing UI and stale actions.
+
+## Boolean vs Enum Patterns
+
+### Boolean Pattern
+
+Use a boolean when there is only one async state.
+
+```ts
+const { isLoading, data, error } = useStellarBalances(publicKey);
+```
+
+**Good for:**
+
+- Simple data fetches.
+- Components with one request at a time.
+- Cases where "loading" means the same thing everywhere.
+
+**Tradeoff:** booleans do not distinguish `idle`, `submitting`, `confirming`, or `refreshing`.
+
+### Enum/State Machine Pattern
+
+Use an enum when multiple async phases matter.
+
+```ts
+type Status = 'idle' | 'building' | 'awaiting_signature' | 'submitting' | 'success' | 'error';
+```
+
+**Good for:**
+
+- Payment submission flows.
+- Multi-step wallet signing.
+- UIs that need different copy/actions per phase.
+
+**Tradeoff:** more code, but clearer transitions and fewer impossible states.
+
+## Suggested Skeletons
+
+Use skeletons when layout is known and the data will occupy stable space.
+
+- **Balance cards:** skeleton rows matching asset row height.
+- **Transaction history:** skeleton list items with amount/date placeholders.
+- **Profile/wallet header:** skeleton for address and balance.
+
+Avoid skeletons for very fast operations; a small spinner or disabled button can be enough.
+
+```tsx
+function BalanceSkeleton() {
+  return (
+    <div aria-hidden="true">
+      <div className="h-4 w-24 animate-pulse rounded bg-gray-200" />
+      <div className="mt-2 h-4 w-32 animate-pulse rounded bg-gray-200" />
+    </div>
+  );
+}
+```
+
+## Small Example
+
+```tsx
+'use client';
+
+import { useState } from 'react';
+
+type LoadState =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'success'; balances: string[] }
+  | { status: 'error'; message: string };
+
+export function BalanceList({ load }: { load: () => Promise<string[]> }) {
+  const [state, setState] = useState<LoadState>({ status: 'idle' });
+
+  async function handleLoad() {
+    setState({ status: 'loading' });
+    try {
+      const balances = await load();
+      setState({ status: 'success', balances });
+    } catch (error) {
+      setState({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  }
+
+  if (state.status === 'loading') return <p role="status">Loading balances...</p>;
+  if (state.status === 'error') return <p role="alert">{state.message}</p>;
+  if (state.status === 'success' && state.balances.length === 0) {
+    return <p>No balances found.</p>;
+  }
+
+  return (
+    <div>
+      <button onClick={handleLoad}>Load balances</button>
+      {state.status === 'success' && (
+        <ul>{state.balances.map((b) => <li key={b}>{b}</li>)}</ul>
+      )}
+    </div>
+  );
+}
+```
+
+## Verification
+
+Run docs checks after adding the guide:
+
+```bash
+pnpm build:content
+pnpm check:links
+```
+
+## Related
+
+- [Hook Error Handling](/docs/guides/hook-error-handling)
+- [Wallet UX Patterns](/docs/guides/wallet-ux-patterns)
+- [useStellarBalances](/docs/hooks/use-stellar-balances)

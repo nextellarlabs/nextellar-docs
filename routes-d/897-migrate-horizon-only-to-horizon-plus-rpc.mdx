@@ -1,0 +1,63 @@
+---
+title: Migrate from Horizon-Only to Horizon and Soroban RPC
+description: Add Soroban RPC alongside Horizon, configure both endpoints, and route each Stellar workload to the right API.
+date: 2026-10-17
+---
+
+# Migrate from Horizon-Only to Horizon and Soroban RPC
+
+Most applications do not replace Horizon when they add Soroban. Keep Horizon for classic Stellar account, payment, trustline, offer, and history operations; add Soroban RPC for contract simulation, contract-state reads, events, and contract transactions.
+
+## Configure both endpoints
+
+Add a Soroban RPC endpoint to the application configuration while retaining the existing Horizon URL. Keep both endpoints on the same network and update them together when moving between testnet and mainnet.
+
+```env
+NEXT_PUBLIC_HORIZON_URL=https://horizon-testnet.stellar.org
+NEXT_PUBLIC_SOROBAN_URL=https://soroban-testnet.stellar.org
+NEXT_PUBLIC_NETWORK=TESTNET
+```
+
+For a new scaffold, provide both endpoints with `--horizon-url` and `--soroban-url`. Existing generated applications can add the RPC variable to `.env.local` and read it in the module that configures Soroban features.
+
+## Route requests by capability
+
+| Workload | Use | Notes |
+| --- | --- | --- |
+| Account balances, classic payments, trustlines, offers, and indexed history | Horizon | Horizon provides the familiar account model, REST queries, pagination, and streaming endpoints. |
+| Contract simulation, contract storage reads, and contract events | Soroban RPC | RPC methods expose contract-oriented ledger data; event consumers poll `getEvents`. |
+| Classic transaction submission | Horizon | Continue using Horizon for classic payment submission and related history. |
+| Contract transaction simulation and submission | Soroban RPC | Simulate before sending; `sendTransaction` acceptance is not final ledger confirmation. Poll `getTransaction` for the result. |
+
+Soroban RPC is not a drop-in replacement for Horizon's account, DEX, or historical query APIs. It also has different response shapes, retention, pagination, and event-delivery behavior. Keep error handling and retry policies specific to each service, since one endpoint may be available while the other is not.
+
+## Small example
+
+Create both clients and use each for its own workload:
+
+```typescript
+import { Server as HorizonServer } from '@stellar/stellar-sdk';
+import { Server as SorobanServer } from '@stellar/stellar-sdk/rpc';
+
+const horizon = new HorizonServer(process.env.NEXT_PUBLIC_HORIZON_URL!);
+const soroban = new SorobanServer(process.env.NEXT_PUBLIC_SOROBAN_URL!);
+
+export async function loadAccountAndLedger(publicKey: string) {
+  const [account, latestLedger] = await Promise.all([
+    horizon.loadAccount(publicKey),
+    soroban.getLatestLedger(),
+  ]);
+
+  return { account, latestLedger: latestLedger.sequence };
+}
+```
+
+The example reads classic account data from Horizon and the Soroban node's latest ledger from RPC. In a contract invocation flow, load the source account and sequence with Horizon, then simulate and submit the contract transaction through RPC.
+
+## Migration checklist
+
+- Keep existing Horizon workflows working while adding the RPC client.
+- Configure endpoints and network passphrase for the same Stellar network.
+- Use RPC methods only for Soroban capabilities; do not move classic history or order-book queries to RPC.
+- Treat `sendTransaction` as pending until `getTransaction` reports a final result.
+- Review [Horizon vs Soroban RPC](/docs/guides/horizon-vs-soroban-rpc) and [Custom Endpoints](/docs/guides/custom-endpoints) for API and configuration details.

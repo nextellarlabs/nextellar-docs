@@ -1,0 +1,18 @@
+---
+title: Draft - Formatting Asset Amounts for Display
+description: Working draft for issue #704.
+date: 2026-11-22
+---
+
+# Draft: Formatting Asset Amounts for Display
+
+Issue: https://github.com/nextellarlabs/nextellar-docs/issues/704
+
+## Planned coverage
+
+- Precision rules for XLM, classic issued assets, Stellar Asset Contract tokens, and custom Soroban tokens.
+- Small integer-only formatter with configurable display precision and trailing-zero policy.
+- Edge cases: zero, sub-precision values, invalid input, bounds, negative zero, and locale grouping.
+- Verification with `pnpm build:content` and `pnpm check:links`.
+
+Final doc target: `docs/guides/formatting-asset-amounts.mdx`.

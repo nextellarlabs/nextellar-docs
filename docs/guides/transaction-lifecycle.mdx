@@ -56,6 +56,30 @@ const tx = new TransactionBuilder(sourceAccount, {
   .build();
 ```
 
+### Common operation types
+
+A transaction holds one or more operations. These are the ones you will use most:
+
+| Operation                   | SDK builder                          | What it does                                                                        |
+| --------------------------- | ------------------------------------ | ----------------------------------------------------------------------------------- |
+| Create Account              | `Operation.createAccount`            | Creates and funds a new account with a starting balance                             |
+| Payment                     | `Operation.payment`                  | Sends an amount of an asset to a destination account                                |
+| Path Payment Strict Send    | `Operation.pathPaymentStrictSend`    | Sends a fixed amount; the recipient may receive a different asset                   |
+| Path Payment Strict Receive | `Operation.pathPaymentStrictReceive` | Delivers a fixed amount to the recipient; the sent asset may differ                 |
+| Manage Sell Offer           | `Operation.manageSellOffer`          | Creates, updates, or deletes an offer to sell an asset                              |
+| Manage Buy Offer            | `Operation.manageBuyOffer`           | Creates, updates, or deletes an offer to buy an asset                               |
+| Create Passive Sell Offer   | `Operation.createPassiveSellOffer`   | Offers to sell without taking a reverse offer of equal price                        |
+| Change Trust                | `Operation.changeTrust`              | Creates, updates, or deletes a trustline to an asset                                |
+| Set Options                 | `Operation.setOptions`               | Sets account flags, signers, home domain, and thresholds                            |
+| Manage Data                 | `Operation.manageData`               | Sets, changes, or deletes a name/value data entry on an account                     |
+| Create Claimable Balance    | `Operation.createClaimableBalance`   | Locks an amount of an asset for one or more claimants                               |
+| Claim Claimable Balance     | `Operation.claimClaimableBalance`    | Claims a claimable balance by its ID                                                |
+| Bump Sequence               | `Operation.bumpSequence`             | Moves the account sequence number forward, invalidating lower-numbered transactions |
+| Account Merge               | `Operation.accountMerge`             | Moves an account's XLM to another account and removes the account                   |
+| Invoke Host Function        | `Operation.invokeHostFunction`       | Invokes or deploys a Soroban smart contract                                         |
+
+`Allow Trust` is deprecated; use `Operation.setTrustLineFlags` to authorize trustlines. See the [full list of operations](https://developers.stellar.org/docs/learn/fundamentals/transactions/list-of-operations) in the Stellar docs.
+
 ### Sequence number rules
 
 The sequence number on the source account increments by one for each submitted transaction, regardless of whether it succeeded. If you build two transactions from the same loaded account object and submit them both, the second will fail with `tx_bad_seq` because the first already consumed the sequence slot.

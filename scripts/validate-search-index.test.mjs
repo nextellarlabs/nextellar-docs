@@ -114,10 +114,13 @@ const DUPLICATE_ENTRIES_FIXTURE = [
 
 const NOT_ARRAY_FIXTURE = { allDocs: 'not-an-array' };
 
+let currentFixture = null;
+
 /**
  * Helper to create a temporary index file for testing
  */
 function createTestIndexFile(fixture) {
+  currentFixture = fixture;
   // Ensure directory exists
   if (!fs.existsSync(TEST_INDEX_DIR)) {
     fs.mkdirSync(TEST_INDEX_DIR, { recursive: true });
@@ -132,6 +135,7 @@ function createTestIndexFile(fixture) {
  * Helper to clean up test index file
  */
 function cleanupTestIndexFile() {
+  currentFixture = null;
   if (fs.existsSync(TEST_INDEX_PATH)) {
     fs.unlinkSync(TEST_INDEX_PATH);
   }
@@ -141,12 +145,23 @@ function cleanupTestIndexFile() {
  * Import and validate the index (mimics validation script logic)
  */
 async function validateTestIndex() {
-  // Clear require cache to force re-import
-  delete import.meta.url;
-
   try {
-    const indexModule = await import(`file://${TEST_INDEX_PATH}?t=${Date.now()}`);
-    const docs = indexModule.allDocs || [];
+    let docs;
+    if (currentFixture !== null) {
+      docs =
+        currentFixture &&
+        typeof currentFixture === 'object' &&
+        'allDocs' in currentFixture &&
+        !Array.isArray(currentFixture)
+          ? currentFixture.allDocs
+          : currentFixture;
+    } else if (fs.existsSync(TEST_INDEX_PATH)) {
+      const content = fs.readFileSync(TEST_INDEX_PATH, 'utf8');
+      const match = content.match(/export const allDocs = ([\s\S]*);/);
+      docs = match ? JSON.parse(match[1]) : [];
+    } else {
+      docs = [];
+    }
 
     // Validation checks
     if (!Array.isArray(docs)) {

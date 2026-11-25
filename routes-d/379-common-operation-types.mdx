@@ -1,0 +1,33 @@
+---
+title: Common Operation Types (Issue #379 Draft)
+description: Working draft for the common Stellar operation types reference
+date: 2026-11-18
+---
+
+# Draft: Common Operation Types
+
+This file is a working draft for issue #379. The final text is placed in `docs/guides/transaction-lifecycle.mdx`.
+
+---
+
+### Common operation types
+
+| Operation                   | What it does                                                        |
+| --------------------------- | ------------------------------------------------------------------- |
+| Create Account              | Creates and funds a new account with a starting balance             |
+| Payment                     | Sends an amount of an asset to a destination account                |
+| Path Payment Strict Send    | Sends a fixed amount; the recipient may receive a different asset   |
+| Path Payment Strict Receive | Delivers a fixed amount to the recipient; the sent asset may differ |
+| Manage Sell Offer           | Creates, updates, or deletes an offer to sell an asset              |
+| Manage Buy Offer            | Creates, updates, or deletes an offer to buy an asset               |
+| Create Passive Sell Offer   | Offers to sell without taking a reverse offer of equal price        |
+| Change Trust                | Creates, updates, or deletes a trustline to an asset                |
+| Set Options                 | Sets account flags, signers, home domain, and thresholds            |
+| Manage Data                 | Sets, changes, or deletes a name/value data entry on an account     |
+| Create Claimable Balance    | Locks an amount of an asset for one or more claimants               |
+| Claim Claimable Balance     | Claims a claimable balance by its ID                                |
+| Bump Sequence               | Moves the account sequence number forward                           |
+| Account Merge               | Moves an account's XLM to another account and removes the account   |
+| Invoke Host Function        | Invokes or deploys a Soroban smart contract                         |
+
+`Allow Trust` is deprecated; use `Set Trust Line Flags` instead.

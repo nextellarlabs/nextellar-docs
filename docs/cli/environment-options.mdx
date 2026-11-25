@@ -83,6 +83,23 @@ const sorobanUrl = process.env.NEXT_PUBLIC_SOROBAN_URL;
 
 Switching networks requires updating both `NEXT_PUBLIC_HORIZON_URL` and `NEXT_PUBLIC_SOROBAN_URL` together. See [Network Switching](/docs/cli/configuration#network-switching).
 
+##### Network passphrase
+
+There is no separate passphrase variable. `NEXT_PUBLIC_NETWORK` selects the network passphrase that transactions are signed against:
+
+| `NEXT_PUBLIC_NETWORK` | Network passphrase                               | SDK constant       |
+| --------------------- | ------------------------------------------------ | ------------------ |
+| `TESTNET` (default)   | `Test SDF Network ; September 2015`              | `Networks.TESTNET` |
+| `PUBLIC`              | `Public Global Stellar Network ; September 2015` | `Networks.PUBLIC`  |
+
+Set it in `.env.local`:
+
+```bash
+NEXT_PUBLIC_NETWORK=PUBLIC
+```
+
+Scaffolded projects set it to `TESTNET` by default. Keep it in step with your Horizon and Soroban URLs; a transaction signed for one network is rejected by the other.
+
 ### App metadata
 
 #### `NEXT_PUBLIC_APP_NAME`
@@ -254,6 +271,8 @@ NEXT_PUBLIC_NETWORK={{NETWORK}}
 ## App Metadata
 NEXT_PUBLIC_APP_NAME={{APP_NAME}}
 ```
+
+The `{{NETWORK}}` placeholder is derived from the Horizon URL: if the URL contains "public", it becomes `PUBLIC`; otherwise, it defaults to `TESTNET`.
 
 When `--with-contracts` is used, the CLI appends:
 

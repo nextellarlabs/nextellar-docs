@@ -1,0 +1,72 @@
+---
+title: Soroban Glossary Entries
+description: Glossary definitions for Soroban invoker and authorization tree concepts.
+date: 2026-10-17
+---
+
+# Soroban Glossary Entries
+
+This document provides concise glossary entries for two key Soroban concepts: **Soroban Invoker** and **Authorization Tree**.
+
+## Soroban Invoker
+
+The **invoker** is the account or contract that initiates a smart contract invocation (function call). In Soroban, the invoker is the principal that signs the transaction or triggers the contract, and it is the only account that can authorize actions on behalf of itself by default.
+
+**Where it appears:**
+- Contract function logic that checks `env.invoker()` to determine who called the function
+- Authorization checks: `address.require_auth()` verifies the invoker's identity
+- Cross-contract calls: when one contract calls another, each has its own invoker context
+- Soroban SDK code: `soroban_sdk::Env::invoker()`
+
+**Related:** Authorization tree, require_auth()
+
+---
+
+## Authorization Tree
+
+The **authorization tree** is the hierarchical chain of authorizations required to execute a Soroban smart contract invocation. It tracks which principals (accounts or contracts) have authorized each action and prevents unauthorized access.
+
+**Structure:**
+- **Root invoker** — The account that signed the transaction
+- **Nested calls** — Each cross-contract call creates a new branch
+- **Authorization checks** — Each branch verifies `require_auth()` before state mutations
+
+**Where it appears:**
+- Contract invocation flow: Soroban enforces the tree during execution
+- Authorization logic: `require_auth()` checks validate position in the tree
+- Multi-contract dApps: complex trees form when contracts call other contracts
+- Ledger snapshots: the Soroban RPC `simulateTransaction` returns authorization details
+
+**Example:**
+```
+Transaction signed by Account A
+  └─ Calls Contract X (invoker = A)
+      └─ Contract X calls Contract Y (invoker = X, new branch)
+          └─ Contract Y requires auth from A (authorization tree validates this)
+```
+
+**Related:** Soroban invoker, require_auth(), smart contracts
+
+---
+
+## Adding to the Glossary
+
+These entries should be added to the main [Glossary](/docs/guides/glossary) under a new **Soroban Terms** section, or alphabetically integrated into the existing glossary structure.
+
+**Suggested placement in glossary.mdx:**
+
+```mdx
+### Soroban Invoker
+
+The account or contract that initiates a smart contract invocation. [Full definition...]
+
+### Authorization Tree
+
+The hierarchical chain of authorizations required to execute a Soroban smart contract invocation. [Full definition...]
+```
+
+## Related
+
+- [Soroban Integration](/docs/integrations/soroban) — Smart contract invocation overview
+- [Comprehensive Soroban Smart Contract Authoring Guide](/docs/guides/soroban-contract-authoring) — Authorization checks and contract logic
+- [Glossary](/docs/guides/glossary) — All Nextellar and Stellar terms

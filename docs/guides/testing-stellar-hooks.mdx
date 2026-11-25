@@ -1,0 +1,180 @@
+---
+title: Unit Testing Stellar Hooks
+description: Write unit tests for Nextellar Stellar hooks with a small setup, mocking approaches, and a passing example.
+date: 2026-11-22
+---
+
+# Unit Testing Stellar Hooks
+
+Stellar hooks usually combine React state, async effects, and Stellar SDK calls. Unit tests should keep those hooks deterministic by mocking the network and wallet boundaries while asserting the hook's public state.
+
+## Small Test Setup
+
+Use Vitest with `jsdom` and React Testing Library:
+
+```bash
+pnpm add -D vitest @vitejs/plugin-react jsdom @testing-library/react @testing-library/jest-dom
+```
+
+```ts
+// vitest.config.ts
+import { defineConfig } from 'vitest/config';
+import react from '@vitejs/plugin-react';
+import path from 'path';
+
+export default defineConfig({
+  plugins: [react()],
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    setupFiles: ['./tests/setup.ts'],
+    alias: { '@': path.resolve(__dirname, './src') },
+  },
+});
+```
+
+```ts
+// tests/setup.ts
+import '@testing-library/jest-dom/vitest';
+import { afterEach, vi } from 'vitest';
+import { cleanup } from '@testing-library/react';
+
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
+```
+
+## Mocking Approaches
+
+### 1. Mock `fetch` for Horizon Reads
+
+Use `vi.spyOn(global, 'fetch')` when a hook reads from Horizon directly. This keeps the test small and focused on hook state transitions.
+
+### 2. Mock SDK Modules
+
+Mock `@stellar/stellar-sdk` or project wrappers when you want to avoid real XDR construction or RPC calls.
+
+```ts
+import { vi } from 'vitest';
+
+vi.mock('@stellar/stellar-sdk', async () => {
+  const actual = await vi.importActual<typeof import('@stellar/stellar-sdk')>(
+    '@stellar/stellar-sdk'
+  );
+  return {
+    ...actual,
+    Horizon: {
+      Server: vi.fn().mockImplementation(() => ({
+        loadAccount: vi.fn().mockResolvedValue({ balances: [] }),
+      })),
+    },
+  };
+});
+```
+
+### 3. Mock Wallet Dependencies
+
+Wallet adapters should be mocked as plain functions/objects. Assert that your hook calls the adapter with expected arguments; do not test browser extension behavior.
+
+### 4. Use MSW at the Network Boundary
+
+When multiple hooks/components share HTTP behavior, MSW provides one mock layer. For pure unit tests, direct module or `fetch` mocks are usually enough.
+
+## Passing Example
+
+The example below tests a small balance hook with a mocked Horizon response.
+
+```ts
+// src/hooks/useNativeBalance.ts
+import { useEffect, useState } from 'react';
+
+export function useNativeBalance(publicKey?: string) {
+  const [balance, setBalance] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!publicKey) {
+      setBalance(null);
+      return;
+    }
+
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+
+    fetch(`https://horizon-testnet.stellar.org/accounts/${publicKey}`)
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`Horizon error: ${res.status}`);
+        return res.json();
+      })
+      .then((account) => {
+        if (cancelled) return;
+        const native = account.balances.find(
+          (b: { asset_type: string; balance: string }) =>
+            b.asset_type === 'native'
+        );
+        setBalance(native?.balance ?? '0');
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Unknown error');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [publicKey]);
+
+  return { balance, loading, error };
+}
+```
+
+```ts
+// src/hooks/useNativeBalance.test.ts
+import { describe, expect, it, vi } from 'vitest';
+import { renderHook, waitFor } from '@testing-library/react';
+import { useNativeBalance } from './useNativeBalance';
+
+describe('useNativeBalance', () => {
+  it('loads the native XLM balance', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        balances: [{ asset_type: 'native', balance: '42.5000000' }],
+      }),
+    } as Response);
+
+    const { result } = renderHook(() =>
+      useNativeBalance(
+        'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5'
+      )
+    );
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    expect(result.current.error).toBeNull();
+    expect(result.current.balance).toBe('42.5000000');
+  });
+});
+```
+
+## What to Assert
+
+- **State transitions**: loading, success, and error states.
+- **Input guards**: no request when address/contract ID is missing.
+- **Cleanup**: stale async work does not update unmounted hooks.
+- **Adapter calls**: wallet/signing functions receive expected arguments.
+
+## Related
+
+- [Testing Guide for Scaffolded dApps](/docs/guides/testing)
+- [Vitest Setup for Stellar dApps](/docs/guides/vitest-stellar-dapp-setup)
+- [Hook Error Handling](/docs/guides/hook-error-handling)

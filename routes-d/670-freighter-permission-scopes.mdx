@@ -1,0 +1,38 @@
+---
+title: Freighter Permission Scopes
+description: What a dApp can ask Freighter for, and the user prompts to expect for each request.
+date: 2026-11-21
+---
+
+# Freighter Permission Scopes
+
+Freighter does not use OAuth-style scopes. Instead, it keeps a per-site **allow list**: once a user approves your site, it can read their public key and network, and every action that signs something still opens its own review popup. Plan your UI around those two layers.
+
+## Common requests
+
+| Request (`@stellar/freighter-api`) | What it grants or does | Prompt to expect |
+| --- | --- | --- |
+| `isConnected()` | Checks that the extension is installed | None |
+| `isAllowed()` | Checks whether the user already approved your site | None |
+| `requestAccess()` | Adds your site to the allow list and returns the user's public key | An approval popup the first time; none once allowed |
+| `setAllowed()` | Adds your site to the allow list | An approval popup |
+| `getAddress()` | Returns the active account's public key | None once allowed |
+| `getNetwork()` | Returns the network Freighter is set to | None once allowed |
+| `signTransaction()` | Signs a transaction envelope | A review popup for every request |
+| `signAuthEntry()` | Signs a Soroban authorization entry | A review popup for every request |
+| `signMessage()` | Signs an arbitrary message | A review popup for every request |
+
+Method names and availability change between `@stellar/freighter-api` versions, so check the version you install.
+
+## What to expect in practice
+
+- **First visit:** the user sees one approval popup. After that, reading the address and network does not prompt again until they remove your site from the allow list.
+- **Every signature:** the popup shows the transaction details, so keep the form state intact while it is open and offer a retry if it is dismissed.
+- **Revoked access:** the user can remove your site in Freighter's settings at any time. Calls then behave as if the site had never been approved, so check `isAllowed()` on load instead of assuming access.
+- **Wrong network or account:** the active network and account belong to the user, not your app. Re-read them before signing.
+
+## Related
+
+- [Wallet Integrations](/docs/integrations/wallets) — Freighter and other wallets
+- [Handling Freighter Timeouts](/docs/guides/handling-freighter-timeout) — When a popup is ignored
+- [Handling Freighter User Rejection](/docs/guides/handling-freighter-user-reject) — When the user declines

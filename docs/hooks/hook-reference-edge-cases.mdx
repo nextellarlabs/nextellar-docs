@@ -12,53 +12,44 @@ This document serves as the authoritative, end-to-end reference for every React 
 
 ## 1. useStellarWallet
 
-Manages wallet connectivity, account key state, multi-wallet selection (Freighter, Albedo, Lobstr, xBull), and transaction/blob signing.
+Manages wallet connectivity, account key state, balances, and classic payments.
 
 ### Signature & Inputs
 
 ```typescript
-export interface WalletOptions {
-  preferredWallet?: 'freighter' | 'albedo' | 'lobstr' | 'xbull';
-  autoConnect?: boolean;
-  network?: 'PUBLIC' | 'TESTNET' | 'FUTURENET';
-}
-
-export function useStellarWallet(
-  options?: WalletOptions
-): UseStellarWalletReturn;
+function useStellarWallet(
+  horizonUrl?: string,
+  network?: string
+): StellarWalletState;
 ```
 
 ### Outputs & Return Values
 
 ```typescript
-export interface UseStellarWalletReturn {
-  publicKey: string | null;
-  isConnected: boolean;
-  isConnecting: boolean;
-  walletType: string | null;
-  network: 'PUBLIC' | 'TESTNET' | 'FUTURENET';
-  error: Error | null;
-  connect: (walletType?: string) => Promise<string>;
-  disconnect: () => Promise<void>;
-  signTransaction: (
-    xdr: string,
-    opts?: { networkPassphrase?: string }
-  ) => Promise<string>;
-  signBlob: (blobHex: string) => Promise<string>;
+interface StellarWalletState {
+  connected: boolean;
+  publicKey?: string;
+  walletName?: string;
+  balances: Balance[];
+  connect: () => Promise<void>;
+  disconnect: () => void;
+  refreshBalances: () => Promise<void>;
+  sendPayment?: (
+    options: PaymentOptions
+  ) => Promise<Horizon.HorizonApi.SubmitTransactionResponse>;
 }
 ```
 
 ### Error Scenarios & Edge Cases
 
-- **Extension Not Installed**: `Error("Wallet extension 'freighter' is not installed")`.
-- **User Rejected Request**: `Error("User rejected connection / signature request")`.
-- **Network Mismatch**: Wallet extension is set to Testnet while application requires Public Mainnet.
-- **Abrupt Disconnection**: Wallet extension gets locked or disabled during an active app session.
+- Connection errors are logged and rethrown from `connect()`.
+- A failed account lookup leaves the wallet connected with an empty balance list.
+- `sendPayment` is `undefined` until a wallet is connected.
 
 ### Race Condition & Unmount Handling
 
-- **Race Condition**: User clicks `connect()` multiple times in rapid succession or switches wallet providers before the first popup resolves. The hook cancels previous connection pending state and guarantees only the latest request updates `publicKey`.
-- **Unmount Behavior**: If the parent component unmounts while awaiting extension authorization, internal state updates are guarded against memory leaks via active component mounted flags.
+- **Race Condition**: A connection sequence counter prevents an older pending connection from overwriting a newer selection or disconnect.
+- **Unmount Behavior**: The hook does not implement a dedicated mounted-state guard; avoid initiating new UI actions after unmount.
 
 ### Worked Edge Case Example
 
@@ -67,56 +58,31 @@ import React, { useState } from 'react';
 import { useStellarWallet } from '@/hooks/useStellarWallet';
 
 export function WalletConnectEdgeCaseHandler() {
-  const {
-    publicKey,
-    isConnected,
-    isConnecting,
-    error,
-    connect,
-    signTransaction,
-  } = useStellarWallet({
-    autoConnect: true,
-    network: 'TESTNET',
-  });
-  const [signing, setSigning] = useState(false);
-  const [txError, setTxError] = useState<string | null>(null);
+  const { connected, publicKey, connect, disconnect, refreshBalances } =
+    useStellarWallet();
+  const [message, setMessage] = useState<string | null>(null);
 
-  const handleSignSafely = async (unsignedXdr: string) => {
-    setSigning(true);
-    setTxError(null);
+  const handleConnect = async () => {
     try {
-      const signedXdr = await signTransaction(unsignedXdr);
-      return signedXdr;
-    } catch (err: any) {
-      if (err.message?.includes('rejected')) {
-        setTxError('Transaction signing was cancelled by user.');
-      } else if (err.message?.includes('Network mismatch')) {
-        setTxError('Please switch your wallet network to Stellar Testnet.');
-      } else {
-        setTxError(err.message || 'Failed to sign transaction.');
-      }
-    } finally {
-      setSigning(false);
+      await connect();
+      setMessage('Wallet connected.');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Connection failed.');
     }
   };
 
   return (
     <div>
-      {error && <p className="error">Wallet Error: {error.message}</p>}
-      {txError && <p className="error">Tx Error: {txError}</p>}
-      {!isConnected ? (
-        <button onClick={() => connect('freighter')} disabled={isConnecting}>
-          {isConnecting ? 'Connecting Wallet...' : 'Connect Freighter'}
-        </button>
+      {message && <p role="status">{message}</p>}
+      {!connected ? (
+        <button onClick={() => void handleConnect()}>Connect Wallet</button>
       ) : (
         <div>
           <p>Connected Key: {publicKey}</p>
-          <button
-            onClick={() => handleSignSafely('AAAA...')}
-            disabled={signing}
-          >
-            {signing ? 'Awaiting Signature...' : 'Sign Sample Tx'}
+          <button onClick={() => void refreshBalances()}>
+            Refresh balances
           </button>
+          <button onClick={disconnect}>Disconnect</button>
         </div>
       )}
     </div>
@@ -160,14 +126,14 @@ export function useStellarBalances(
 
 ### Error Scenarios & Edge Cases
 
-- **Unfunded Account (Horizon 404)**: When a new public key is generated but has not received initial XLM funding. The hook catches Horizon 404 and returns `balances: []` with an `isUnfunded: true` helper rather than throwing a hard network exception.
+- **Unfunded Account (Horizon 404)**: The hook catches Horizon 404 and returns `balances: []` without setting an error.
 - **Malformed Public Key**: Invalid G-address formatting results in an instant validation error before making HTTP queries.
-- **Horizon Rate Limit (429)**: Exceeding network rate limits pauses auto-polling with exponential backoff.
+- **Horizon Rate Limit (429)**: The request error is stored in `error`; polling continues at the configured interval.
 
 ### Race Condition & Unmount Handling
 
-- **Race Condition**: Rapid changing of `publicKey` prop cancels inflight HTTP fetches using `AbortController`. Out-of-order Horizon HTTP responses for previously queried addresses are discarded.
-- **Unmount Behavior**: Polling timers (`setInterval`) and active `fetch` requests are terminated during `useEffect` cleanup.
+- **Request Coordination**: A module-level guard skips duplicate fetches while a request is in flight. Requests are not aborted when the key changes.
+- **Unmount Behavior**: Polling timers are cleared during effect cleanup; in-flight Horizon requests are not aborted.
 
 ### Worked Edge Case Example
 
@@ -181,8 +147,7 @@ export function UserBalanceDisplay({
   accountId: string | null;
 }) {
   const { balances, loading, error, refresh } = useStellarBalances(accountId, {
-    autoRefresh: true,
-    refreshIntervalMs: 10000,
+    pollIntervalMs: 10000,
   });
 
   if (!accountId) return <div>No account provided.</div>;

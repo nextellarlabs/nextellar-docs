@@ -1,0 +1,91 @@
+---
+title: Docker Compose for Local Stellar Development
+description: Use Docker Compose to run a local Stellar Quickstart stack for Horizon and Soroban development, with verification and reset guidance.
+date: 2026-11-22
+---
+
+# Docker Compose for Local Stellar Development
+
+Docker Compose is a convenient way to start and stop a local Stellar development stack with repeatable configuration. This setup uses the official Stellar Quickstart image to run local Horizon and Soroban RPC services.
+
+## Docker Compose fragment
+
+Create `docker-compose.stellar.yml`:
+
+```yaml
+services:
+  stellar:
+    image: stellar/quickstart:latest
+    container_name: stellar-local
+    command: ['--local', '--enable-soroban-rpc']
+    ports:
+      - '8000:8000'
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:8000/']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+```
+
+Start it:
+
+```bash
+docker compose -f docker-compose.stellar.yml up -d
+```
+
+## Images used
+
+| Image                       | Purpose                                                                                      |
+| --------------------------- | -------------------------------------------------------------------------------------------- |
+| `stellar/quickstart:latest` | Runs Stellar Core, Horizon, Friendbot, and optional Soroban RPC in one development container |
+
+You can pin a specific tag instead of `latest` for more reproducible team setups.
+
+## Verification step
+
+Check the container and Horizon endpoint:
+
+```bash
+docker compose -f docker-compose.stellar.yml ps
+curl http://localhost:8000/
+```
+
+Optional account smoke test:
+
+```bash
+PUBLIC_KEY="G..."
+curl "http://localhost:8000/friendbot?addr=${PUBLIC_KEY}"
+curl "http://localhost:8000/accounts/${PUBLIC_KEY}"
+```
+
+## SDK configuration
+
+```ts
+import { Horizon } from '@stellar/stellar-sdk';
+
+const server = new Horizon.Server('http://localhost:8000', {
+  allowHttp: true,
+});
+```
+
+## Reset behavior
+
+- **Stop services, keep container state:** `docker compose -f docker-compose.stellar.yml stop`
+- **Remove containers and network:** `docker compose -f docker-compose.stellar.yml down`
+- **Full reset:** remove containers and any volumes you explicitly add for persistence. Because this fragment does not define volumes, `down` gives you a clean local reset in most cases.
+
+If you add a volume for persistent ledger data, use `docker compose -f docker-compose.stellar.yml down -v` only when you intentionally want to delete that data.
+
+## Edge cases
+
+- **Docker not running:** Compose commands fail before Horizon starts; verify Docker Desktop/daemon first.
+- **Port 8000 in use:** change the host mapping, for example `"8001:8000"`.
+- **Apple Silicon / image pulls:** Docker may pull a platform-specific image; if startup fails, check Docker logs with `docker compose -f docker-compose.stellar.yml logs -f stellar`.
+- **Network mismatch:** local standalone endpoints should not be paired with Testnet/Mainnet passphrases.
+
+## Related docs
+
+- [Running a Local Horizon](/docs/guides/running-local-horizon)
+- [Local Futurenet Setup](/docs/guides/local-futurenet-setup)
+- [Testing Horizon and Soroban Interactions](/docs/guides/testing-horizon-soroban)

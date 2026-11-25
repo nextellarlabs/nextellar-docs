@@ -18,6 +18,18 @@ Every transaction must include a `fee` field set in **stroops** (1 XLM = 10,000,
 
 When more transactions are submitted than can fit in a single ledger (currently ~1000 ops/ledger), Stellar enters surge-pricing mode. Only transactions meeting or exceeding the median fee of included transactions get through. The rest are rejected immediately with `tx_insufficient_fee`.
 
+### Fee auction basics
+
+Under surge pricing, ledger space is allocated by auction:
+
+- **Base fee floor:** every operation must bid at least the network minimum of **100 stroops** (0.00001 XLM). Validators can change this minimum by vote.
+- **Higher bids go first.** Transactions are sorted by the fee they bid, and the highest bids fill the ledger.
+- **Everyone pays the lowest winning bid.** All included transactions pay the lowest inclusion fee in the set, not their own bid, so a higher bid improves your odds without raising what you pay.
+- **Ties are resolved randomly.** If several transactions bid the same fee and not all fit, the network picks among them at random.
+- **Losers wait or drop.** Transactions that miss the cut move to the next ledger, or are discarded if they wait too long.
+
+Smart contract transactions compete only with other smart contract transactions for their own share of ledger capacity.
+
 ---
 
 ## Reading Fee Signals from Horizon

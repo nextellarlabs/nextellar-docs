@@ -24,6 +24,10 @@ A token on Stellar, such as native XLM or a custom asset issued by an account.
 
 The Stellar account that creates and backs a custom asset on the network.
 
+### Anchor Domain
+
+The domain of an organization that operates an anchor on Stellar — for example, `example.com`. Anchors publish a `stellar.toml` file at their domain so wallets and clients can discover their supported assets, SEP endpoints, and issuer accounts. The anchor domain is the trusted root that ties an on-chain asset issuer back to a real-world organization.
+
 ### Balance
 
 The amount of XLM or another asset held by a Stellar account.
@@ -31,6 +35,14 @@ The amount of XLM or another asset held by a Stellar account.
 ### dApp
 
 A decentralized application that combines a user interface with blockchain-backed actions or data.
+
+### Envelope Type
+
+A classification that specifies the structure and contents of a Stellar transaction envelope. The two main envelope types are `ENVELOPE_TYPE_TX` for standard transactions and `ENVELOPE_TYPE_TX_FEE_BUMP` for fee bump transactions. Envelope types determine how the transaction is parsed and validated by the network.
+
+### Fee Bump
+
+A transaction wrapper that increases the fee of an existing transaction without changing its operations. The fee bump transaction pays for the inner transaction's execution, allowing a different account to cover higher network fees. Useful when a transaction may fail due to insufficient fees or when one party wants to subsidize another's transaction costs.
 
 ### Freighter
 
@@ -44,6 +56,10 @@ A testnet service that creates and funds accounts with free test XLM.
 
 The Stellar API service used to read account data, balances, transactions, and network activity.
 
+### Ledger Header
+
+The metadata and summary information for a ledger, including the ledger sequence number, timestamp, base reserve, network fees, and a hash of all ledger entries. The ledger header appears in every ledger close and is used to validate ledger state and transaction history.
+
 ### Mainnet
 
 The live Stellar network where real assets and production transactions are used.
@@ -52,9 +68,17 @@ The live Stellar network where real assets and production transactions are used.
 
 A short note attached to a Stellar transaction, often used to identify a payment.
 
+### Muxed Account
+
+An address that starts with `M` and combines a regular `G...` account with a 64-bit ID, so many virtual accounts can share one Stellar account. Muxed accounts do not exist on the ledger; payments settle to the underlying `G...` account. Exchanges and custodial services use them to credit deposits to individual customers, as an alternative to memos. Not every wallet, exchange, or anchor supports them yet. See [Pooled accounts, muxed accounts, and memos](https://developers.stellar.org/docs/build/guides/transactions/pooled-accounts-muxed-accounts-memos) in the Stellar docs.
+
 ### Network Passphrase
 
 A value that identifies which Stellar network a transaction belongs to.
+
+### Passphrase
+
+A string used to derive a private key from a secret phrase or mnemonic. In wallet contexts, a passphrase provides an optional additional layer of security by creating a different key derivation path. The same secret phrase with different passphrases generates entirely different accounts.
 
 ### Public Key
 
@@ -79,6 +103,10 @@ The blockchain network that Nextellar targets for payments, assets, and wallet-b
 ### Stellar SDK
 
 The official JavaScript library used to build, sign, and submit Stellar transactions.
+
+### stellar.toml
+
+A public file an organization publishes at `https://<domain>/.well-known/stellar.toml`. Under SEP-1 it is the discovery document that lets wallets and clients find an anchor: they read its fields to learn which accounts and assets the anchor supports, and which endpoints to use for deposits, withdrawals, and authentication. Common fields include `VERSION`, `SIGNERS`, `ACCOUNTS`, `ORG_NAME`/`ORG_URL`, `CURRENCIES` (asset code and issuer), `TRANSFER_SERVER`, `KYC_SERVER`, and `WEB_AUTH_ENDPOINT`. Treat it as untrusted input from a domain you are verifying, not as proof of an asset's legitimacy.
 
 ### Testnet
 

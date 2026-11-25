@@ -1,0 +1,108 @@
+---
+title: Soroban Auth Entries in Depth
+description: The structure of Soroban authorization entries, the credential forms, nested sub-invocations, and a worked example.
+date: 2026-11-22
+---
+
+# Soroban Auth Entries in Depth
+
+When a contract calls `require_auth()`, Soroban does not look at the transaction signers directly. It looks for an authorization entry that matches the invocation being authorized. Understanding that entry, and the tree of invocations it carries, makes it much easier to debug simulation failures and build custom signing flows.
+
+## Where entries come from
+
+Clients normally start by simulating an invocation with `simulateTransaction`. The simulation response includes an `auth` list, with one entry for each authorization the host expects. A wallet or signer fills in the credentials on those entries, and the completed entries are attached to the real `invokeHostFunction` operation before submission.
+
+An entry that is missing, or whose invocation does not match, fails at authorization time rather than at simulation time. That is why the entry shape matters even when a wallet normally hides it.
+
+## Entry fields
+
+An authorization entry has two top level fields.
+
+| Field            | What it contains                                                                                     |
+| ---------------- | ---------------------------------------------------------------------------------------------------- |
+| `credentials`    | Who is authorizing and what proof they supplied. Either the source account form or the address form. |
+| `rootInvocation` | The invocation being authorized, plus any nested sub invocations.                                    |
+
+### Credentials
+
+The source account form is a marker. A `sourceAccount` credential means the transaction source account authorizes the call, and it carries no separate signature because the transaction envelope is already signed by that account.
+
+The address form is used for every other address. It contains:
+
+- `address`: the address that must authorize the call.
+- `nonce`: a value that prevents the signature from being replayed.
+- `signature`: the proof. A standard key produces an Ed25519 signature over the signed auth payload. Other forms include a pre authorized transaction or a hash of one.
+
+### The invocation tree
+
+`rootInvocation` identifies the call being authorized:
+
+- `function` is either a contract function with a `contractAddress`, `functionName`, and `args`, or an invoker contract marker.
+- `subInvocations` is a list of child calls that also need authorization.
+
+The tree mirrors the contract call graph. If the root contract calls a second contract that itself calls `require_auth()`, the entry for the second contract appears as a sub invocation of the first. Signing only the root invocation is not enough.
+
+## Nested auth patterns
+
+Three patterns cover most of the cases you will meet.
+
+**Direct auth.** A contract calls `caller.require_auth()` on an address passed in by the client. The root invocation is the contract function, and the credential is the address form for `caller`.
+
+**Cross contract auth.** Contract A calls contract B, and B requires auth from an address it learned from A. The entry has A as the root invocation and B as a sub invocation. The credential is still for the end user address, but the host verifies that the signed payload matches the nested call.
+
+**Invoker auth.** A contract authorizes an action on behalf of its own invoker. Here the nested function is marked as an invoker contract function rather than a specific contract function. This is useful for factories and wrappers that must prove which contract called them.
+
+When you inspect a simulation response, walk the whole tree and collect every address that appears in a credential. Those are the signatures your signing step must produce.
+
+## Example
+
+The following example reads the expected entries from a simulation, then hands them to a signer. It deliberately keeps the signing step as a function you supply, because the details depend on whether you are using a wallet, a local key, or a custom signer.
+
+```typescript
+import { rpc, TransactionBuilder, Operation, xdr } from '@stellar/stellar-sdk';
+
+const server = new rpc.Server('https://soroban-testnet.stellar.org');
+
+async function collectAuthAddresses(contractId, method, args, source) {
+  const account = await server.getAccount(source);
+  const operation = Operation.invokeContractFunction({
+    contract: contractId,
+    function: method,
+    args,
+  });
+
+  const simulation = await server.simulateTransaction(
+    new TransactionBuilder(account, {
+      fee: '100',
+      networkPassphrase: rpc.Api.NETWORK_PASSPHRASE,
+    })
+      .addOperation(operation)
+      .build()
+  );
+
+  if (rpc.Api.isSimulationError(simulation)) {
+    throw new Error(simulation.error);
+  }
+
+  // Simulation returns XDR strings. Decode them before walking the tree.
+  const addresses = new Set();
+  for (const entryXdr of simulation.auth ?? []) {
+    const entry = xdr.SorobanAuthorizationEntry.fromXDR(entryXdr, 'base64');
+    if (entry.credentials().switch().name === 'sorobanCredentialsAddress') {
+      addresses.add(entry.credentials().address().address().toString());
+    }
+  }
+  return [...addresses];
+}
+```
+
+The important part is the traversal, not the SDK surface. Take each entry, decode it, inspect the credential to learn which address must sign, and keep the original entry XDR so the signature can be attached in place. Rebuilding entries from scratch is a common source of signature mismatches.
+
+## Checklist for debugging auth failures
+
+1. Confirm the address in the credential is the address your contract actually checks.
+2. Confirm every sub invocation is present and signed, not just the root invocation.
+3. Confirm the nonce has not already been consumed by a previous submission.
+4. Confirm the signature was produced over the exact entry from simulation, including its arguments.
+
+For related background, see the [Soroban host functions guide](/docs/guides/soroban-host-functions) and the [Soroban integration overview](/docs/integrations/soroban).
